@@ -36,20 +36,18 @@ static double flac_get_replaygain(const char *filename) {
 	if (FLAC__METADATA_TYPE_VORBIS_COMMENT != tags->type)
 		return 0;
 
+//	const char *albumgain = flac_get_tag_utf8(tags, "REPLAYGAIN_ALBUM_GAIN");
+//	if (albumgain) {
+//		sscanf(albumgain, "%lf dB", &rgvalue);
+//		FLAC__metadata_object_delete(tags);
+//		return rgvalue;
+//	}
 	const char *trackgain = flac_get_tag_utf8(tags, "REPLAYGAIN_TRACK_GAIN");
 	if (trackgain) {
 		sscanf(trackgain, "%lf dB", &rgvalue);
 		FLAC__metadata_object_delete(tags);
 		return rgvalue;
 	}
-
-	const char *albumgain = flac_get_tag_utf8(tags, "REPLAYGAIN_ALBUM_GAIN");
-	if (albumgain) {
-		sscanf(albumgain, "%lf dB", &rgvalue);
-		FLAC__metadata_object_delete(tags);
-		return rgvalue;
-	}
-
 	return 0;
 }
 
@@ -58,11 +56,11 @@ static double mp3_get_replaygain(const char *filename) {
 	taginfo = malloc(sizeof(struct MP3GainTagInfo));
 
 	ReadMP3GainID3Tag((char*) filename, taginfo);
+//	if (taginfo->haveAlbumGain) {
+//		return taginfo->albumGain;
+//	}
 	if (taginfo->haveTrackGain) {
 		return taginfo->trackGain;
-	}
-	if (taginfo->haveAlbumGain) {
-		return taginfo->albumGain;
 	}
 	return 0;
 }

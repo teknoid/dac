@@ -21,6 +21,10 @@ void dac_volume_up() {
 	msleep(100);
 #endif
 
+#ifdef ANUS
+	system("/usr/bin/amixer set Master 2%+ >/dev/null");
+#endif
+
 	mcplog("VOL++");
 }
 
@@ -34,6 +38,10 @@ void dac_volume_down() {
 	msleep(100);
 	digitalWrite(GPIO_VOL_DOWN, 0);
 	msleep(100);
+#endif
+
+#ifdef ANUS
+	system("/usr/bin/amixer set Master 2%- >/dev/null");
 #endif
 
 	mcplog("VOL--");

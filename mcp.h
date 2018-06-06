@@ -11,7 +11,7 @@
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
 #define DEVINPUT		"/dev/input/infrared"
-#define MUSIC 			"/media/hje/349ece80-f9a0-47d1-bd95-8d02fb097650/music/"
+#define MUSIC 			"/opt/music/"
 #endif
 
 #ifdef PIWOLF
