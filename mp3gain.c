@@ -789,6 +789,7 @@ static int id3_decode_mp3gain_frame(const struct ID3v2FrameStruct *frame, struct
 	char buf[64];
 	int f1, f2;
 	char f3;
+	double f4;
 
 	/* Ignore non-TXXX frames. */
 	if (memcmp(frame->frameid, "TXXX", 4) != 0)
@@ -831,6 +832,18 @@ static int id3_decode_mp3gain_frame(const struct ID3v2FrameStruct *frame, struct
 			info->haveAlbumMinMaxGain = 1;
 			info->albumMinGain = f1;
 			info->albumMaxGain = f2;
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_TRACK_GAIN") == 0) {
+		/* from FLAC ReplayGain */
+		if (sscanf(buf + strlen(buf) + 1, "%lf dB", &f4) == 1 && info != NULL) {
+			info->trackGain = f4;
+		}
+		return 1;
+	} else if (strcasecmp(buf, "REPLAYGAIN_ALBUM_GAIN") == 0) {
+		/* from FLAC ReplayGain */
+		if (sscanf(buf + strlen(buf) + 1, "%lf dB", &f4) == 1 && info != NULL) {
+			info->albumGain = f4;
 		}
 		return 1;
 	}
