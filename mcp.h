@@ -1,6 +1,6 @@
-#define ANUS
+// #define ANUS
 // #define PIWOLF
-// #define SABRE
+#define SABRE
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
 #define LIRC_REMOTE 	"audiophonics-wolfson"

@@ -1,5 +1,5 @@
-#LIBS=-lwiringPi -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
-LIBS=-lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
+LIBS=-lwiringPi -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
+#LIBS=-lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 #CFLAGS=-I/usr/include/libmpd-1.0/libmpd/ -Wall -Wmissing-prototypes -Wmissing-declarations
 CFLAGS=-Wall -Wmissing-prototypes -Wmissing-declarations
 CC = gcc
