@@ -20,7 +20,8 @@ move() {
   FILE="$MUSIC/$TGT/$F"
   if [ ! -f "$FILE" ]; then
     echo "moving $MUSIC/$CUR --> $MUSIC/$TGT"
-    mv "$MUSIC/$CUR" "$MUSIC/$TGT/"
+#    mv "$MUSIC/$CUR" "$MUSIC/$TGT/"
+    cp -a "$MUSIC/$CUR" "$MUSIC/$TGT/"
     mpc next
   fi
 }
@@ -30,51 +31,51 @@ case $CMD in
     mpc clear; mpc listall | shuf -n 100 | mpc add; mpc play
     ;;
   0)
-    load sort "1_sortiert/00 incoming"
+    load sort "01 sortiert/00 incoming"
     ;;
   1)
-    load shuf "1_sortiert/01 aktuell"
+    load shuf "01 sortiert/01 aktuell"
     ;;
   2)
-    load shuf "1_sortiert/02 top"
+    load shuf "01 sortiert/02 top"
     ;;
   3)
-    load shuf "1_sortiert/03 modern"
+    load shuf "01 sortiert/03 modern"
     ;;
   4)
-    load shuf "1_sortiert/04 eurodance"
+    load shuf "01 sortiert/04 eurodance"
     ;;
   5)
-    load shuf "1_sortiert/05 umz"
+    load shuf "01 sortiert/05 umz"
     ;;
   6)
-    load shuf "1_sortiert/06 extended"
+    load shuf "01 sortiert/06 extended"
     ;;
   7)
-    load shuf "1_sortiert/07 classics"
+    load shuf "01 sortiert/07 classics"
     ;;
   8)
-    load shuf "1_sortiert/08 chill"
+    load shuf "01 sortiert/08 chill"
     ;;
   9)
-    load shuf "1_sortiert/09 movie"
+    load shuf "01 sortiert/09 movie"
     ;;
   F1)
-#    move "1_sortiert/01 aktuell"
-    move "1_sortiert/04 eurodance"
-#    move "1_sortiert/13 oldies"
+#    move "01 sortiert/01 aktuell"
+    move "01 sortiert/04 eurodance"
+#    move "01 sortiert/13 oldies"
     ;;
   F2)
-    move "1_sortiert/02 top"
-#    move "1_sortiert/17 house"
+    move "01 sortiert/02 top"
+#    move "01 sortiert/17 house"
     ;;
   F3)
-    move "1_sortiert/03 modern"
+    move "01 sortiert/03 modern"
     ;;
   F4)
-#    move "1_sortiert/07 classics"
-#    move "1_sortiert/06 extended"
-    move "1_sortiert/05 umz"
+#    move "01 sortiert/07 classics"
+#    move "01 sortiert/06 extended"
+    move "01 sortiert/05 umz"
     ;;
   *)
     ;;
