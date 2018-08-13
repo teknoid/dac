@@ -13,15 +13,15 @@ load() {
   mpc play
 }
 
-move() {
+transfer() {
   TGT=$1
   CUR=`mpc -f %file% current`
   F=`basename "$CUR"`
-  FILE="$MUSIC/$TGT/$F"
-  if [ ! -f "$FILE" ]; then
-    echo "moving $MUSIC/$CUR --> $MUSIC/$TGT"
-#    mv "$MUSIC/$CUR" "$MUSIC/$TGT/"
-    cp -a "$MUSIC/$CUR" "$MUSIC/$TGT/"
+  FFROM="$MUSIC/$CUR"
+  FTO="$MUSIC/$TGT/$F"
+  if [ -f "$FFROM" ] && [ ! -f "$FTO" ]; then
+    echo "copying $FFROM --> $FTO"
+    cp -a "$FFROM" "$FTO"
     mpc next
   fi
 }
@@ -34,10 +34,10 @@ case $CMD in
     load sort "01 sortiert/00 incoming"
     ;;
   1)
-    load shuf "01 sortiert/01 aktuell"
+    load shuf "01 sortiert/01 top"
     ;;
   2)
-    load shuf "01 sortiert/02 top"
+    load shuf "01 sortiert/02 aktuell"
     ;;
   3)
     load shuf "01 sortiert/03 modern"
@@ -61,21 +61,21 @@ case $CMD in
     load shuf "01 sortiert/09 movie"
     ;;
   F1)
-#    move "01 sortiert/01 aktuell"
-    move "01 sortiert/04 eurodance"
-#    move "01 sortiert/13 oldies"
+#    transfer "01 sortiert/02 aktuell"
+    transfer "01 sortiert/04 eurodance"
+#    transfer "01 sortiert/13 oldies"
     ;;
   F2)
-    move "01 sortiert/02 top"
-#    move "01 sortiert/17 house"
+    transfer "01 sortiert/01 top"
+#    transfer "01 sortiert/17 house"
     ;;
   F3)
-    move "01 sortiert/03 modern"
+    transfer "01 sortiert/03 modern"
     ;;
   F4)
-#    move "01 sortiert/07 classics"
-#    move "01 sortiert/06 extended"
-    move "01 sortiert/05 umz"
+#    transfer "01 sortiert/07 classics"
+#    transfer "01 sortiert/06 extended"
+    transfer "01 sortiert/05 umz"
     ;;
   *)
     ;;
