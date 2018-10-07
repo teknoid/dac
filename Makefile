@@ -1,16 +1,26 @@
-LIBS=-lwiringPi -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
-#LIBS=-lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
-#CFLAGS=-I/usr/include/libmpd-1.0/libmpd/ -Wall -Wmissing-prototypes -Wmissing-declarations
-CFLAGS=-Wall -Wmissing-prototypes -Wmissing-declarations
-CC = gcc
+L = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
+F = -Wall -Wmissing-prototypes -Wmissing-declarations
+C = gcc
 
-all: mcp
+O = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
+ 
+all:
+	@echo "specify target: anus | piwolf | sabre | sabre2"
 
-mcp: mcp.o devinput.o lirc.o dac.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
-	$(CC) $(CFLAGS) $(LIBS) -o mcp mcp.o devinput.o lirc.o dac.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
+anus: $(O) dac-anus.o 
+	$(C) $(F) $(L) -o mcp $(O) dac-anus.o 
+
+piwolf: $(O) lirc.o dac-piwolf.o
+	$(C) $(F) $(L) -lwiringPi -o mcp $(O) lirc.o dac-piwolf.o
+
+sabre: $(O) dac-es9018.o
+	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9018.o
+
+sabre2: $(O) dac-es9028.o
+	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9028.o
 
 test: test.o mp3gain.o
-	$(CC) $(CFLAGS) $(LIBS) -o test test.o mp3gain.o 
+	$(C) $(F) $(L) -o test test.o mp3gain.o 
 
 .PHONY: clean
 

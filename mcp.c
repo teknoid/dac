@@ -24,6 +24,7 @@ pthread_t thread_devinput;
 #endif
 
 pthread_t thread_mpdclient;
+pthread_t thread_dac;
 
 FILE *flog;
 
@@ -63,6 +64,10 @@ static void sig_handler(int signo) {
 		if (pthread_cancel(thread_mpdclient)) {
 			mcplog("Error canceling thread_mpdclient");
 		}
+
+		if (pthread_cancel(thread_dac)) {
+			mcplog("Error canceling thread_dac");
+		}
 	}
 }
 
@@ -100,8 +105,14 @@ static void daemonize() {
 }
 
 int main(int argc, char **argv) {
-	daemonize();
+	// daemonize();
+
 	flog = fopen(LOGFILE, "a");
+	if (flog == 0) {
+		perror("error opening logfile " LOGFILE);
+		exit(EXIT_FAILURE);
+	}
+
 	mcplog("MCP initializing");
 
 	/* install signal handler */
@@ -157,9 +168,21 @@ int main(int argc, char **argv) {
 		mcplog("Error creating thread_mpdclient");
 	}
 
+	if (pthread_create(&thread_dac, NULL, &dac, NULL)) {
+		mcplog("Error creating thread_dac");
+	}
+
 	mcplog("MCP online");
 
 	/* wait for threads to finish */
+
+	if (pthread_join(thread_dac, NULL)) {
+		mcplog("Error joining thread_dac");
+	}
+
+	if (pthread_join(thread_mpdclient, NULL)) {
+		mcplog("Error joining thread_mpdclient");
+	}
 
 #ifdef LIRC_RECEIVE
 	if (pthread_join(thread_lirc, NULL)) {
@@ -173,9 +196,8 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	if (pthread_join(thread_mpdclient, NULL)) {
-		mcplog("Error joining thread_mpdclient");
-	}
+	/* shutdown modules */
+	dac_close();
 
 	mcplog("MCP terminated");
 	fclose(flog);

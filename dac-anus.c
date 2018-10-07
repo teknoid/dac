@@ -5,10 +5,12 @@
 #include "mcp.h"
 
 void dac_volume_up() {
+	system("/usr/bin/amixer set Master 2%+ >/dev/null");
 	mcplog("VOL++");
 }
 
 void dac_volume_down() {
+	system("/usr/bin/amixer set Master 2%- >/dev/null");
 	mcplog("VOL--");
 }
 

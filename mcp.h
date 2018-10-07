@@ -1,6 +1,7 @@
 // #define ANUS
 // #define PIWOLF
-#define SABRE
+// #define SABRE
+#define SABRE2
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
 #define LIRC_REMOTE 	"audiophonics-wolfson"
@@ -26,11 +27,19 @@
 #ifdef SABRE
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
+//#define MUSIC 			"/music/"
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
 #define GPIO_POWER		5
-#define GPIO_VOL_UP		4
-#define GPIO_VOL_DOWN	0
+#endif
+
+#ifdef SABRE2
+#define LOGFILE			"/var/log/mcp.log"
+#define MUSIC 			"/public/music/"
+//#define MUSIC 			"/music/"
+#define DEVINPUT		"/dev/input/infrared"
+#define WIRINGPI
+#define GPIO_POWER		7
 #endif
 
 #define msleep(x) usleep(x*1000)
@@ -48,6 +57,7 @@ void mcplog(char *format, ...);
 
 void* dac(void *arg);
 int dac_init(void);
+int dac_close(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
 void dac_select_channel(void);
