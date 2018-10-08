@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -22,6 +23,11 @@
 
 #define I2C_DEV			"/dev/i2c-0"
 #define I2C_ADDR		0x48
+
+#define NLOCK			0
+#define PCM				1
+#define DSD				2
+#define DOP				3
 
 #define MCLK			100000000
 
@@ -90,7 +96,19 @@ static int i2c_read(int file, unsigned char reg, unsigned char *val) {
 	return 0;
 }
 
-static uint32_t es9028_get_fsr() {
+static int dac_get_signal() {
+	unsigned char value;
+	i2c_read(i2c, 100, &value);
+	if (value == 4) {
+		return NLOCK;
+	} else if (value == 2) {
+		return PCM;
+	} else if (value == 1) {
+		return DSD;
+	}
+}
+
+static double dac_get_fsr() {
 	unsigned char r66;
 	unsigned char r67;
 	unsigned char r68;
@@ -110,16 +128,30 @@ static uint32_t es9028_get_fsr() {
 
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
-	return (uint32_t) value;
+
+	double dvalue = value / 100.0;
+	dvalue = round(dvalue) / 10.0;
+	return dvalue;
+}
+
+static int dac_get_vol() {
+	unsigned char value;
+	int db;
+
+	i2c_read(i2c, 16, &value);
+	db = value / 2;
+	return db;
 }
 
 void dac_volume_up() {
 	unsigned char value;
 
 	i2c_read(i2c, 16, &value);
-	printf("VOLUME %03d \n", value);
-	if (value != 0x00) value--;
-	if (value != 0x00) value--;
+	// printf("VOLUME 0x%02x \n", value);
+	if (value != 0x00)
+		value--;
+	if (value != 0x00)
+		value--;
 	i2c_write(i2c, 16, value);
 	mcplog("VOL++");
 }
@@ -128,9 +160,11 @@ void dac_volume_down() {
 	unsigned char value;
 
 	i2c_read(i2c, 16, &value);
-	printf("VOLUME %03d \n", value);
-	if (value != 0xff) value++;
-	if (value != 0xff) value++;
+	// printf("VOLUME 0x%02x \n", value);
+	if (value != 0xf0)
+		value++;
+	if (value != 0xf0)
+		value++;
 	i2c_write(i2c, 16, value);
 	mcplog("VOL--");
 }
@@ -160,10 +194,27 @@ void* dac(void *arg) {
 		return (void *) 0;
 	}
 
-	uint32_t fsr;
+	double fsr;
+	int vol, signal;
+
 	while (1) {
-		fsr = es9028_get_fsr();
-		printf("FSR %02d \n", fsr);
+		signal = dac_get_signal();
+		fsr = dac_get_fsr();
+		vol = dac_get_vol();
+
+		switch (signal) {
+		case NLOCK:
+			printf("NLOCK\n");
+		case PCM:
+			printf("PCM %.1lf -%03d\n", fsr, vol);
+			break;
+		case DSD:
+			printf("DSD %.1lf -%03d \n", fsr, vol);
+			break;
+		default:
+			printf("??? %.1lf -%03d \n", fsr, vol);
+			break;
+		}
 		usleep(1000 * 1000);
 	}
 }
