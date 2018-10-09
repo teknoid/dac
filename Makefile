@@ -10,17 +10,17 @@ all:
 anus: $(O) dac-anus.o 
 	$(C) $(F) $(L) -o mcp $(O) dac-anus.o 
 
-piwolf: $(O) lirc.o dac-piwolf.o
-	$(C) $(F) $(L) -lwiringPi -o mcp $(O) lirc.o dac-piwolf.o
+piwolf: $(O) dac-piwolf.o lirc.o
+	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-piwolf.o lirc.o
 
 sabre: $(O) dac-es9018.o
 	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9018.o
 
-sabre2: $(O) dac-es9028.o
-	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9028.o
+sabre2: $(O) dac-es9028.o rotary.o
+	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9028.o rotary.o
 
 test: test.o mp3gain.o
-	$(C) $(F) $(L) -o test test.o mp3gain.o 
+	$(C) $(F) $(L) -o test test.o mp3gain.o
 
 .PHONY: clean
 

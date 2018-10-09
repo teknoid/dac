@@ -40,6 +40,9 @@
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
 #define GPIO_POWER		7
+#define GPIO_ENC_A		25
+#define GPIO_ENC_B		27
+#define GPIO_SWITCH		28
 #endif
 
 #define msleep(x) usleep(x*1000)

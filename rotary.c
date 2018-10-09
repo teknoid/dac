@@ -8,10 +8,6 @@
 
 #include "mcp.h"
 
-#define GPIO_ENC_A  25
-#define GPIO_ENC_B  27
-#define GPIO_SWITCH 28
-
 struct encoder {
 	int pin_a;
 	int pin_b;
