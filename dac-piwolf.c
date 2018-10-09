@@ -48,6 +48,16 @@ void dac_piwolf_volume() {
 	mcplog("WM8741 workaround volume");
 }
 
+void dac_on() {
+	dac_piwolf_volume();
+}
+
+void dac_off() {
+}
+
+void dac_update() {
+}
+
 void* dac(void *arg) {
 	return (void *) 0;
 }

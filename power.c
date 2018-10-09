@@ -22,17 +22,16 @@ unsigned long tstart = 0;
 void poweron() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 1);
-#ifdef PIWOLF
-	dac_piwolf_volume();
-#endif
 	sleep(3);
 #endif
+	dac_on();
 	mpdclient_handle(KEY_PLAY);
 	state = on;
 	mcplog("entered state ON");
 }
 
 void poweroff() {
+	dac_off();
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 0);
 #endif
@@ -42,6 +41,7 @@ void poweroff() {
 }
 
 void standby() {
+	dac_off();
 	mpdclient_handle(KEY_STOP);
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 0);

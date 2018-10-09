@@ -280,6 +280,9 @@ void* mpdclient(void *arg) {
 			}
 			mpd_song_free(song);
 		}
+
+		dac_update();
+
 		mpd_response_finish(conn_status);
 		mpd_status_free(status);
 	}

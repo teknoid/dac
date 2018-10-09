@@ -24,6 +24,8 @@
 #define I2C_DEV			"/dev/i2c-0"
 #define I2C_ADDR		0x48
 
+#define REG_VOLUME		16
+
 #define NLOCK			0
 #define PCM				1
 #define DSD				2
@@ -33,7 +35,7 @@
 
 int i2c;
 
-static int i2c_write(int file, unsigned char reg, unsigned char value) {
+static int i2c_write(unsigned char reg, unsigned char value) {
 	unsigned char outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
@@ -56,14 +58,14 @@ static int i2c_write(int file, unsigned char reg, unsigned char value) {
 	/* Transfer the i2c packets to the kernel and verify it worked */
 	packets.msgs = messages;
 	packets.nmsgs = 1;
-	if (ioctl(file, I2C_RDWR, &packets) < 0) {
+	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		perror("Unable to send data");
 		return 1;
 	}
 	return 0;
 }
 
-static int i2c_read(int file, unsigned char reg, unsigned char *val) {
+static int i2c_read(unsigned char reg, unsigned char *val) {
 	unsigned char inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
@@ -88,7 +90,7 @@ static int i2c_read(int file, unsigned char reg, unsigned char *val) {
 	/* Send the request to the kernel and get the result back */
 	packets.msgs = messages;
 	packets.nmsgs = 2;
-	if (ioctl(file, I2C_RDWR, &packets) < 0) {
+	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		perror("Unable to send data");
 		return 1;
 	}
@@ -98,7 +100,7 @@ static int i2c_read(int file, unsigned char reg, unsigned char *val) {
 
 static int dac_get_signal() {
 	unsigned char value;
-	i2c_read(i2c, 100, &value);
+	i2c_read(100, &value);
 	if (value == 4) {
 		return NLOCK;
 	} else if (value == 2) {
@@ -109,6 +111,7 @@ static int dac_get_signal() {
 }
 
 static double dac_get_fsr() {
+	double dvalue;
 	unsigned char r66;
 	unsigned char r67;
 	unsigned char r68;
@@ -116,10 +119,10 @@ static double dac_get_fsr() {
 	uint32_t dpll;
 	uint64_t value;
 
-	i2c_read(i2c, 66, &r66);
-	i2c_read(i2c, 67, &r67);
-	i2c_read(i2c, 68, &r68);
-	i2c_read(i2c, 69, &r69);
+	i2c_read(66, &r66);
+	i2c_read(67, &r67);
+	i2c_read(68, &r68);
+	i2c_read(69, &r69);
 
 	dpll = r69 << 8;
 	dpll = dpll << 8 | r68;
@@ -129,7 +132,7 @@ static double dac_get_fsr() {
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
 
-	double dvalue = value / 100.0;
+	dvalue = value / 100.0;
 	dvalue = round(dvalue) / 10.0;
 	return dvalue;
 }
@@ -138,7 +141,7 @@ static int dac_get_vol() {
 	unsigned char value;
 	int db;
 
-	i2c_read(i2c, 16, &value);
+	i2c_read(REG_VOLUME, &value);
 	db = value / 2;
 	return db;
 }
@@ -146,26 +149,26 @@ static int dac_get_vol() {
 void dac_volume_up() {
 	unsigned char value;
 
-	i2c_read(i2c, 16, &value);
+	i2c_read(REG_VOLUME, &value);
 	// printf("VOLUME 0x%02x \n", value);
 	if (value != 0x00)
 		value--;
 	if (value != 0x00)
 		value--;
-	i2c_write(i2c, 16, value);
+	i2c_write(REG_VOLUME, value);
 	mcplog("VOL++");
 }
 
 void dac_volume_down() {
 	unsigned char value;
 
-	i2c_read(i2c, 16, &value);
+	i2c_read(REG_VOLUME, &value);
 	// printf("VOLUME 0x%02x \n", value);
 	if (value != 0xf0)
 		value++;
 	if (value != 0xf0)
 		value++;
-	i2c_write(i2c, 16, value);
+	i2c_write(REG_VOLUME, value);
 	mcplog("VOL--");
 }
 
@@ -188,33 +191,40 @@ int dac_close() {
 	return 0;
 }
 
+void dac_on() {
+	i2c_write(REG_VOLUME, 0xf0);
+}
+
+void dac_off() {
+}
+
+void dac_update() {
+	double fsr = dac_get_fsr();
+	int signal = dac_get_signal();
+	int vol = dac_get_vol();
+
+	switch (signal) {
+	case NLOCK:
+		mcplog("NLOCK\n");
+	case PCM:
+		mcplog("PCM %.1lf -%03d\n", fsr, vol);
+		break;
+	case DSD:
+		mcplog("DSD %.1lf -%03d \n", fsr, vol);
+		break;
+	default:
+		mcplog("??? %.1lf -%03d \n", fsr, vol);
+		break;
+	}
+}
+
 void* dac(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
-
-	double fsr;
-	int vol, signal;
-
 	while (1) {
-		signal = dac_get_signal();
-		fsr = dac_get_fsr();
-		vol = dac_get_vol();
-
-		switch (signal) {
-		case NLOCK:
-			printf("NLOCK\n");
-		case PCM:
-			printf("PCM %.1lf -%03d\n", fsr, vol);
-			break;
-		case DSD:
-			printf("DSD %.1lf -%03d \n", fsr, vol);
-			break;
-		default:
-			printf("??? %.1lf -%03d \n", fsr, vol);
-			break;
-		}
+		dac_update();
 		usleep(1000 * 1000);
 	}
 }

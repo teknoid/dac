@@ -24,6 +24,15 @@ int dac_close() {
 	return 0;
 }
 
+void dac_on() {
+}
+
+void dac_off() {
+}
+
+void dac_update() {
+}
+
 void* dac(void *arg) {
 	return (void *) 0;
 }
