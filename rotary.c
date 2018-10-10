@@ -57,7 +57,12 @@ static struct encoder *setupencoder(int pin_a, int pin_b, int pin_s) {
 	return encoder;
 }
 
-void* rotary(void *arg) {
+int rotary_init() {
+	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
+	return 0;
+}
+
+void *rotary(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
@@ -77,9 +82,4 @@ void* rotary(void *arg) {
 		old = new;
 		usleep(100 * 1000);
 	}
-}
-
-int rotary_init() {
-	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
-	return 0;
 }

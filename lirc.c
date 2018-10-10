@@ -54,6 +54,17 @@ void lirc_send(const char *remote, const char *command) {
 	}
 }
 
+int lirc_init() {
+	_lirc_socket();
+	return 0;
+}
+
+void lirc_close() {
+	if (_lirc) {
+		close(_lirc);
+	}
+}
+
 void* lirc(void *arg) {
 	int id, seq;
 	char buffer[BUFSIZE], name[BUFSIZE], remote[BUFSIZE];
@@ -106,16 +117,5 @@ void* lirc(void *arg) {
 		} else if (seq == 0) {
 			mpdclient_handle(key);
 		}
-	}
-}
-
-int lirc_init() {
-	_lirc_socket();
-	return 0;
-}
-
-void lirc_close() {
-	if (_lirc) {
-		close(_lirc);
 	}
 }

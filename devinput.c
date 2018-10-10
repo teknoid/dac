@@ -32,6 +32,39 @@ char *get_key_name(unsigned int key) {
 	return NULL;
 }
 
+int devinput_init() {
+#ifdef DEVINPUT
+	char name[256] = "Unknown";
+	unsigned int repeat[2];
+
+//Open Device
+	if ((fd = open(DEVINPUT, O_RDONLY)) == -1) {
+		mcplog("unable to open %s", DEVINPUT);
+	}
+
+//Print Device Name
+	ioctl(fd, EVIOCGNAME(sizeof(name)), name);
+	mcplog("reading from : %s (%s)", DEVINPUT, name);
+
+// set repeat rate
+	ioctl(fd, EVIOCGREP, repeat);
+	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+	repeat[REP_DELAY] = 400;
+	repeat[REP_PERIOD] = 200;
+	ioctl(fd, EVIOCSREP, repeat);
+	ioctl(fd, EVIOCGREP, repeat);
+	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+
+#endif
+	return 0;
+}
+
+void devinput_close() {
+	if (fd) {
+		close(fd);
+	}
+}
+
 void *devinput(void *arg) {
 	struct input_event ev;
 	int n, seq;
@@ -87,37 +120,4 @@ void *devinput(void *arg) {
 	}
 	mcplog("DEVINPUT error", strerror(errno));
 	return (void *) 0;
-}
-
-int devinput_init() {
-#ifdef DEVINPUT
-	char name[256] = "Unknown";
-	unsigned int repeat[2];
-
-//Open Device
-	if ((fd = open(DEVINPUT, O_RDONLY)) == -1) {
-		mcplog("unable to open %s", DEVINPUT);
-	}
-
-//Print Device Name
-	ioctl(fd, EVIOCGNAME(sizeof(name)), name);
-	mcplog("reading from : %s (%s)", DEVINPUT, name);
-
-// set repeat rate
-	ioctl(fd, EVIOCGREP, repeat);
-	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
-	repeat[REP_DELAY] = 400;
-	repeat[REP_PERIOD] = 200;
-	ioctl(fd, EVIOCSREP, repeat);
-	ioctl(fd, EVIOCGREP, repeat);
-	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
-
-#endif
-	return 0;
-}
-
-void devinput_close() {
-	if (fd) {
-		close(fd);
-	}
 }

@@ -242,7 +242,21 @@ void mpdclient_handle(int key) {
 	}
 }
 
-void* mpdclient(void *arg) {
+int mpdclient_init() {
+	conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
+	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
+		mcplog("%s", mpd_connection_get_error_message(conn));
+		mpd_connection_free(conn);
+	}
+
+	// requires libmpdclient >= 2.10
+	//mpd_connection_set_keepalive(conn, true);
+	//mpd_connection_set_timeout(conn, 5000);
+
+	return 0;
+}
+
+void *mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
@@ -287,18 +301,4 @@ void* mpdclient(void *arg) {
 	}
 	mpd_connection_free(conn_status);
 	return (void *) 0;
-}
-
-int mpdclient_init() {
-	conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
-	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		mcplog("%s", mpd_connection_get_error_message(conn));
-		mpd_connection_free(conn);
-	}
-
-	// requires libmpdclient >= 2.10
-	//mpd_connection_set_keepalive(conn, true);
-	//mpd_connection_set_timeout(conn, 5000);
-
-	return 0;
 }
