@@ -2,15 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 int startsWith(const char *pre, const char *str);
 void hexDump(char *desc, void *addr, int len);
 
-
 int startsWith(const char *pre, const char *str) {
-    unsigned int lenpre = strlen(pre);
-    unsigned int lenstr = strlen(str);
-    return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
+	unsigned int lenpre = strlen(pre);
+	unsigned int lenstr = strlen(str);
+	return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
 }
 
 void hexDump(char *desc, void *addr, int len) {

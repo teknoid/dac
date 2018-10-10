@@ -256,6 +256,9 @@ int mpdclient_init() {
 	return 0;
 }
 
+void mpdclient_close() {
+}
+
 void *mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");

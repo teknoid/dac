@@ -1,27 +1,29 @@
-L = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
-F = -Wall -Wmissing-prototypes -Wmissing-declarations
-C = gcc
+CFLAGS = -Wall -Wunused-function -Wimplicit-function-declaration
 
-O = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
+LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
+
+SRCS = $(wildcard *.c)
+OBJS = $(SRCS:.c=.o)
+
+COBJS = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
  
-all:
-	$(C) $(F) -c *.c
+all: $(OBJS)
 	@echo "To make executables specify target: anus | piwolf | sabre | sabre2"
+ 
+anus: $(COBJS) dac-anus.o
+	$(CC) $(CFLAGS) $(LIBS) -o mcp $(COBJS) dac-anus.o
 
-anus: $(O) dac-anus.o 
-	$(C) $(F) $(L) -o mcp $(O) dac-anus.o 
+piwolf: $(COBJS) dac-piwolf.o lirc.o
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-piwolf.o lirc.o
 
-piwolf: $(O) dac-piwolf.o lirc.o
-	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-piwolf.o lirc.o
+sabre: $(COBJS) dac-es9018.o
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9018.o
 
-sabre: $(O) dac-es9018.o
-	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9018.o
+sabre2: $(COBJS) dac-es9028.o rotary.o
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9028.o rotary.o
 
-sabre2: $(O) dac-es9028.o rotary.o
-	$(C) $(F) $(L) -lwiringPi -o mcp $(O) dac-es9028.o rotary.o
-
-test: test.o mp3gain.o
-	$(C) $(F) $(L) -o test test.o mp3gain.o
+.c.o:
+	$(CC) -c $(CFLAGS) $< 
 
 .PHONY: clean
 

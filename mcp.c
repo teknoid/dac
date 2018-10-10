@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	/* if successfully initialized go to background */
+	/* fork go to background */
 	daemonize();
 
 	/* install signal handler */
@@ -217,7 +217,6 @@ int main(int argc, char **argv) {
 	if (pthread_join(thread_dac, NULL)) {
 		mcplog("Error joining thread_dac");
 	}
-	dac_close();
 
 	if (pthread_join(thread_mpdclient, NULL)) {
 		mcplog("Error joining thread_mpdclient");
@@ -227,14 +226,12 @@ int main(int argc, char **argv) {
 	if (pthread_join(thread_lirc, NULL)) {
 		mcplog("Error joining thread_lirc");
 	}
-	lirc_close();
 #endif
 
 #ifdef DEVINPUT
 	if (pthread_join(thread_devinput, NULL)) {
 		mcplog("Error joining thread_devinput");
 	}
-	devinput_close();
 #endif
 
 #ifdef ROTARY
@@ -242,6 +239,16 @@ int main(int argc, char **argv) {
 		mcplog("Error joining thread_rotary");
 	}
 #endif
+
+	/* close modules */
+
+#ifdef LIRC_RECEIVE
+	lirc_close();
+#endif
+#ifdef DEVINPUT
+	devinput_close();
+#endif
+	dac_close();
 
 	mcplog("MCP terminated");
 	fclose(flog);

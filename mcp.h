@@ -56,7 +56,7 @@ struct plist {
 	char path[128];
 };
 
-state_t power_state;
+volatile state_t power_state;
 
 int startsWith(const char *pre, const char *str);
 
@@ -87,9 +87,12 @@ void lirc_send(const char *remote, const char *command);
 
 void *mpdclient(void *arg);
 int mpdclient_init(void);
+void mpdclient_close(void);
 void mpdclient_handle(int key);
 
-void replaygain(const char *filename);
+void *rotary(void *arg);
+int rotary_init(void);
+void rotary_close(void);
 
 int power_init(void);
 void poweron(void);
@@ -98,5 +101,4 @@ void standby(void);
 void power_soft(void);
 void power_hard(void);
 
-void *rotary(void *arg);
-int rotary_init(void);
+void replaygain(const char *filename);

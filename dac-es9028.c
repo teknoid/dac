@@ -32,6 +32,7 @@
 
 #define REG_VOLUME1			0x0f
 #define REG_VOLUME2			0x10
+#define REG_STATUS			0x40
 
 #define NLOCK				0
 #define PCM					1
@@ -40,7 +41,7 @@
 
 #define MCLK				100000000
 
-int _i2c;
+int i2c;
 
 static int i2c_write(char reg, char value) {
 	char outbuf[2];
@@ -52,13 +53,20 @@ static int i2c_write(char reg, char value) {
 	messages[0].len = sizeof(outbuf);
 	messages[0].buf = outbuf;
 
+	/* The first byte indicates which register we'll write */
 	outbuf[0] = reg;
+
+	/*
+	 * The second byte indicates the value to write.  Note that for many
+	 * devices, we can write multiple, sequential registers at once by
+	 * simply making outbuf bigger.
+	 */
 	outbuf[1] = value;
 
 	/* Transfer the i2c packets to the kernel and verify it worked */
 	packets.msgs = messages;
 	packets.nmsgs = 1;
-	if (ioctl(_i2c, I2C_RDWR, &packets) < 0) {
+	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
 		return 1;
 	}
@@ -70,12 +78,18 @@ static int i2c_read(char reg, char *val) {
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
 
+	/*
+	 * In order to read a register, we first do a "dummy write" by writing
+	 * 0 bytes to the register we want to read from.  This is similar to
+	 * the packet in set_i2c_register, except it's 1 byte rather than 2.
+	 */
 	outbuf = reg;
 	messages[0].addr = I2C_ADDR;
 	messages[0].flags = 0;
 	messages[0].len = sizeof(outbuf);
 	messages[0].buf = &outbuf;
 
+	/* The data will get returned in this structure */
 	messages[1].addr = I2C_ADDR;
 	messages[1].flags = I2C_M_RD/* | I2C_M_NOSTART*/;
 	messages[1].len = sizeof(inbuf);
@@ -84,12 +98,37 @@ static int i2c_read(char reg, char *val) {
 	/* Send the request to the kernel and get the result back */
 	packets.msgs = messages;
 	packets.nmsgs = 2;
-	if (ioctl(_i2c, I2C_RDWR, &packets) < 0) {
+	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
 		return 1;
 	}
 	*val = inbuf;
 	return 0;
+}
+
+static char *printBits(char value) {
+	char *out = malloc(sizeof(char) * 8) + 1;
+	char *p = out;
+	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1) {
+		if (value & mask) {
+			*p++ = '1';
+		} else {
+			*p++ = '0';
+		}
+	}
+	*p++ = '\0';
+	return out;
+}
+
+static void debug(char reg, char value) {
+	char *bits = printBits(value);
+	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, bits);
+}
+
+static void i2c_debug(char reg) {
+	char value;
+	i2c_read(reg, &value);
+	debug(reg, value);
 }
 
 static int dac_get_signal() {
@@ -173,6 +212,8 @@ void dac_select_channel() {
 }
 
 void dac_on() {
+	char value;
+
 	// power on DAC
 	digitalWrite(GPIO_DAC_POWER, 1);
 	mcplog("switched DAC on");
@@ -180,9 +221,14 @@ void dac_on() {
 	// start DAC
 	digitalWrite(GPIO_DAC_RESET, 1);
 	msleep(200);
+	if (!i2c_read(REG_STATUS, &value)) {
+		mcplog("I2C error, aborting.");
+		return;
+	}
+
+	// initialize DAC registers
 	i2c_write(REG_VOLUME1, 0x07);
-	i2c_write(REG_VOLUME2, 0x52);
-	sleep(1);
+	i2c_write(REG_VOLUME2, 0x60);
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
@@ -227,7 +273,7 @@ int dac_init() {
 	pinMode(GPIO_DAC_POWER, OUTPUT);
 	pinMode(GPIO_DAC_RESET, OUTPUT);
 
-	if ((_i2c = open(I2C_DEV, O_RDWR)) < 0) {
+	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
 		mcplog("Failed to open the i2c bus");
 		return 1;
 	}
@@ -246,8 +292,8 @@ int dac_init() {
 }
 
 void dac_close() {
-	if (_i2c) {
-		close(_i2c);
+	if (i2c) {
+		close(i2c);
 	}
 }
 
@@ -256,16 +302,11 @@ void *dac(void *arg) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
+	sleep(5);
 
-//	char dummy;
-
-//	while (1) {
-//		if (power_state == on) {
-//			dac_update();
-//			dummy = dac_get_vol(); // trigger sniffer dump
-//			mcplog("Volume %d\n", dummy);
-//		}
-//		msleep(1000);
-//	}
+	while (1) {
+		i2c_debug(REG_STATUS);
+		sleep(5);
+	}
 	return (void *) 0;
 }

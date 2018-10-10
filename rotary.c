@@ -62,6 +62,9 @@ int rotary_init() {
 	return 0;
 }
 
+void rotary_close() {
+}
+
 void *rotary(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
