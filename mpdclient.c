@@ -143,6 +143,7 @@ static void process_song(struct mpd_song *song, int pos) {
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
 	}
+	dac_update();
 }
 
 void mpdclient_handle(int key) {
@@ -280,8 +281,6 @@ void* mpdclient(void *arg) {
 			}
 			mpd_song_free(song);
 		}
-
-		dac_update();
 
 		mpd_response_finish(conn_status);
 		mpd_status_free(status);

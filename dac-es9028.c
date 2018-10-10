@@ -19,19 +19,26 @@
 
 #include <linux/i2c-dev.h>
 
+#include <wiringPi.h>
+
 #include "mcp.h"
 
-#define I2C_DEV			"/dev/i2c-0"
-#define I2C_ADDR		0x48
+#define GPIO_POWER_EXT		7
+#define GPIO_POWER_DAC		16
+#define GPIO_DAC_RESET		15
 
-#define REG_VOLUME		16
+#define I2C_DEV				"/dev/i2c-0"
+#define I2C_ADDR			0x48
 
-#define NLOCK			0
-#define PCM				1
-#define DSD				2
-#define DOP				3
+#define REG_VOLUME1			0x0f
+#define REG_VOLUME2			0x10
 
-#define MCLK			100000000
+#define NLOCK				0
+#define PCM					1
+#define DSD					2
+#define DOP					3
+
+#define MCLK				100000000
 
 int i2c;
 
@@ -59,7 +66,7 @@ static int i2c_write(unsigned char reg, unsigned char value) {
 	packets.msgs = messages;
 	packets.nmsgs = 1;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		perror("Unable to send data");
+		mcplog("Unable to send data");
 		return 1;
 	}
 	return 0;
@@ -91,7 +98,7 @@ static int i2c_read(unsigned char reg, unsigned char *val) {
 	packets.msgs = messages;
 	packets.nmsgs = 2;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		perror("Unable to send data");
+		mcplog("Unable to send data");
 		return 1;
 	}
 	*val = inbuf;
@@ -141,35 +148,37 @@ static int dac_get_vol() {
 	unsigned char value;
 	int db;
 
-	i2c_read(REG_VOLUME, &value);
+	i2c_read(REG_VOLUME2, &value);
 	db = value / 2;
 	return db;
 }
 
 void dac_volume_up() {
 	unsigned char value;
+	int db;
 
-	i2c_read(REG_VOLUME, &value);
-	// printf("VOLUME 0x%02x \n", value);
+	i2c_read(REG_VOLUME2, &value);
 	if (value != 0x00)
 		value--;
 	if (value != 0x00)
 		value--;
-	i2c_write(REG_VOLUME, value);
-	mcplog("VOL++");
+	i2c_write(REG_VOLUME2, value);
+	db = value / 2;
+	mcplog("VOL++ -%03d", db);
 }
 
 void dac_volume_down() {
 	unsigned char value;
+	int db;
 
-	i2c_read(REG_VOLUME, &value);
-	// printf("VOLUME 0x%02x \n", value);
+	i2c_read(REG_VOLUME2, &value);
 	if (value != 0xf0)
 		value++;
 	if (value != 0xf0)
 		value++;
-	i2c_write(REG_VOLUME, value);
-	mcplog("VOL--");
+	i2c_write(REG_VOLUME2, value);
+	db = value / 2;
+	mcplog("VOL-- -%03d", db);
 }
 
 void dac_select_channel() {
@@ -177,6 +186,10 @@ void dac_select_channel() {
 }
 
 int dac_init() {
+	pinMode(GPIO_POWER_EXT, OUTPUT);
+	pinMode(GPIO_POWER_DAC, OUTPUT);
+	pinMode(GPIO_DAC_RESET, OUTPUT);
+
 	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
 		mcplog("Failed to open the i2c bus");
 		return 1;
@@ -192,13 +205,32 @@ int dac_close() {
 }
 
 void dac_on() {
-	i2c_write(REG_VOLUME, 0xf0);
+	// power on DAC
+	digitalWrite(GPIO_POWER_DAC, 1);
+
+	// start DAC
+	digitalWrite(GPIO_DAC_RESET, 1);
+	msleep(200);
+	i2c_write(REG_VOLUME1, 0x07);
+	i2c_write(REG_VOLUME2, 0x52);
+	sleep(1);
+
+	// power on Externals
+	digitalWrite(GPIO_POWER_EXT, 1);
 }
 
 void dac_off() {
+	// power off Externals
+	digitalWrite(GPIO_POWER_EXT, 0);
+	sleep(1);
+
+	// power off DAC
+	digitalWrite(GPIO_POWER_DAC, 0);
 }
 
 void dac_update() {
+	msleep(100);
+
 	double fsr = dac_get_fsr();
 	int signal = dac_get_signal();
 	int vol = dac_get_vol();
@@ -210,10 +242,10 @@ void dac_update() {
 		mcplog("PCM %.1lf -%03d\n", fsr, vol);
 		break;
 	case DSD:
-		mcplog("DSD %.1lf -%03d \n", fsr, vol);
+		mcplog("DSD %.1lf -%03d\n", fsr, vol);
 		break;
 	default:
-		mcplog("??? %.1lf -%03d \n", fsr, vol);
+		mcplog("??? %.1lf -%03d n", fsr, vol);
 		break;
 	}
 }
@@ -223,8 +255,15 @@ void* dac(void *arg) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
+
+	unsigned char dummy;
+
 	while (1) {
-		dac_update();
-		usleep(1000 * 1000);
+		if (power_state == on) {
+//			dac_update();
+//			dummy = dac_get_vol(); // trigger sniffer dump
+//			mcplog("Volume %d\n", dummy);
+			msleep(1000);
+		}
 	}
 }

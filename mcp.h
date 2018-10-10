@@ -39,13 +39,17 @@
 //#define MUSIC 			"/music/"
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
-#define GPIO_POWER		7
-#define GPIO_ENC_A		25
-#define GPIO_ENC_B		27
-#define GPIO_SWITCH		28
+//#define ROTARY
+#define GPIO_ENC_A		4
+#define GPIO_ENC_B		5
+#define GPIO_SWITCH		6
 #endif
 
 #define msleep(x) usleep(x*1000)
+
+typedef enum {
+	startup, stdby, on, off
+} state_t;
 
 struct plist {
 	int key;
@@ -53,6 +57,8 @@ struct plist {
 	char name[32];
 	char path[128];
 };
+
+state_t power_state;
 
 int startsWith(const char *pre, const char *str);
 

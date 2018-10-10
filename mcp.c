@@ -23,6 +23,10 @@ pthread_t thread_lirc;
 pthread_t thread_devinput;
 #endif
 
+#ifdef ROTARY
+pthread_t thread_rotary;
+#endif
+
 pthread_t thread_mpdclient;
 pthread_t thread_dac;
 
@@ -58,6 +62,12 @@ static void sig_handler(int signo) {
 #ifdef DEVINPUT
 		if (pthread_cancel(thread_devinput)) {
 			mcplog("Error canceling thread_devinput");
+		}
+#endif
+
+#ifdef ROTARY
+		if (pthread_cancel(thread_rotary)) {
+			mcplog("Error canceling thread_rotary");
 		}
 #endif
 
@@ -105,7 +115,7 @@ static void daemonize() {
 }
 
 int main(int argc, char **argv) {
-	// daemonize();
+	daemonize();
 
 	flog = fopen(LOGFILE, "a");
 	if (flog == 0) {
@@ -150,6 +160,10 @@ int main(int argc, char **argv) {
 	devinput_init();
 #endif
 
+#ifdef ROTARY
+	rotary_init();
+#endif
+
 	/* create thread for each module */
 
 #ifdef LIRC_RECEIVE
@@ -161,6 +175,12 @@ int main(int argc, char **argv) {
 #ifdef DEVINPUT
 	if (pthread_create(&thread_devinput, NULL, &devinput, NULL)) {
 		mcplog("Error creating thread_devinput");
+	}
+#endif
+
+#ifdef ROTARY
+	if (pthread_create(&thread_rotary, NULL, &rotary, NULL)) {
+		mcplog("Error creating thread_rotary");
 	}
 #endif
 
@@ -193,6 +213,12 @@ int main(int argc, char **argv) {
 #ifdef DEVINPUT
 	if (pthread_join(thread_devinput, NULL)) {
 		mcplog("Error joining thread_devinput");
+	}
+#endif
+
+#ifdef ROTARY
+	if (pthread_join(thread_rotary, NULL)) {
+		mcplog("Error joining thread_rotary");
 	}
 #endif
 

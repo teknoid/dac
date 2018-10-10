@@ -11,12 +11,6 @@
 #include <wiringPi.h>
 #endif
 
-typedef enum {
-	startup, stdby, on, off
-} state_t;
-
-state_t state;
-
 unsigned long tstart = 0;
 
 void poweron() {
@@ -26,8 +20,8 @@ void poweron() {
 #endif
 	dac_on();
 	mpdclient_handle(KEY_PLAY);
-	state = on;
-	mcplog("entered state ON");
+	power_state = on;
+	mcplog("entered power state ON");
 }
 
 void poweroff() {
@@ -36,8 +30,8 @@ void poweroff() {
 	digitalWrite(GPIO_POWER, 0);
 #endif
 	system("shutdown -h now");
-	state = off;
-	mcplog("entered state OFF");
+	power_state = off;
+	mcplog("entered power state OFF");
 }
 
 void standby() {
@@ -46,14 +40,14 @@ void standby() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 0);
 #endif
-	state = stdby;
-	mcplog("entered state STDBY");
+	power_state = stdby;
+	mcplog("entered power state STDBY");
 }
 
 void power_soft() {
-	if (state == startup || state == stdby) {
+	if (power_state == startup || power_state == stdby) {
 		poweron();
-	} else if (state == on) {
+	} else if (power_state == on) {
 		standby();
 	}
 }
@@ -63,17 +57,17 @@ void power_hard() {
 }
 
 int power_init() {
-	state = startup;
-	mcplog("entered state STARTUP");
+	power_state = startup;
+	mcplog("entered power state STARTUP");
 
 #ifdef GPIO_POWER
-	int pinState = digitalRead(GPIO_POWER);
-	if (pinState == 1) {
-		state = on;
-		mcplog("entered state ON");
+	int pinpower_state = digitalRead(GPIO_POWER);
+	if (pinpower_state == 1) {
+		power_state = on;
+		mcplog("entered power state ON");
 	} else {
-		state = stdby;
-		mcplog("entered state STDBY");
+		power_state = stdby;
+		mcplog("entered power state STDBY");
 	}
 
 	pinMode(GPIO_POWER, OUTPUT);
