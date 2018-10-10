@@ -113,3 +113,9 @@ int lirc_init() {
 	_lirc_socket();
 	return 0;
 }
+
+void lirc_close() {
+	if (_lirc) {
+		close(_lirc);
+	}
+}

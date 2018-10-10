@@ -35,6 +35,6 @@ void dac_off() {
 void dac_update() {
 }
 
-void* dac(void *arg) {
+void *dac(void *arg) {
 	return (void *) 0;
 }

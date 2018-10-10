@@ -19,7 +19,6 @@
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
 #define WIRINGPI
-#define GPIO_POWER		0
 #define LIRC_SEND
 #define LIRC_RECEIVE
 #endif
@@ -30,7 +29,6 @@
 //#define MUSIC 			"/music/"
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
-#define GPIO_POWER		5
 #endif
 
 #ifdef SABRE2
@@ -64,9 +62,9 @@ int startsWith(const char *pre, const char *str);
 
 void mcplog(char *format, ...);
 
-void* dac(void *arg);
+void *dac(void *arg);
 int dac_init(void);
-int dac_close(void);
+void dac_close(void);
 void dac_on();
 void dac_off();
 void dac_update();
@@ -76,16 +74,18 @@ void dac_select_channel(void);
 void dac_piwolf_channel(void);
 void dac_piwolf_volume(void);
 
-void* devinput(void *arg);
+void *devinput(void *arg);
 int devinput_init(void);
+void devinput_close();
 int find_key(char *name);
 char *get_key_name(unsigned int key);
 
-void* lirc(void *arg);
+void *lirc(void *arg);
 int lirc_init(void);
+void lirc_close();
 void lirc_send(const char *remote, const char *command);
 
-void* mpdclient(void *arg);
+void *mpdclient(void *arg);
 int mpdclient_init(void);
 void mpdclient_handle(int key);
 
@@ -98,5 +98,5 @@ void standby(void);
 void power_soft(void);
 void power_hard(void);
 
-void* rotary(void *arg);
+void *rotary(void *arg);
 int rotary_init(void);

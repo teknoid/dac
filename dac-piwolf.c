@@ -3,7 +3,11 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#include <wiringPi.h>
+
 #include "mcp.h"
+
+#define GPIO_POWER		0
 
 void dac_volume_up() {
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
@@ -18,14 +22,6 @@ void dac_volume_down() {
 void dac_select_channel() {
 	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
 	mcplog("CHANNELUP");
-}
-
-int dac_init() {
-	return 0;
-}
-
-int dac_close() {
-	return 0;
 }
 
 // WM8741 workaround: switch through all channels
@@ -49,15 +45,39 @@ void dac_piwolf_volume() {
 }
 
 void dac_on() {
+	digitalWrite(GPIO_POWER, 1);
+	mcplog("switched POWER on");
+	sleep(3);
 	dac_piwolf_volume();
 }
 
 void dac_off() {
+	digitalWrite(GPIO_POWER, 0);
+	mcplog("switched POWER off");
+
 }
 
 void dac_update() {
 }
 
-void* dac(void *arg) {
+int dac_init() {
+	pinMode(GPIO_POWER, OUTPUT);
+
+	int pin = digitalRead(GPIO_POWER);
+	if (pin == 1) {
+		power_state = on;
+		mcplog("entered power state ON");
+	} else {
+		power_state = stdby;
+		mcplog("entered power state STDBY");
+	}
+
+	return 0;
+}
+
+void dac_close() {
+}
+
+void *dac(void *arg) {
 	return (void *) 0;
 }

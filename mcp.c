@@ -108,15 +108,18 @@ static void daemonize() {
 	/* Set new file permissions, set new root, close standard file descriptors */
 	umask(0);
 	chdir("/");
-//  offen lassen !!! sonst spint lirc bei system()
-//	close(STDIN_FILENO);
-//	close(STDOUT_FILENO);
-//	close(STDERR_FILENO);
+
+#ifndef LIRC_RECEIVE
+	// bei LIRC offen lassen !!! sonst spint lirc bei system()
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
+#endif
+
+	mcplog("MCP forked into background");
 }
 
 int main(int argc, char **argv) {
-	daemonize();
-
 	flog = fopen(LOGFILE, "a");
 	if (flog == 0) {
 		perror("error opening logfile " LOGFILE);
@@ -124,6 +127,46 @@ int main(int argc, char **argv) {
 	}
 
 	mcplog("MCP initializing");
+
+	/* setup wiringPi */
+#ifdef WIRINGPI
+	if (wiringPiSetup() == -1) {
+		perror("Unable to start wiringPi");
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+	/* initialize modules */
+	if (mpdclient_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+	if (power_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+	if (dac_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+#if defined(LIRC_RECEIVE) || defined(LIRC_SEND)
+	if (lirc_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+#ifdef DEVINPUT
+	if (devinput_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+#ifdef ROTARY
+	if (rotary_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+	/* if successfully initialized go to background */
+	daemonize();
 
 	/* install signal handler */
 	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
@@ -138,31 +181,6 @@ int main(int argc, char **argv) {
 		mcplog("can't catch SIGINT");
 		exit(EXIT_FAILURE);
 	}
-
-	/* setup wiringPi */
-#ifdef WIRINGPI
-	if (wiringPiSetup() == -1) {
-		mcplog("Unable to start wiringPi");
-		return 2;
-	}
-#endif
-
-	/* initialize modules */
-	mpdclient_init();
-	power_init();
-	dac_init();
-
-#if defined(LIRC_RECEIVE) || defined(LIRC_SEND)
-	lirc_init();
-#endif
-
-#ifdef DEVINPUT
-	devinput_init();
-#endif
-
-#ifdef ROTARY
-	rotary_init();
-#endif
 
 	/* create thread for each module */
 
@@ -199,6 +217,7 @@ int main(int argc, char **argv) {
 	if (pthread_join(thread_dac, NULL)) {
 		mcplog("Error joining thread_dac");
 	}
+	dac_close();
 
 	if (pthread_join(thread_mpdclient, NULL)) {
 		mcplog("Error joining thread_mpdclient");
@@ -208,12 +227,14 @@ int main(int argc, char **argv) {
 	if (pthread_join(thread_lirc, NULL)) {
 		mcplog("Error joining thread_lirc");
 	}
+	lirc_close();
 #endif
 
 #ifdef DEVINPUT
 	if (pthread_join(thread_devinput, NULL)) {
 		mcplog("Error joining thread_devinput");
 	}
+	devinput_close();
 #endif
 
 #ifdef ROTARY
@@ -221,9 +242,6 @@ int main(int argc, char **argv) {
 		mcplog("Error joining thread_rotary");
 	}
 #endif
-
-	/* shutdown modules */
-	dac_close();
 
 	mcplog("MCP terminated");
 	fclose(flog);

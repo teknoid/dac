@@ -23,8 +23,8 @@
 
 #include "mcp.h"
 
-#define GPIO_POWER_EXT		7
-#define GPIO_POWER_DAC		16
+#define GPIO_EXT_POWER		7
+#define GPIO_DAC_POWER		16
 #define GPIO_DAC_RESET		15
 
 #define I2C_DEV				"/dev/i2c-0"
@@ -40,7 +40,7 @@
 
 #define MCLK				100000000
 
-int i2c;
+int _i2c;
 
 static int i2c_write(unsigned char reg, unsigned char value) {
 	unsigned char outbuf[2];
@@ -65,7 +65,7 @@ static int i2c_write(unsigned char reg, unsigned char value) {
 	/* Transfer the i2c packets to the kernel and verify it worked */
 	packets.msgs = messages;
 	packets.nmsgs = 1;
-	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
+	if (ioctl(_i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
 		return 1;
 	}
@@ -97,7 +97,7 @@ static int i2c_read(unsigned char reg, unsigned char *val) {
 	/* Send the request to the kernel and get the result back */
 	packets.msgs = messages;
 	packets.nmsgs = 2;
-	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
+	if (ioctl(_i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
 		return 1;
 	}
@@ -185,28 +185,10 @@ void dac_select_channel() {
 	mcplog("CHANNELUP");
 }
 
-int dac_init() {
-	pinMode(GPIO_POWER_EXT, OUTPUT);
-	pinMode(GPIO_POWER_DAC, OUTPUT);
-	pinMode(GPIO_DAC_RESET, OUTPUT);
-
-	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
-		mcplog("Failed to open the i2c bus");
-		return 1;
-	}
-	return 0;
-}
-
-int dac_close() {
-	if (i2c) {
-		close(i2c);
-	}
-	return 0;
-}
-
 void dac_on() {
 	// power on DAC
-	digitalWrite(GPIO_POWER_DAC, 1);
+	digitalWrite(GPIO_DAC_POWER, 1);
+	mcplog("switched DAC on");
 
 	// start DAC
 	digitalWrite(GPIO_DAC_RESET, 1);
@@ -216,16 +198,19 @@ void dac_on() {
 	sleep(1);
 
 	// power on Externals
-	digitalWrite(GPIO_POWER_EXT, 1);
+	digitalWrite(GPIO_EXT_POWER, 1);
+	mcplog("switched EXT on");
 }
 
 void dac_off() {
 	// power off Externals
-	digitalWrite(GPIO_POWER_EXT, 0);
+	digitalWrite(GPIO_EXT_POWER, 0);
+	mcplog("switched EXT off");
 	sleep(1);
 
 	// power off DAC
-	digitalWrite(GPIO_POWER_DAC, 0);
+	digitalWrite(GPIO_DAC_POWER, 0);
+	mcplog("switched DAC off");
 }
 
 void dac_update() {
@@ -250,7 +235,36 @@ void dac_update() {
 	}
 }
 
-void* dac(void *arg) {
+int dac_init() {
+	pinMode(GPIO_EXT_POWER, OUTPUT);
+	pinMode(GPIO_DAC_POWER, OUTPUT);
+	pinMode(GPIO_DAC_RESET, OUTPUT);
+
+	if ((_i2c = open(I2C_DEV, O_RDWR)) < 0) {
+		mcplog("Failed to open the i2c bus");
+		return 1;
+	}
+
+	int pin = digitalRead(GPIO_DAC_POWER);
+	if (pin == 1) {
+		power_state = on;
+		mcplog("entered power state ON");
+		dac_update();
+	} else {
+		power_state = stdby;
+		mcplog("entered power state STDBY");
+	}
+
+	return 0;
+}
+
+void dac_close() {
+	if (_i2c) {
+		close(_i2c);
+	}
+}
+
+void *dac(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;

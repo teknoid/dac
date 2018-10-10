@@ -7,6 +7,8 @@
 
 #include "mcp.h"
 
+#define GPIO_POWER		5
+
 #define GPIO_VOL_UP		4
 #define GPIO_VOL_DOWN	0
 
@@ -30,27 +32,40 @@ void dac_select_channel() {
 	mcplog("CHANNELUP");
 }
 
-int dac_init() {
-	pinMode(GPIO_VOL_UP, OUTPUT);
-	digitalWrite(GPIO_VOL_UP, 0);
-	pinMode(GPIO_VOL_DOWN, OUTPUT);
-	digitalWrite(GPIO_VOL_DOWN, 0);
-	return 0;
-}
-
-int dac_close() {
-	return 0;
-}
-
 void dac_on() {
+	digitalWrite(GPIO_POWER, 1);
 }
 
 void dac_off() {
+	digitalWrite(GPIO_POWER, 0);
 }
 
 void dac_update() {
 }
 
-void* dac(void *arg) {
+int dac_init() {
+	pinMode(GPIO_POWER, OUTPUT);
+
+	pinMode(GPIO_VOL_UP, OUTPUT);
+	digitalWrite(GPIO_VOL_UP, 0);
+	pinMode(GPIO_VOL_DOWN, OUTPUT);
+	digitalWrite(GPIO_VOL_DOWN, 0);
+
+	int pin = digitalRead(GPIO_POWER);
+	if (pin == 1) {
+		power_state = on;
+		mcplog("entered power state ON");
+	} else {
+		power_state = stdby;
+		mcplog("entered power state STDBY");
+	}
+
+	return 0;
+}
+
+void dac_close() {
+}
+
+void *dac(void *arg) {
 	return (void *) 0;
 }

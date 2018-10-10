@@ -32,7 +32,7 @@ char *get_key_name(unsigned int key) {
 	return NULL;
 }
 
-void* devinput(void *arg) {
+void *devinput(void *arg) {
 	struct input_event ev;
 	int n, seq;
 
@@ -116,3 +116,8 @@ int devinput_init() {
 	return 0;
 }
 
+void devinput_close() {
+	if (fd) {
+		close(fd);
+	}
+}
