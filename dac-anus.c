@@ -18,14 +18,6 @@ void dac_select_channel() {
 	mcplog("CHANNELUP");
 }
 
-int dac_init() {
-	return 0;
-}
-
-int dac_close() {
-	return 0;
-}
-
 void dac_on() {
 }
 
@@ -33,6 +25,13 @@ void dac_off() {
 }
 
 void dac_update() {
+}
+
+int dac_init() {
+	return 0;
+}
+
+void dac_close() {
 }
 
 void *dac(void *arg) {

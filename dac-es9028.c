@@ -42,8 +42,8 @@
 
 int _i2c;
 
-static int i2c_write(unsigned char reg, unsigned char value) {
-	unsigned char outbuf[2];
+static int i2c_write(char reg, char value) {
+	char outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
 
@@ -52,14 +52,7 @@ static int i2c_write(unsigned char reg, unsigned char value) {
 	messages[0].len = sizeof(outbuf);
 	messages[0].buf = outbuf;
 
-	/* The first byte indicates which register we'll write */
 	outbuf[0] = reg;
-
-	/*
-	 * The second byte indicates the value to write.  Note that for many
-	 * devices, we can write multiple, sequential registers at once by
-	 * simply making outbuf bigger.
-	 */
 	outbuf[1] = value;
 
 	/* Transfer the i2c packets to the kernel and verify it worked */
@@ -72,23 +65,17 @@ static int i2c_write(unsigned char reg, unsigned char value) {
 	return 0;
 }
 
-static int i2c_read(unsigned char reg, unsigned char *val) {
-	unsigned char inbuf, outbuf;
+static int i2c_read(char reg, char *val) {
+	char inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
 
-	/*
-	 * In order to read a register, we first do a "dummy write" by writing
-	 * 0 bytes to the register we want to read from.  This is similar to
-	 * the packet in set_i2c_register, except it's 1 byte rather than 2.
-	 */
 	outbuf = reg;
 	messages[0].addr = I2C_ADDR;
 	messages[0].flags = 0;
 	messages[0].len = sizeof(outbuf);
 	messages[0].buf = &outbuf;
 
-	/* The data will get returned in this structure */
 	messages[1].addr = I2C_ADDR;
 	messages[1].flags = I2C_M_RD/* | I2C_M_NOSTART*/;
 	messages[1].len = sizeof(inbuf);
@@ -106,23 +93,23 @@ static int i2c_read(unsigned char reg, unsigned char *val) {
 }
 
 static int dac_get_signal() {
-	unsigned char value;
+	char value;
 	i2c_read(100, &value);
-	if (value == 4) {
-		return NLOCK;
-	} else if (value == 2) {
+	if (value == 2) {
 		return PCM;
 	} else if (value == 1) {
 		return DSD;
+	} else {
+		return NLOCK;
 	}
 }
 
 static double dac_get_fsr() {
 	double dvalue;
-	unsigned char r66;
-	unsigned char r67;
-	unsigned char r68;
-	unsigned char r69;
+	char r66;
+	char r67;
+	char r68;
+	char r69;
 	uint32_t dpll;
 	uint64_t value;
 
@@ -145,7 +132,7 @@ static double dac_get_fsr() {
 }
 
 static int dac_get_vol() {
-	unsigned char value;
+	char value;
 	int db;
 
 	i2c_read(REG_VOLUME2, &value);
@@ -154,7 +141,7 @@ static int dac_get_vol() {
 }
 
 void dac_volume_up() {
-	unsigned char value;
+	char value;
 	int db;
 
 	i2c_read(REG_VOLUME2, &value);
@@ -168,7 +155,7 @@ void dac_volume_up() {
 }
 
 void dac_volume_down() {
-	unsigned char value;
+	char value;
 	int db;
 
 	i2c_read(REG_VOLUME2, &value);
@@ -270,7 +257,7 @@ void *dac(void *arg) {
 		return (void *) 0;
 	}
 
-	unsigned char dummy;
+//	char dummy;
 
 	while (1) {
 		if (power_state == on) {

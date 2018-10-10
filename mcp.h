@@ -65,9 +65,9 @@ void mcplog(char *format, ...);
 void *dac(void *arg);
 int dac_init(void);
 void dac_close(void);
-void dac_on();
-void dac_off();
-void dac_update();
+void dac_on(void);
+void dac_off(void);
+void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
 void dac_select_channel(void);
@@ -76,13 +76,13 @@ void dac_piwolf_volume(void);
 
 void *devinput(void *arg);
 int devinput_init(void);
-void devinput_close();
+void devinput_close(void);
 int find_key(char *name);
 char *get_key_name(unsigned int key);
 
 void *lirc(void *arg);
 int lirc_init(void);
-void lirc_close();
+void lirc_close(void);
 void lirc_send(const char *remote, const char *command);
 
 void *mpdclient(void *arg);

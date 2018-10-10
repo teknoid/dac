@@ -5,7 +5,8 @@ C = gcc
 O = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
  
 all:
-	@echo "specify target: anus | piwolf | sabre | sabre2"
+	$(C) $(F) -c *.c
+	@echo "To make executables specify target: anus | piwolf | sabre | sabre2"
 
 anus: $(O) dac-anus.o 
 	$(C) $(F) $(L) -o mcp $(O) dac-anus.o 
@@ -29,11 +30,13 @@ clean:
 
 install:
 	killall -q mcp || true
+	rm /usr/local/bin/mcp
 	cp ~hje/workspace-cpp/dac/mcp /usr/local/bin
 	/usr/local/bin/mcp
 
 install-local:
 	killall -q mcp || true
+	rm /usr/local/bin/mcp
 	cp ~hje/workspace-cpp/dac/mcp ~hje/bin
 	~hje/bin/mcp
 
