@@ -106,15 +106,10 @@ static int i2c_read(char reg, char *val) {
 	return 0;
 }
 
-static void debug(char reg, char value) {
-	char *bits = printBits(value);
-	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, bits);
-}
-
-static void i2c_debug(char reg) {
+static void i2c_dump(char reg) {
 	char value;
 	i2c_read(reg, &value);
-	debug(reg, value);
+	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, printBits(value));
 }
 
 static int dac_get_signal() {
@@ -291,10 +286,10 @@ void *dac(void *arg) {
 		return (void *) 0;
 	}
 
-	i2c_debug(REG_STATUS);
+	i2c_dump(REG_STATUS);
 
 	//	while (1) {
-//		i2c_debug(REG_STATUS);
+//		i2c_dump(REG_STATUS);
 //		sleep(5);
 //	}
 	return (void *) 0;
