@@ -259,12 +259,12 @@ void *dac(void *arg) {
 
 //	char dummy;
 
-	while (1) {
-		if (power_state == on) {
+//	while (1) {
+//		if (power_state == on) {
 //			dac_update();
 //			dummy = dac_get_vol(); // trigger sniffer dump
 //			mcplog("Volume %d\n", dummy);
-			msleep(1000);
-		}
-	}
+//		}
+//		msleep(1000);
+//	}
 }
