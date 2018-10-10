@@ -68,7 +68,7 @@ static int i2c_write(char reg, char value) {
 	packets.nmsgs = 1;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
-		return 1;
+		return -1;
 	}
 	return 0;
 }
@@ -100,7 +100,7 @@ static int i2c_read(char reg, char *val) {
 	packets.nmsgs = 2;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
 		mcplog("Unable to send data");
-		return 1;
+		return -1;
 	}
 	*val = inbuf;
 	return 0;
@@ -221,13 +221,15 @@ void dac_on() {
 	// start DAC
 	digitalWrite(GPIO_DAC_RESET, 1);
 	msleep(200);
-	if (!i2c_read(REG_STATUS, &value)) {
+	if (i2c_read(REG_STATUS, &value) < 0) {
 		mcplog("I2C error, aborting.");
 		return;
 	}
 
 	// initialize DAC registers
+	msleep(100);
 	i2c_write(REG_VOLUME1, 0x07);
+	msleep(100);
 	i2c_write(REG_VOLUME2, 0x60);
 
 	// power on Externals
@@ -302,11 +304,12 @@ void *dac(void *arg) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
-	sleep(5);
 
-	while (1) {
-		i2c_debug(REG_STATUS);
-		sleep(5);
-	}
+	i2c_debug(REG_STATUS);
+
+	//	while (1) {
+//		i2c_debug(REG_STATUS);
+//		sleep(5);
+//	}
 	return (void *) 0;
 }

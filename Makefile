@@ -1,4 +1,4 @@
-CFLAGS = -Wall -Wunused-function -Wimplicit-function-declaration
+CFLAGS = -Wall
 
 LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
