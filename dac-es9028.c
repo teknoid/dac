@@ -267,4 +267,5 @@ void *dac(void *arg) {
 //		}
 //		msleep(1000);
 //	}
+	return (void *) 0;
 }
