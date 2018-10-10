@@ -3,12 +3,27 @@
 #include <string.h>
 
 int startsWith(const char *pre, const char *str);
+char *printBits(char value);
 void hexDump(char *desc, void *addr, int len);
 
 int startsWith(const char *pre, const char *str) {
 	unsigned int lenpre = strlen(pre);
 	unsigned int lenstr = strlen(str);
 	return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
+}
+
+char *printBits(char value) {
+	char *out = malloc(sizeof(char) * 8) + 1;
+	char *p = out;
+	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1) {
+		if (value & mask) {
+			*p++ = '1';
+		} else {
+			*p++ = '0';
+		}
+	}
+	*p++ = '\0';
+	return out;
 }
 
 void hexDump(char *desc, void *addr, int len) {

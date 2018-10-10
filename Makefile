@@ -32,14 +32,14 @@ clean:
 
 install:
 	killall -q mcp || true
-	rm /usr/local/bin/mcp
-	cp ~hje/workspace-cpp/dac/mcp /usr/local/bin
+	rm /usr/local/bin/mcp || true
+	cp mcp /usr/local/bin
 	/usr/local/bin/mcp
 
 install-local:
 	killall -q mcp || true
-	rm /usr/local/bin/mcp
-	cp ~hje/workspace-cpp/dac/mcp ~hje/bin
+	rm /usr/local/bin/mcp || true
+	cp mcp ~hje/bin
 	~hje/bin/mcp
 
 keytable:

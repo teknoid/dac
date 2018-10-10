@@ -59,6 +59,7 @@ struct plist {
 volatile state_t power_state;
 
 int startsWith(const char *pre, const char *str);
+char *printBits(char value);
 
 void mcplog(char *format, ...);
 

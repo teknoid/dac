@@ -106,20 +106,6 @@ static int i2c_read(char reg, char *val) {
 	return 0;
 }
 
-static char *printBits(char value) {
-	char *out = malloc(sizeof(char) * 8) + 1;
-	char *p = out;
-	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1) {
-		if (value & mask) {
-			*p++ = '1';
-		} else {
-			*p++ = '0';
-		}
-	}
-	*p++ = '\0';
-	return out;
-}
-
 static void debug(char reg, char value) {
 	char *bits = printBits(value);
 	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, bits);
