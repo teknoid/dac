@@ -229,7 +229,7 @@ void dac_off() {
 }
 
 void dac_update() {
-	msleep(100);
+	sleep(1);
 
 	double fsr = dac_get_fsr();
 	int signal = dac_get_signal();
@@ -237,15 +237,15 @@ void dac_update() {
 
 	switch (signal) {
 	case NLOCK:
-		mcplog("NLOCK\n");
+		mcplog("NLOCK");
 	case PCM:
-		mcplog("PCM %.1lf -%03d\n", fsr, vol);
+		mcplog("PCM %.1lf -%03d", fsr, vol);
 		break;
 	case DSD:
-		mcplog("DSD %.1lf -%03d\n", fsr, vol);
+		mcplog("DSD %.1lf -%03d", fsr, vol);
 		break;
 	default:
-		mcplog("??? %.1lf -%03d n", fsr, vol);
+		mcplog("??? %.1lf -%03d", fsr, vol);
 		break;
 	}
 }
