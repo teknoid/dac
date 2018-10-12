@@ -20,6 +20,14 @@ void dac_select_channel() {
 	mcplog("CHANNELUP");
 }
 
+void dac_mute() {
+	mcplog("MUTE");
+}
+
+void dac_unmute() {
+	mcplog("UNMUTE");
+}
+
 void dac_on() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 1);

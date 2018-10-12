@@ -108,7 +108,9 @@ static void toggle_pause() {
 		dac_piwolf_volume();
 #endif
 		mpd_run_play(conn);
+		dac_unmute();
 	} else if (state == MPD_STATE_PLAY) {
+		dac_mute();
 		mpd_run_toggle_pause(conn);
 	}
 	mpd_status_free(status);

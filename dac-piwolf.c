@@ -19,6 +19,14 @@ void dac_volume_down() {
 	mcplog("VOL--");
 }
 
+void dac_mute() {
+	mcplog("MUTE");
+}
+
+void dac_unmute() {
+	mcplog("UNMUTE");
+}
+
 void dac_select_channel() {
 	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
 	mcplog("CHANNELUP");

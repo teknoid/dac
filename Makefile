@@ -8,7 +8,7 @@ OBJS = $(SRCS:.c=.o)
 COBJS = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
  
 all: $(OBJS)
-	@echo "To make executables specify target: anus | piwolf | sabre | sabre2"
+	@echo "To create executables specify target: anus | piwolf | sabre | sabre2"
  
 anus: $(COBJS) dac-anus.o
 	$(CC) $(CFLAGS) $(LIBS) -o mcp $(COBJS) dac-anus.o

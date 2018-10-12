@@ -30,8 +30,7 @@
 #define I2C_DEV				"/dev/i2c-0"
 #define I2C_ADDR			0x48
 
-#define REG_VOLUME1			0x0f
-#define REG_VOLUME2			0x10
+#define REG_VOLUME			0x10
 #define REG_STATUS			0x40
 
 #define NLOCK				0
@@ -67,7 +66,7 @@ static int i2c_write(char reg, char value) {
 	packets.msgs = messages;
 	packets.nmsgs = 1;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		mcplog("Unable to send data");
+		mcplog("Error writing data into register 0x%02x", reg);
 		return -1;
 	}
 	return 0;
@@ -99,14 +98,34 @@ static int i2c_read(char reg, char *val) {
 	packets.msgs = messages;
 	packets.nmsgs = 2;
 	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		mcplog("Unable to send data");
+		mcplog("Error reading data from register 0x%02x", reg);
 		return -1;
 	}
 	*val = inbuf;
 	return 0;
 }
 
-static void i2c_dump(char reg) {
+static int i2c_set_bit(char reg, int n) {
+	char value;
+	if (i2c_read(reg, &value) < 0) {
+		return -1;
+	}
+	value |= 1 << n;
+	i2c_write(reg, value);
+	return 0;
+}
+
+static int i2c_clear_bit(char reg, int n) {
+	char value;
+	if (i2c_read(reg, &value) < 0) {
+		return -1;
+	}
+	value &= ~(1 << n);
+	i2c_write(reg, value);
+	return 0;
+}
+
+static void i2c_dump_reg(char reg) {
 	char value;
 	i2c_read(reg, &value);
 	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, printBits(value));
@@ -126,22 +145,25 @@ static int dac_get_signal() {
 
 static double dac_get_fsr() {
 	double dvalue;
-	char r66;
-	char r67;
-	char r68;
-	char r69;
+	char v0;
+	char v1;
+	char v2;
+	char v3;
 	uint32_t dpll;
 	uint64_t value;
 
-	i2c_read(66, &r66);
-	i2c_read(67, &r67);
-	i2c_read(68, &r68);
-	i2c_read(69, &r69);
+	// Datasheet:
+	// This value is latched on reading the LSB, so	register 66 must be read first to acquire the latest DPLL value.
+	// The value is latched on LSB because the DPLL number can be changing as the I2C transactions are performed.
+	i2c_read(0x42, &v0);
+	i2c_read(0x43, &v1);
+	i2c_read(0x44, &v2);
+	i2c_read(0x45, &v3);
 
-	dpll = r69 << 8;
-	dpll = dpll << 8 | r68;
-	dpll = dpll << 8 | r67;
-	dpll = dpll << 8 | r66;
+	dpll = v3 << 8;
+	dpll = dpll << 8 | v2;
+	dpll = dpll << 8 | v1;
+	dpll = dpll << 8 | v0;
 
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
@@ -155,7 +177,7 @@ static int dac_get_vol() {
 	char value;
 	int db;
 
-	i2c_read(REG_VOLUME2, &value);
+	i2c_read(REG_VOLUME, &value);
 	db = value / 2;
 	return db;
 }
@@ -164,12 +186,12 @@ void dac_volume_up() {
 	char value;
 	int db;
 
-	i2c_read(REG_VOLUME2, &value);
+	i2c_read(REG_VOLUME, &value);
 	if (value != 0x00)
 		value--;
 	if (value != 0x00)
 		value--;
-	i2c_write(REG_VOLUME2, value);
+	i2c_write(REG_VOLUME, value);
 	db = value / 2;
 	mcplog("VOL++ -%03d", db);
 }
@@ -178,14 +200,24 @@ void dac_volume_down() {
 	char value;
 	int db;
 
-	i2c_read(REG_VOLUME2, &value);
+	i2c_read(REG_VOLUME, &value);
 	if (value != 0xf0)
 		value++;
 	if (value != 0xf0)
 		value++;
-	i2c_write(REG_VOLUME2, value);
+	i2c_write(REG_VOLUME, value);
 	db = value / 2;
 	mcplog("VOL-- -%03d", db);
+}
+
+void dac_mute() {
+	i2c_set_bit(0x07, 0);
+	mcplog("MUTE");
+}
+
+void dac_unmute() {
+	i2c_clear_bit(0x07, 0);
+	mcplog("UNMUTE");
 }
 
 void dac_select_channel() {
@@ -195,23 +227,39 @@ void dac_select_channel() {
 void dac_on() {
 	char value;
 
-	// power on DAC
+	// power on
 	digitalWrite(GPIO_DAC_POWER, 1);
 	mcplog("switched DAC on");
 
-	// start DAC
+	// check status
+	int timeout = 10;
 	digitalWrite(GPIO_DAC_RESET, 1);
-	msleep(200);
-	if (i2c_read(REG_STATUS, &value) < 0) {
-		mcplog("I2C error, aborting.");
-		return;
+	while (i2c_read(REG_STATUS, &value) < 0) {
+		msleep(100);
+		if (--timeout == 0) {
+			mcplog("no answer, aborting.");
+			return;
+		}
+		mcplog("waiting for DAC status %d", timeout);
+	}
+	value >>= 2;
+	if (value == 0b101010) {
+		mcplog("Found DAC ES9038Pro");
+	} else if (value == 0b011100) {
+		mcplog("Found DAC ES9038Q2M");
+	} else if (value == 0b101001 || value == 0b101000) {
+		mcplog("Found DAC ES9028Pro");
 	}
 
-	// initialize DAC registers
-	msleep(100);
-	i2c_write(REG_VOLUME1, 0x07);
-	msleep(100);
-	i2c_write(REG_VOLUME2, 0x60);
+	// initialize registers
+	dac_mute();
+	if (i2c_write(0x0f, 0x07) < 0) {
+		return;
+	}
+	if (i2c_write(REG_VOLUME, 0x60) < 0) {
+		return;
+	}
+	dac_unmute();
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
@@ -286,9 +334,10 @@ void *dac(void *arg) {
 		return (void *) 0;
 	}
 
-	i2c_dump(REG_STATUS);
+//	msleep(500);
+//	i2c_dump(REG_STATUS);
 
-	//	while (1) {
+//	while (1) {
 //		i2c_dump(REG_STATUS);
 //		sleep(5);
 //	}

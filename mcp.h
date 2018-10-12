@@ -68,6 +68,8 @@ int dac_init(void);
 void dac_close(void);
 void dac_on(void);
 void dac_off(void);
+void dac_mute(void);
+void dac_unmute(void);
 void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
