@@ -37,7 +37,7 @@ install:
 	/usr/local/bin/mcp
 
 install-local:
-	killall -q mcp
+	killall -q mcp || true
 	rm ~hje/bin/mcp
 	cp mcp ~hje/bin
 	~hje/bin/mcp
