@@ -92,21 +92,10 @@ static void load_incoming() {
 	mcplog("[0] loaded playlist");
 }
 
-static void external(char *key) {
-	char command[64];
-	strcpy(command, EXTERNAL);
-	strcat(command, " ");
-	strcat(command, key);
-	system(command);
-}
-
 static void toggle_pause() {
 	struct mpd_status *status = mpd_run_status(conn);
 	enum mpd_state state = mpd_status_get_state(status);
 	if (state == MPD_STATE_STOP || state == MPD_STATE_PAUSE) {
-#ifdef PIWOLF
-		dac_piwolf_volume();
-#endif
 		mpd_run_play(conn);
 		dac_unmute();
 	} else if (state == MPD_STATE_PLAY) {
@@ -148,10 +137,12 @@ static void process_song(struct mpd_song *song, int pos) {
 	dac_update();
 }
 
+void mpdclient_set_playlist_mode(int mode) {
+	playlist_mode = mode;
+}
+
 void mpdclient_handle(int key) {
 	struct plist *playlist;
-
-	mcplog("mpdclient handle %s (0x%0x)", get_key_name(key), key);
 
 	// check connection
 	assert(conn != NULL);
@@ -193,9 +184,6 @@ void mpdclient_handle(int key) {
 		toggle_pause();
 		break;
 	case KEY_PLAY:
-#ifdef PIWOLF
-		dac_piwolf_volume();
-#endif
 		mpd_run_play(conn);
 		break;
 	case KEY_CLEAR:
@@ -219,27 +207,6 @@ void mpdclient_handle(int key) {
 		break;
 	case KEY_FORWARD:
 		mpd_run_seek_pos(conn, 0, 10);
-		break;
-	case KEY_EJECTCD:
-#ifdef PIWOLF
-		dac_piwolf_channel();
-#endif
-#ifdef SABRE
-		playlist_mode = 0;
-		external("RANDOM");
-#endif
-		break;
-	case KEY_F1:
-		external("F1");
-		break;
-	case KEY_F2:
-		external("F2");
-		break;
-	case KEY_F3:
-		external("F3");
-		break;
-	case KEY_F4:
-		external("F4");
 		break;
 	}
 }

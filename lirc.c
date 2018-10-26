@@ -98,7 +98,7 @@ void* lirc(void *arg) {
 			continue;
 		}
 
-		int key = find_key(name);
+		int key = devinput_find_key(name);
 		if (!key) {
 			continue;
 		}
@@ -108,13 +108,13 @@ void* lirc(void *arg) {
 			dac_volume_up();
 		} else if (key == KEY_VOLUMEDOWN) {
 			dac_volume_down();
-		} else if (key == KEY_SELECT && seq == 0) {
-			dac_select_channel();
 		} else if (key == KEY_POWER && seq == 0) {
 			power_soft();
 		} else if (key == KEY_POWER && seq == 10) {
 			power_hard();
 		} else if (seq == 0) {
+			mcplog("LIRC: distributing key %s (0x%0x)", devinput_keyname(key), key);
+			dac_handle(key);
 			mpdclient_handle(key);
 		}
 	}

@@ -245,9 +245,11 @@ int main(int argc, char **argv) {
 #ifdef LIRC_RECEIVE
 	lirc_close();
 #endif
+
 #ifdef DEVINPUT
 	devinput_close();
 #endif
+
 	dac_close();
 
 	mcplog("MCP terminated");

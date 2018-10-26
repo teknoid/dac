@@ -16,10 +16,6 @@ void dac_volume_down() {
 	mcplog("VOL--");
 }
 
-void dac_select_channel() {
-	mcplog("CHANNELUP");
-}
-
 void dac_mute() {
 	mcplog("MUTE");
 }
@@ -63,6 +59,10 @@ int dac_init() {
 
 void dac_close() {
 }
+
+void dac_handle(int key) {
+}
+
 
 void *dac(void *arg) {
 	return (void *) 0;

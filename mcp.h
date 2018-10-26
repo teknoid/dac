@@ -73,15 +73,13 @@ void dac_unmute(void);
 void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
-void dac_select_channel(void);
-void dac_piwolf_channel(void);
-void dac_piwolf_volume(void);
+void dac_handle(int key);
 
 void *devinput(void *arg);
 int devinput_init(void);
 void devinput_close(void);
-int find_key(char *name);
-char *get_key_name(unsigned int key);
+int devinput_find_key(const char *name);
+char *devinput_keyname(unsigned int key);
 
 void *lirc(void *arg);
 int lirc_init(void);
@@ -91,6 +89,7 @@ void lirc_send(const char *remote, const char *command);
 void *mpdclient(void *arg);
 int mpdclient_init(void);
 void mpdclient_close(void);
+void mpdclient_set_playlist_mode(int mode);
 void mpdclient_handle(int key);
 
 void *rotary(void *arg);

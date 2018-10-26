@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <wiringPi.h>
 
+#include <linux/input.h>
+
 #include "mcp.h"
 
 struct encoder {
@@ -79,7 +81,7 @@ void *rotary(void *arg) {
 		} else if (new > old) {
 			dac_volume_up();
 		} else if (encoder->button == 0) {
-			dac_select_channel();
+			dac_handle(KEY_SELECT);
 			usleep(300 * 1000);
 		}
 		old = new;

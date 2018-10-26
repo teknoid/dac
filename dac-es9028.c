@@ -18,14 +18,17 @@
 #include <sys/sem.h>
 
 #include <linux/i2c-dev.h>
+#include <linux/input.h>
 
 #include <wiringPi.h>
 
 #include "mcp.h"
 
-#define GPIO_EXT_POWER		7
+#define GPIO_EXT_POWER		0
 #define GPIO_DAC_POWER		16
 #define GPIO_DAC_RESET		15
+
+#define GPIO_LAMP			3
 
 #define I2C_DEV				"/dev/i2c-0"
 #define I2C_ADDR			0x48
@@ -131,6 +134,18 @@ static void i2c_dump_reg(char reg) {
 	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, printBits(value));
 }
 
+static void gpio_toggle(int gpio) {
+	int state = digitalRead(gpio);
+	if (state == 0) {
+		digitalWrite(gpio, 1); // on
+		return;
+	}
+	if (state == 1) {
+		digitalWrite(gpio, 0); // off
+		return;
+	}
+}
+
 static int dac_get_signal() {
 	char value;
 	i2c_read(100, &value);
@@ -218,10 +233,6 @@ void dac_mute() {
 void dac_unmute() {
 	i2c_clear_bit(0x07, 0);
 	mcplog("UNMUTE");
-}
-
-void dac_select_channel() {
-	mcplog("CHANNELUP");
 }
 
 void dac_on() {
@@ -327,6 +338,14 @@ int dac_init() {
 void dac_close() {
 	if (i2c) {
 		close(i2c);
+	}
+}
+
+void dac_handle(int key) {
+	switch (key) {
+	case KEY_TIME:
+		gpio_toggle(GPIO_LAMP);
+		break;
 	}
 }
 

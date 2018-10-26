@@ -5,9 +5,31 @@
 
 #include <wiringPi.h>
 
+#include <linux/input.h>
+
 #include "mcp.h"
 
 #define GPIO_POWER		0
+
+// WM8741 workaround: switch through all channels
+static void workaround_channel() {
+	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
+	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
+	mcplog("WM8741 workaround channel");
+}
+
+// WM8741 workaround: touch volume
+static void workaround_volume() {
+	dac_volume_down();
+	msleep(100);
+	dac_volume_up();
+	msleep(100);
+	mcplog("WM8741 workaround volume");
+}
 
 void dac_volume_up() {
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
@@ -27,36 +49,11 @@ void dac_unmute() {
 	mcplog("UNMUTE");
 }
 
-void dac_select_channel() {
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	mcplog("CHANNELUP");
-}
-
-// WM8741 workaround: switch through all channels
-void dac_piwolf_channel() {
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
-	mcplog("WM8741 workaround channel");
-}
-
-// WM8741 workaround: touch volume
-void dac_piwolf_volume() {
-	dac_volume_down();
-	msleep(100);
-	dac_volume_up();
-	msleep(100);
-	mcplog("WM8741 workaround volume");
-}
-
 void dac_on() {
 	digitalWrite(GPIO_POWER, 1);
 	mcplog("switched POWER on");
 	sleep(3);
-	dac_piwolf_volume();
+	workaround_volume();
 }
 
 void dac_off() {
@@ -84,6 +81,22 @@ int dac_init() {
 }
 
 void dac_close() {
+}
+
+void dac_handle(int key) {
+	switch (key) {
+	case KEY_PAUSE:
+	case KEY_PLAY:
+		workaround_volume();
+		break;
+	case KEY_EJECTCD:
+		workaround_channel();
+		break;
+	case KEY_SELECT:
+		lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+		mcplog("CHANNELUP");
+		break;
+	}
 }
 
 void *dac(void *arg) {

@@ -12,17 +12,7 @@
 
 int fd;
 
-int find_key(char *name) {
-	struct parse_event *p;
-	for (p = key_events; p->name != NULL; p++) {
-		if (!strcmp(name, p->name)) {
-			return p->value;
-		}
-	}
-	return 0;
-}
-
-char *get_key_name(unsigned int key) {
+char *devinput_keyname(unsigned int key) {
 	struct parse_event *p;
 	for (p = key_events; p->name != NULL; p++) {
 		if (key == p->value) {
@@ -32,21 +22,30 @@ char *get_key_name(unsigned int key) {
 	return NULL;
 }
 
+int devinput_find_key(const char *name) {
+	struct parse_event *p;
+	for (p = key_events; p->name != NULL; p++) {
+		if (!strcmp(name, p->name)) {
+			return p->value;
+		}
+	}
+	return 0;
+}
+
 int devinput_init() {
-#ifdef DEVINPUT
 	char name[256] = "Unknown";
 	unsigned int repeat[2];
 
-//Open Device
+	// Open Device
 	if ((fd = open(DEVINPUT, O_RDONLY)) == -1) {
 		mcplog("unable to open %s", DEVINPUT);
 	}
 
-//Print Device Name
+	// Print Device Name
 	ioctl(fd, EVIOCGNAME(sizeof(name)), name);
 	mcplog("reading from : %s (%s)", DEVINPUT, name);
 
-// set repeat rate
+	// set repeat rate
 	ioctl(fd, EVIOCGREP, repeat);
 	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
 	repeat[REP_DELAY] = 400;
@@ -54,8 +53,6 @@ int devinput_init() {
 	ioctl(fd, EVIOCSREP, repeat);
 	ioctl(fd, EVIOCGREP, repeat);
 	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
-
-#endif
 	return 0;
 }
 
@@ -108,13 +105,13 @@ void *devinput(void *arg) {
 			dac_volume_up();
 		} else if (ev.code == KEY_VOLUMEDOWN) {
 			dac_volume_down();
-		} else if (ev.code == KEY_SELECT && seq == 0) {
-			dac_select_channel();
 		} else if (ev.code == KEY_POWER && seq == 0) {
 			power_soft();
 		} else if (ev.code == KEY_POWER && seq == 10) {
 			power_hard();
 		} else if (seq == 0) {
+			mcplog("DEVINPUT: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+			dac_handle(ev.code);
 			mpdclient_handle(ev.code);
 		}
 	}

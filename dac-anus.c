@@ -22,10 +22,6 @@ void dac_unmute() {
 	mcplog("UNMUTE");
 }
 
-void dac_select_channel() {
-	mcplog("CHANNELUP");
-}
-
 void dac_on() {
 }
 
@@ -40,6 +36,9 @@ int dac_init() {
 }
 
 void dac_close() {
+}
+
+void dac_handle(int key) {
 }
 
 void *dac(void *arg) {

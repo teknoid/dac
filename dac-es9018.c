@@ -5,12 +5,22 @@
 
 #include <wiringPi.h>
 
+#include <linux/input.h>
+
 #include "mcp.h"
 
 #define GPIO_POWER		5
 
 #define GPIO_VOL_UP		4
 #define GPIO_VOL_DOWN	0
+
+static void external(char *key) {
+	char command[64];
+	strcpy(command, EXTERNAL);
+	strcat(command, " ");
+	strcat(command, key);
+	system(command);
+}
 
 void dac_volume_up() {
 	digitalWrite(GPIO_VOL_UP, 1);
@@ -34,10 +44,6 @@ void dac_mute() {
 
 void dac_unmute() {
 	mcplog("UNMUTE");
-}
-
-void dac_select_channel() {
-	mcplog("CHANNELUP");
 }
 
 void dac_on() {
@@ -72,6 +78,27 @@ int dac_init() {
 }
 
 void dac_close() {
+}
+
+void dac_handle(int key) {
+	switch (key) {
+	case KEY_EJECTCD:
+		mpdclient_set_playlist_mode(0);
+		external("RANDOM");
+		break;
+	case KEY_F1:
+		external("F1");
+		break;
+	case KEY_F2:
+		external("F2");
+		break;
+	case KEY_F3:
+		external("F3");
+		break;
+	case KEY_F4:
+		external("F4");
+		break;
+	}
 }
 
 void *dac(void *arg) {
