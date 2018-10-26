@@ -267,10 +267,12 @@ void dac_on() {
 }
 
 void dac_off() {
-	// power off Externals
+	dac_mute();
+
+	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
 	mcplog("switched EXT off");
-	sleep(1);
+	sleep(5);
 
 	// power off DAC
 	digitalWrite(GPIO_DAC_POWER, 0);
