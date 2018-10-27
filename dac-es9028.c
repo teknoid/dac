@@ -316,6 +316,7 @@ int dac_init() {
 	pinMode(GPIO_EXT_POWER, OUTPUT);
 	pinMode(GPIO_DAC_POWER, OUTPUT);
 	pinMode(GPIO_DAC_RESET, OUTPUT);
+	pinMode(GPIO_LAMP, OUTPUT);
 
 	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
 		mcplog("Failed to open the i2c bus");
