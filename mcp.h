@@ -1,17 +1,17 @@
 // #define ANUS
 // #define PIWOLF
-// #define SABRE
-#define SABRE2
+// #define SABRE18
+#define SABRE28
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
 #define LIRC_REMOTE 	"audiophonics-wolfson"
 #define LIRC_DEV 		"/run/lirc/lircd"
+#define DEVINPUT		"/dev/input/infrared"
 #define MPD_HOST		"localhost"
 #define MPD_PORT		6600
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
-#define DEVINPUT		"/dev/input/infrared"
 #define MUSIC 			"/opt/music/"
 #endif
 
@@ -23,7 +23,7 @@
 #define LIRC_RECEIVE
 #endif
 
-#ifdef SABRE
+#ifdef SABRE18
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
 //#define MUSIC 			"/music/"
@@ -31,7 +31,7 @@
 #define WIRINGPI
 #endif
 
-#ifdef SABRE2
+#ifdef SABRE28
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
 //#define MUSIC 			"/music/"

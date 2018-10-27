@@ -16,10 +16,10 @@ anus: $(COBJS) dac-anus.o
 piwolf: $(COBJS) dac-piwolf.o lirc.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-piwolf.o lirc.o
 
-sabre: $(COBJS) dac-es9018.o
+sabre18: $(COBJS) dac-es9018.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9018.o
 
-sabre2: $(COBJS) dac-es9028.o rotary.o
+sabre28: $(COBJS) dac-es9028.o rotary.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9028.o rotary.o
 
 .c.o:
