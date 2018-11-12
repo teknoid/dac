@@ -25,8 +25,7 @@
 #include "mcp.h"
 
 #define GPIO_EXT_POWER		0
-#define GPIO_DAC_POWER		16
-#define GPIO_DAC_RESET		15
+#define GPIO_DAC_POWER		7
 
 #define GPIO_LAMP			3
 
@@ -241,10 +240,10 @@ void dac_on() {
 	// power on
 	digitalWrite(GPIO_DAC_POWER, 1);
 	mcplog("switched DAC on");
+	msleep(100);
 
 	// check status
 	int timeout = 10;
-	digitalWrite(GPIO_DAC_RESET, 1);
 	while (i2c_read(REG_STATUS, &value) < 0) {
 		msleep(100);
 		if (--timeout == 0) {
@@ -283,7 +282,7 @@ void dac_off() {
 	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
 	mcplog("switched EXT off");
-	sleep(5);
+	sleep(6);
 
 	// power off DAC
 	digitalWrite(GPIO_DAC_POWER, 0);
@@ -315,7 +314,6 @@ void dac_update() {
 int dac_init() {
 	pinMode(GPIO_EXT_POWER, OUTPUT);
 	pinMode(GPIO_DAC_POWER, OUTPUT);
-	pinMode(GPIO_DAC_RESET, OUTPUT);
 	pinMode(GPIO_LAMP, OUTPUT);
 
 	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
