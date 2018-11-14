@@ -27,6 +27,10 @@ pthread_t thread_devinput;
 pthread_t thread_rotary;
 #endif
 
+#ifdef DISPLAY
+pthread_t thread_display;
+#endif
+
 pthread_t thread_mpdclient;
 pthread_t thread_dac;
 
@@ -68,6 +72,12 @@ static void sig_handler(int signo) {
 #ifdef ROTARY
 		if (pthread_cancel(thread_rotary)) {
 			mcplog("Error canceling thread_rotary");
+		}
+#endif
+
+#ifdef DISPLAY
+		if (pthread_cancel(thread_display)) {
+			mcplog("Error canceling thread_display");
 		}
 #endif
 
@@ -137,6 +147,12 @@ int main(int argc, char **argv) {
 #endif
 
 	/* initialize modules */
+#ifdef DISPLAY
+	if (display_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
 	if (mpdclient_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
@@ -183,6 +199,12 @@ int main(int argc, char **argv) {
 	}
 
 	/* create thread for each module */
+
+#ifdef DISPLAY
+	if (pthread_create(&thread_display, NULL, &display, NULL)) {
+		mcplog("Error creating thread_display");
+	}
+#endif
 
 #ifdef LIRC_RECEIVE
 	if (pthread_create(&thread_lirc, NULL, &lirc, NULL)) {
@@ -240,7 +262,15 @@ int main(int argc, char **argv) {
 	}
 #endif
 
+#ifdef DISPLAY
+	if (pthread_join(thread_display, NULL)) {
+		mcplog("Error joining thread_display");
+	}
+#endif
+
 	/* close modules */
+
+	dac_close();
 
 #ifdef LIRC_RECEIVE
 	lirc_close();
@@ -250,7 +280,9 @@ int main(int argc, char **argv) {
 	devinput_close();
 #endif
 
-	dac_close();
+#ifdef DISPLAY
+	display_close();
+#endif
 
 	mcplog("MCP terminated");
 	fclose(flog);

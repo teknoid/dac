@@ -11,7 +11,6 @@
 #include <mpd/connection.h>
 #include <mpd/message.h>
 #include <mpd/client.h>
-#include <mpd/status.h>
 #include <mpd/entity.h>
 #include <mpd/search.h>
 #include <mpd/idle.h>
@@ -128,12 +127,21 @@ static void process_song(struct mpd_song *song, int pos) {
 	// print status
 	const char *artist = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
 	const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
+	const char *album = mpd_song_get_tag(song, MPD_TAG_ALBUM, 0);
+
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
+#ifdef DISPLAY
+	screen_t *screen = display_get_screen();
+	strncpy(screen->artist, artist, BUFSIZE);
+	strncpy(screen->title, title, BUFSIZE);
+	strncpy(screen->album, album, BUFSIZE);
+#endif
 		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
 	}
+
 	dac_update();
 }
 
@@ -250,6 +258,11 @@ void *mpdclient(void *arg) {
 		struct mpd_status *status = mpd_recv_status(conn_status);
 		int state = mpd_status_get_state(status);
 		mcplog("MPD State %d", state);
+
+#ifdef DISPLAY
+		screen_t *screen = display_get_screen();
+		screen->state = state;
+#endif
 
 		if (state == MPD_STATE_PAUSE) {
 			mcplog("MPD State PAUSE");

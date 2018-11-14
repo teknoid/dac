@@ -3,13 +3,6 @@
 // #define SABRE18
 #define SABRE28
 
-#define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
-#define LIRC_REMOTE 	"audiophonics-wolfson"
-#define LIRC_DEV 		"/run/lirc/lircd"
-#define DEVINPUT		"/dev/input/infrared"
-#define MPD_HOST		"localhost"
-#define MPD_PORT		6600
-
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/opt/music/"
@@ -37,17 +30,36 @@
 //#define MUSIC 			"/music/"
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
+#define DISPLAY
 //#define ROTARY
 #define GPIO_ENC_A		4
 #define GPIO_ENC_B		5
 #define GPIO_SWITCH		6
 #endif
 
+#define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
+#define LIRC_REMOTE 	"audiophonics-wolfson"
+#define LIRC_DEV 		"/run/lirc/lircd"
+#define DEVINPUT		"/dev/input/infrared"
+#define MPD_HOST		"localhost"
+#define MPD_PORT		6600
+
+#define NLOCK			0
+#define PCM				1
+#define DSD				2
+#define DOP				3
+
 #define msleep(x) usleep(x*1000)
+
+#define BUFSIZE			256
+
+#include <mpd/status.h>
 
 typedef enum {
 	startup, stdby, on, off
 } state_t;
+
+volatile state_t power_state;
 
 struct plist {
 	int key;
@@ -56,7 +68,21 @@ struct plist {
 	char path[128];
 };
 
-volatile state_t power_state;
+typedef struct {
+	enum mpd_state state;
+	int source;
+	int signal;
+	int bits;
+	int rate;
+	int volume;
+	int clock_h;
+	int clock_m;
+	double load;
+	double temp;
+	char* artist;
+	char* title;
+	char* album;
+} screen_t;
 
 int startsWith(const char *pre, const char *str);
 char *printBits(char value);
@@ -102,5 +128,10 @@ void poweroff(void);
 void standby(void);
 void power_soft(void);
 void power_hard(void);
+
+void *display(void *arg);
+int display_init(void);
+void display_close(void);
+screen_t *display_get_screen(void);
 
 void replaygain(const char *filename);

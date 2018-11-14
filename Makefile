@@ -19,8 +19,11 @@ piwolf: $(COBJS) dac-piwolf.o lirc.o
 sabre18: $(COBJS) dac-es9018.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9018.o
 
-sabre28: $(COBJS) dac-es9028.o rotary.o
-	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9028.o rotary.o
+sabre28: $(COBJS) dac-es9028.o rotary.o display-ncurses.o
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -o mcp $(COBJS) dac-es9028.o rotary.o display-ncurses.c
+
+display: display-ncurses.o
+	$(CC) $(CFLAGS) $(LIBS) -lncurses -o display display-ncurses.c
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< 

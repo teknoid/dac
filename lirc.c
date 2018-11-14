@@ -11,8 +11,6 @@
 
 #include "mcp.h"
 
-#define BUFSIZE 256
-
 int _lirc = -1;
 
 static void _lirc_socket() {

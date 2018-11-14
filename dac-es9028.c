@@ -35,11 +35,6 @@
 #define REG_VOLUME			0x10
 #define REG_STATUS			0x40
 
-#define NLOCK				0
-#define PCM					1
-#define DSD					2
-#define DOP					3
-
 #define MCLK				100000000
 
 int i2c;
@@ -207,6 +202,8 @@ void dac_volume_up() {
 		value--;
 	i2c_write(REG_VOLUME, value);
 	db = value / 2;
+	screen_t *screen = display_get_screen();
+	screen->volume = db * -1;
 	mcplog("VOL++ -%03d", db);
 }
 
@@ -221,6 +218,8 @@ void dac_volume_down() {
 		value++;
 	i2c_write(REG_VOLUME, value);
 	db = value / 2;
+	screen_t *screen = display_get_screen();
+	screen->volume = db * -1;
 	mcplog("VOL-- -%03d", db);
 }
 
@@ -295,6 +294,12 @@ void dac_update() {
 	double fsr = dac_get_fsr();
 	int signal = dac_get_signal();
 	int vol = dac_get_vol();
+
+	screen_t *screen = display_get_screen();
+	screen->signal = signal;
+	screen->rate = fsr;
+	screen->bits = 16; // TODO DAC receives always 32bit !!! - read from MPD
+	screen->volume = vol;
 
 	switch (signal) {
 	case NLOCK:
