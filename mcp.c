@@ -35,6 +35,7 @@ pthread_t thread_mpdclient;
 pthread_t thread_dac;
 
 FILE *flog;
+mcp_state_t *mcp;
 
 void mcplog(char *format, ...) {
 	va_list vargs;
@@ -137,6 +138,10 @@ int main(int argc, char **argv) {
 	}
 
 	mcplog("MCP initializing");
+	mcp = malloc(sizeof(*mcp));
+	strcpy(mcp->artist, "");
+	strcpy(mcp->title, "");
+	strcpy(mcp->album, "");
 
 	/* setup wiringPi */
 #ifdef WIRINGPI

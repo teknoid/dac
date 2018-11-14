@@ -140,20 +140,21 @@ static void gpio_toggle(int gpio) {
 	}
 }
 
-static int dac_get_signal() {
+static dac_signal_t dac_get_signal() {
 	char value;
 	i2c_read(100, &value);
 	if (value == 2) {
-		return PCM;
+		return pcm;
 	} else if (value == 1) {
-		return DSD;
+		return dsd;
 	} else {
-		return NLOCK;
+		return nlock;
 	}
 }
 
-static double dac_get_fsr() {
+static int dac_get_fsr() {
 	double dvalue;
+	int rate;
 	char v0;
 	char v1;
 	char v2;
@@ -177,9 +178,12 @@ static double dac_get_fsr() {
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
 
+	mcplog("DAC raw sample rate %d", value);
 	dvalue = value / 100.0;
 	dvalue = round(dvalue) / 10.0;
-	return dvalue;
+
+	rate = floor(dvalue);
+	return rate;
 }
 
 static int dac_get_vol() {
@@ -202,8 +206,7 @@ void dac_volume_up() {
 		value--;
 	i2c_write(REG_VOLUME, value);
 	db = (value / 2) * -1;
-	screen_t *screen = display_get_screen();
-	screen->dac_volume = db;
+	mcp->dac_volume = db;
 	mcplog("VOL++ %03d", db);
 }
 
@@ -218,8 +221,7 @@ void dac_volume_down() {
 		value++;
 	i2c_write(REG_VOLUME, value);
 	db = (value / 2) * -1;
-	screen_t *screen = display_get_screen();
-	screen->dac_volume = db;
+	mcp->dac_volume = db;
 	mcplog("VOL-- %03d", db);
 }
 
@@ -268,7 +270,10 @@ void dac_on() {
 	if (i2c_write(REG_VOLUME, 0x60) < 0) {
 		return;
 	}
+	i2c_dump_reg(REG_STATUS);
+
 	dac_unmute();
+	dac_update();
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
@@ -289,29 +294,24 @@ void dac_off() {
 }
 
 void dac_update() {
-	sleep(1);
+	sleep(1); // wait for dac acquiring signal
 
-	double fsr = dac_get_fsr();
-	int signal = dac_get_signal();
-	int vol = dac_get_vol();
+	mcp->dac_signal = dac_get_signal();
+	mcp->dac_rate = dac_get_fsr();
+	mcp->dac_bits = 32; // DAC receives always 32bit from amanero - read from MPD
+	mcp->dac_volume = dac_get_vol();
 
-	screen_t *screen = display_get_screen();
-	screen->dac_signal = signal;
-	screen->dac_rate = fsr;
-	screen->dac_bits = 32; // DAC receives always 32bit from amanero - read from MPD
-	screen->dac_volume = vol;
-
-	switch (signal) {
-	case NLOCK:
+	switch (mcp->dac_signal) {
+	case nlock:
 		mcplog("NLOCK");
-	case PCM:
-		mcplog("PCM %.1lf -%03d", fsr, vol);
+	case pcm:
+		mcplog("PCM %d -%03d", mcp->dac_rate, mcp->dac_volume);
 		break;
-	case DSD:
-		mcplog("DSD %.1lf -%03d", fsr, vol);
+	case dsd:
+		mcplog("DSD %d -%03d", mcp->dac_rate, mcp->dac_volume);
 		break;
 	default:
-		mcplog("??? %.1lf -%03d", fsr, vol);
+		mcplog("??? %d -%03d", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
 }
@@ -328,11 +328,10 @@ int dac_init() {
 
 	int pin = digitalRead(GPIO_DAC_POWER);
 	if (pin == 1) {
-		power_state = on;
+		mcp->power = on;
 		mcplog("entered power state ON");
-		dac_update();
 	} else {
-		power_state = stdby;
+		mcp->power = stdby;
 		mcplog("entered power state STDBY");
 	}
 
@@ -359,12 +358,5 @@ void *dac(void *arg) {
 		return (void *) 0;
 	}
 
-//	msleep(500);
-//	i2c_dump(REG_STATUS);
-
-//	while (1) {
-//		i2c_dump(REG_STATUS);
-//		sleep(5);
-//	}
 	return (void *) 0;
 }

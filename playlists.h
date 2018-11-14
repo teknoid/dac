@@ -1,3 +1,10 @@
+struct plist {
+	int key;
+	int pos;
+	char name[BUFSIZE];
+	char path[BUFSIZE];
+};
+
 static struct plist playlists[10] = {
 		{ 0, 0, "00_incoming",		"00 incoming" },
 		{ 1, 0, "01_top",			"01 sortiert/01 top" },

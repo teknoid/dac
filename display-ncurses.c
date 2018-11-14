@@ -17,7 +17,10 @@
 
 // #define LOCALMAIN
 
-screen_t *screen;
+#define	WHITE			1
+#define RED				2
+#define YELLOW			3
+#define GREEN			4
 
 static void screen_paint(int count) {
 	clear();
@@ -26,46 +29,56 @@ static void screen_paint(int count) {
 
 	// header line
 	color_set(1, NULL);
-	mvprintw(HEADER, 0, "%2ddB", screen->dac_volume);
-	if (screen->dac_signal == NLOCK) {
+	mvprintw(HEADER, 0, "%2ddB", mcp->dac_volume);
+	if (mcp->dac_signal == nlock) {
 		mvaddstr(HEADER, 8, "NLOCK");
 		mvaddstr(HEADER, 15, "--/--");
-	} else if (screen->dac_signal == PCM) {
+	} else if (mcp->dac_signal == pcm) {
 		mvaddstr(HEADER, 9, "PCM");
-		mvprintw(HEADER, 15, "%d/%d", screen->mpd_bits, screen->dac_rate);
-	} else if (screen->dac_signal == DSD) {
-		mvaddstr(HEADER, 9, "DSD");
-		mvprintw(HEADER, 15, "%d/%d", screen->dac_bits, screen->dac_rate);
-	} else if (screen->dac_signal == DOP) {
+		mvprintw(HEADER, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
+	} else if (mcp->dac_signal == dsd) {
+		if (mcp->dac_rate == 44) {
+			mvaddstr(HEADER, 9, "DSD64");
+		} else if (mcp->dac_rate == 88) {
+			mvaddstr(HEADER, 8, "DSD128");
+		} else if (mcp->dac_rate == 176) {
+			mvaddstr(HEADER, 8, "DSD256");
+		} else if (mcp->dac_rate == 384) {
+			mvaddstr(HEADER, 8, "DSD512");
+		} else if (mcp->dac_rate == 176) {
+			mvaddstr(HEADER, 9, "DSD?");
+		}
+		mvprintw(HEADER, 18, "%d", mcp->dac_rate);
+	} else if (mcp->dac_signal == dop) {
 		mvaddstr(HEADER, 9, "DOP");
-		mvprintw(HEADER, 15, "%d/%d", screen->dac_bits, screen->dac_rate);
+		mvprintw(HEADER, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
 	}
 
 	// main area
-	if (screen->mpd_state == MPD_STATE_PAUSE || screen->mpd_state == MPD_STATE_STOP) {
+	if (mcp->mpd_state == MPD_STATE_PAUSE || mcp->mpd_state == MPD_STATE_STOP) {
 		attroff(A_BOLD);
 	}
-	mvprintw(2, 0, "%s", screen->artist);
-	mvprintw(3, 0, "%s", screen->title);
-	// mvprintw(4, 0, "%s", screen->album);
+	mvprintw(2, 0, "%s", mcp->artist);
+	mvprintw(3, 0, "%s", mcp->title);
+	// mvprintw(4, 0, "%s", mcp->album);
 	attron(A_BOLD);
 
 	// footer line
 	if (count % 2 == 0) {
-		mvprintw(FOOTER, 0, "%d %02d", screen->clock_h, screen->clock_m);
+		mvprintw(FOOTER, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
 	} else {
-		mvprintw(FOOTER, 0, "%d:%02d", screen->clock_h, screen->clock_m);
+		mvprintw(FOOTER, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
 	}
-	if (screen->temp >= 50) {
-		color_set(2, NULL);
-		mvprintw(FOOTER, 8, "%2.1f", screen->temp);
-		color_set(1, NULL);
+	if (mcp->temp >= 60) {
+		color_set(RED, NULL);
+	} else if (mcp->temp >= 50) {
+		color_set(YELLOW, NULL);
 	} else {
-		color_set(3, NULL);
-		mvprintw(FOOTER, 8, "%2.1f", screen->temp);
-		color_set(1, NULL);
+		color_set(GREEN, NULL);
 	}
-	mvprintw(FOOTER, 16, "%1.2f", screen->load);
+	mvprintw(FOOTER, 8, "%2.1f", mcp->temp);
+	color_set(WHITE, NULL);
+	mvprintw(FOOTER, 16, "%1.2f", mcp->load);
 
 	refresh();
 }
@@ -75,39 +88,25 @@ static void screen_update_system() {
 	time(&timer);
 
 	struct tm* tm_info = localtime(&timer);
-	screen->clock_h = tm_info->tm_hour;
-	screen->clock_m = tm_info->tm_min;
+	mcp->clock_h = tm_info->tm_hour;
+	mcp->clock_m = tm_info->tm_min;
 
 	double load[3];
 	if (getloadavg(load, 3) != -1) {
-		screen->load = load[0];
+		mcp->load = load[0];
 	}
 
 	unsigned long temp = 0;
 	FILE *fp = fopen("/sys/devices/virtual/thermal/thermal_zone0/temp", "r");
 	if (fp) {
 		if (fscanf(fp, "%lu", &temp) == 1) {
-			screen->temp = temp / 1000.0;
+			mcp->temp = temp / 1000.0;
 		}
 		fclose(fp);
 	}
 }
 
-screen_t *display_get_screen() {
-	return screen;
-}
-
 int display_init() {
-	screen = malloc(sizeof(*screen));
-
-	screen->artist = malloc(BUFSIZE);
-	screen->title = malloc(BUFSIZE);
-	screen->album = malloc(BUFSIZE);
-
-	memset(screen->artist, 0, BUFSIZE);
-	memset(screen->title, 0, BUFSIZE);
-	memset(screen->album, 0, BUFSIZE);
-
 	FILE *i, *o;
 	i = fopen(TTY, "r");
 	o = fopen(TTY, "w");
@@ -117,20 +116,24 @@ int display_init() {
 	start_color();
 
 	if (has_colors() && COLOR_PAIRS >= 13) {
-		init_pair(1, COLOR_WHITE, COLOR_BLACK);
-		init_pair(2, COLOR_RED, COLOR_BLACK);
-		init_pair(3, COLOR_GREEN, COLOR_BLACK);
-		init_pair(4, COLOR_YELLOW, COLOR_BLACK);
-		init_pair(5, COLOR_BLUE, COLOR_BLACK);
-		init_pair(6, COLOR_MAGENTA, COLOR_BLACK);
-		init_pair(6, COLOR_CYAN, COLOR_BLACK);
-		init_pair(8, COLOR_BLUE, COLOR_WHITE);
-		init_pair(9, COLOR_WHITE, COLOR_RED);
-		init_pair(10, COLOR_BLACK, COLOR_GREEN);
-		init_pair(11, COLOR_BLUE, COLOR_YELLOW);
-		init_pair(12, COLOR_WHITE, COLOR_BLUE);
-		init_pair(13, COLOR_WHITE, COLOR_MAGENTA);
+		init_pair(WHITE, COLOR_WHITE, COLOR_BLACK);
+		init_pair(RED, COLOR_RED, COLOR_BLACK);
+		init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
+		init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 	}
+
+	mcp->dac_volume = 0;
+	mcp->dac_source = 0;
+	mcp->dac_signal = nlock;
+	mcp->dac_bits = 0;
+	mcp->dac_rate = 0;
+	mcp->mpd_state = MPD_STATE_PAUSE;
+	mcp->mpd_bits = 0;
+	mcp->mpd_rate = 0;
+	strcpy(mcp->artist, "");
+	strcpy(mcp->title, "");
+	strcpy(mcp->album, "");
+
 	return 0;
 }
 
@@ -163,17 +166,6 @@ int main(void) {
 	char *artist = "Mike Koglin";
 	char *title = "The Silence (Prospekt Remix)";
 	char *album = "Ministry Of Sound";
-
-	screen->state = MPD_STATE_PAUSE;
-	screen->volume = -42;
-	screen->signal = 2;
-	screen->bits = 24;
-	screen->rate = 96;
-	screen->temp = 51.2;
-	screen->load = 0.23;
-	screen->artist = artist;
-	screen->title = title;
-	screen->album = album;
 
 	display(NULL);
 

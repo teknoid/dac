@@ -44,11 +44,6 @@
 #define MPD_HOST		"localhost"
 #define MPD_PORT		6600
 
-#define NLOCK			0
-#define PCM				1
-#define DSD				2
-#define DOP				3
-
 #define msleep(x) usleep(x*1000)
 
 #define BUFSIZE			256
@@ -57,20 +52,20 @@
 
 typedef enum {
 	startup, stdby, on, off
-} state_t;
+} power_state_t;
 
-volatile state_t power_state;
+typedef enum {
+	nlock, pcm, dsd, dop
+} dac_signal_t;
 
-struct plist {
-	int key;
-	int pos;
-	char name[32];
-	char path[128];
-};
+typedef enum {
+	i2s, opt, coax
+} dac_source_t;
 
 typedef struct {
-	int dac_source;
-	int dac_signal;
+	power_state_t power;
+	dac_signal_t dac_signal;
+	dac_source_t dac_source;
 	int dac_bits;
 	int dac_rate;
 	int dac_volume;
@@ -81,10 +76,12 @@ typedef struct {
 	int clock_m;
 	double load;
 	double temp;
-	char* artist;
-	char* title;
-	char* album;
-} screen_t;
+	char artist[BUFSIZE];
+	char title[BUFSIZE];
+	char album[BUFSIZE];
+} mcp_state_t;
+
+extern mcp_state_t *mcp;
 
 int startsWith(const char *pre, const char *str);
 char *printBits(char value);
@@ -134,6 +131,5 @@ void power_hard(void);
 void *display(void *arg);
 int display_init(void);
 void display_close(void);
-screen_t *display_get_screen(void);
 
 void replaygain(const char *filename);

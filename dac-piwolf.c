@@ -70,10 +70,10 @@ int dac_init() {
 
 	int pin = digitalRead(GPIO_POWER);
 	if (pin == 1) {
-		power_state = on;
+		mcp->power = on;
 		mcplog("entered power state ON");
 	} else {
-		power_state = stdby;
+		mcp->power = stdby;
 		mcplog("entered power state STDBY");
 	}
 

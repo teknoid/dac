@@ -10,13 +10,13 @@
 void poweron() {
 	dac_on();
 	mpdclient_handle(KEY_PLAY);
-	power_state = on;
+	mcp->power = on;
 	mcplog("entered power state ON");
 }
 
 void poweroff() {
 	dac_off();
-	power_state = off;
+	mcp->power = off;
 	mcplog("entered power state OFF");
 	system("shutdown -h now");
 }
@@ -24,14 +24,14 @@ void poweroff() {
 void standby() {
 	dac_off();
 	mpdclient_handle(KEY_STOP);
-	power_state = stdby;
+	mcp->power = stdby;
 	mcplog("entered power state STDBY");
 }
 
 void power_soft() {
-	if (power_state == startup || power_state == stdby) {
+	if (mcp->power == startup || mcp->power == stdby) {
 		poweron();
-	} else if (power_state == on) {
+	} else if (mcp->power == on) {
 		standby();
 	}
 }
@@ -41,7 +41,7 @@ void power_hard() {
 }
 
 int power_init() {
-	power_state = startup;
+	mcp->power = startup;
 	mcplog("entered power state STARTUP");
 	return 0;
 }

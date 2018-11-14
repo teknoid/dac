@@ -131,12 +131,9 @@ static void process_song(struct mpd_song *song, int pos) {
 
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
-#ifdef DISPLAY
-		screen_t *screen = display_get_screen();
-		strncpy(screen->artist, artist, BUFSIZE);
-		strncpy(screen->title, title, BUFSIZE);
-		strncpy(screen->album, album, BUFSIZE);
-#endif
+		strcpy(mcp->artist, artist);
+		strcpy(mcp->title, title);
+		strcpy(mcp->album, album);
 		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
@@ -249,20 +246,11 @@ void *mpdclient(void *arg) {
 		return (void *) 0;
 	}
 
-	while (true) {
-		mpd_command_list_begin(conn_status, true);
-		mpd_send_status(conn_status);
-		mpd_send_current_song(conn_status);
-		mpd_command_list_end(conn_status);
-
-		struct mpd_status *status = mpd_recv_status(conn_status);
+	while (1) {
+		struct mpd_status *status = mpd_run_status(conn_status);
 		int state = mpd_status_get_state(status);
 		mcplog("MPD State %d", state);
-
-#ifdef DISPLAY
-		screen_t *screen = display_get_screen();
-		screen->mpd_state = state;
-#endif
+		mcp->mpd_state = state;
 
 		if (state == MPD_STATE_PAUSE) {
 			mcplog("MPD State PAUSE");
@@ -273,15 +261,11 @@ void *mpdclient(void *arg) {
 
 			const struct mpd_audio_format *audio_format = mpd_status_get_audio_format(status);
 			if (audio_format != NULL) {
-#ifdef DISPLAY
-				screen_t *screen = display_get_screen();
-				screen->mpd_bits = audio_format->bits;
-				screen->mpd_rate = audio_format->sample_rate;
-#endif
+				mcp->mpd_bits = audio_format->bits;
+				mcp->mpd_rate = audio_format->sample_rate;
 			}
 
-			mpd_response_next(conn_status);
-			struct mpd_song *song = mpd_recv_song(conn_status);
+			struct mpd_song *song = mpd_run_current_song(conn_status);
 			unsigned int this_song = mpd_song_get_id(song);
 			if (this_song != current_song) {
 				int pos = mpd_status_get_song_pos(status);
@@ -290,13 +274,9 @@ void *mpdclient(void *arg) {
 			}
 			mpd_song_free(song);
 		}
-
-		mpd_response_finish(conn_status);
-		mpd_status_free(status);
-
-		mpd_run_idle_mask(conn_status, MPD_IDLE_PLAYER);
-
+		mpd_run_idle(conn_status);
 	}
+
 	mpd_connection_free(conn_status);
 	return (void *) 0;
 }
