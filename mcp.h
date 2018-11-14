@@ -69,12 +69,14 @@ struct plist {
 };
 
 typedef struct {
-	enum mpd_state state;
-	int source;
-	int signal;
-	int bits;
-	int rate;
-	int volume;
+	int dac_source;
+	int dac_signal;
+	int dac_bits;
+	int dac_rate;
+	int dac_volume;
+	enum mpd_state mpd_state;
+	int mpd_bits;
+	int mpd_rate;
 	int clock_h;
 	int clock_m;
 	double load;

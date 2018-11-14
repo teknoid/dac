@@ -1,0 +1,20 @@
+
+TODO
+----------------------------------------------
+
+* Temp gelb von 40-50
+
+* night mode
+
+* global status struct status_t, dort auch power integrieren, enum für signal
+
+* title/artist mittig + scroll
+
+
+
+
+DONE
+----------------------------------------------
+* bits auslesen (MPD)
+
+* beim start MPD status abfragen

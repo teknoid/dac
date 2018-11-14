@@ -26,23 +26,23 @@ static void screen_paint(int count) {
 
 	// header line
 	color_set(1, NULL);
-	mvprintw(HEADER, 0, "%2ddB", screen->volume);
-	if (screen->signal == NLOCK) {
+	mvprintw(HEADER, 0, "%2ddB", screen->dac_volume);
+	if (screen->dac_signal == NLOCK) {
 		mvaddstr(HEADER, 8, "NLOCK");
 		mvaddstr(HEADER, 15, "--/--");
-	} else if (screen->signal == PCM) {
+	} else if (screen->dac_signal == PCM) {
 		mvaddstr(HEADER, 9, "PCM");
-		mvprintw(HEADER, 15, "%d/%d", screen->bits, screen->rate);
-	} else if (screen->signal == DSD) {
+		mvprintw(HEADER, 15, "%d/%d", screen->mpd_bits, screen->dac_rate);
+	} else if (screen->dac_signal == DSD) {
 		mvaddstr(HEADER, 9, "DSD");
-		mvprintw(HEADER, 15, "%d/%d", screen->bits, screen->rate);
-	} else if (screen->signal == DOP) {
+		mvprintw(HEADER, 15, "%d/%d", screen->dac_bits, screen->dac_rate);
+	} else if (screen->dac_signal == DOP) {
 		mvaddstr(HEADER, 9, "DOP");
-		mvprintw(HEADER, 15, "%d/%d", screen->bits, screen->rate);
+		mvprintw(HEADER, 15, "%d/%d", screen->dac_bits, screen->dac_rate);
 	}
 
 	// main area
-	if (screen->state == MPD_STATE_PAUSE || screen->state == MPD_STATE_STOP) {
+	if (screen->mpd_state == MPD_STATE_PAUSE || screen->mpd_state == MPD_STATE_STOP) {
 		attroff(A_BOLD);
 	}
 	mvprintw(2, 0, "%s", screen->artist);

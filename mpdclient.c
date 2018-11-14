@@ -132,10 +132,10 @@ static void process_song(struct mpd_song *song, int pos) {
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
 #ifdef DISPLAY
-	screen_t *screen = display_get_screen();
-	strncpy(screen->artist, artist, BUFSIZE);
-	strncpy(screen->title, title, BUFSIZE);
-	strncpy(screen->album, album, BUFSIZE);
+		screen_t *screen = display_get_screen();
+		strncpy(screen->artist, artist, BUFSIZE);
+		strncpy(screen->title, title, BUFSIZE);
+		strncpy(screen->album, album, BUFSIZE);
 #endif
 		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
 	} else {
@@ -249,7 +249,7 @@ void *mpdclient(void *arg) {
 		return (void *) 0;
 	}
 
-	while (mpd_run_idle_mask(conn_status, MPD_IDLE_PLAYER)) {
+	while (true) {
 		mpd_command_list_begin(conn_status, true);
 		mpd_send_status(conn_status);
 		mpd_send_current_song(conn_status);
@@ -261,7 +261,7 @@ void *mpdclient(void *arg) {
 
 #ifdef DISPLAY
 		screen_t *screen = display_get_screen();
-		screen->state = state;
+		screen->mpd_state = state;
 #endif
 
 		if (state == MPD_STATE_PAUSE) {
@@ -270,6 +270,16 @@ void *mpdclient(void *arg) {
 			mcplog("MPD State STOP");
 		} else if (state == MPD_STATE_PLAY) {
 			mcplog("MPD State PLAY");
+
+			const struct mpd_audio_format *audio_format = mpd_status_get_audio_format(status);
+			if (audio_format != NULL) {
+#ifdef DISPLAY
+				screen_t *screen = display_get_screen();
+				screen->mpd_bits = audio_format->bits;
+				screen->mpd_rate = audio_format->sample_rate;
+#endif
+			}
+
 			mpd_response_next(conn_status);
 			struct mpd_song *song = mpd_recv_song(conn_status);
 			unsigned int this_song = mpd_song_get_id(song);
@@ -283,6 +293,9 @@ void *mpdclient(void *arg) {
 
 		mpd_response_finish(conn_status);
 		mpd_status_free(status);
+
+		mpd_run_idle_mask(conn_status, MPD_IDLE_PLAYER);
+
 	}
 	mpd_connection_free(conn_status);
 	return (void *) 0;

@@ -187,7 +187,7 @@ static int dac_get_vol() {
 	int db;
 
 	i2c_read(REG_VOLUME, &value);
-	db = value / 2;
+	db = (value / 2) * -1;
 	return db;
 }
 
@@ -201,10 +201,10 @@ void dac_volume_up() {
 	if (value != 0x00)
 		value--;
 	i2c_write(REG_VOLUME, value);
-	db = value / 2;
+	db = (value / 2) * -1;
 	screen_t *screen = display_get_screen();
-	screen->volume = db * -1;
-	mcplog("VOL++ -%03d", db);
+	screen->dac_volume = db;
+	mcplog("VOL++ %03d", db);
 }
 
 void dac_volume_down() {
@@ -217,10 +217,10 @@ void dac_volume_down() {
 	if (value != 0xf0)
 		value++;
 	i2c_write(REG_VOLUME, value);
-	db = value / 2;
+	db = (value / 2) * -1;
 	screen_t *screen = display_get_screen();
-	screen->volume = db * -1;
-	mcplog("VOL-- -%03d", db);
+	screen->dac_volume = db;
+	mcplog("VOL-- %03d", db);
 }
 
 void dac_mute() {
@@ -296,10 +296,10 @@ void dac_update() {
 	int vol = dac_get_vol();
 
 	screen_t *screen = display_get_screen();
-	screen->signal = signal;
-	screen->rate = fsr;
-	screen->bits = 16; // TODO DAC receives always 32bit !!! - read from MPD
-	screen->volume = vol;
+	screen->dac_signal = signal;
+	screen->dac_rate = fsr;
+	screen->dac_bits = 32; // DAC receives always 32bit from amanero - read from MPD
+	screen->dac_volume = vol;
 
 	switch (signal) {
 	case NLOCK:
