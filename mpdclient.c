@@ -131,10 +131,12 @@ static void process_song(struct mpd_song *song, int pos) {
 
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
+		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
 		strcpy(mcp->artist, artist);
 		strcpy(mcp->title, title);
-		strcpy(mcp->album, album);
-		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
+		if (album != NULL) {
+			strcpy(mcp->album, album);
+		}
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
 	}
