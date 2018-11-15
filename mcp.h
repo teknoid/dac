@@ -74,8 +74,11 @@ typedef struct {
 	int mpd_rate;
 	int clock_h;
 	int clock_m;
+	int nightmode;
 	double load;
 	double temp;
+	int plist_key;
+	int plist_pos;
 	char artist[BUFSIZE];
 	char title[BUFSIZE];
 	char album[BUFSIZE];
@@ -131,5 +134,6 @@ void power_hard(void);
 void *display(void *arg);
 int display_init(void);
 void display_close(void);
+void display_update(int);
 
 void replaygain(const char *filename);

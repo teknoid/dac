@@ -105,7 +105,7 @@ static void toggle_pause() {
 }
 
 static void process_song(struct mpd_song *song, int pos) {
-	// apply replaygain to DAC from file metadata
+	// apply replaygain to DAC from file id3tag data
 	char filename[512];
 	const char *path = mpd_song_get_uri(song);
 	strcpy(filename, MUSIC);
@@ -124,11 +124,13 @@ static void process_song(struct mpd_song *song, int pos) {
 		}
 	}
 
-	// print status
 	const char *artist = mpd_song_get_tag(song, MPD_TAG_ARTIST, 0);
 	const char *title = mpd_song_get_tag(song, MPD_TAG_TITLE, 0);
 	const char *album = mpd_song_get_tag(song, MPD_TAG_ALBUM, 0);
 
+	// update status
+	mcp->plist_key = plist_key;
+	mcp->plist_pos = pos;
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
 		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
@@ -140,8 +142,6 @@ static void process_song(struct mpd_song *song, int pos) {
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
 	}
-
-	dac_update();
 }
 
 void mpdclient_set_playlist_mode(int mode) {
@@ -276,6 +276,12 @@ void *mpdclient(void *arg) {
 			}
 			mpd_song_free(song);
 		}
+
+		dac_update();
+#ifdef DISPLAY
+		display_update(0);
+#endif
+
 		mpd_run_idle(conn_status);
 	}
 

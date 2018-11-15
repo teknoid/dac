@@ -2,9 +2,6 @@
 TODO
 ----------------------------------------------
 
-
-* night mode
-
 * title/artist mittig + scroll
 
 
@@ -12,6 +9,8 @@ TODO
 
 DONE
 ----------------------------------------------
+* night mode
+
 * global status struct status_t, dort auch power integrieren, enum für signal
 
 * Temp gelb von 40-50

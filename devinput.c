@@ -114,6 +114,11 @@ void *devinput(void *arg) {
 			dac_handle(ev.code);
 			mpdclient_handle(ev.code);
 		}
+
+#ifdef DISPLAY
+		display_update(0);
+#endif
+
 	}
 	mcplog("DEVINPUT error", strerror(errno));
 	return (void *) 0;

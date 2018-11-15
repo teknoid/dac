@@ -115,5 +115,10 @@ void* lirc(void *arg) {
 			dac_handle(key);
 			mpdclient_handle(key);
 		}
+
+#ifdef DISPLAY
+		display_update(0);
+#endif
+
 	}
 }

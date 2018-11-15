@@ -22,10 +22,43 @@
 #define YELLOW			3
 #define GREEN			4
 
-static void screen_paint(int count) {
+static void get_system_status() {
+	time_t timer;
+	time(&timer);
+
+	struct tm* tm_info = localtime(&timer);
+	mcp->clock_h = tm_info->tm_hour;
+	mcp->clock_m = tm_info->tm_min;
+	if (mcp->clock_h >= 8 && mcp->clock_h < 22) {
+		mcp->nightmode = 0;
+	} else {
+		mcp->nightmode = 1;
+	}
+
+	double load[3];
+	if (getloadavg(load, 3) != -1) {
+		mcp->load = load[0];
+	}
+
+	unsigned long temp = 0;
+	FILE *fp = fopen("/sys/devices/virtual/thermal/thermal_zone0/temp", "r");
+	if (fp) {
+		if (fscanf(fp, "%lu", &temp) == 1) {
+			mcp->temp = temp / 1000.0;
+		}
+		fclose(fp);
+	}
+}
+
+void display_update(int count) {
 	clear();
 	color_set(1, NULL);
-	attron(A_BOLD);
+
+	if (mcp->nightmode) {
+		attroff(A_BOLD);
+	} else {
+		attron(A_BOLD);
+	}
 
 	// header line
 	color_set(1, NULL);
@@ -57,11 +90,17 @@ static void screen_paint(int count) {
 	// main area
 	if (mcp->mpd_state == MPD_STATE_PAUSE || mcp->mpd_state == MPD_STATE_STOP) {
 		attroff(A_BOLD);
+	} else {
+		attron(A_BOLD);
 	}
+	mvprintw(1, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	mvprintw(2, 0, "%s", mcp->artist);
 	mvprintw(3, 0, "%s", mcp->title);
-	// mvprintw(4, 0, "%s", mcp->album);
-	attron(A_BOLD);
+	if (mcp->nightmode) {
+		attroff(A_BOLD);
+	} else {
+		attron(A_BOLD);
+	}
 
 	// footer line
 	if (count % 2 == 0) {
@@ -83,29 +122,6 @@ static void screen_paint(int count) {
 	refresh();
 }
 
-static void screen_update_system() {
-	time_t timer;
-	time(&timer);
-
-	struct tm* tm_info = localtime(&timer);
-	mcp->clock_h = tm_info->tm_hour;
-	mcp->clock_m = tm_info->tm_min;
-
-	double load[3];
-	if (getloadavg(load, 3) != -1) {
-		mcp->load = load[0];
-	}
-
-	unsigned long temp = 0;
-	FILE *fp = fopen("/sys/devices/virtual/thermal/thermal_zone0/temp", "r");
-	if (fp) {
-		if (fscanf(fp, "%lu", &temp) == 1) {
-			mcp->temp = temp / 1000.0;
-		}
-		fclose(fp);
-	}
-}
-
 int display_init() {
 	FILE *i, *o;
 	i = fopen(TTY, "r");
@@ -122,18 +138,6 @@ int display_init() {
 		init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 	}
 
-	mcp->dac_volume = 0;
-	mcp->dac_source = 0;
-	mcp->dac_signal = nlock;
-	mcp->dac_bits = 0;
-	mcp->dac_rate = 0;
-	mcp->mpd_state = MPD_STATE_PAUSE;
-	mcp->mpd_bits = 0;
-	mcp->mpd_rate = 0;
-	strcpy(mcp->artist, "");
-	strcpy(mcp->title, "");
-	strcpy(mcp->album, "");
-
 	return 0;
 }
 
@@ -148,13 +152,12 @@ void *display(void *arg) {
 	}
 
 	unsigned char count = 0;
-
 	while (1) {
 		if (count % 2 == 0) {
-			screen_update_system();
+			get_system_status();
 		}
-		screen_paint(count);
-		usleep(500 * 1000);
+		display_update(count);
+		msleep(500);
 		count++;
 	}
 }
