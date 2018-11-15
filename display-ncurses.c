@@ -50,15 +50,18 @@ static void get_system_status() {
 	}
 }
 
-void display_update(int count) {
-	clear();
-	color_set(1, NULL);
-
+static void check_nightmode() {
 	if (mcp->nightmode) {
 		attroff(A_BOLD);
 	} else {
 		attron(A_BOLD);
 	}
+}
+
+void display_update(int count) {
+	clear();
+	color_set(1, NULL);
+	check_nightmode();
 
 	// header line
 	color_set(1, NULL);
@@ -96,11 +99,7 @@ void display_update(int count) {
 	mvprintw(1, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	mvprintw(2, 0, "%s", mcp->artist);
 	mvprintw(3, 0, "%s", mcp->title);
-	if (mcp->nightmode) {
-		attroff(A_BOLD);
-	} else {
-		attron(A_BOLD);
-	}
+	check_nightmode();
 
 	// footer line
 	if (count % 2 == 0) {
@@ -111,11 +110,13 @@ void display_update(int count) {
 	if (mcp->temp >= 60) {
 		color_set(RED, NULL);
 	} else if (mcp->temp >= 50) {
+		attron(A_BOLD);
 		color_set(YELLOW, NULL);
 	} else {
 		color_set(GREEN, NULL);
 	}
 	mvprintw(FOOTER, 8, "%2.1f", mcp->temp);
+	check_nightmode();
 	color_set(WHITE, NULL);
 	mvprintw(FOOTER, 16, "%1.2f", mcp->load);
 
