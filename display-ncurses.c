@@ -11,6 +11,7 @@
 #include "mcp.h"
 
 #define TTY				"/dev/tty0"
+//#define TTY				"/dev/tty"
 
 #define HEADER			0
 #define FOOTER			6
@@ -130,15 +131,20 @@ int display_init() {
 
 	newterm(0, o, i);
 	curs_set(0);
-	start_color();
 
-	if (has_colors() && COLOR_PAIRS >= 13) {
-		init_pair(WHITE, COLOR_WHITE, COLOR_BLACK);
-		init_pair(RED, COLOR_RED, COLOR_BLACK);
-		init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
-		init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
+	if (has_colors() == FALSE) {
+		endwin();
+		mcplog("Your terminal does not support colors");
+		return -1;
 	}
 
+	start_color();
+	init_pair(WHITE, COLOR_WHITE, COLOR_BLACK);
+	init_pair(RED, COLOR_RED, COLOR_BLACK);
+	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
+	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
+
+	clear();
 	return 0;
 }
 
@@ -167,9 +173,9 @@ void *display(void *arg) {
 int main(void) {
 	display_init();
 
-	char *artist = "Mike Koglin";
-	char *title = "The Silence (Prospekt Remix)";
-	char *album = "Ministry Of Sound";
+	char *artist = "Above & Beyond & Gareth Emery Presents Oceanlab";
+	char *title = "On A Good Day (Metropolis)";
+	char *album = "";
 
 	display(NULL);
 
