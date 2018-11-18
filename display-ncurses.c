@@ -10,7 +10,7 @@
 
 #include "mcp.h"
 
-#define TTY				"/dev/tty0"
+#define TTY				"/dev/tty1"
 //#define TTY				"/dev/tty"
 
 #define HEADER			0
@@ -22,6 +22,26 @@
 #define RED				2
 #define YELLOW			3
 #define GREEN			4
+
+static void paint_on() {
+	// wie jetzt
+}
+
+static void paint_off() {
+	// nur status line mittig
+}
+
+static void paint_stdby() {
+	// motd / uname / df -h
+}
+
+static void paint_pause() {
+	// wie jetzt mit artist/title 50%
+}
+
+static void paint_night() {
+	// wie jetzt aber alles 50%
+}
 
 static void get_system_status() {
 	time_t timer;

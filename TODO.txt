@@ -2,9 +2,11 @@
 TODO
 ----------------------------------------------
 
-* title/artist mittig + scroll
+* artist+title: mittig und scroll wenn > 20
 
+* verschiedene screens ON OFF STDBY NIGHT usw. 
 
+* vol++ vol-- input: kurz fullscreen grafik einblenden mit anzeige
 
 
 DONE
