@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include <memory.h>
@@ -10,9 +11,14 @@
 
 #include "mcp.h"
 
+#define WIDTH			20
+#define HEIGHT			7
+
 #define HEADER			0
-#define MAINAREA		1
+#define MAINAREA		2
 #define FOOTER			6
+
+#define SCROLLDELAY		4
 
 // #define LOCALMAIN
 
@@ -22,6 +28,36 @@
 #define GREEN			4
 
 unsigned long count = 0;
+int scroller_artist = 0;
+int scroller_title = 0;
+
+static void center_line(int line, char *text) {
+	int pos = 10 - (strlen(text) / 2);
+	mvprintw(line, pos, "%s", text);
+}
+
+static void scroll_line(int line, int *scroller, char *text) {
+	char scrolltxt[WIDTH + 1];
+	int l = strlen(text);
+	int x = *scroller - SCROLLDELAY;
+	int pos;
+	if (x < 0) {
+		pos = 0; // wait 5s before start scrolling
+	} else if (x > l - WIDTH) {
+		pos = l - WIDTH; // wait 5s before reset
+		if (x > l - WIDTH + SCROLLDELAY) {
+			*scroller = 0; // reset
+			pos = 0;
+		}
+	} else {
+		pos = x;
+	}
+	strncpy(scrolltxt, text + pos, WIDTH);
+	scrolltxt[WIDTH] = 0x00;
+	mcplog("%d : %d : %s", *scroller, pos, scrolltxt);
+	mvprintw(line, 0, "%s", scrolltxt);
+	*scroller = *scroller + 1;
+}
 
 static void audioinfo(int line) {
 	mvprintw(line, 0, "%2ddB", mcp->dac_volume);
@@ -51,9 +87,17 @@ static void audioinfo(int line) {
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
-	mvprintw(line + 1, 0, "%s", mcp->artist);
-	mvprintw(line + 2, 0, "%s", mcp->title);
+	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	if (strlen(mcp->artist) <= WIDTH) {
+		center_line(line + 1, mcp->artist);
+	} else {
+		scroll_line(line + 1, &scroller_artist, mcp->artist);
+	}
+	if (strlen(mcp->title) <= WIDTH) {
+		center_line(line + 2, mcp->title);
+	} else {
+		scroll_line(line + 2, &scroller_title, mcp->title);
+	}
 }
 
 static void systeminfo(int line) {
