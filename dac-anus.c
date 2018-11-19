@@ -32,6 +32,7 @@ void dac_update() {
 }
 
 int dac_init() {
+	mcp->power = on;
 	return 0;
 }
 

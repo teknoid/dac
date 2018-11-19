@@ -279,7 +279,7 @@ void *mpdclient(void *arg) {
 
 		dac_update();
 #ifdef DISPLAY
-		display_update(0);
+		display_update();
 #endif
 
 		mpd_run_idle(conn_status);

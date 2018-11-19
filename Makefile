@@ -10,8 +10,8 @@ COBJS = mcp.o devinput.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
 all: $(OBJS)
 	@echo "To create executables specify target: anus | piwolf | sabre18 | sabre28"
  
-anus: $(COBJS) dac-anus.o
-	$(CC) $(CFLAGS) $(LIBS) -o mcp $(COBJS) dac-anus.o
+anus: $(COBJS) dac-anus.o display-ncurses.o
+	$(CC) $(CFLAGS) $(LIBS) -lncurses -o mcp $(COBJS) dac-anus.o display-ncurses.o
 
 piwolf: $(COBJS) dac-piwolf.o lirc.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-piwolf.o lirc.o
@@ -20,7 +20,7 @@ sabre18: $(COBJS) dac-es9018.o
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9018.o
 
 sabre28: $(COBJS) dac-es9028.o rotary.o display-ncurses.o
-	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -o mcp $(COBJS) dac-es9028.o rotary.o display-ncurses.c
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -o mcp $(COBJS) dac-es9028.o rotary.o display-ncurses.o
 
 display: display-ncurses.o
 	$(CC) $(CFLAGS) $(LIBS) -lncurses -o display display-ncurses.c

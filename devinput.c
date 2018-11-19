@@ -116,7 +116,7 @@ void *devinput(void *arg) {
 		}
 
 #ifdef DISPLAY
-		display_update(0);
+		display_update();
 #endif
 
 	}

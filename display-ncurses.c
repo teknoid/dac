@@ -10,10 +10,8 @@
 
 #include "mcp.h"
 
-#define TTY				"/dev/tty1"
-//#define TTY				"/dev/tty"
-
 #define HEADER			0
+#define MAINAREA		1
 #define FOOTER			6
 
 // #define LOCALMAIN
@@ -23,20 +21,91 @@
 #define YELLOW			3
 #define GREEN			4
 
-static void paint_on() {
-	// wie jetzt
+unsigned long count = 0;
+
+static void audioinfo(int line) {
+	mvprintw(line, 0, "%2ddB", mcp->dac_volume);
+	if (mcp->dac_signal == nlock) {
+		mvaddstr(line, 8, "NLOCK");
+		mvaddstr(line, 15, "--/--");
+	} else if (mcp->dac_signal == pcm) {
+		mvaddstr(line, 9, "PCM");
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
+	} else if (mcp->dac_signal == dsd) {
+		if (mcp->dac_rate == 44) {
+			mvaddstr(line, 9, "DSD64");
+		} else if (mcp->dac_rate == 88) {
+			mvaddstr(line, 8, "DSD128");
+		} else if (mcp->dac_rate == 176) {
+			mvaddstr(line, 8, "DSD256");
+		} else if (mcp->dac_rate == 384) {
+			mvaddstr(line, 8, "DSD512");
+		} else if (mcp->dac_rate == 176) {
+			mvaddstr(line, 9, "DSD?");
+		}
+		mvprintw(line, 18, "%d", mcp->dac_rate);
+	} else if (mcp->dac_signal == dop) {
+		mvaddstr(line, 9, "DOP");
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
+	}
+}
+
+static void songinfo(int line) {
+	mvprintw(line, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	mvprintw(line + 1, 0, "%s", mcp->artist);
+	mvprintw(line + 2, 0, "%s", mcp->title);
+}
+
+static void systeminfo(int line) {
+	if (count % 2 == 0) {
+		mvprintw(line, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
+	} else {
+		mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
+	}
+	if (mcp->temp >= 60) {
+		color_set(RED, NULL);
+	} else if (mcp->temp >= 50) {
+		color_set(YELLOW, NULL);
+	} else {
+		color_set(GREEN, NULL);
+	}
+	mvprintw(line, 8, "%2.1f", mcp->temp);
+	color_set(WHITE, NULL);
+	mvprintw(line, 16, "%1.2f", mcp->load);
+}
+
+static void paint_play() {
+	clear();
+	color_set(WHITE, NULL);
+	attron(A_BOLD);
+	audioinfo(HEADER);
+	songinfo(MAINAREA);
+	systeminfo(FOOTER);
+	attroff(A_BOLD);
+	refresh();
+}
+
+static void paint_stop() {
+	clear();
+	color_set(WHITE, NULL);
+	attron(A_BOLD);
+	audioinfo(HEADER);
+	attroff(A_BOLD);
+	songinfo(MAINAREA);
+	attron(A_BOLD);
+	systeminfo(FOOTER);
+	refresh();
 }
 
 static void paint_off() {
-	// nur status line mittig
+	clear();
+	color_set(WHITE, NULL);
+	systeminfo(3);
+	refresh();
 }
 
 static void paint_stdby() {
 	// motd / uname / df -h
-}
-
-static void paint_pause() {
-	// wie jetzt mit artist/title 50%
 }
 
 static void paint_night() {
@@ -71,86 +140,27 @@ static void get_system_status() {
 	}
 }
 
-static void check_nightmode() {
-	if (mcp->nightmode) {
-		attroff(A_BOLD);
-	} else {
-		attron(A_BOLD);
+void display_update() {
+	if (mcp->power == off || mcp->power == startup) {
+		paint_off();
+		return;
 	}
-}
-
-void display_update(int count) {
-	clear();
-	color_set(1, NULL);
-	check_nightmode();
-
-	// header line
-	color_set(1, NULL);
-	mvprintw(HEADER, 0, "%2ddB", mcp->dac_volume);
-	if (mcp->dac_signal == nlock) {
-		mvaddstr(HEADER, 8, "NLOCK");
-		mvaddstr(HEADER, 15, "--/--");
-	} else if (mcp->dac_signal == pcm) {
-		mvaddstr(HEADER, 9, "PCM");
-		mvprintw(HEADER, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
-	} else if (mcp->dac_signal == dsd) {
-		if (mcp->dac_rate == 44) {
-			mvaddstr(HEADER, 9, "DSD64");
-		} else if (mcp->dac_rate == 88) {
-			mvaddstr(HEADER, 8, "DSD128");
-		} else if (mcp->dac_rate == 176) {
-			mvaddstr(HEADER, 8, "DSD256");
-		} else if (mcp->dac_rate == 384) {
-			mvaddstr(HEADER, 8, "DSD512");
-		} else if (mcp->dac_rate == 176) {
-			mvaddstr(HEADER, 9, "DSD?");
-		}
-		mvprintw(HEADER, 18, "%d", mcp->dac_rate);
-	} else if (mcp->dac_signal == dop) {
-		mvaddstr(HEADER, 9, "DOP");
-		mvprintw(HEADER, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
+	if (mcp->mpd_state == MPD_STATE_STOP || mcp->mpd_state == MPD_STATE_PAUSE) {
+		paint_stop();
 	}
-
-	// main area
-	if (mcp->mpd_state == MPD_STATE_PAUSE || mcp->mpd_state == MPD_STATE_STOP) {
-		attroff(A_BOLD);
-	} else {
-		attron(A_BOLD);
-	}
-	mvprintw(1, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
-	mvprintw(2, 0, "%s", mcp->artist);
-	mvprintw(3, 0, "%s", mcp->title);
-	check_nightmode();
-
-	// footer line
-	if (count % 2 == 0) {
-		mvprintw(FOOTER, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
-	} else {
-		mvprintw(FOOTER, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
-	}
-	if (mcp->temp >= 60) {
-		color_set(RED, NULL);
-	} else if (mcp->temp >= 50) {
-		attron(A_BOLD);
-		color_set(YELLOW, NULL);
-	} else {
-		color_set(GREEN, NULL);
-	}
-	mvprintw(FOOTER, 8, "%2.1f", mcp->temp);
-	check_nightmode();
-	color_set(WHITE, NULL);
-	mvprintw(FOOTER, 16, "%1.2f", mcp->load);
-
-	refresh();
+	paint_play();
 }
 
 int display_init() {
 	FILE *i, *o;
-	i = fopen(TTY, "r");
-	o = fopen(TTY, "w");
+	i = fopen(DISPLAY, "r");
+	o = fopen(DISPLAY, "w");
 
 	newterm(0, o, i);
 	curs_set(0);
+
+	clear();
+	refresh();
 
 	if (has_colors() == FALSE) {
 		endwin();
@@ -164,7 +174,6 @@ int display_init() {
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 
-	clear();
 	return 0;
 }
 
@@ -178,14 +187,12 @@ void *display(void *arg) {
 		return (void *) 0;
 	}
 
-	unsigned char count = 0;
 	while (1) {
-		if (count % 2 == 0) {
+		if (count++ % 2 == 0) {
 			get_system_status();
 		}
-		display_update(count);
+		display_update();
 		msleep(500);
-		count++;
 	}
 }
 

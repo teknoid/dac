@@ -1,11 +1,12 @@
-// #define ANUS
+#define ANUS
 // #define PIWOLF
 // #define SABRE18
-#define SABRE28
+// #define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/opt/music/"
+#define DISPLAY			"/dev/tty"
 #endif
 
 #ifdef PIWOLF
@@ -30,7 +31,7 @@
 //#define MUSIC 			"/music/"
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
-#define DISPLAY
+#define DISPLAY			"/dev/tty1"
 //#define ROTARY
 #define GPIO_ENC_A		4
 #define GPIO_ENC_B		5
@@ -134,6 +135,6 @@ void power_hard(void);
 void *display(void *arg);
 int display_init(void);
 void display_close(void);
-void display_update(int);
+void display_update(void);
 
 void replaygain(const char *filename);
