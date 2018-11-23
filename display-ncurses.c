@@ -18,7 +18,7 @@
 #define MAINAREA		2
 #define FOOTER			6
 
-#define SCROLLDELAY		4
+#define SCROLLDELAY		6
 
 // #define LOCALMAIN
 
@@ -35,7 +35,6 @@ static void check_nightmode() {
 		attroff(A_BOLD);
 	} else {
 		attron(A_BOLD);
-
 	}
 }
 
@@ -95,7 +94,7 @@ static void audioinfo(int line) {
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	mvprintw(line, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	if (strlen(mcp->artist) <= WIDTH) {
 		center_line(line + 1, mcp->artist);
 	} else {
@@ -252,31 +251,26 @@ void *display(void *arg) {
 		return (void *) 0;
 	}
 
-	unsigned char count = 0;
 	while (1) {
-		switch (count) {
-		case 0:
-			get_system_status();
-			mcp->clock_tick = 0;
-			break;
-		case 2:
-			mcp->clock_tick = 1;
-			break;
-		}
+		mcp->clock_tick = 1;
+		get_system_status();
+		display_update();
 
 		if (mcp->power == off) {
 			msleep(500);
-			count += 2;
+			mcp->clock_tick = 0;
+			display_update();
+			msleep(500);
 		} else {
 			msleep(250);
-			count += 1;
+			display_update();
+			msleep(250);
+			mcp->clock_tick = 0;
+			display_update();
+			msleep(250);
+			display_update();
+			msleep(250);
 		}
-
-		if (count >= 4) {
-			count = 0;
-		}
-
-		display_update();
 	}
 }
 
