@@ -27,26 +27,34 @@
 #define YELLOW			3
 #define GREEN			4
 
-unsigned long count = 0;
 int scroller_artist = 0;
 int scroller_title = 0;
+
+static void check_nightmode() {
+	if (mcp->nightmode) {
+		attroff(A_BOLD);
+	} else {
+		attron(A_BOLD);
+
+	}
+}
 
 static void center_line(int line, char *text) {
 	int pos = 10 - (strlen(text) / 2);
 	mvprintw(line, pos, "%s", text);
 }
 
-static void scroll_line(int line, int *scroller, char *text) {
+static void scroll_line(int line, int *scrollptr, char *text) {
 	char scrolltxt[WIDTH + 1];
-	int l = strlen(text);
-	int x = *scroller - SCROLLDELAY;
-	int pos;
+	unsigned int l = strlen(text);
+	unsigned int pos;
+	int x = *scrollptr - SCROLLDELAY;
 	if (x < 0) {
 		pos = 0; // wait 5s before start scrolling
 	} else if (x > l - WIDTH) {
 		pos = l - WIDTH; // wait 5s before reset
 		if (x > l - WIDTH + SCROLLDELAY) {
-			*scroller = 0; // reset
+			*scrollptr = 0; // reset
 			pos = 0;
 		}
 	} else {
@@ -54,9 +62,9 @@ static void scroll_line(int line, int *scroller, char *text) {
 	}
 	strncpy(scrolltxt, text + pos, WIDTH);
 	scrolltxt[WIDTH] = 0x00;
-	mcplog("%d : %d : %s", *scroller, pos, scrolltxt);
+	// mcplog("%d : %d : %s", *scroller, pos, scrolltxt);
 	mvprintw(line, 0, "%s", scrolltxt);
-	*scroller = *scroller + 1;
+	*scrollptr = *scrollptr + 1;
 }
 
 static void audioinfo(int line) {
@@ -101,59 +109,68 @@ static void songinfo(int line) {
 }
 
 static void systeminfo(int line) {
-	if (count % 2 == 0) {
-		mvprintw(line, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
-	} else {
+	if (mcp->clock_tick) {
 		mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
+	} else {
+		mvprintw(line, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
 	}
 	if (mcp->temp >= 60) {
 		color_set(RED, NULL);
+		mvprintw(line, 8, "%2.1f", mcp->temp);
 	} else if (mcp->temp >= 50) {
+		attron(A_BOLD);
 		color_set(YELLOW, NULL);
+		mvprintw(line, 8, "%2.1f", mcp->temp);
 	} else {
 		color_set(GREEN, NULL);
+		mvprintw(line, 8, "%2.1f", mcp->temp);
 	}
-	mvprintw(line, 8, "%2.1f", mcp->temp);
 	color_set(WHITE, NULL);
 	mvprintw(line, 16, "%1.2f", mcp->load);
 }
 
 static void paint_play() {
 	clear();
+	curs_set(0);
 	color_set(WHITE, NULL);
-	attron(A_BOLD);
+	check_nightmode();
 	audioinfo(HEADER);
+	attron(A_BOLD);
 	songinfo(MAINAREA);
+	check_nightmode();
 	systeminfo(FOOTER);
-	attroff(A_BOLD);
 	refresh();
 }
 
 static void paint_stop() {
 	clear();
+	curs_set(0);
 	color_set(WHITE, NULL);
-	attron(A_BOLD);
+	check_nightmode();
 	audioinfo(HEADER);
 	attroff(A_BOLD);
 	songinfo(MAINAREA);
-	attron(A_BOLD);
+	check_nightmode();
 	systeminfo(FOOTER);
+	refresh();
+}
+
+static void paint_stdby() {
+	// motd / uname / df -h
+	clear();
+	curs_set(0);
+	color_set(WHITE, NULL);
+	check_nightmode();
+	systeminfo(3);
 	refresh();
 }
 
 static void paint_off() {
 	clear();
 	color_set(WHITE, NULL);
-	systeminfo(3);
+	attron(A_BOLD);
+	mvaddstr(3, 2, "system shutdown");
 	refresh();
-}
-
-static void paint_stdby() {
-	// motd / uname / df -h
-}
-
-static void paint_night() {
-	// wie jetzt aber alles 50%
 }
 
 static void get_system_status() {
@@ -185,12 +202,17 @@ static void get_system_status() {
 }
 
 void display_update() {
-	if (mcp->power == off || mcp->power == startup) {
+	if (mcp->power == off) {
 		paint_off();
+		return;
+	}
+	if (mcp->power == stdby || mcp->power == startup) {
+		paint_stdby();
 		return;
 	}
 	if (mcp->mpd_state == MPD_STATE_STOP || mcp->mpd_state == MPD_STATE_PAUSE) {
 		paint_stop();
+		return;
 	}
 	paint_play();
 }
@@ -201,7 +223,6 @@ int display_init() {
 	o = fopen(DISPLAY, "w");
 
 	newterm(0, o, i);
-	curs_set(0);
 
 	clear();
 	refresh();
@@ -231,12 +252,31 @@ void *display(void *arg) {
 		return (void *) 0;
 	}
 
+	unsigned char count = 0;
 	while (1) {
-		if (count++ % 2 == 0) {
+		switch (count) {
+		case 0:
 			get_system_status();
+			mcp->clock_tick = 0;
+			break;
+		case 2:
+			mcp->clock_tick = 1;
+			break;
 		}
+
+		if (mcp->power == off) {
+			msleep(500);
+			count += 2;
+		} else {
+			msleep(250);
+			count += 1;
+		}
+
+		if (count >= 4) {
+			count = 0;
+		}
+
 		display_update();
-		msleep(500);
 	}
 }
 

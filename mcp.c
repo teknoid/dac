@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
 #endif
 
 	/* fork go to background */
-//	daemonize();
+	daemonize();
 
 	/* install signal handler */
 	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
