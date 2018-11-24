@@ -84,6 +84,7 @@ typedef struct {
 	char artist[BUFSIZE];
 	char title[BUFSIZE];
 	char album[BUFSIZE];
+	char extension[8];
 } mcp_state_t;
 
 extern mcp_state_t *mcp;

@@ -72,7 +72,7 @@ static void audioinfo(int line) {
 		mvaddstr(line, 8, "NLOCK");
 		mvaddstr(line, 15, "--/--");
 	} else if (mcp->dac_signal == pcm) {
-		mvaddstr(line, 9, "PCM");
+		mvaddstr(line, strlen(mcp->extension) == 4 ? 8 : 9, mcp->extension);
 		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
 	} else if (mcp->dac_signal == dsd) {
 		if (mcp->dac_rate == 44) {
@@ -120,6 +120,7 @@ static void systeminfo(int line) {
 		attron(A_BOLD);
 		color_set(YELLOW, NULL);
 		mvprintw(line, 8, "%2.1f", mcp->temp);
+		check_nightmode();
 	} else {
 		color_set(GREEN, NULL);
 		mvprintw(line, 8, "%2.1f", mcp->temp);

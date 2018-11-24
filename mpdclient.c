@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <assert.h>
+#include <ctype.h>
 #include <linux/input.h>
 
 #include <mpd/connection.h>
@@ -23,6 +24,20 @@ int current_song = -1;
 int playlist_mode = 1;
 
 struct mpd_connection *conn;
+
+static void upper(char *s) {
+	while (*s != 0x00) {
+		*s = toupper(*s);
+		s++;
+	}
+}
+
+static const char *get_filename_ext(const char *filename) {
+	const char *dot = strrchr(filename, '.');
+	if (!dot || dot == filename)
+		return "";
+	return dot + 1;
+}
 
 // find active playlist by path of current song
 static struct plist * find_current_playlist() {
@@ -139,6 +154,8 @@ static void process_song(struct mpd_song *song, int pos) {
 		if (album != NULL) {
 			strcpy(mcp->album, album);
 		}
+		strcpy(mcp->extension, get_filename_ext(path));
+		upper(mcp->extension);
 	} else {
 		mcplog("[%d:%d] %s", plist_key, pos, path);
 	}
