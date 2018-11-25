@@ -36,6 +36,7 @@ pthread_t thread_dac;
 
 FILE *flog;
 mcp_state_t *mcp;
+mcp_config_t *cfg;
 
 void mcplog(char *format, ...) {
 	va_list vargs;
@@ -131,6 +132,12 @@ static void daemonize() {
 }
 
 int main(int argc, char **argv) {
+	cfg = malloc(sizeof(*cfg));
+	mcp = malloc(sizeof(*mcp));
+	strcpy(mcp->artist, "");
+	strcpy(mcp->title, "");
+	strcpy(mcp->album, "");
+
 	flog = fopen(LOGFILE, "a");
 	if (flog == 0) {
 		perror("error opening logfile " LOGFILE);
@@ -138,10 +145,16 @@ int main(int argc, char **argv) {
 	}
 
 	mcplog("MCP initializing");
-	mcp = malloc(sizeof(*mcp));
-	strcpy(mcp->artist, "");
-	strcpy(mcp->title, "");
-	strcpy(mcp->album, "");
+
+	// parse command line arguments
+	int c;
+	while ((c = getopt(argc, argv, "d")) != -1) {
+		switch (c) {
+		case 'd':
+			cfg->daemonize = 1;
+			break;
+		}
+	}
 
 	/* setup wiringPi */
 #ifdef WIRINGPI
@@ -187,7 +200,9 @@ int main(int argc, char **argv) {
 #endif
 
 	/* fork go to background */
-	daemonize();
+	if (cfg->daemonize) {
+		daemonize();
+	}
 
 	/* install signal handler */
 	if (signal(SIGHUP, sig_handler) == SIG_ERR) {

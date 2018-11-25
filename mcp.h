@@ -87,7 +87,12 @@ typedef struct {
 	char extension[8];
 } mcp_state_t;
 
+typedef struct {
+	int daemonize;
+} mcp_config_t;
+
 extern mcp_state_t *mcp;
+extern mcp_config_t *cfg;
 
 int startsWith(const char *pre, const char *str);
 char *printBits(char value);

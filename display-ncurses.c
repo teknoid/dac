@@ -94,7 +94,7 @@ static void audioinfo(int line) {
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 7 : 8, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	if (strlen(mcp->artist) <= WIDTH) {
 		center_line(line + 1, mcp->artist);
 	} else {
@@ -222,7 +222,8 @@ int display_init() {
 	i = fopen(DISPLAY, "r");
 	o = fopen(DISPLAY, "w");
 
-	newterm(0, o, i);
+	SCREEN *screen = newterm("linux", o, i);
+	set_term(screen);
 
 	clear();
 	refresh();
