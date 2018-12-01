@@ -6,14 +6,19 @@ TODO
 	- digitalanzeige 7x4 in ascii arts
 	- counter zählt rückwärts, wenn 0 wieder auf normalanzeige schalten, erneutes +/- setzt counter wieder zurück
 
-* artist+title: mittig und scroll wenn > 20
+* input selector ausprogrammieren
 
-* verschiedene screens ON OFF STDBY NIGHT usw. 
+* ascii arts: cfire, astreroids etc...
+
 
 
 
 DONE
 ----------------------------------------------
+* verschiedene screens ON OFF STDBY NIGHT usw. 
+
+* artist+title: mittig und scroll wenn > 20
+
 * night mode
 
 * global status struct status_t, dort auch power integrieren, enum für signal
