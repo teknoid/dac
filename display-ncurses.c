@@ -11,6 +11,13 @@
 
 #include "mcp.h"
 
+#define LOCALMAIN
+
+#ifdef LOCALMAIN
+#undef DISPLAY
+#define DISPLAY			"/dev/tty"
+#endif
+
 #define WIDTH			20
 #define HEIGHT			7
 
@@ -19,8 +26,6 @@
 #define FOOTER			6
 
 #define SCROLLDELAY		6
-
-// #define LOCALMAIN
 
 #define	WHITE			1
 #define RED				2
@@ -230,7 +235,7 @@ int display_init() {
 
 	if (has_colors() == FALSE) {
 		endwin();
-		mcplog("Your terminal does not support colors");
+		// mcplog("Your terminal does not support colors");
 		return -1;
 	}
 
@@ -277,13 +282,18 @@ void *display(void *arg) {
 }
 
 #ifdef LOCALMAIN
+
+mcp_state_t *mcp;
+mcp_config_t *cfg;
+
 int main(void) {
+	cfg = malloc(sizeof(*cfg));
+	mcp = malloc(sizeof(*mcp));
+	strcpy(mcp->artist, "Above & Beyond & Gareth Emery Presents Oceanlab");
+	strcpy(mcp->title, "On A Good Day (Metropolis)");
+	strcpy(mcp->album, "");
+
 	display_init();
-
-	char *artist = "Above & Beyond & Gareth Emery Presents Oceanlab";
-	char *title = "On A Good Day (Metropolis)";
-	char *album = "";
-
 	display(NULL);
 
 	display_close();
