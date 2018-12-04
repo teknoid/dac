@@ -10,6 +10,7 @@
 #include <mpd/status.h>
 
 #include "mcp.h"
+#include "display-sysfont.h"
 
 #define LOCALMAIN
 
@@ -71,6 +72,31 @@ static void scroll_line(int line, int *scrollptr, char *text) {
 	*scrollptr = *scrollptr + 1;
 }
 
+static void dotchar(int col, int row, char c) {
+	int i = (c - 0x20) * 6;
+	for (int x = 0; x < 6; x++) {
+		unsigned char bit = _font_bits[i + x];
+		for (int y = 0; y < 7; y++) {
+			if (bit & 0b00000001) {
+				mvaddch(row + y, col + x, ACS_DIAMOND);
+			}
+			bit >>= 1;
+		}
+	}
+}
+
+static void fullscreen(char *text) {
+	clear();
+	int col = 0;
+	int row = 0;
+	for (int i = 0; i < strlen(text); i++) {
+		char c = text[i];
+		dotchar(col, row, c);
+		col += 6;
+	}
+	refresh();
+}
+
 static void audioinfo(int line) {
 	mvprintw(line, 0, "%2ddB", mcp->dac_volume);
 	if (mcp->dac_signal == nlock) {
@@ -78,7 +104,8 @@ static void audioinfo(int line) {
 		mvaddstr(line, 15, "--/--");
 	} else if (mcp->dac_signal == pcm) {
 		mvaddstr(line, strlen(mcp->extension) == 4 ? 8 : 9, mcp->extension);
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits,
+				mcp->dac_rate);
 	} else if (mcp->dac_signal == dsd) {
 		if (mcp->dac_rate == 44) {
 			mvaddstr(line, 9, "DSD64");
@@ -94,12 +121,14 @@ static void audioinfo(int line) {
 		mvprintw(line, 18, "%d", mcp->dac_rate);
 	} else if (mcp->dac_signal == dop) {
 		mvaddstr(line, 9, "DOP");
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits,
+				mcp->dac_rate);
 	}
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key,
+			mcp->plist_pos);
 	if (strlen(mcp->artist) <= WIDTH) {
 		center_line(line + 1, mcp->artist);
 	} else {
@@ -287,6 +316,7 @@ mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 int main(void) {
+	int c;
 	cfg = malloc(sizeof(*cfg));
 	mcp = malloc(sizeof(*mcp));
 	strcpy(mcp->artist, "Above & Beyond & Gareth Emery Presents Oceanlab");
@@ -294,9 +324,13 @@ int main(void) {
 	strcpy(mcp->album, "");
 
 	display_init();
-	display(NULL);
+
+	// display(NULL);
+	fullscreen("this is a test");
+	c = getchar();
 
 	display_close();
+
 	return EXIT_SUCCESS;
 }
 #endif
