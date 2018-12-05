@@ -33,6 +33,7 @@
 #define YELLOW			3
 #define GREEN			4
 
+char fullscreen[5];
 int scroller_artist = 0;
 int scroller_title = 0;
 
@@ -83,18 +84,6 @@ static void dotchar(int col, int row, char c) {
 			bit >>= 1;
 		}
 	}
-}
-
-static void fullscreen(char *text) {
-	clear();
-	int col = 0;
-	int row = 0;
-	for (int i = 0; i < strlen(text); i++) {
-		char c = text[i];
-		dotchar(col, row, c);
-		col += 6;
-	}
-	refresh();
 }
 
 static void audioinfo(int line) {
@@ -207,6 +196,20 @@ static void paint_off() {
 	refresh();
 }
 
+static void paint_fullscreen() {
+	clear();
+	color_set(WHITE, NULL);
+	attron(A_BOLD);
+	int col = 0;
+	int row = 0;
+	for (int i = 0; i < strlen(fullscreen); i++) {
+		char c = fullscreen[i];
+		dotchar(col, row, c);
+		col += 6;
+	}
+	refresh();
+}
+
 static void get_system_status() {
 	time_t timer;
 	time(&timer);
@@ -236,6 +239,16 @@ static void get_system_status() {
 }
 
 void display_update() {
+	if (mcp->display_volume-- > 0) {
+		sprintf(fullscreen, "-%d", mcp->dac_volume);
+		paint_fullscreen();
+		return;
+	}
+	if (mcp->display_input-- > 0) {
+		sprintf(fullscreen, "-%d", 'xxx');
+		paint_fullscreen();
+		return;
+	}
 	if (mcp->power == off) {
 		paint_off();
 		return;
@@ -326,11 +339,12 @@ int main(void) {
 	display_init();
 
 	// display(NULL);
-	fullscreen("this is a test");
+
+	sprintf(fullscreen, "-%d", 'xxx');
+	paint_fullscreen();
+
 	c = getchar();
-
 	display_close();
-
 	return EXIT_SUCCESS;
 }
 #endif

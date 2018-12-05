@@ -85,6 +85,8 @@ typedef struct {
 	char title[BUFSIZE];
 	char album[BUFSIZE];
 	char extension[8];
+	int display_volume;
+	int display_input;
 } mcp_state_t;
 
 typedef struct {
