@@ -34,10 +34,10 @@ clean:
 	rm -f *.o mcp test
 
 install:
-	killall -q mcp || true
+	systemctl stop mcp
 	rm /usr/local/bin/mcp || true
 	cp mcp /usr/local/bin
-	/usr/local/bin/mcp
+	systemctl start mcp
 
 install-local:
 	killall -q mcp || true

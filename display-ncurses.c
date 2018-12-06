@@ -12,12 +12,14 @@
 #include "mcp.h"
 #include "display-sysfont.h"
 
-#define LOCALMAIN
+#define FULLSCREEN_CHAR		'*'
 
-#ifdef LOCALMAIN
-#undef DISPLAY
-#define DISPLAY			"/dev/tty"
-#endif
+// #define LOCALMAIN
+
+//#ifdef LOCALMAIN
+//#undef DISPLAY
+//#define DISPLAY			"/dev/tty"
+//#endif
 
 #define WIDTH			20
 #define HEIGHT			7
@@ -79,7 +81,7 @@ static void dotchar(int col, int row, char c) {
 		unsigned char bit = _font_bits[i + x];
 		for (int y = 0; y < 7; y++) {
 			if (bit & 0b00000001) {
-				mvaddch(row + y, col + x, ACS_DIAMOND);
+				mvaddch(row + y, col + x, FULLSCREEN_CHAR);
 			}
 			bit >>= 1;
 		}
@@ -240,12 +242,12 @@ static void get_system_status() {
 
 void display_update() {
 	if (mcp->display_volume-- > 0) {
-		sprintf(fullscreen, "-%d", mcp->dac_volume);
+		sprintf(fullscreen, "%d", mcp->dac_volume);
 		paint_fullscreen();
 		return;
 	}
 	if (mcp->display_input-- > 0) {
-		sprintf(fullscreen, "-%d", 'xxx');
+		sprintf(fullscreen, "%s", 'xxx');
 		paint_fullscreen();
 		return;
 	}
@@ -340,7 +342,7 @@ int main(void) {
 
 	// display(NULL);
 
-	sprintf(fullscreen, "-%d", 'xxx');
+	sprintf(fullscreen, "%d", -23);
 	paint_fullscreen();
 
 	c = getchar();
