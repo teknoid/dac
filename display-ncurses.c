@@ -14,7 +14,7 @@
 
 #define FULLSCREEN_CHAR		'*'
 
-// #define LOCALMAIN
+#define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -35,7 +35,7 @@
 #define YELLOW			3
 #define GREEN			4
 
-char fullscreen[5];
+char fullscreen[3];
 int scroller_artist = 0;
 int scroller_title = 0;
 
@@ -95,8 +95,7 @@ static void audioinfo(int line) {
 		mvaddstr(line, 15, "--/--");
 	} else if (mcp->dac_signal == pcm) {
 		mvaddstr(line, strlen(mcp->extension) == 4 ? 8 : 9, mcp->extension);
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits,
-				mcp->dac_rate);
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
 	} else if (mcp->dac_signal == dsd) {
 		if (mcp->dac_rate == 44) {
 			mvaddstr(line, 9, "DSD64");
@@ -112,14 +111,12 @@ static void audioinfo(int line) {
 		mvprintw(line, 18, "%d", mcp->dac_rate);
 	} else if (mcp->dac_signal == dop) {
 		mvaddstr(line, 9, "DOP");
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits,
-				mcp->dac_rate);
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
 	}
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key,
-			mcp->plist_pos);
+	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	if (strlen(mcp->artist) <= WIDTH) {
 		center_line(line + 1, mcp->artist);
 	} else {
@@ -247,7 +244,7 @@ void display_update() {
 		return;
 	}
 	if (mcp->display_input-- > 0) {
-		sprintf(fullscreen, "%s", 'xxx');
+		sprintf(fullscreen, "%s", "xxx");
 		paint_fullscreen();
 		return;
 	}
@@ -331,7 +328,7 @@ mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 int main(void) {
-	int c;
+	int c, z;
 	cfg = malloc(sizeof(*cfg));
 	mcp = malloc(sizeof(*mcp));
 	strcpy(mcp->artist, "Above & Beyond & Gareth Emery Presents Oceanlab");
@@ -342,10 +339,21 @@ int main(void) {
 
 	// display(NULL);
 
-	sprintf(fullscreen, "%d", -23);
+	z = -23;
+	sprintf(fullscreen, "%d", z);
 	paint_fullscreen();
 
-	c = getchar();
+	while (true) {
+		c = getchar();
+		if (c == 45) {
+			z--;
+		}
+		if (c == 46) {
+			z++;
+		}
+		sprintf(fullscreen, "%d", z);
+		paint_fullscreen();
+	}
 	display_close();
 	return EXIT_SUCCESS;
 }
