@@ -14,7 +14,7 @@
 
 #define FULLSCREEN_CHAR		'*'
 
-#define LOCALMAIN
+// #define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -116,7 +116,15 @@ static void audioinfo(int line) {
 }
 
 static void songinfo(int line) {
-	mvprintw(line, mcp->plist_pos > 100 ? 6 : 7, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
+	int x;
+	if (mcp->plist_pos < 10) {
+		x = 8;
+	} else if (mcp->plist_pos > 100) {
+		x = 7;
+	} else {
+		x = 7;
+	}
+	mvprintw(line, x, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
 	if (strlen(mcp->artist) <= WIDTH) {
 		center_line(line + 1, mcp->artist);
 	} else {
