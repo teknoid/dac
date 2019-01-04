@@ -1,7 +1,7 @@
-#define ANUS
+// #define ANUS
 // #define PIWOLF
 // #define SABRE18
-// #define SABRE28
+#define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"

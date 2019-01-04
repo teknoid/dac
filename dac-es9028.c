@@ -306,14 +306,15 @@ void dac_update() {
 	switch (mcp->dac_signal) {
 	case nlock:
 		mcplog("NLOCK");
+		break;
 	case pcm:
-		mcplog("PCM %d -%03d", mcp->dac_rate, mcp->dac_volume);
+		mcplog("PCM %d/%d %03d", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
 		break;
 	case dsd:
-		mcplog("DSD %d -%03d", mcp->dac_rate, mcp->dac_volume);
+		mcplog("DSD %d %03d", mcp->dac_rate, mcp->dac_volume);
 		break;
 	default:
-		mcplog("??? %d -%03d", mcp->dac_rate, mcp->dac_volume);
+		mcplog("??? %d %03d", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
 }
