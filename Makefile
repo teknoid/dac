@@ -1,3 +1,5 @@
+#test
+
 CFLAGS = -Wall
 
 LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
