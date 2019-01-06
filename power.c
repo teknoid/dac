@@ -9,8 +9,8 @@
 
 void poweron() {
 	dac_on();
-	mpdclient_handle(KEY_PLAY);
 	mcp->power = on;
+	mpdclient_handle(KEY_PLAY);
 	mcplog("entered power state ON");
 }
 
@@ -23,8 +23,8 @@ void poweroff() {
 
 void standby() {
 	dac_off();
-	mpdclient_handle(KEY_STOP);
 	mcp->power = stdby;
+	mpdclient_handle(KEY_STOP);
 	mcplog("entered power state STDBY");
 }
 

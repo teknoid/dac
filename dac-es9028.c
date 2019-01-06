@@ -125,7 +125,7 @@ static int i2c_clear_bit(char reg, int n) {
 static void i2c_dump_reg(char reg) {
 	char value;
 	i2c_read(reg, &value);
-	mcplog("i2c register 0x%02x 0x%02x %s", reg, value, printBits(value));
+	mcplog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printBits(value));
 }
 
 static void gpio_toggle(int gpio) {
@@ -178,7 +178,7 @@ static int dac_get_fsr() {
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
 
-	mcplog("DAC raw sample rate %d", value);
+	// mcplog("DAC raw sample rate %d", value);
 	dvalue = value / 100.0;
 	dvalue = round(dvalue) / 10.0;
 
@@ -296,25 +296,28 @@ void dac_off() {
 }
 
 void dac_update() {
-	sleep(1); // wait for dac acquiring signal
+	if (mcp->power != on) {
+		return;
+	}
 
+	sleep(1); // wait for dac acquiring signal
+	mcp->dac_volume = dac_get_vol();
 	mcp->dac_signal = dac_get_signal();
 	mcp->dac_rate = dac_get_fsr();
 	mcp->dac_bits = 32; // DAC receives always 32bit from amanero - read from MPD
-	mcp->dac_volume = dac_get_vol();
 
 	switch (mcp->dac_signal) {
 	case nlock:
 		mcplog("NLOCK");
 		break;
 	case pcm:
-		mcplog("PCM %d/%d %03d", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+		mcplog("PCM %d/%d %03ddB", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
 		break;
 	case dsd:
-		mcplog("DSD %d %03d", mcp->dac_rate, mcp->dac_volume);
+		mcplog("DSD %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	default:
-		mcplog("??? %d %03d", mcp->dac_rate, mcp->dac_volume);
+		mcplog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
 }
