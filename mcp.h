@@ -32,10 +32,7 @@
 #define DEVINPUT		"/dev/input/infrared"
 #define WIRINGPI
 #define DISPLAY			"/dev/tty1"
-//#define ROTARY
-#define GPIO_ENC_A		4
-#define GPIO_ENC_B		5
-#define GPIO_SWITCH		6
+#define ROTARY
 #endif
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"

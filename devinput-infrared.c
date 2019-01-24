@@ -10,7 +10,7 @@
 #include "mcp.h"
 #include "keytable.h"
 
-int fd;
+int fd_ir;
 
 char *devinput_keyname(unsigned int key) {
 	struct parse_event *p;
@@ -37,28 +37,28 @@ int devinput_init() {
 	unsigned int repeat[2];
 
 	// Open Device
-	if ((fd = open(DEVINPUT, O_RDONLY)) == -1) {
+	if ((fd_ir = open(DEVINPUT, O_RDONLY)) == -1) {
 		mcplog("unable to open %s", DEVINPUT);
 	}
 
 	// Print Device Name
-	ioctl(fd, EVIOCGNAME(sizeof(name)), name);
-	mcplog("reading from : %s (%s)", DEVINPUT, name);
+	ioctl(fd_ir, EVIOCGNAME(sizeof(name)), name);
+	mcplog("INFRARED: reading from %s (%s)", DEVINPUT, name);
 
 	// set repeat rate
-	ioctl(fd, EVIOCGREP, repeat);
+	ioctl(fd_ir, EVIOCGREP, repeat);
 	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
 	repeat[REP_DELAY] = 400;
 	repeat[REP_PERIOD] = 200;
-	ioctl(fd, EVIOCSREP, repeat);
-	ioctl(fd, EVIOCGREP, repeat);
+	ioctl(fd_ir, EVIOCSREP, repeat);
+	ioctl(fd_ir, EVIOCGREP, repeat);
 	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
 	return 0;
 }
 
 void devinput_close() {
-	if (fd) {
-		close(fd);
+	if (fd_ir) {
+		close(fd_ir);
 	}
 }
 
@@ -72,7 +72,7 @@ void *devinput(void *arg) {
 	}
 
 	while (1) {
-		n = read(fd, &ev, sizeof ev);
+		n = read(fd_ir, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
 				continue;
@@ -110,7 +110,7 @@ void *devinput(void *arg) {
 		} else if (ev.code == KEY_POWER && seq == 10) {
 			power_hard();
 		} else if (seq == 0) {
-			mcplog("DEVINPUT: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+			mcplog("INFRARED: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
 			dac_handle(ev.code);
 			mpdclient_handle(ev.code);
 		}
@@ -120,6 +120,6 @@ void *devinput(void *arg) {
 #endif
 
 	}
-	mcplog("DEVINPUT error", strerror(errno));
+	mcplog("INFRARED error", strerror(errno));
 	return (void *) 0;
 }
