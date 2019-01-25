@@ -103,10 +103,12 @@ void *rotary(void *arg) {
 			break;
 		}
 
-		if (ev.value == 1) {
-			fire(KEY_KPPLUS);
-		} else if (ev.value == -1) {
-			fire(KEY_KPMINUS);
+		if (ev.value == -1) {
+//			fire(KEY_KPPLUS);
+			dac_volume_up();
+		} else if (ev.value == +1) {
+//			fire(KEY_KPMINUS);
+			dac_volume_down();
 		}
 	}
 

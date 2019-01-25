@@ -359,10 +359,29 @@ void dac_handle(int key) {
 }
 
 void *dac(void *arg) {
+//	int c;
+
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		mcplog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
+
+//	system("/bin/stty raw");
+//
+//	while (1) {
+//		c = getchar();
+//		switch (c) {
+//		case '+':
+//			dac_volume_up();
+//			break;
+//		case '-':
+//			dac_volume_down();
+//			break;
+//		case '.':
+//			system("/bin/stty cooked");
+//			return (void *) 0;
+//		}
+//	}
 
 	return (void *) 0;
 }
