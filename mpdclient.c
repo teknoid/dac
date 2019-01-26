@@ -202,6 +202,7 @@ void mpdclient_handle(int key) {
 
 	switch (key) {
 	case KEY_STOP:
+		dac_mute();
 		mpd_run_stop(conn);
 		break;
 	case KEY_PAUSE:
@@ -209,6 +210,7 @@ void mpdclient_handle(int key) {
 		break;
 	case KEY_PLAY:
 		mpd_run_play(conn);
+		dac_unmute();
 		break;
 	case KEY_CLEAR:
 		playlist = find_current_playlist();

@@ -196,32 +196,36 @@ static int dac_get_vol() {
 }
 
 void dac_volume_up() {
-	char value;
-	int db;
+	if (mcp->power != on) {
+		return;
+	}
 
+	char value;
 	i2c_read(REG_VOLUME, &value);
 	if (value != 0x00)
 		value--;
 	if (value != 0x00)
 		value--;
 	i2c_write(REG_VOLUME, value);
-	db = (value / 2) * -1;
+	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	mcp->display_volume = 10;
 	mcplog("VOL++ %03d", db);
 }
 
 void dac_volume_down() {
-	char value;
-	int db;
+	if (mcp->power != on) {
+		return;
+	}
 
+	char value;
 	i2c_read(REG_VOLUME, &value);
 	if (value != 0xf0)
 		value++;
 	if (value != 0xf0)
 		value++;
 	i2c_write(REG_VOLUME, value);
-	db = (value / 2) * -1;
+	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	mcp->display_volume = 10;
 	mcplog("VOL-- %03d", db);
