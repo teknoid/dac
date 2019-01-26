@@ -322,10 +322,6 @@ void *mpdclient(void *arg) {
 		}
 
 		dac_update();
-#ifdef DISPLAY
-		display_update();
-#endif
-
 		mpd_run_idle(conn_status);
 	}
 

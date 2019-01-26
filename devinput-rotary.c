@@ -10,6 +10,14 @@
 #include "mcp.h"
 #include "utils.h"
 
+#ifndef DEVINPUT_RA
+#define DEVINPUT_RA			"/dev/input/rotary_axis"
+#endif
+
+#ifndef DEVINPUT_RB
+#define DEVINPUT_RB			"/dev/input/rotary_button"
+#endif
+
 // #define LOCALMAIN
 
 int fd_ra;

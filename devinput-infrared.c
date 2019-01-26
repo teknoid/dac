@@ -10,6 +10,10 @@
 #include "mcp.h"
 #include "utils.h"
 
+#ifndef DEVINPUT_IR
+#define DEVINPUT_IR			"/dev/input/infrared"
+#endif
+
 // #define LOCALMAIN
 
 int fd_ir;

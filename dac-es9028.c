@@ -324,6 +324,8 @@ void dac_update() {
 		xlog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
+
+	display_update();
 }
 
 int dac_init() {

@@ -15,6 +15,10 @@
 
 #define FULLSCREEN_CHAR		'*'
 
+#ifndef DISPLAY
+#define DISPLAY			"/dev/tty"
+#endif
+
 // #define LOCALMAIN
 
 //#ifdef LOCALMAIN
