@@ -14,7 +14,7 @@
 #include "mp3gain.h"
 
 
-double current_replaygain = -6;
+double current_replaygain = 0;
 
 magic_t magic = NULL;
 
