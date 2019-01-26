@@ -8,66 +8,63 @@
 #include <linux/input.h>
 
 #include "mcp.h"
-#include "keytable.h"
+#include "utils.h"
+
+// #define LOCALMAIN
 
 int fd_ir;
+pthread_t thread_ir;
 
-char *devinput_keyname(unsigned int key) {
-	struct parse_event *p;
-	for (p = key_events; p->name != NULL; p++) {
-		if (key == p->value) {
-			return p->name;
-		}
-	}
-	return NULL;
-}
+void *ir(void *arg);
 
-int devinput_find_key(const char *name) {
-	struct parse_event *p;
-	for (p = key_events; p->name != NULL; p++) {
-		if (!strcmp(name, p->name)) {
-			return p->value;
-		}
-	}
-	return 0;
-}
-
-int devinput_init() {
+int ir_init() {
 	char name[256] = "Unknown";
 	unsigned int repeat[2];
 
 	// Open Device
-	if ((fd_ir = open(DEVINPUT, O_RDONLY)) == -1) {
-		mcplog("unable to open %s", DEVINPUT);
+	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1) {
+		xlog("unable to open %s", DEVINPUT_IR);
 	}
 
 	// Print Device Name
 	ioctl(fd_ir, EVIOCGNAME(sizeof(name)), name);
-	mcplog("INFRARED: reading from %s (%s)", DEVINPUT, name);
+	xlog("INFRARED: reading from %s (%s)", DEVINPUT_IR, name);
 
 	// set repeat rate
 	ioctl(fd_ir, EVIOCGREP, repeat);
-	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
 	repeat[REP_DELAY] = 400;
 	repeat[REP_PERIOD] = 200;
 	ioctl(fd_ir, EVIOCSREP, repeat);
 	ioctl(fd_ir, EVIOCGREP, repeat);
-	mcplog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+
+	// start listener
+	if (pthread_create(&thread_ir, NULL, &ir, NULL)) {
+		xlog("Error creating thread_ir");
+	}
+
 	return 0;
 }
 
-void devinput_close() {
+void ir_close() {
+	if (pthread_cancel(thread_ir)) {
+		xlog("Error canceling thread_ir");
+	}
+	if (pthread_join(thread_ir, NULL)) {
+		xlog("Error joining thread_ir");
+	}
 	if (fd_ir) {
 		close(fd_ir);
 	}
 }
 
-void *devinput(void *arg) {
+void *ir(void *arg) {
 	struct input_event ev;
 	int n, seq;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		mcplog("Error setting pthread_setcancelstate");
+		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
 
@@ -100,26 +97,24 @@ void *devinput(void *arg) {
 			break;
 		}
 
-		// mcplog("DEVINPUT %d %d %02d %s", ev.type, ev.value, seq, get_key_name(ev.code));
-		if (ev.code == KEY_VOLUMEUP) {
-			dac_volume_up();
-		} else if (ev.code == KEY_VOLUMEDOWN) {
-			dac_volume_down();
-		} else if (ev.code == KEY_POWER && seq == 0) {
-			power_soft();
-		} else if (ev.code == KEY_POWER && seq == 10) {
-			power_hard();
-		} else if (seq == 0) {
-			mcplog("INFRARED: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
-			dac_handle(ev.code);
-			mpdclient_handle(ev.code);
-		}
-
-#ifdef DISPLAY
-		display_update();
+		ev.value = seq; // abuse value for sequence
+		xlog("INFRARED: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+#ifndef LOCALMAIN
+		dac_handle(ev);
 #endif
-
 	}
-	mcplog("INFRARED error", strerror(errno));
+
+	xlog("INFRARED error", strerror(errno));
 	return (void *) 0;
 }
+
+#ifdef LOCALMAIN
+
+int main(void) {
+	ir_init();
+	int c = getchar();
+	ir_close();
+}
+
+#endif
+

@@ -9,8 +9,10 @@
 #include <linux/input.h>
 #include <FLAC/metadata.h>
 
-#include "mp3gain.h"
 #include "mcp.h"
+#include "utils.h"
+#include "mp3gain.h"
+
 
 double current_replaygain = -6;
 
@@ -81,21 +83,21 @@ void replaygain(const char *filename) {
 	} else if (strstr(mime, "mpeg") != NULL) {
 		this_replaygain = mp3_get_replaygain(filename);
 	} else {
-		mcplog("replaygain not supported for %s", filename);
+		xlog("replaygain not supported for %s", filename);
 		return;
 	}
 
 	if (this_replaygain < -12.0) {
-		mcplog("limiting replaygain to -12 (%f)", this_replaygain);
+		xlog("limiting replaygain to -12 (%f)", this_replaygain);
 		this_replaygain = -12;
 	} else if (this_replaygain > 0.0) {
-		mcplog("limiting replaygain to 0 (%f)", this_replaygain);
+		xlog("limiting replaygain to 0 (%f)", this_replaygain);
 		this_replaygain = 0;
 	}
 
 	double diff = this_replaygain - current_replaygain;
 	sprintf(buf, "current %5.2f | new %5.2f | adjust %5.2f", current_replaygain, this_replaygain, diff);
-	mcplog("%s", buf);
+	xlog("%s", buf);
 
 	int count = (int) abs(rint(diff));
 	if (count != 0 && diff < 0) {

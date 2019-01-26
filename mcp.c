@@ -10,86 +10,42 @@
 #include <sys/stat.h>
 
 #include "mcp.h"
+#include "utils.h"
 
 #ifdef WIRINGPI
 #include <wiringPi.h>
 #endif
 
-#ifdef LIRC_RECEIVE
-pthread_t thread_lirc;
-#endif
-
-#ifdef DEVINPUT
-pthread_t thread_devinput;
-#endif
-
-#ifdef ROTARY
-pthread_t thread_rotary;
-#endif
-
-#ifdef DISPLAY
-pthread_t thread_display;
-#endif
-
-pthread_t thread_mpdclient;
-pthread_t thread_dac;
-
-FILE *flog;
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
-void mcplog(char *format, ...) {
-	va_list vargs;
-	time_t timer;
-	char buffer[26];
-	struct tm* tm_info;
-
-	time(&timer);
-	tm_info = localtime(&timer);
-	strftime(buffer, 26, "%d.%m.%Y %H:%M:%S", tm_info);
-
-	fprintf(flog, "%s: ", buffer);
-	va_start(vargs, format);
-	vfprintf(flog, format, vargs);
-	va_end(vargs);
-	fprintf(flog, "\n");
-	fflush(flog);
-}
-
 static void sig_handler(int signo) {
 	if (signo == SIGINT || signo == SIGTERM || signo == SIGHUP) {
+		xlog("MCP halt requested");
 
-#ifdef LIRC_RECEIVE
-		if (pthread_cancel(thread_lirc)) {
-			mcplog("Error canceling thread_lirc");
-		}
+		/* close modules */
+
+#ifdef DEVINPUT_IR
+		ir_close();
 #endif
 
-#ifdef DEVINPUT
-		if (pthread_cancel(thread_devinput)) {
-			mcplog("Error canceling thread_devinput");
-		}
-#endif
-
-#ifdef ROTARY
-		if (pthread_cancel(thread_rotary)) {
-			mcplog("Error canceling thread_rotary");
-		}
+#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
+		rotary_close();
 #endif
 
 #ifdef DISPLAY
-		if (pthread_cancel(thread_display)) {
-			mcplog("Error canceling thread_display");
-		}
+		display_close();
 #endif
 
-		if (pthread_cancel(thread_mpdclient)) {
-			mcplog("Error canceling thread_mpdclient");
-		}
+#ifdef LIRC_RECEIVE
+		lirc_close();
+#endif
 
-		if (pthread_cancel(thread_dac)) {
-			mcplog("Error canceling thread_dac");
-		}
+		mpdclient_close();
+		dac_close();
+
+		xlog("MCP terminated");
+		xlog_close();
 	}
 }
 
@@ -128,7 +84,7 @@ static void daemonize() {
 	close(STDERR_FILENO);
 #endif
 
-	mcplog("MCP forked into background");
+	xlog("MCP forked into background");
 }
 
 int main(int argc, char **argv) {
@@ -138,13 +94,7 @@ int main(int argc, char **argv) {
 	strcpy(mcp->title, "");
 	strcpy(mcp->album, "");
 
-	flog = fopen(LOGFILE, "a");
-	if (flog == 0) {
-		perror("error opening logfile " LOGFILE);
-		exit(EXIT_FAILURE);
-	}
-
-	mcplog("MCP initializing");
+	xlog("MCP initializing");
 
 	// parse command line arguments
 	int c;
@@ -156,6 +106,20 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	/* install signal handler */
+	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGHUP");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGTERM, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGTERM");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGINT");
+		exit(EXIT_FAILURE);
+	}
+
 	/* setup wiringPi */
 #ifdef WIRINGPI
 	if (wiringPiSetup() == -1) {
@@ -165,6 +129,10 @@ int main(int argc, char **argv) {
 #endif
 
 	/* initialize modules */
+	if (power_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
 #ifdef DISPLAY
 	if (display_init() < 0) {
 		exit(EXIT_FAILURE);
@@ -174,9 +142,7 @@ int main(int argc, char **argv) {
 	if (mpdclient_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
-	if (power_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
+
 	if (dac_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
@@ -187,124 +153,24 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-#ifdef DEVINPUT
-	if (devinput_init() < 0) {
+#ifdef DEVINPUT_IR
+	if (ir_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
 #endif
 
-#ifdef ROTARY
+#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
 	if (rotary_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
 #endif
 
-	/* fork go to background */
+	/* fork into background */
 	if (cfg->daemonize) {
 		daemonize();
 	}
 
-	/* install signal handler */
-	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
-		mcplog("can't catch SIGHUP");
-		exit(EXIT_FAILURE);
-	}
-	if (signal(SIGTERM, sig_handler) == SIG_ERR) {
-		mcplog("can't catch SIGTERM");
-		exit(EXIT_FAILURE);
-	}
-	if (signal(SIGINT, sig_handler) == SIG_ERR) {
-		mcplog("can't catch SIGINT");
-		exit(EXIT_FAILURE);
-	}
-
-	/* create thread for each module */
-
-#ifdef DISPLAY
-	if (pthread_create(&thread_display, NULL, &display, NULL)) {
-		mcplog("Error creating thread_display");
-	}
-#endif
-
-#ifdef LIRC_RECEIVE
-	if (pthread_create(&thread_lirc, NULL, &lirc, NULL)) {
-		mcplog("Error creating thread_lirc");
-	}
-#endif
-
-#ifdef DEVINPUT
-	if (pthread_create(&thread_devinput, NULL, &devinput, NULL)) {
-		mcplog("Error creating thread_devinput");
-	}
-#endif
-
-#ifdef ROTARY
-	if (pthread_create(&thread_rotary, NULL, &rotary, NULL)) {
-		mcplog("Error creating thread_rotary");
-	}
-#endif
-
-	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
-		mcplog("Error creating thread_mpdclient");
-	}
-
-	if (pthread_create(&thread_dac, NULL, &dac, NULL)) {
-		mcplog("Error creating thread_dac");
-	}
-
-	mcplog("MCP online");
-
-	/* wait for threads to finish */
-
-	if (pthread_join(thread_dac, NULL)) {
-		mcplog("Error joining thread_dac");
-	}
-
-	if (pthread_join(thread_mpdclient, NULL)) {
-		mcplog("Error joining thread_mpdclient");
-	}
-
-#ifdef LIRC_RECEIVE
-	if (pthread_join(thread_lirc, NULL)) {
-		mcplog("Error joining thread_lirc");
-	}
-#endif
-
-#ifdef DEVINPUT
-	if (pthread_join(thread_devinput, NULL)) {
-		mcplog("Error joining thread_devinput");
-	}
-#endif
-
-#ifdef ROTARY
-	if (pthread_join(thread_rotary, NULL)) {
-		mcplog("Error joining thread_rotary");
-	}
-#endif
-
-#ifdef DISPLAY
-	if (pthread_join(thread_display, NULL)) {
-		mcplog("Error joining thread_display");
-	}
-#endif
-
-	/* close modules */
-
-	dac_close();
-
-#ifdef LIRC_RECEIVE
-	lirc_close();
-#endif
-
-#ifdef DEVINPUT
-	devinput_close();
-#endif
-
-#ifdef DISPLAY
-	display_close();
-#endif
-
-	mcplog("MCP terminated");
-	fclose(flog);
+	xlog("MCP online");
+	pause();
 	return 0;
 }

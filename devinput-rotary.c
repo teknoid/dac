@@ -6,49 +6,82 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <linux/input.h>
-#include <linux/uinput.h>
 
 #include "mcp.h"
-
-#define DEVINPUT_ROTARY			"/dev/input/event1"
-#define DEVINPUT_UINPUT			"/dev/uinput"
+#include "utils.h"
 
 // #define LOCALMAIN
 
-int fd_rotary;
+int fd_ra;
+pthread_t thread_ra;
+
+int fd_rb;
+pthread_t thread_rb;
+
+void *rotary_axis(void *arg);
+void *rotary_button(void *arg);
 
 int rotary_init() {
-	char name[256] = "Unknown";
+	char name[256] = "";
 
 	// Open Devices
-	if ((fd_rotary = open(DEVINPUT_ROTARY, O_RDONLY)) == -1) {
-		mcplog("unable to open %s", DEVINPUT_ROTARY);
+	if ((fd_ra = open(DEVINPUT_RA, O_RDONLY)) == -1) {
+		xlog("unable to open %s", DEVINPUT_RA);
+	}
+	if ((fd_rb = open(DEVINPUT_RB, O_RDONLY)) == -1) {
+		xlog("unable to open %s", DEVINPUT_RB);
 	}
 
 	// Print Device Name
-	ioctl(fd_rotary, EVIOCGNAME(sizeof(name)), name);
-	mcplog("ROTARY: reading from %s (%s)", DEVINPUT_ROTARY, name);
+	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
+	xlog("ROTARY AXIS: reading from %s (%s)", DEVINPUT_RA, name);
+	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
+	xlog("ROTARY BUTTON: reading from %s (%s)", DEVINPUT_RB, name);
+
+	// start listener
+	if (pthread_create(&thread_ra, NULL, &rotary_axis, NULL)) {
+		xlog("Error creating thread_ra");
+	}
+	if (pthread_create(&thread_rb, NULL, &rotary_button, NULL)) {
+		xlog("Error creating thread_rb");
+	}
 
 	return 0;
 }
 
 void rotary_close() {
-	if (fd_rotary) {
-		close(fd_rotary);
+	if (pthread_cancel(thread_ra)) {
+		xlog("Error canceling thread_ra");
+	}
+	if (pthread_join(thread_ra, NULL)) {
+		xlog("Error joining thread_ra");
+	}
+	if (fd_ra) {
+		close(fd_ra);
+	}
+
+	if (pthread_cancel(thread_rb)) {
+		xlog("Error canceling thread_rb");
+	}
+	if (pthread_join(thread_rb, NULL)) {
+		xlog("Error joining thread_rb");
+	}
+	if (fd_rb) {
+		close(fd_rb);
 	}
 }
 
-void *rotary(void *arg) {
+void *rotary_axis(void *arg) {
 	struct input_event ev;
 	int n;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		mcplog("Error setting pthread_setcancelstate");
+		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
 
 	while (1) {
-		n = read(fd_rotary, &ev, sizeof ev);
+		n = read(fd_ra, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
 				continue;
@@ -59,15 +92,44 @@ void *rotary(void *arg) {
 			break;
 		}
 
-		if (ev.value == -1) {
-			dac_volume_up();
-		} else if (ev.value == +1) {
-			dac_volume_down();
-		}
-		display_update();
+		xlog("ROTARY: distributing axis %d", ev.value);
+#ifndef LOCALMAIN
+		dac_handle(ev);
+#endif
 	}
 
-	mcplog("ROTARY error", strerror(errno));
+	xlog("ROTARY error", strerror(errno));
+	return (void *) 0;
+}
+
+void *rotary_button(void *arg) {
+	struct input_event ev;
+	int n;
+
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return (void *) 0;
+	}
+
+	while (1) {
+		n = read(fd_rb, &ev, sizeof ev);
+		if (n == -1) {
+			if (errno == EINTR)
+				continue;
+			else
+				break;
+		} else if (n != sizeof ev) {
+			errno = EIO;
+			break;
+		}
+
+		xlog("ROTARY: distributing button %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+#ifndef LOCALMAIN
+		dac_handle(ev);
+#endif
+	}
+
+	xlog("ROTARY error", strerror(errno));
 	return (void *) 0;
 }
 
@@ -75,7 +137,7 @@ void *rotary(void *arg) {
 
 int main(void) {
 	rotary_init();
-	rotary(NULL);
+	int c = getchar();
 	rotary_close();
 }
 

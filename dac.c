@@ -7,34 +7,35 @@
 #endif
 
 #include "mcp.h"
+#include "utils.h"
 
 void dac_volume_up() {
-	mcplog("VOL++");
+	xlog("VOL++");
 }
 
 void dac_volume_down() {
-	mcplog("VOL--");
+	xlog("VOL--");
 }
 
 void dac_mute() {
-	mcplog("MUTE");
+	xlog("MUTE");
 }
 
 void dac_unmute() {
-	mcplog("UNMUTE");
+	xlog("UNMUTE");
 }
 
 void dac_on() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 1);
-	mcplog("switched DAC on");
+	xlog("switched DAC on");
 #endif
 }
 
 void dac_off() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 0);
-	mcplog("switched DAC off");
+	xlog("switched DAC off");
 #endif
 }
 
@@ -47,10 +48,10 @@ int dac_init() {
 	int pin = digitalRead(GPIO_POWER);
 	if (pin == 1) {
 		power_state = on;
-		mcplog("entered power state ON");
+		xlog("entered power state ON");
 	} else {
 		power_state = stdby;
-		mcplog("entered power state STDBY");
+		xlog("entered power state STDBY");
 	}
 #endif
 
@@ -60,10 +61,5 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(int key) {
-}
-
-
-void *dac(void *arg) {
-	return (void *) 0;
+void dac_handle(struct input_event ev) {
 }

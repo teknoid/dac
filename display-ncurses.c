@@ -10,6 +10,7 @@
 #include <mpd/status.h>
 
 #include "mcp.h"
+#include "utils.h"
 #include "display-sysfont.h"
 
 #define FULLSCREEN_CHAR		'*'
@@ -38,6 +39,10 @@
 char fullscreen[3];
 int scroller_artist = 0;
 int scroller_title = 0;
+
+pthread_t thread_display;
+
+void *display(void *arg);
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -70,7 +75,7 @@ static void scroll_line(int line, int *scrollptr, char *text) {
 	}
 	strncpy(scrolltxt, text + pos, WIDTH);
 	scrolltxt[WIDTH] = 0x00;
-	// mcplog("%d : %d : %s", *scroller, pos, scrolltxt);
+	// xlog("%d : %d : %s", *scroller, pos, scrolltxt);
 	mvprintw(line, 0, "%s", scrolltxt);
 	*scrollptr = *scrollptr + 1;
 }
@@ -186,7 +191,7 @@ static void paint_stop() {
 }
 
 static void paint_stdby() {
-	// motd / uname / df -h
+	// TODO motd / uname / df -h
 	clear();
 	curs_set(0);
 	color_set(WHITE, NULL);
@@ -284,7 +289,7 @@ int display_init() {
 
 	if (has_colors() == FALSE) {
 		endwin();
-		// mcplog("Your terminal does not support colors");
+		// xlog("Your terminal does not support colors");
 		return -1;
 	}
 
@@ -294,10 +299,21 @@ int display_init() {
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 
+	// start painter thread
+	if (pthread_create(&thread_display, NULL, &display, NULL)) {
+		xlog("Error creating thread_display");
+	}
+
 	return 0;
 }
 
 void display_close() {
+	if (pthread_cancel(thread_display)) {
+		xlog("Error canceling thread_display");
+	}
+	if (pthread_join(thread_display, NULL)) {
+		xlog("Error joining thread_display");
+	}
 	endwin();
 }
 
@@ -344,8 +360,6 @@ int main(void) {
 	strcpy(mcp->album, "");
 
 	display_init();
-
-	// display(NULL);
 
 	z = -23;
 	sprintf(fullscreen, "%d", z);

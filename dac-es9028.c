@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <string.h>
 #include <time.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <math.h>
@@ -23,6 +22,7 @@
 #include <wiringPi.h>
 
 #include "mcp.h"
+#include "utils.h"
 
 #define GPIO_EXT_POWER		0
 #define GPIO_DAC_POWER		7
@@ -37,7 +37,7 @@
 
 #define MCLK				100000000
 
-int i2c;
+int fd_i2c;
 
 static int i2c_write(char reg, char value) {
 	char outbuf[2];
@@ -62,8 +62,8 @@ static int i2c_write(char reg, char value) {
 	/* Transfer the i2c packets to the kernel and verify it worked */
 	packets.msgs = messages;
 	packets.nmsgs = 1;
-	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		mcplog("Error writing data into register 0x%02x", reg);
+	if (ioctl(fd_i2c, I2C_RDWR, &packets) < 0) {
+		xlog("Error writing data into register 0x%02x", reg);
 		return -1;
 	}
 	return 0;
@@ -94,8 +94,8 @@ static int i2c_read(char reg, char *val) {
 	/* Send the request to the kernel and get the result back */
 	packets.msgs = messages;
 	packets.nmsgs = 2;
-	if (ioctl(i2c, I2C_RDWR, &packets) < 0) {
-		mcplog("Error reading data from register 0x%02x", reg);
+	if (ioctl(fd_i2c, I2C_RDWR, &packets) < 0) {
+		xlog("Error reading data from register 0x%02x", reg);
 		return -1;
 	}
 	*val = inbuf;
@@ -125,7 +125,7 @@ static int i2c_clear_bit(char reg, int n) {
 static void i2c_dump_reg(char reg) {
 	char value;
 	i2c_read(reg, &value);
-	mcplog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printBits(value));
+	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printBits(value));
 }
 
 static void gpio_toggle(int gpio) {
@@ -178,7 +178,7 @@ static int dac_get_fsr() {
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
 
-	// mcplog("DAC raw sample rate %d", value);
+	// xlog("DAC raw sample rate %d", value);
 	dvalue = value / 100.0;
 	dvalue = round(dvalue) / 10.0;
 
@@ -210,7 +210,7 @@ void dac_volume_up() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	mcp->display_volume = 10;
-	mcplog("VOL++ %03d", db);
+	xlog("VOL++ %03d", db);
 }
 
 void dac_volume_down() {
@@ -228,17 +228,17 @@ void dac_volume_down() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	mcp->display_volume = 10;
-	mcplog("VOL-- %03d", db);
+	xlog("VOL-- %03d", db);
 }
 
 void dac_mute() {
 	i2c_set_bit(0x07, 0);
-	mcplog("MUTE");
+	xlog("MUTE");
 }
 
 void dac_unmute() {
 	i2c_clear_bit(0x07, 0);
-	mcplog("UNMUTE");
+	xlog("UNMUTE");
 }
 
 void dac_on() {
@@ -246,7 +246,7 @@ void dac_on() {
 
 	// power on
 	digitalWrite(GPIO_DAC_POWER, 1);
-	mcplog("switched DAC on");
+	xlog("switched DAC on");
 	msleep(100);
 
 	// check status
@@ -254,18 +254,18 @@ void dac_on() {
 	while (i2c_read(REG_STATUS, &value) < 0) {
 		msleep(100);
 		if (--timeout == 0) {
-			mcplog("no answer, aborting.");
+			xlog("no answer, aborting.");
 			return;
 		}
-		mcplog("waiting for DAC status %d", timeout);
+		xlog("waiting for DAC status %d", timeout);
 	}
 	value >>= 2;
 	if (value == 0b101010) {
-		mcplog("Found DAC ES9038Pro");
+		xlog("Found DAC ES9038Pro");
 	} else if (value == 0b011100) {
-		mcplog("Found DAC ES9038Q2M");
+		xlog("Found DAC ES9038Q2M");
 	} else if (value == 0b101001 || value == 0b101000) {
-		mcplog("Found DAC ES9028Pro");
+		xlog("Found DAC ES9028Pro");
 	}
 
 	// initialize registers
@@ -283,7 +283,7 @@ void dac_on() {
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
-	mcplog("switched EXT on");
+	xlog("switched EXT on");
 }
 
 void dac_off() {
@@ -291,12 +291,12 @@ void dac_off() {
 
 	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
-	mcplog("switched EXT off");
+	xlog("switched EXT off");
 	sleep(6);
 
 	// power off DAC
 	digitalWrite(GPIO_DAC_POWER, 0);
-	mcplog("switched DAC off");
+	xlog("switched DAC off");
 }
 
 void dac_update() {
@@ -312,16 +312,16 @@ void dac_update() {
 
 	switch (mcp->dac_signal) {
 	case nlock:
-		mcplog("NLOCK");
+		xlog("NLOCK");
 		break;
 	case pcm:
-		mcplog("PCM %d/%d %03ddB", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+		xlog("PCM %d/%d %03ddB", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
 		break;
 	case dsd:
-		mcplog("DSD %d %03ddB", mcp->dac_rate, mcp->dac_volume);
+		xlog("DSD %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	default:
-		mcplog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
+		xlog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
 }
@@ -331,61 +331,46 @@ int dac_init() {
 	pinMode(GPIO_DAC_POWER, OUTPUT);
 	pinMode(GPIO_LAMP, OUTPUT);
 
-	if ((i2c = open(I2C_DEV, O_RDWR)) < 0) {
-		mcplog("Failed to open the i2c bus");
+	if ((fd_i2c = open(I2C_DEV, O_RDWR)) < 0) {
+		xlog("Failed to open the i2c bus");
 		return 1;
 	}
 
 	int pin = digitalRead(GPIO_DAC_POWER);
 	if (pin == 1) {
 		mcp->power = on;
-		mcplog("entered power state ON");
+		xlog("entered power state ON");
 	} else {
 		mcp->power = stdby;
-		mcplog("entered power state STDBY");
+		xlog("entered power state STDBY");
 	}
 
 	return 0;
 }
 
 void dac_close() {
-	if (i2c) {
-		close(i2c);
+	if (fd_i2c) {
+		close(fd_i2c);
 	}
 }
 
-void dac_handle(int key) {
-	switch (key) {
+void dac_handle(struct input_event ev) {
+	switch (ev.code) {
+	case KEY_VOLUMEUP:
+		dac_volume_up();
+		break;
+	case KEY_VOLUMEDOWN:
+		dac_volume_down();
+		break;
+	case KEY_POWER:
+		power_soft();
+		break;
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);
 		break;
-	}
-}
-
-void *dac(void *arg) {
-//	int c;
-
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		mcplog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+	default:
+		mpdclient_handle(ev.code);
 	}
 
-//	system("/bin/stty raw");
-//
-//	while (1) {
-//		c = getchar();
-//		switch (c) {
-//		case '+':
-//			dac_volume_up();
-//			break;
-//		case '-':
-//			dac_volume_down();
-//			break;
-//		case '.':
-//			system("/bin/stty cooked");
-//			return (void *) 0;
-//		}
-//	}
-
-	return (void *) 0;
+	display_update();
 }

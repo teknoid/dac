@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <ctype.h>
+#include <pthread.h>
 #include <linux/input.h>
 
 #include <mpd/connection.h>
@@ -18,12 +19,17 @@
 #include <mpd/tag.h>
 
 #include "mcp.h"
+#include "utils.h"
 #include "playlists.h"
 
 int current_song = -1;
 int playlist_mode = 1;
 
 struct mpd_connection *conn;
+
+pthread_t thread_mpdclient;
+
+void *mpdclient(void *arg);
 
 static void upper(char *s) {
 	while (*s != 0x00) {
@@ -37,6 +43,14 @@ static const char *get_filename_ext(const char *filename) {
 	if (!dot || dot == filename)
 		return "";
 	return dot + 1;
+}
+
+static void external(char *key) {
+	char command[64];
+	strcpy(command, EXTERNAL);
+	strcat(command, " ");
+	strcat(command, key);
+	system(command);
 }
 
 // find active playlist by path of current song
@@ -66,7 +80,7 @@ static void create_playlist(struct plist *playlist) {
 	}
 	mpd_run_save(conn, playlist->name);
 	playlist->pos = 0;
-	mcplog("[%d] generated new playlist from %s", playlist->key, playlist->path);
+	xlog("[%d] generated new playlist from %s", playlist->key, playlist->path);
 }
 
 // load list into queue and start playing from saved position
@@ -79,7 +93,7 @@ static void load_playlist(struct plist *playlist) {
 		create_playlist(playlist);
 	}
 	mpd_run_play_pos(conn, playlist->pos);
-	mcplog("[%d] loaded playlist", playlist->key);
+	xlog("[%d] loaded playlist", playlist->key);
 }
 
 // update database for list 0, load list 0 and start playing from beginning
@@ -90,7 +104,7 @@ static void load_incoming() {
 	mpd_run_update(conn, playlist->path);
 
 	//	while (mpd_run_idle_mask(conn, MPD_IDLE_UPDATE) != 0) {
-//		mcplog("sleep");
+//		xlog("sleep");
 //		sleep(1);
 //	}
 
@@ -98,12 +112,12 @@ static void load_incoming() {
 	int count = 11;
 	while (count-- > 0) {
 		sleep(1);
-		mcplog("wait %d", count);
+		xlog("wait %d", count);
 	}
-	mcplog("[0] updated %s", playlist->path);
+	xlog("[0] updated %s", playlist->path);
 	mpd_run_add(conn, playlist->path);
 	mpd_run_play_pos(conn, 0);
-	mcplog("[0] loaded playlist");
+	xlog("[0] loaded playlist");
 }
 
 static void toggle_pause() {
@@ -148,7 +162,7 @@ static void process_song(struct mpd_song *song, int pos) {
 	mcp->plist_pos = pos;
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
-		mcplog("[%d:%d] %s - %s", plist_key, pos, artist, title);
+		xlog("[%d:%d] %s - %s", plist_key, pos, artist, title);
 		strcpy(mcp->artist, artist);
 		strcpy(mcp->title, title);
 		if (album != NULL) {
@@ -157,12 +171,8 @@ static void process_song(struct mpd_song *song, int pos) {
 		strcpy(mcp->extension, get_filename_ext(path));
 		upper(mcp->extension);
 	} else {
-		mcplog("[%d:%d] %s", plist_key, pos, path);
+		xlog("[%d:%d] %s", plist_key, pos, path);
 	}
-}
-
-void mpdclient_set_playlist_mode(int mode) {
-	playlist_mode = mode;
 }
 
 void mpdclient_handle(int key) {
@@ -172,21 +182,21 @@ void mpdclient_handle(int key) {
 	assert(conn != NULL);
 	struct mpd_status *status = mpd_run_status(conn);
 	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		mcplog("status: %s", mpd_connection_get_error_message(conn));
+		xlog("status: %s", mpd_connection_get_error_message(conn));
 		if (!mpd_connection_clear_error(conn)) {
 			mpd_connection_free(conn);
 			conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
 			if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-				mcplog("connect: %s", mpd_connection_get_error_message(conn));
+				xlog("connect: %s", mpd_connection_get_error_message(conn));
 				return;
 			}
-			// mcplog("reconnected");
+			// xlog("reconnected");
 		}
 	}
 	if (status != NULL) {
 		mpd_status_free(status);
 	}
-	// mcplog("connection ok");
+	// xlog("connection ok");
 
 	if (key == KEY_0) {
 		load_incoming();
@@ -234,13 +244,17 @@ void mpdclient_handle(int key) {
 	case KEY_FORWARD:
 		mpd_run_seek_pos(conn, 0, 10);
 		break;
+	case KEY_EJECTCD:
+		playlist_mode = 0;
+		external("RANDOM");
+		break;
 	}
 }
 
 int mpdclient_init() {
 	conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
 	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		mcplog("%s", mpd_connection_get_error_message(conn));
+		xlog("%s", mpd_connection_get_error_message(conn));
 		mpd_connection_free(conn);
 	}
 
@@ -248,21 +262,32 @@ int mpdclient_init() {
 	//mpd_connection_set_keepalive(conn, true);
 	//mpd_connection_set_timeout(conn, 5000);
 
+	// listen for mpd state changes
+	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
+		xlog("Error creating thread_mpdclient");
+	}
+
 	return 0;
 }
 
 void mpdclient_close() {
+	if (pthread_cancel(thread_mpdclient)) {
+		xlog("Error canceling thread_mpdclient");
+	}
+	if (pthread_join(thread_mpdclient, NULL)) {
+		xlog("Error joining thread_mpdclient");
+	}
 }
 
 void *mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		mcplog("Error setting pthread_setcancelstate");
+		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
 
 	struct mpd_connection *conn_status = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
 	if (mpd_connection_get_error(conn_status) != MPD_ERROR_SUCCESS) {
-		mcplog("connect: %s", mpd_connection_get_error_message(conn_status));
+		xlog("connect: %s", mpd_connection_get_error_message(conn_status));
 		mpd_connection_free(conn_status);
 		return (void *) 0;
 	}
@@ -270,15 +295,15 @@ void *mpdclient(void *arg) {
 	while (1) {
 		struct mpd_status *status = mpd_run_status(conn_status);
 		int state = mpd_status_get_state(status);
-		mcplog("MPD State %d", state);
+		xlog("MPD State %d", state);
 		mcp->mpd_state = state;
 
 		if (state == MPD_STATE_PAUSE) {
-			mcplog("MPD State PAUSE");
+			xlog("MPD State PAUSE");
 		} else if (state == MPD_STATE_STOP) {
-			mcplog("MPD State STOP");
+			xlog("MPD State STOP");
 		} else if (state == MPD_STATE_PLAY) {
-			mcplog("MPD State PLAY");
+			xlog("MPD State PLAY");
 
 			const struct mpd_audio_format *audio_format = mpd_status_get_audio_format(status);
 			if (audio_format != NULL) {

@@ -1,10 +1,46 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <time.h>
 
-int startsWith(const char *pre, const char *str);
-char *printBits(char value);
-void hexDump(char *desc, void *addr, int len);
+#include "mcp.h"
+#include "utils.h"
+#include "keytable.h"
+
+FILE *flog;
+
+void xlog(char *format, ...) {
+	va_list vargs;
+	time_t timer;
+	char buffer[26];
+	struct tm* tm_info;
+
+	if (flog == 0) {
+		flog = fopen(LOGFILE, "a");
+		if (flog == 0) {
+			perror("error opening logfile " LOGFILE);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	time(&timer);
+	tm_info = localtime(&timer);
+	strftime(buffer, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+
+	fprintf(flog, "%s: ", buffer);
+	va_start(vargs, format);
+	vfprintf(flog, format, vargs);
+	va_end(vargs);
+	fprintf(flog, "\n");
+	fflush(flog);
+}
+
+void xlog_close() {
+	if (flog) {
+		fclose(flog);
+	}
+}
 
 int startsWith(const char *pre, const char *str) {
 	unsigned int lenpre = strlen(pre);
@@ -76,4 +112,24 @@ void hexDump(char *desc, void *addr, int len) {
 
 	// And print the final ASCII bit.
 	printf("  %s\n", buff);
+}
+
+char *devinput_keyname(unsigned int key) {
+	struct parse_event *p;
+	for (p = key_events; p->name != NULL; p++) {
+		if (key == p->value) {
+			return p->name;
+		}
+	}
+	return NULL;
+}
+
+int devinput_find_key(const char *name) {
+	struct parse_event *p;
+	for (p = key_events; p->name != NULL; p++) {
+		if (!strcmp(name, p->name)) {
+			return p->value;
+		}
+	}
+	return 0;
 }

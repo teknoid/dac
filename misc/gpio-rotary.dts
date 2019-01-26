@@ -1,0 +1,48 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "allwinner,sun4i-a10", "allwinner,sun7i-a20", "allwinner,sun8i-h3", "allwinner,sun50i-a64", "allwinner,sun50i-h5";
+
+	fragment@0 {
+		target = <&pio>;
+		__overlay__ {
+			pinctrl_button: pinctrl_button {
+				pins = "PA6";
+				function = "gpio_in";
+				bias-pull-up;
+			};
+			pinctrl_rotary: pinctrl_rotary {
+				pins = "PG8","PG9";
+				function = "gpio_in";
+				bias-pull-up;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			rotary_button {
+				compatible = "gpio-keys";
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_button>;
+
+				rotary_button_enter {
+					label = "ENTER";
+					linux,code = <28>;
+					gpios = <&pio 0 6 1>; /* PA6 GPIO_ACTIVE_LOW */
+				};
+			};
+			rotary_axis {
+				compatible = "rotary-encoder";
+				pinctrl-names = "default";
+				pinctrl-0 = <&pinctrl_rotary>;
+				gpios = <&pio 6 8 1>, <&pio 6 9 1>; /* PG8 PG9 GPIO_ACTIVE_LOW */
+				linux,axis = <1>; /* REL_Y */
+				rotary-encoder,relative-axis;
+				rotary-encoder,half-period;
+			};
+		};
+	};
+};

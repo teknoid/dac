@@ -10,35 +10,34 @@
 #endif
 
 #ifdef PIWOLF
-#define LOGFILE			"/var/log/mcp.log"
-#define MUSIC 			"/public/music/"
 #define WIRINGPI
 #define LIRC_SEND
 #define LIRC_RECEIVE
+#define LOGFILE			"/var/log/mcp.log"
+#define MUSIC 			"/public/music/"
 #endif
 
 #ifdef SABRE18
+#define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
 //#define MUSIC 			"/music/"
-#define DEVINPUT		"/dev/input/infrared"
-#define WIRINGPI
+#define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE28
+#define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
-//#define MUSIC 			"/music/"
-#define DEVINPUT		"/dev/input/infrared"
-#define WIRINGPI
+#define DEVINPUT_IR		"/dev/input/infrared"
+#define DEVINPUT_RA		"/dev/input/rotary_axis"
+#define DEVINPUT_RB		"/dev/input/rotary_button"
 #define DISPLAY			"/dev/tty1"
-#define ROTARY
 #endif
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
 #define LIRC_REMOTE 	"audiophonics-wolfson"
 #define LIRC_DEV 		"/run/lirc/lircd"
-#define DEVINPUT		"/dev/input/infrared"
 #define MPD_HOST		"localhost"
 #define MPD_PORT		6600
 
@@ -47,6 +46,7 @@
 #define BUFSIZE			256
 
 #include <mpd/status.h>
+#include <linux/input.h>
 
 typedef enum {
 	startup, stdby, on, off
@@ -93,12 +93,6 @@ typedef struct {
 extern mcp_state_t *mcp;
 extern mcp_config_t *cfg;
 
-int startsWith(const char *pre, const char *str);
-char *printBits(char value);
-
-void mcplog(char *format, ...);
-
-void *dac(void *arg);
 int dac_init(void);
 void dac_close(void);
 void dac_on(void);
@@ -108,28 +102,21 @@ void dac_unmute(void);
 void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
-void dac_handle(int key);
+void dac_handle(struct input_event ev);
 
-void *devinput(void *arg);
-int devinput_init(void);
-void devinput_close(void);
-int devinput_find_key(const char *name);
-char *devinput_keyname(unsigned int key);
+int ir_init(void);
+void ir_close(void);
 
-void *lirc(void *arg);
+int rotary_init(void);
+void rotary_close(void);
+
 int lirc_init(void);
 void lirc_close(void);
 void lirc_send(const char *remote, const char *command);
 
-void *mpdclient(void *arg);
 int mpdclient_init(void);
 void mpdclient_close(void);
-void mpdclient_set_playlist_mode(int mode);
 void mpdclient_handle(int key);
-
-void *rotary(void *arg);
-int rotary_init(void);
-void rotary_close(void);
 
 int power_init(void);
 void poweron(void);
@@ -138,7 +125,6 @@ void standby(void);
 void power_soft(void);
 void power_hard(void);
 
-void *display(void *arg);
 int display_init(void);
 void display_close(void);
 void display_update(void);

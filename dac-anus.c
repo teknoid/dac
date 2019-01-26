@@ -3,23 +3,24 @@
 #include <stdint.h>
 
 #include "mcp.h"
+#include "utils.h"
 
 void dac_volume_up() {
 	system("/usr/bin/amixer set Master 2%+ >/dev/null");
-	mcplog("VOL++");
+	xlog("VOL++");
 }
 
 void dac_volume_down() {
 	system("/usr/bin/amixer set Master 2%- >/dev/null");
-	mcplog("VOL--");
+	xlog("VOL--");
 }
 
 void dac_mute() {
-	mcplog("MUTE");
+	xlog("MUTE");
 }
 
 void dac_unmute() {
-	mcplog("UNMUTE");
+	xlog("UNMUTE");
 }
 
 void dac_on() {
@@ -39,9 +40,5 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(int key) {
-}
-
-void *dac(void *arg) {
-	return (void *) 0;
+void dac_handle(struct input_event ev) {
 }

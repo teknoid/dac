@@ -27,13 +27,16 @@ sabre28: $(COBJS) dac-es9028.o display-ncurses.o
 display: display-ncurses.o
 	$(CC) $(CFLAGS) $(LIBS) -lncurses -o display display-ncurses.c
 
+rotary2uinput: rotary2uinput.o
+	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
+
 .c.o:
 	$(CC) -c $(CFLAGS) $< 
 
-.PHONY: clean
+.PHONY: clean install
 
 clean:
-	rm -f *.o mcp test
+	rm -f *.o mcp display rotary2uinput test
 
 install:
 	systemctl stop mcp

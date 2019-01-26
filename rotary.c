@@ -9,6 +9,7 @@
 #include <linux/input.h>
 
 #include "mcp.h"
+#include "utils.h"
 
 #ifndef GPIO_ENC_A
 #define GPIO_ENC_A	0
@@ -81,22 +82,28 @@ void rotary_close() {
 
 void *rotary(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		mcplog("Error setting pthread_setcancelstate");
+		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
 
 	long old = 0;
+
+	struct input_event ev;
+	ev.type = EV_KEY;
+	ev.value = 1;
+	ev.time.tv_sec = 0;
+	ev.time.tv_usec = 0;
 	while (1) {
 		long new = encoder->value;
 		if (new < old) {
-			dac_volume_down();
+			ev.code = KEY_KPPLUS;
 		} else if (new > old) {
-			dac_volume_up();
+			ev.code = KEY_KPMINUS;
 		} else if (encoder->button == 0) {
-			dac_handle(KEY_SELECT);
-			usleep(300 * 1000);
+			ev.code = KEY_ENTER;
 		}
 		old = new;
+		dac_handle(ev);
 		usleep(100 * 1000);
 	}
 }

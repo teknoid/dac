@@ -3,11 +3,12 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include <wiringPi.h>
-
 #include <linux/input.h>
 
+#include <wiringPi.h>
+
 #include "mcp.h"
+#include "utils.h"
 
 #define GPIO_POWER		0
 
@@ -19,7 +20,7 @@ static void workaround_channel() {
 	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
-	mcplog("WM8741 workaround channel");
+	xlog("WM8741 workaround channel");
 }
 
 // WM8741 workaround: touch volume
@@ -28,37 +29,37 @@ static void workaround_volume() {
 	msleep(100);
 	dac_volume_up();
 	msleep(100);
-	mcplog("WM8741 workaround volume");
+	xlog("WM8741 workaround volume");
 }
 
 void dac_volume_up() {
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
-	mcplog("VOL++");
+	xlog("VOL++");
 }
 
 void dac_volume_down() {
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
-	mcplog("VOL--");
+	xlog("VOL--");
 }
 
 void dac_mute() {
-	mcplog("MUTE");
+	xlog("MUTE");
 }
 
 void dac_unmute() {
-	mcplog("UNMUTE");
+	xlog("UNMUTE");
 }
 
 void dac_on() {
 	digitalWrite(GPIO_POWER, 1);
-	mcplog("switched POWER on");
+	xlog("switched POWER on");
 	sleep(3);
 	workaround_volume();
 }
 
 void dac_off() {
 	digitalWrite(GPIO_POWER, 0);
-	mcplog("switched POWER off");
+	xlog("switched POWER off");
 
 }
 
@@ -71,10 +72,10 @@ int dac_init() {
 	int pin = digitalRead(GPIO_POWER);
 	if (pin == 1) {
 		mcp->power = on;
-		mcplog("entered power state ON");
+		xlog("entered power state ON");
 	} else {
 		mcp->power = stdby;
-		mcplog("entered power state STDBY");
+		xlog("entered power state STDBY");
 	}
 
 	return 0;
@@ -83,22 +84,21 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(int key) {
-	switch (key) {
+void dac_handle(struct input_event ev) {
+	switch (ev.code) {
 	case KEY_PAUSE:
 	case KEY_PLAY:
 		workaround_volume();
+		mpdclient_handle(ev.code);
 		break;
 	case KEY_EJECTCD:
 		workaround_channel();
 		break;
 	case KEY_SELECT:
 		lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-		mcplog("CHANNELUP");
+		xlog("CHANNELUP");
 		break;
+	default:
+		mpdclient_handle(ev.code);
 	}
-}
-
-void *dac(void *arg) {
-	return (void *) 0;
 }

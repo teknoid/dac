@@ -4,31 +4,24 @@
 #include <unistd.h>
 #include <string.h>
 
-#include <wiringPi.h>
-
 #include <linux/input.h>
 
+#include <wiringPi.h>
+
 #include "mcp.h"
+#include "utils.h"
 
 #define GPIO_POWER		5
 
 #define GPIO_VOL_UP		4
 #define GPIO_VOL_DOWN	0
 
-static void external(char *key) {
-	char command[64];
-	strcpy(command, EXTERNAL);
-	strcat(command, " ");
-	strcat(command, key);
-	system(command);
-}
-
 void dac_volume_up() {
 	digitalWrite(GPIO_VOL_UP, 1);
 	msleep(100);
 	digitalWrite(GPIO_VOL_UP, 0);
 	msleep(100);
-	mcplog("VOL++");
+	xlog("VOL++");
 }
 
 void dac_volume_down() {
@@ -36,15 +29,15 @@ void dac_volume_down() {
 	msleep(100);
 	digitalWrite(GPIO_VOL_DOWN, 0);
 	msleep(100);
-	mcplog("VOL--");
+	xlog("VOL--");
 }
 
 void dac_mute() {
-	mcplog("MUTE");
+	xlog("MUTE");
 }
 
 void dac_unmute() {
-	mcplog("UNMUTE");
+	xlog("UNMUTE");
 }
 
 void dac_on() {
@@ -69,10 +62,10 @@ int dac_init() {
 	int pin = digitalRead(GPIO_POWER);
 	if (pin == 1) {
 		mcp->power = on;
-		mcplog("entered power state ON");
+		xlog("entered power state ON");
 	} else {
 		mcp->power = stdby;
-		mcplog("entered power state STDBY");
+		xlog("entered power state STDBY");
 	}
 
 	return 0;
@@ -81,27 +74,18 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(int key) {
-	switch (key) {
-	case KEY_EJECTCD:
-		mpdclient_set_playlist_mode(0);
-		external("RANDOM");
+void dac_handle(struct input_event ev) {
+	switch (ev.code) {
+	case KEY_VOLUMEUP:
+		dac_volume_up();
 		break;
-	case KEY_F1:
-		external("F1");
+	case KEY_VOLUMEDOWN:
+		dac_volume_down();
 		break;
-	case KEY_F2:
-		external("F2");
+	case KEY_POWER:
+		power_soft();
 		break;
-	case KEY_F3:
-		external("F3");
-		break;
-	case KEY_F4:
-		external("F4");
-		break;
+	default:
+		mpdclient_handle(ev.code);
 	}
-}
-
-void *dac(void *arg) {
-	return (void *) 0;
 }
