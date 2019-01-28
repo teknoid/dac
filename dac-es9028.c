@@ -209,7 +209,7 @@ void dac_volume_up() {
 	i2c_write(REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	mcp->display_volume = 10;
+	mcp->display_volume_countdown = 10;
 	xlog("VOL++ %03d", db);
 }
 
@@ -227,7 +227,7 @@ void dac_volume_down() {
 	i2c_write(REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	mcp->display_volume = 10;
+	mcp->display_volume_countdown = 10;
 	xlog("VOL-- %03d", db);
 }
 

@@ -100,7 +100,21 @@ void *rotary_axis(void *arg) {
 			break;
 		}
 
-		xlog("ROTARY: distributing axis %d", ev.value);
+		// transform into KEYDOWN event
+		switch (ev.value) {
+		case +1:
+			ev.type = EV_KEY;
+			ev.value = 1;
+			ev.code = KEY_VOLUMEUP;
+			break;
+		case -1:
+			ev.type = EV_KEY;
+			ev.value = 1;
+			ev.code = KEY_VOLUMEDOWN;
+			break;
+		}
+
+		xlog("ROTARY: distributing axis %s (0x%0x)", devinput_keyname(ev.code), ev.code);
 #ifndef LOCALMAIN
 		dac_handle(ev);
 #endif

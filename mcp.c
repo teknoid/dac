@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <string.h>
 #include <time.h>
+#include <termios.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -85,6 +86,60 @@ static void daemonize() {
 #endif
 
 	xlog("MCP forked into background");
+}
+
+static void userinput() {
+	struct termios new_io;
+	struct termios old_io;
+	struct input_event ev;
+
+	printf("exit with 'q'\r\n");
+
+	// set terminal into CBREAK kmode
+	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
+		exit(EXIT_FAILURE);
+	}
+
+	new_io = old_io;
+	new_io.c_lflag = new_io.c_lflag & ~(ECHO | ICANON);
+	new_io.c_cc[VMIN] = 1;
+	new_io.c_cc[VTIME] = 0;
+
+	if ((tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_io)) == -1) {
+		exit(EXIT_FAILURE);
+	}
+
+	ev.type = EV_KEY;
+	ev.time.tv_sec = 0;
+	ev.time.tv_usec = 0;
+	ev.value = 1;
+	while (1) {
+		int c = getchar();
+		if (c == 'q') {
+			break;
+		}
+
+		// translate to devinput KEY values
+		switch (c) {
+		case ' ':
+			ev.code = KEY_ENTER;
+			break;
+		case '+':
+			ev.code = KEY_VOLUMEUP;
+			break;
+		case '-':
+			ev.code = KEY_VOLUMEDOWN;
+			break;
+		}
+
+		xlog("CONSOLE: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+		dac_handle(ev);
+	}
+
+	// reset terminal
+	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
+	printf("quit\r\n");
+	sig_handler(SIGTERM);
 }
 
 int main(int argc, char **argv) {
@@ -168,9 +223,12 @@ int main(int argc, char **argv) {
 	/* fork into background */
 	if (cfg->daemonize) {
 		daemonize();
+		xlog("MCP online");
+		pause();
+	} else {
+		xlog("MCP online, waiting for input");
+		userinput();
 	}
 
-	xlog("MCP online");
-	pause();
 	return 0;
 }

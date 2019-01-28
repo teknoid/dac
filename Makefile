@@ -7,22 +7,25 @@ LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 SRCS = $(wildcard *.c)
 OBJS = $(SRCS:.c=.o)
 
-COBJS = mcp.o power.o mpdclient.o replaygain.o mp3gain.o utils.o
+COBJS-ANUS 		= mcp.o power.o mpdclient.o replaygain.o mp3gain.o utils.o dac-anus.o display-ncurses.o
+COBJS-PIWOLF 	= mcp.o power.o mpdclient.o replaygain.o mp3gain.o utils.o dac-piwolf.o lirc.o
+COBJS-SABRE18 	= mcp.o power.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9018.o devinput-infrared.o
+COBJS-SABRE28 	= mcp.o power.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9028.o display-ncurses.o devinput-infrared.o devinput-rotary.o
  
 all: $(OBJS)
 	@echo "To create executables specify target: anus | piwolf | sabre18 | sabre28"
  
-anus: $(COBJS) dac-anus.o display-ncurses.o
-	$(CC) $(CFLAGS) $(LIBS) -lncurses -o mcp $(COBJS) dac-anus.o display-ncurses.o
+anus: $(COBJS-ANUS) 
+	$(CC) $(CFLAGS) $(LIBS) -lncurses -o mcp $(COBJS-ANUS)
 
-piwolf: $(COBJS) dac-piwolf.o lirc.o
-	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-piwolf.o lirc.o
+piwolf: $(COBJS-PIWOLF)
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS-PIWOLF)
 
-sabre18: $(COBJS) dac-es9018.o
-	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS) dac-es9018.o devinput-infrared.o
+sabre18: $(COBJS-SABRE18)
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -o mcp $(COBJS-SABRE18)
 
-sabre28: $(COBJS) dac-es9028.o display-ncurses.o
-	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -o mcp $(COBJS) dac-es9028.o display-ncurses.o devinput-infrared.o devinput-rotary.o
+sabre28: $(COBJS-SABRE28)
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -o mcp $(COBJS-SABRE28)
 
 display: display-ncurses.o
 	$(CC) $(CFLAGS) $(LIBS) -lncurses -o display display-ncurses.c

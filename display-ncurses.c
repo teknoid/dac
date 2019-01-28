@@ -259,12 +259,15 @@ static void get_system_status() {
 }
 
 void display_update() {
-	if (mcp->display_volume-- > 0) {
+	if (mcp->display_menu) {
+		return;
+	}
+	if (mcp->display_volume_countdown-- > 0) {
 		sprintf(fullscreen, "%d", mcp->dac_volume);
 		paint_fullscreen();
 		return;
 	}
-	if (mcp->display_input-- > 0) {
+	if (mcp->display_input_countdown-- > 0) {
 		sprintf(fullscreen, "%s", "xxx");
 		paint_fullscreen();
 		return;
