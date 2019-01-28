@@ -88,7 +88,7 @@ static void daemonize() {
 	xlog("MCP forked into background");
 }
 
-static void userinput() {
+static void user_input() {
 	struct termios new_io;
 	struct termios old_io;
 	struct input_event ev;
@@ -142,6 +142,12 @@ static void userinput() {
 	sig_handler(SIGTERM);
 }
 
+void system_shutdown() {
+	mcp->power = off;
+	xlog("shutting down system now!");
+	system("shutdown -h now");
+}
+
 int main(int argc, char **argv) {
 	cfg = malloc(sizeof(*cfg));
 	mcp = malloc(sizeof(*mcp));
@@ -184,9 +190,6 @@ int main(int argc, char **argv) {
 #endif
 
 	/* initialize modules */
-	if (power_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
 
 #ifdef DISPLAY
 	if (display_init() < 0) {
@@ -227,7 +230,7 @@ int main(int argc, char **argv) {
 		pause();
 	} else {
 		xlog("MCP online, waiting for input");
-		userinput();
+		user_input();
 	}
 
 	return 0;

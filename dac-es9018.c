@@ -16,6 +16,28 @@
 #define GPIO_VOL_UP		4
 #define GPIO_VOL_DOWN	0
 
+static void dac_on() {
+	digitalWrite(GPIO_POWER, 1);
+}
+
+static void dac_off() {
+	digitalWrite(GPIO_POWER, 0);
+}
+
+void dac_power() {
+	if (mcp->power == startup || mcp->power == stdby) {
+		dac_on();
+		mcp->power = on;
+		mpdclient_handle(KEY_PLAY);
+		xlog("entered power state ON");
+	} else if (mcp->power == on) {
+		dac_off();
+		mcp->power = stdby;
+		mpdclient_handle(KEY_STOP);
+		xlog("entered power state STDBY");
+	}
+}
+
 void dac_volume_up() {
 	digitalWrite(GPIO_VOL_UP, 1);
 	msleep(100);
@@ -38,14 +60,6 @@ void dac_mute() {
 
 void dac_unmute() {
 	xlog("UNMUTE");
-}
-
-void dac_on() {
-	digitalWrite(GPIO_POWER, 1);
-}
-
-void dac_off() {
-	digitalWrite(GPIO_POWER, 0);
 }
 
 void dac_update() {
@@ -83,7 +97,7 @@ void dac_handle(struct input_event ev) {
 		dac_volume_down();
 		break;
 	case KEY_POWER:
-		power_soft();
+		dac_power();
 		break;
 	default:
 		mpdclient_handle(ev.code);

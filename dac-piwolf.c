@@ -32,6 +32,33 @@ static void workaround_volume() {
 	xlog("WM8741 workaround volume");
 }
 
+static void dac_on() {
+	digitalWrite(GPIO_POWER, 1);
+	xlog("switched POWER on");
+	sleep(3);
+	workaround_volume();
+}
+
+static void dac_off() {
+	digitalWrite(GPIO_POWER, 0);
+	xlog("switched POWER off");
+
+}
+
+void dac_power() {
+	if (mcp->power == startup || mcp->power == stdby) {
+		dac_on();
+		mcp->power = on;
+		mpdclient_handle(KEY_PLAY);
+		xlog("entered power state ON");
+	} else if (mcp->power == on) {
+		dac_off();
+		mcp->power = stdby;
+		mpdclient_handle(KEY_STOP);
+		xlog("entered power state STDBY");
+	}
+}
+
 void dac_volume_up() {
 	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
 	xlog("VOL++");
@@ -48,19 +75,6 @@ void dac_mute() {
 
 void dac_unmute() {
 	xlog("UNMUTE");
-}
-
-void dac_on() {
-	digitalWrite(GPIO_POWER, 1);
-	xlog("switched POWER on");
-	sleep(3);
-	workaround_volume();
-}
-
-void dac_off() {
-	digitalWrite(GPIO_POWER, 0);
-	xlog("switched POWER off");
-
 }
 
 void dac_update() {
@@ -97,6 +111,9 @@ void dac_handle(struct input_event ev) {
 	case KEY_SELECT:
 		lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
 		xlog("CHANNELUP");
+		break;
+	case KEY_POWER:
+		dac_power();
 		break;
 	default:
 		mpdclient_handle(ev.code);

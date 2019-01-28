@@ -5,6 +5,9 @@
 #include "mcp.h"
 #include "utils.h"
 
+void dac_power() {
+}
+
 void dac_volume_up() {
 	system("/usr/bin/amixer set Master 2%+ >/dev/null");
 	xlog("VOL++");
@@ -21,12 +24,6 @@ void dac_mute() {
 
 void dac_unmute() {
 	xlog("UNMUTE");
-}
-
-void dac_on() {
-}
-
-void dac_off() {
 }
 
 void dac_update() {

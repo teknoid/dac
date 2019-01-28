@@ -195,6 +195,78 @@ static int dac_get_vol() {
 	return db;
 }
 
+static void dac_on() {
+	char value;
+
+	// power on
+	digitalWrite(GPIO_DAC_POWER, 1);
+	xlog("switched DAC on");
+	msleep(100);
+
+	// check status
+	int timeout = 10;
+	while (i2c_read(REG_STATUS, &value) < 0) {
+		msleep(100);
+		if (--timeout == 0) {
+			xlog("no answer, aborting.");
+			return;
+		}
+		xlog("waiting for DAC status %d", timeout);
+	}
+	value >>= 2;
+	if (value == 0b101010) {
+		xlog("Found DAC ES9038Pro");
+	} else if (value == 0b011100) {
+		xlog("Found DAC ES9038Q2M");
+	} else if (value == 0b101001 || value == 0b101000) {
+		xlog("Found DAC ES9028Pro");
+	}
+
+	// initialize registers
+	dac_mute();
+	if (i2c_write(0x0f, 0x07) < 0) {
+		return;
+	}
+	if (i2c_write(REG_VOLUME, 0x60) < 0) {
+		return;
+	}
+	i2c_dump_reg(REG_STATUS);
+
+	dac_unmute();
+	dac_update();
+
+	// power on Externals
+	digitalWrite(GPIO_EXT_POWER, 1);
+	xlog("switched EXT on");
+}
+
+static void dac_off() {
+	dac_mute();
+
+	// power off Externals and wait to avoid speaker plop
+	digitalWrite(GPIO_EXT_POWER, 0);
+	xlog("switched EXT off");
+	sleep(6);
+
+	// power off DAC
+	digitalWrite(GPIO_DAC_POWER, 0);
+	xlog("switched DAC off");
+}
+
+void dac_power() {
+	if (mcp->power == startup || mcp->power == stdby) {
+		dac_on();
+		mcp->power = on;
+		mpdclient_handle(KEY_PLAY);
+		xlog("entered power state ON");
+	} else if (mcp->power == on) {
+		dac_off();
+		mcp->power = stdby;
+		mpdclient_handle(KEY_STOP);
+		xlog("entered power state STDBY");
+	}
+}
+
 void dac_volume_up() {
 	if (mcp->power != on) {
 		return;
@@ -241,64 +313,6 @@ void dac_unmute() {
 	i2c_clear_bit(0x07, 0);
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
-}
-
-void dac_on() {
-	char value;
-
-	// power on
-	digitalWrite(GPIO_DAC_POWER, 1);
-	xlog("switched DAC on");
-	msleep(100);
-
-	// check status
-	int timeout = 10;
-	while (i2c_read(REG_STATUS, &value) < 0) {
-		msleep(100);
-		if (--timeout == 0) {
-			xlog("no answer, aborting.");
-			return;
-		}
-		xlog("waiting for DAC status %d", timeout);
-	}
-	value >>= 2;
-	if (value == 0b101010) {
-		xlog("Found DAC ES9038Pro");
-	} else if (value == 0b011100) {
-		xlog("Found DAC ES9038Q2M");
-	} else if (value == 0b101001 || value == 0b101000) {
-		xlog("Found DAC ES9028Pro");
-	}
-
-	// initialize registers
-	dac_mute();
-	if (i2c_write(0x0f, 0x07) < 0) {
-		return;
-	}
-	if (i2c_write(REG_VOLUME, 0x60) < 0) {
-		return;
-	}
-	i2c_dump_reg(REG_STATUS);
-
-	dac_unmute();
-	dac_update();
-
-	// power on Externals
-	digitalWrite(GPIO_EXT_POWER, 1);
-	xlog("switched EXT on");
-}
-
-void dac_off() {
-	dac_mute();
-
-	// power off Externals and wait to avoid speaker plop
-	digitalWrite(GPIO_EXT_POWER, 0);
-	xlog("switched EXT off");
-	sleep(6);
-
-	// power off DAC
-	digitalWrite(GPIO_DAC_POWER, 0);
-	xlog("switched DAC off");
 }
 
 void dac_update() {
@@ -367,7 +381,7 @@ void dac_handle(struct input_event ev) {
 		dac_volume_down();
 		break;
 	case KEY_POWER:
-		power_soft();
+		dac_power();
 		break;
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);

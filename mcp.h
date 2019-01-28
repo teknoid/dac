@@ -60,7 +60,7 @@ typedef enum {
 	i2s, opt, coax
 } dac_source_t;
 
-typedef struct {
+typedef struct mcp_state_t {
 	power_state_t power;
 	dac_signal_t dac_signal;
 	dac_source_t dac_source;
@@ -88,7 +88,7 @@ typedef struct {
 	int display_input_countdown;
 } mcp_state_t;
 
-typedef struct {
+typedef struct mcp_config_t {
 	int daemonize;
 } mcp_config_t;
 
@@ -97,8 +97,7 @@ extern mcp_config_t *cfg;
 
 int dac_init(void);
 void dac_close(void);
-void dac_on(void);
-void dac_off(void);
+void dac_power();
 void dac_mute(void);
 void dac_unmute(void);
 void dac_update(void);
@@ -120,15 +119,10 @@ int mpdclient_init(void);
 void mpdclient_close(void);
 void mpdclient_handle(int key);
 
-int power_init(void);
-void poweron(void);
-void poweroff(void);
-void standby(void);
-void power_soft(void);
-void power_hard(void);
-
 int display_init(void);
 void display_close(void);
 void display_update(void);
 
 void replaygain(const char *filename);
+
+void system_shutdown(void);
