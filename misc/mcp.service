@@ -1,0 +1,11 @@
+[Unit]
+Description=DAC Master Control Program
+After=mpd.service
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/mcp
+ExecStartPre=/bin/sleep 3
+
+[Install]
+WantedBy=multi-user.target
