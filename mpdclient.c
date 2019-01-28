@@ -319,6 +319,10 @@ void *mpdclient(void *arg) {
 				current_song = this_song;
 			}
 			mpd_song_free(song);
+
+			if (mcp->dac_mute) {
+				dac_unmute();
+			}
 		}
 
 		dac_update();

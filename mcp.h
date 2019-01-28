@@ -67,6 +67,7 @@ typedef struct {
 	int dac_bits;
 	int dac_rate;
 	int dac_volume;
+	int dac_mute;
 	enum mpd_state mpd_state;
 	int mpd_bits;
 	int mpd_rate;

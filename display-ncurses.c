@@ -98,7 +98,11 @@ static void dotchar(int col, int row, char c) {
 }
 
 static void audioinfo(int line) {
-	mvprintw(line, 0, "%2ddB", mcp->dac_volume);
+	if (mcp->dac_mute) {
+		mvprintw(line, 0, "---");
+	} else {
+		mvprintw(line, 0, "%2ddB", mcp->dac_volume);
+	}
 	if (mcp->dac_signal == nlock) {
 		mvaddstr(line, 8, "NLOCK");
 		mvaddstr(line, 15, "--/--");

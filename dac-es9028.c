@@ -233,11 +233,13 @@ void dac_volume_down() {
 
 void dac_mute() {
 	i2c_set_bit(0x07, 0);
+	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
 
 void dac_unmute() {
 	i2c_clear_bit(0x07, 0);
+	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
 
