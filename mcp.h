@@ -87,12 +87,11 @@ typedef struct mcp_state_t {
 	int display_volume_countdown;
 	int display_input_countdown;
 } mcp_state_t;
+extern mcp_state_t *mcp;
 
 typedef struct mcp_config_t {
 	int daemonize;
 } mcp_config_t;
-
-extern mcp_state_t *mcp;
 extern mcp_config_t *cfg;
 
 int dac_init(void);

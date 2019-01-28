@@ -1,5 +1,3 @@
-#include <string.h>
-
 void xlog(char *format, ...);
 void xlog_close(void);
 int startsWith(const char *pre, const char *str);
