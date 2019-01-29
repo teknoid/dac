@@ -83,18 +83,19 @@ static void scroll_line(int line, int *scrollptr, char *text) {
 	*scrollptr = *scrollptr + 1;
 }
 
-static void dotchar(int col, int row, char c) {
+static void dotchar(unsigned int startx, unsigned int starty, char c) {
 	int i = (c - 0x20) * 6;
 	for (int x = 0; x < 6; x++) {
 		unsigned char bit = _font_bits[i + x];
 		for (int y = 0; y < 7; y++) {
 			if (bit & 0b00000001) {
-				mvaddch(row + y, col + x, FULLSCREEN_CHAR);
+				mvaddch(starty + y, startx + x, FULLSCREEN_CHAR);
 			}
 			bit >>= 1;
 		}
 	}
 }
+
 
 static void audioinfo(int line) {
 	if (mcp->dac_mute) {
@@ -211,12 +212,11 @@ static void paint_fullscreen() {
 	clear();
 	color_set(WHITE, NULL);
 	attron(A_BOLD);
-	int col = 0;
-	int row = 0;
+	unsigned int x = 0;
 	for (int i = 0; i < strlen(fullscreen); i++) {
 		char c = fullscreen[i];
-		dotchar(col, row, c);
-		col += 6;
+		dotchar(x, 0, c);
+		x += 6;
 	}
 	refresh();
 }
