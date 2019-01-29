@@ -40,7 +40,8 @@
 #define YELLOW			3
 #define GREEN			4
 
-static char fullscreen[3];
+static char fullscreen[4]; // xxx\0
+static int fullscreen_countdown;
 static int scroller_artist = 0;
 static int scroller_title = 0;
 
@@ -95,7 +96,6 @@ static void dotchar(unsigned int startx, unsigned int starty, char c) {
 		}
 	}
 }
-
 
 static void audioinfo(int line) {
 	if (mcp->dac_mute) {
@@ -249,18 +249,11 @@ static void get_system_status() {
 	}
 }
 
-void display_update() {
+static void display_update() {
+	if (fullscreen_countdown-- > 0) {
+		return;
+	}
 	if (mcp->display_menu) {
-		return;
-	}
-	if (mcp->display_volume_countdown-- > 0) {
-		sprintf(fullscreen, "%d", mcp->dac_volume);
-		paint_fullscreen();
-		return;
-	}
-	if (mcp->display_input_countdown-- > 0) {
-		sprintf(fullscreen, "%s", "xxx");
-		paint_fullscreen();
 		return;
 	}
 	if (!mcp->dac_power) {
@@ -272,6 +265,18 @@ void display_update() {
 		return;
 	}
 	paint_play();
+}
+
+void display_fullscreen_int(int value) {
+	fullscreen_countdown = 10;
+	sprintf(fullscreen, "%d", value);
+	paint_fullscreen();
+}
+
+void display_fullscreen_char(char *value) {
+	fullscreen_countdown = 10;
+	sprintf(fullscreen, "%s", value);
+	paint_fullscreen();
 }
 
 int display_init() {

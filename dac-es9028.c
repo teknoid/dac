@@ -281,7 +281,7 @@ void dac_volume_up() {
 	i2c_write(REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	mcp->display_volume_countdown = 10;
+	display_fullscreen_int(mcp->dac_volume);
 	xlog("VOL++ %03d", db);
 }
 
@@ -299,7 +299,7 @@ void dac_volume_down() {
 	i2c_write(REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	mcp->display_volume_countdown = 10;
+	display_fullscreen_int(mcp->dac_volume);
 	xlog("VOL-- %03d", db);
 }
 
@@ -348,8 +348,6 @@ void dac_update() {
 		xlog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
 		break;
 	}
-
-	display_update();
 }
 
 int dac_init() {
@@ -395,6 +393,4 @@ void dac_handle(struct input_event ev) {
 	default:
 		mpdclient_handle(ev.code);
 	}
-
-	display_update();
 }

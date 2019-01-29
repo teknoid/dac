@@ -81,8 +81,6 @@ typedef struct mcp_state_t {
 	char album[BUFSIZE];
 	char extension[8];
 	int display_menu;
-	int display_volume_countdown;
-	int display_input_countdown;
 } mcp_state_t;
 extern mcp_state_t *mcp;
 
@@ -117,7 +115,8 @@ void mpdclient_handle(int key);
 
 int display_init(void);
 void display_close(void);
-void display_update(void);
+void display_fullscreen_int(int value);
+void display_fullscreen_char(char *value);
 
 void replaygain(const char *filename);
 
