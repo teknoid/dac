@@ -1,14 +1,15 @@
+#include "utils.h"
+
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 #include <time.h>
 
-#include "mcp.h"
-#include "utils.h"
 #include "keytable.h"
+#include "mcp.h"
 
-FILE *flog;
+static FILE *flog;
 
 void xlog(char *format, ...) {
 	va_list vargs;
@@ -32,12 +33,13 @@ void xlog(char *format, ...) {
 	va_start(vargs, format);
 	vfprintf(flog, format, vargs);
 	va_end(vargs);
-	fprintf(flog, "\n");
+	fprintf(flog, "\r\n");
 	fflush(flog);
 }
 
 void xlog_close() {
 	if (flog) {
+		fflush(flog);
 		fclose(flog);
 	}
 }

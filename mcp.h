@@ -49,10 +49,6 @@
 #include <linux/input.h>
 
 typedef enum {
-	startup, stdby, on, off
-} power_state_t;
-
-typedef enum {
 	nlock, pcm, dsd, dop
 } dac_signal_t;
 
@@ -61,9 +57,10 @@ typedef enum {
 } dac_source_t;
 
 typedef struct mcp_state_t {
-	power_state_t power;
 	dac_signal_t dac_signal;
 	dac_source_t dac_source;
+	int ext_power;
+	int dac_power;
 	int dac_bits;
 	int dac_rate;
 	int dac_volume;

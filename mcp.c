@@ -1,16 +1,16 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdarg.h>
+#include "mcp.h"
+
+#include <getopt.h>
+#include <linux/input-event-codes.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <sys/stat.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <sys/stat.h>
 
-#include "mcp.h"
 #include "utils.h"
 
 #ifdef WIRINGPI
@@ -21,33 +21,7 @@ mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 static void sig_handler(int signo) {
-	if (signo == SIGINT || signo == SIGTERM || signo == SIGHUP) {
-		xlog("MCP halt requested");
-
-		/* close modules */
-
-#ifdef DEVINPUT_IR
-		ir_close();
-#endif
-
-#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-		rotary_close();
-#endif
-
-#ifdef DISPLAY
-		display_close();
-#endif
-
-#ifdef LIRC_RECEIVE
-		lirc_close();
-#endif
-
-		mpdclient_close();
-		dac_close();
-
-		xlog("MCP terminated");
-		xlog_close();
-	}
+	xlog("MCP halt requested by signal %d", signo);
 }
 
 static void daemonize() {
@@ -64,6 +38,10 @@ static void daemonize() {
 	if (setsid() < 0) {
 		exit(EXIT_FAILURE);
 	}
+
+	/* Catch, ignore and handle signals */
+	signal(SIGCHLD, SIG_IGN);
+	signal(SIGHUP, SIG_IGN);
 
 	/* Fork off for the second time*/
 	pid = fork();
@@ -93,7 +71,7 @@ static void user_input() {
 	struct termios old_io;
 	struct input_event ev;
 
-	printf("exit with 'q'\r\n");
+	printf("quit with 'q'\r\n");
 
 	// set terminal into CBREAK kmode
 	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
@@ -139,23 +117,18 @@ static void user_input() {
 	// reset terminal
 	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
 	printf("quit\r\n");
-	sig_handler(SIGTERM);
 }
 
 void system_shutdown() {
-	mcp->power = off;
 	xlog("shutting down system now!");
 	system("shutdown -h now");
 }
 
 int main(int argc, char **argv) {
-	cfg = malloc(sizeof(*cfg));
-	mcp = malloc(sizeof(*mcp));
-	strcpy(mcp->artist, "");
-	strcpy(mcp->title, "");
-	strcpy(mcp->album, "");
-
 	xlog("MCP initializing");
+
+	cfg = malloc(sizeof(*cfg));
+	memset(cfg, 0, sizeof *cfg);
 
 	// parse command line arguments
 	int c;
@@ -167,19 +140,13 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	/* install signal handler */
-	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
-		xlog("can't catch SIGHUP");
-		exit(EXIT_FAILURE);
+	/* fork into background */
+	if (cfg->daemonize) {
+		daemonize();
 	}
-	if (signal(SIGTERM, sig_handler) == SIG_ERR) {
-		xlog("can't catch SIGTERM");
-		exit(EXIT_FAILURE);
-	}
-	if (signal(SIGINT, sig_handler) == SIG_ERR) {
-		xlog("can't catch SIGINT");
-		exit(EXIT_FAILURE);
-	}
+
+	mcp = malloc(sizeof(*mcp));
+	memset(mcp, 0, sizeof *mcp);
 
 	/* setup wiringPi */
 #ifdef WIRINGPI
@@ -223,9 +190,12 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	/* fork into background */
 	if (cfg->daemonize) {
-		daemonize();
+		/* install signal handler */
+		if (signal(SIGTERM, sig_handler) == SIG_ERR) {
+			xlog("can't catch SIGTERM");
+			exit(EXIT_FAILURE);
+		}
 		xlog("MCP online");
 		pause();
 	} else {
@@ -233,5 +203,26 @@ int main(int argc, char **argv) {
 		user_input();
 	}
 
-	return 0;
+#ifdef DEVINPUT_IR
+	ir_close();
+#endif
+
+#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
+	rotary_close();
+#endif
+
+#ifdef DISPLAY
+	display_close();
+#endif
+
+#ifdef LIRC_RECEIVE
+	lirc_close();
+#endif
+
+	mpdclient_close();
+	dac_close();
+
+	xlog("MCP terminated");
+	xlog_close();
+	return EXIT_SUCCESS;
 }

@@ -20,14 +20,13 @@
 
 // #define LOCALMAIN
 
-int fd_ra;
-pthread_t thread_ra;
+static int fd_ra;
+static pthread_t thread_ra;
+static void *rotary_axis(void *arg);
 
-int fd_rb;
-pthread_t thread_rb;
-
-void *rotary_axis(void *arg);
-void *rotary_button(void *arg);
+static int fd_rb;
+static pthread_t thread_rb;
+static void *rotary_button(void *arg);
 
 int rotary_init() {
 	char name[256] = "";
@@ -43,7 +42,7 @@ int rotary_init() {
 	// Print Device Name
 	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
 	xlog("ROTARY AXIS: reading from %s (%s)", DEVINPUT_RA, name);
-	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
+	ioctl(fd_rb, EVIOCGNAME(sizeof(name)), name);
 	xlog("ROTARY BUTTON: reading from %s (%s)", DEVINPUT_RB, name);
 
 	// start listener
@@ -79,7 +78,7 @@ void rotary_close() {
 	}
 }
 
-void *rotary_axis(void *arg) {
+static void *rotary_axis(void *arg) {
 	struct input_event ev;
 	int n;
 
@@ -92,7 +91,7 @@ void *rotary_axis(void *arg) {
 		n = read(fd_ra, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
-				continue;
+				return (void *) 0;
 			else
 				break;
 		} else if (n != sizeof ev) {
@@ -120,11 +119,11 @@ void *rotary_axis(void *arg) {
 #endif
 	}
 
-	xlog("ROTARY error", strerror(errno));
+	xlog("ROTARY axis error %s", strerror(errno));
 	return (void *) 0;
 }
 
-void *rotary_button(void *arg) {
+static void *rotary_button(void *arg) {
 	struct input_event ev;
 	int n;
 
@@ -137,7 +136,7 @@ void *rotary_button(void *arg) {
 		n = read(fd_rb, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
-				continue;
+				return (void *) 0;
 			else
 				break;
 		} else if (n != sizeof ev) {
@@ -151,7 +150,7 @@ void *rotary_button(void *arg) {
 #endif
 	}
 
-	xlog("ROTARY error", strerror(errno));
+	xlog("ROTARY button error %s", strerror(errno));
 	return (void *) 0;
 }
 

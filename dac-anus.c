@@ -19,18 +19,15 @@ void dac_volume_down() {
 }
 
 void dac_mute() {
-	xlog("MUTE");
 }
 
 void dac_unmute() {
-	xlog("UNMUTE");
 }
 
 void dac_update() {
 }
 
 int dac_init() {
-	mcp->power = on;
 	return 0;
 }
 

@@ -3,9 +3,9 @@ Description=DAC Master Control Program
 After=mpd.service
 
 [Service]
+Type=forking
 User=root
-ExecStart=/usr/local/bin/mcp
-ExecStartPre=/bin/sleep 3
+ExecStart=/usr/local/bin/mcp -d
 
 [Install]
 WantedBy=multi-user.target

@@ -40,13 +40,12 @@
 #define YELLOW			3
 #define GREEN			4
 
-char fullscreen[3];
-int scroller_artist = 0;
-int scroller_title = 0;
+static char fullscreen[3];
+static int scroller_artist = 0;
+static int scroller_title = 0;
 
-pthread_t thread_display;
-
-void *display(void *arg);
+static pthread_t thread_display;
+static void *display(void *arg);
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -208,14 +207,6 @@ static void paint_stdby() {
 	refresh();
 }
 
-static void paint_off() {
-	clear();
-	color_set(WHITE, NULL);
-	attron(A_BOLD);
-	mvaddstr(3, 2, "system shutdown");
-	refresh();
-}
-
 static void paint_fullscreen() {
 	clear();
 	color_set(WHITE, NULL);
@@ -272,11 +263,7 @@ void display_update() {
 		paint_fullscreen();
 		return;
 	}
-	if (mcp->power == off) {
-		paint_off();
-		return;
-	}
-	if (mcp->power == stdby || mcp->power == startup) {
+	if (!mcp->dac_power) {
 		paint_stdby();
 		return;
 	}
@@ -330,7 +317,7 @@ void display_close() {
 
 void *display(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		perror("Error setting pthread_setcancelstate");
+		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;
 	}
 
@@ -339,7 +326,7 @@ void *display(void *arg) {
 		get_system_status();
 		display_update();
 
-		if (mcp->power == off) {
+		if (!mcp->dac_power) {
 			msleep(500);
 			mcp->clock_tick = 0;
 			display_update();

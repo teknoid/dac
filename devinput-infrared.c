@@ -16,13 +16,12 @@
 
 // #define LOCALMAIN
 
-int fd_ir;
-pthread_t thread_ir;
-
-void *ir(void *arg);
+static int fd_ir;
+static pthread_t thread_ir;
+static void *ir(void *arg);
 
 int ir_init() {
-	char name[256] = "Unknown";
+	char name[256] = "";
 	unsigned int repeat[2];
 
 	// Open Device
@@ -63,7 +62,7 @@ void ir_close() {
 	}
 }
 
-void *ir(void *arg) {
+static void *ir(void *arg) {
 	struct input_event ev;
 	int n, seq;
 
@@ -76,7 +75,7 @@ void *ir(void *arg) {
 		n = read(fd_ir, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
-				continue;
+				return (void *) 0;
 			else
 				break;
 		} else if (n != sizeof ev) {
@@ -108,7 +107,7 @@ void *ir(void *arg) {
 #endif
 	}
 
-	xlog("INFRARED error", strerror(errno));
+	xlog("INFRARED error %s", strerror(errno));
 	return (void *) 0;
 }
 

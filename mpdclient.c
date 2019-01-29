@@ -22,14 +22,12 @@
 #include "utils.h"
 #include "playlists.h"
 
-int current_song = -1;
-int playlist_mode = 1;
+static int current_song = -1;
+static int playlist_mode = 1;
 
-struct mpd_connection *conn;
-
-pthread_t thread_mpdclient;
-
-void *mpdclient(void *arg);
+static struct mpd_connection *conn;
+static pthread_t thread_mpdclient;
+static void *mpdclient(void *arg);
 
 static void upper(char *s) {
 	while (*s != 0x00) {
@@ -252,10 +250,21 @@ void mpdclient_handle(int key) {
 }
 
 int mpdclient_init() {
-	conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
-	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
-		xlog("%s", mpd_connection_get_error_message(conn));
+
+	// wait for mpd connect success
+	int timeout = 10;
+	while (1) {
+		conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
+		if (mpd_connection_get_error(conn) == MPD_ERROR_SUCCESS) {
+			break;
+		}
+		if (--timeout == 0) {
+			xlog("%s", mpd_connection_get_error_message(conn));
+			return -1;
+		}
+		xlog("waiting for MPD connection %d", timeout);
 		mpd_connection_free(conn);
+		sleep(1);
 	}
 
 	// requires libmpdclient >= 2.10
@@ -279,7 +288,7 @@ void mpdclient_close() {
 	}
 }
 
-void *mpdclient(void *arg) {
+static void *mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void *) 0;

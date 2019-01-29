@@ -12,11 +12,9 @@
 #include "mcp.h"
 #include "utils.h"
 
-int fd_lirc = -1;
-
-pthread_t thread_lirc;
-
-void *lirc(void *arg);
+static int fd_lirc = -1;
+static pthread_t thread_lirc;
+static void *lirc(void *arg);
 
 static void _lirc_socket() {
 	struct sockaddr_un addr_un;
@@ -81,7 +79,7 @@ void lirc_close() {
 	}
 }
 
-void* lirc(void *arg) {
+static void* lirc(void *arg) {
 	int id, seq;
 	char buffer[BUFSIZE], name[BUFSIZE], remote[BUFSIZE];
 

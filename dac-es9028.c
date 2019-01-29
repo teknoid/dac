@@ -201,6 +201,7 @@ static void dac_on() {
 	// power on
 	digitalWrite(GPIO_DAC_POWER, 1);
 	xlog("switched DAC on");
+	mcp->dac_power = 1;
 	msleep(100);
 
 	// check status
@@ -237,6 +238,7 @@ static void dac_on() {
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
+	mcp->ext_power = 1;
 	xlog("switched EXT on");
 }
 
@@ -245,30 +247,28 @@ static void dac_off() {
 
 	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
+	mcp->ext_power = 1;
 	xlog("switched EXT off");
 	sleep(6);
 
 	// power off DAC
 	digitalWrite(GPIO_DAC_POWER, 0);
+	mcp->dac_power = 0;
 	xlog("switched DAC off");
 }
 
 void dac_power() {
-	if (mcp->power == startup || mcp->power == stdby) {
+	if (!mcp->dac_power) {
 		dac_on();
-		mcp->power = on;
 		mpdclient_handle(KEY_PLAY);
-		xlog("entered power state ON");
-	} else if (mcp->power == on) {
-		dac_off();
-		mcp->power = stdby;
+	} else {
 		mpdclient_handle(KEY_STOP);
-		xlog("entered power state STDBY");
+		dac_off();
 	}
 }
 
 void dac_volume_up() {
-	if (mcp->power != on) {
+	if (!mcp->dac_power) {
 		return;
 	}
 
@@ -286,7 +286,7 @@ void dac_volume_up() {
 }
 
 void dac_volume_down() {
-	if (mcp->power != on) {
+	if (!mcp->dac_power) {
 		return;
 	}
 
@@ -304,19 +304,27 @@ void dac_volume_down() {
 }
 
 void dac_mute() {
+	if (!mcp->dac_power) {
+		return;
+	}
+
 	i2c_set_bit(0x07, 0);
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
 
 void dac_unmute() {
+	if (!mcp->dac_power) {
+		return;
+	}
+
 	i2c_clear_bit(0x07, 0);
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
 
 void dac_update() {
-	if (mcp->power != on) {
+	if (!mcp->dac_power) {
 		return;
 	}
 
@@ -354,13 +362,11 @@ int dac_init() {
 		return 1;
 	}
 
-	int pin = digitalRead(GPIO_DAC_POWER);
-	if (pin == 1) {
-		mcp->power = on;
-		xlog("entered power state ON");
+	mcp->dac_power = digitalRead(GPIO_DAC_POWER);
+	if (mcp->dac_power) {
+		xlog("DAC  power is ON");
 	} else {
-		mcp->power = stdby;
-		xlog("entered power state STDBY");
+		xlog("DAC  power is OFF");
 	}
 
 	return 0;
