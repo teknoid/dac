@@ -274,6 +274,7 @@ int mpdclient_init() {
 	// listen for mpd state changes
 	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
 		xlog("Error creating thread_mpdclient");
+		return -1;
 	}
 
 	return 0;

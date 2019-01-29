@@ -21,7 +21,7 @@ mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 static void sig_handler(int signo) {
-	xlog("MCP halt requested by signal %d", signo);
+	xlog("MCP received signal %d", signo);
 }
 
 static void daemonize() {
@@ -66,7 +66,66 @@ static void daemonize() {
 	xlog("MCP forked into background");
 }
 
-static void user_input() {
+static void mcp_init() {
+	if (dac_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	if (mpdclient_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+#ifdef DISPLAY
+	if (display_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+#ifdef DEVINPUT_IR
+	if (ir_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
+	if (rotary_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+#if defined(LIRC_RECEIVE) || defined(LIRC_SEND)
+	if (lirc_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
+	xlog("all modules successfully initialized");
+}
+
+static void mcp_close() {
+#ifdef LIRC_RECEIVE
+	lirc_close();
+#endif
+
+#ifdef DEVINPUT_IR
+	ir_close();
+#endif
+
+#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
+	rotary_close();
+#endif
+
+#ifdef DISPLAY
+	display_close();
+#endif
+
+	mpdclient_close();
+	dac_close();
+
+	xlog("all modules successfully closed");
+}
+
+static void mcp_input() {
 	struct termios new_io;
 	struct termios old_io;
 	struct input_event ev;
@@ -157,38 +216,7 @@ int main(int argc, char **argv) {
 #endif
 
 	/* initialize modules */
-
-#ifdef DISPLAY
-	if (display_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
-
-	if (mpdclient_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-
-	if (dac_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-
-#if defined(LIRC_RECEIVE) || defined(LIRC_SEND)
-	if (lirc_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
-
-#ifdef DEVINPUT_IR
-	if (ir_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
-
-#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-	if (rotary_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
+	mcp_init();
 
 	if (cfg->daemonize) {
 		/* install signal handler */
@@ -200,27 +228,11 @@ int main(int argc, char **argv) {
 		pause();
 	} else {
 		xlog("MCP online, waiting for input");
-		user_input();
+		mcp_input();
 	}
 
-#ifdef DEVINPUT_IR
-	ir_close();
-#endif
-
-#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-	rotary_close();
-#endif
-
-#ifdef DISPLAY
-	display_close();
-#endif
-
-#ifdef LIRC_RECEIVE
-	lirc_close();
-#endif
-
-	mpdclient_close();
-	dac_close();
+	/* close modules */
+	mcp_close();
 
 	xlog("MCP terminated");
 	xlog_close();

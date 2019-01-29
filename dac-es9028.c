@@ -359,7 +359,7 @@ int dac_init() {
 
 	if ((fd_i2c = open(I2C_DEV, O_RDWR)) < 0) {
 		xlog("Failed to open the i2c bus");
-		return 1;
+		return -1;
 	}
 
 	mcp->dac_power = digitalRead(GPIO_DAC_POWER);

@@ -27,6 +27,7 @@ int ir_init() {
 	// Open Device
 	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1) {
 		xlog("unable to open %s", DEVINPUT_IR);
+		return -1;
 	}
 
 	// Print Device Name
@@ -45,6 +46,7 @@ int ir_init() {
 	// start listener
 	if (pthread_create(&thread_ir, NULL, &ir, NULL)) {
 		xlog("Error creating thread_ir");
+		return -1;
 	}
 
 	return 0;

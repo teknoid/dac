@@ -61,6 +61,7 @@ int lirc_init() {
 	// listen for lirc events
 	if (pthread_create(&thread_lirc, NULL, &lirc, NULL)) {
 		xlog("Error creating thread_lirc");
+		return -1;
 	}
 
 	return 0;

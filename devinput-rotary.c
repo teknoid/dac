@@ -34,9 +34,11 @@ int rotary_init() {
 	// Open Devices
 	if ((fd_ra = open(DEVINPUT_RA, O_RDONLY)) == -1) {
 		xlog("unable to open %s", DEVINPUT_RA);
+		return -1;
 	}
 	if ((fd_rb = open(DEVINPUT_RB, O_RDONLY)) == -1) {
 		xlog("unable to open %s", DEVINPUT_RB);
+		return -1;
 	}
 
 	// Print Device Name
@@ -48,9 +50,11 @@ int rotary_init() {
 	// start listener
 	if (pthread_create(&thread_ra, NULL, &rotary_axis, NULL)) {
 		xlog("Error creating thread_ra");
+		return -1;
 	}
 	if (pthread_create(&thread_rb, NULL, &rotary_button, NULL)) {
 		xlog("Error creating thread_rb");
+		return -1;
 	}
 
 	return 0;

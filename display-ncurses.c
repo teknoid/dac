@@ -287,7 +287,7 @@ int display_init() {
 
 	if (has_colors() == FALSE) {
 		endwin();
-		// xlog("Your terminal does not support colors");
+		xlog("Your terminal does not support colors");
 		return -1;
 	}
 
@@ -300,6 +300,7 @@ int display_init() {
 	// start painter thread
 	if (pthread_create(&thread_display, NULL, &display, NULL)) {
 		xlog("Error creating thread_display");
+		return -1;
 	}
 
 	return 0;
