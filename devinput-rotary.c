@@ -105,12 +105,12 @@ static void *rotary_axis(void *arg) {
 
 		// transform into KEYDOWN event
 		switch (ev.value) {
-		case +1:
+		case -1:
 			ev.type = EV_KEY;
 			ev.value = 1;
 			ev.code = KEY_VOLUMEUP;
 			break;
-		case -1:
+		case +1:
 			ev.type = EV_KEY;
 			ev.value = 1;
 			ev.code = KEY_VOLUMEDOWN;

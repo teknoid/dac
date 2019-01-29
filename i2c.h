@@ -1,3 +1,7 @@
+#ifndef I2C
+#define I2C		"/dev/i2c-0"
+#endif
+
 int i2c_write(char addr, char reg, char value);
 int i2c_read(char addr, char reg, char *val);
 int i2c_set_bit(char addr, char reg, int n);
