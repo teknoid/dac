@@ -10,7 +10,7 @@ OBJS = $(SRCS:.c=.o)
 COBJS-ANUS 		= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-anus.o display-ncurses.o
 COBJS-PIWOLF 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-piwolf.o lirc.o
 COBJS-SABRE18 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9018.o devinput-infrared.o
-COBJS-SABRE28 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9028.o display-ncurses.o devinput-infrared.o devinput-rotary.o
+COBJS-SABRE28 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9028.o i2c.o display-ncurses.o devinput-infrared.o devinput-rotary.o
  
 all: $(OBJS)
 	@echo "To create executables specify target: anus | piwolf | sabre18 | sabre28"

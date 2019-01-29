@@ -33,6 +33,7 @@
 #define DEVINPUT_RA		"/dev/input/rotary_axis"
 #define DEVINPUT_RB		"/dev/input/rotary_button"
 #define DISPLAY			"/dev/tty1"
+#define I2C				"/dev/i2c-0"
 #endif
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
