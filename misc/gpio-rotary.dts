@@ -30,7 +30,7 @@
 
 				rotary_button_enter {
 					label = "ENTER";
-					linux,code = <28>;
+					linux,code = <99>; /* KEY_SYSRQ - see linux/input.h */
 					gpios = <&pio 0 6 1>; /* PA6 GPIO_ACTIVE_LOW */
 				};
 			};

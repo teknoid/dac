@@ -280,6 +280,9 @@ void dac_handle(struct input_event ev) {
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);
 		break;
+	case KEY_SYSRQ:
+		display_fullscreen_char("xXx");
+		break;
 	default:
 		mpdclient_handle(ev.code);
 	}
