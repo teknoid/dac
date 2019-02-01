@@ -111,11 +111,6 @@ int mpdclient_init(void);
 void mpdclient_close(void);
 void mpdclient_handle(int key);
 
-int display_init(void);
-void display_close(void);
-void display_fullscreen_int(int value);
-void display_fullscreen_char(char *value);
-
 void replaygain(const char *filename);
 
 void system_shutdown(void);

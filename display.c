@@ -1,3 +1,5 @@
+#include "display.h"
+
 #include <curses.h>
 #include <mpd/status.h>
 #include <pthread.h>
@@ -362,8 +364,6 @@ void *display(void *arg) {
 
 #ifdef LOCALMAIN
 
-#include "display-menu.h"
-
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
@@ -392,13 +392,13 @@ int main(void) {
 		}
 
 		switch (c) {
-		case 0x102:
+		case KEY_DOWN:
 			display_fullscreen_int(--z);
 			break;
-		case 0x103:
+		case KEY_UP:
 			display_fullscreen_int(++z);
 			break;
-		case 0x0a:
+		case '\n':
 			menu_open();
 		}
 	}

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <wiringPi.h>
 
-#include "display-menu.h"
+#include "display.h"
 #include "i2c.h"
 #include "mcp.h"
 #include "utils.h"

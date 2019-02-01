@@ -12,6 +12,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "display.h"
 #include "utils.h"
 
 #ifdef WIRINGPI
