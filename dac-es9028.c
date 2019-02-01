@@ -8,6 +8,7 @@
 #include "i2c.h"
 #include "mcp.h"
 #include "utils.h"
+#include "display-menu.h"
 
 #define GPIO_EXT_POWER		0
 #define GPIO_DAC_POWER		7
@@ -267,6 +268,11 @@ void dac_close() {
 }
 
 void dac_handle(struct input_event ev) {
+	if (mcp->menu) {
+		menu_handle(ev);
+		return;
+	}
+
 	switch (ev.code) {
 	case KEY_VOLUMEUP:
 		dac_volume_up();
@@ -282,6 +288,10 @@ void dac_handle(struct input_event ev) {
 		break;
 	case KEY_SYSRQ:
 		display_fullscreen_char("xXx");
+		break;
+	case KEY_F1:
+		mcp->menu = 1;
+		menu_open();
 		break;
 	default:
 		mpdclient_handle(ev.code);

@@ -81,7 +81,7 @@ typedef struct mcp_state_t {
 	char title[BUFSIZE];
 	char album[BUFSIZE];
 	char extension[8];
-	int display_menu;
+	int menu;
 } mcp_state_t;
 extern mcp_state_t *mcp;
 

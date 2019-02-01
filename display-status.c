@@ -253,7 +253,7 @@ static void display_update() {
 	if (fullscreen_countdown-- > 0) {
 		return;
 	}
-	if (mcp->display_menu) {
+	if (mcp->menu) {
 		return;
 	}
 	if (!mcp->dac_power) {
