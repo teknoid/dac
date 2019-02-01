@@ -1,6 +1,6 @@
 #include "display-menu.h"
 
-#include <curses.h>
+#include <ncurses.h>
 #include <menu.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +12,6 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
-
 
 static MENU *menu;
 static WINDOW *menu_window;
@@ -64,6 +63,7 @@ static WINDOW *create_menu_window() {
 }
 
 void menu_open(void) {
+	mcp->menu = 1;
 
 	/* create menu with its own window */
 	int n_options = ARRAY_SIZE(menuoptions);
@@ -111,16 +111,20 @@ void execute_item() {
 void menu_handle(int c) {
 	switch (c) {
 	case 0x72:
+	case 0x102:
 		menu_driver(menu, REQ_DOWN_ITEM);
 		wrefresh(menu_window);
 		break;
 	case 0x73:
+	case 0x103:
 		menu_driver(menu, REQ_UP_ITEM);
 		wrefresh(menu_window);
 		break;
+	case 0x0a:
 	case 0xcf:
 		execute_item();
 		break;
+	case 0x71:
 	case 0x80:
 		menu_exit("xxx");
 		break;

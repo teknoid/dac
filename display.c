@@ -1,16 +1,19 @@
 #include <curses.h>
+#include <linux/input.h>
 #include <mpd/status.h>
 #include <pthread.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "display-menu.h"
 #include "display-sysfont.h"
 #include "mcp.h"
 #include "utils.h"
+
+#define msleep(x) usleep(x*1000)
 
 #define FULLSCREEN_CHAR		'*'
 
@@ -18,7 +21,7 @@
 #define DISPLAY			"/dev/tty"
 #endif
 
-// #define LOCALMAIN
+#define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -39,8 +42,6 @@
 #define YELLOW			3
 #define GREEN			4
 
-#define msleep(x) usleep(x*1000)
-
 static char fullscreen[4]; // xxx\0
 static int fullscreen_countdown;
 static int scroller_artist = 0;
@@ -48,6 +49,8 @@ static int scroller_title = 0;
 
 static pthread_t thread_display;
 static void *display(void *arg);
+
+//static WINDOW *win;
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -303,6 +306,14 @@ int display_init() {
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 
+	cbreak();
+	noecho();
+	curs_set(0); /* set cursor to be invisible */
+	keypad(stdscr, TRUE); /* enable keypad */
+
+//	win = newwin(HEIGHT, WIDTH, 0, 0);
+//	keypad(win, TRUE);
+
 	// start painter thread
 	if (pthread_create(&thread_display, NULL, &display, NULL)) {
 		xlog("Error creating thread_display");
@@ -353,34 +364,47 @@ void *display(void *arg) {
 
 #ifdef LOCALMAIN
 
+#include "display-menu.h"
+
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 int main(void) {
-	int c, z;
 	cfg = malloc(sizeof(*cfg));
 	mcp = malloc(sizeof(*mcp));
 	strcpy(mcp->artist, "Above & Beyond & Gareth Emery Presents Oceanlab");
 	strcpy(mcp->title, "On A Good Day (Metropolis)");
 	strcpy(mcp->album, "");
-
+	mcp->dac_power = 1;
+	mcp->mpd_state = MPD_STATE_PLAY;
 	display_init();
 
-	z = -23;
-	sprintf(fullscreen, "%d", z);
-	paint_fullscreen();
+	int z = -23;
+	while (1) {
+		int c = getch();
+		xlog("input 0x%02x", c);
 
-	while (true) {
-		c = getchar();
-		if (c == 45) {
-			z--;
+		if (mcp->menu) {
+			menu_handle(c);
+			continue;
 		}
-		if (c == 46) {
-			z++;
+
+		if (c == 'q') {
+			break;
 		}
-		sprintf(fullscreen, "%d", z);
-		paint_fullscreen();
+
+		switch (c) {
+		case 0x102:
+			display_fullscreen_int(--z);
+			break;
+		case 0x103:
+			display_fullscreen_int(++z);
+			break;
+		case 0x0a:
+			menu_open();
+		}
 	}
+
 	display_close();
 	return EXIT_SUCCESS;
 }
