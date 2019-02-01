@@ -1,5 +1,4 @@
 #include <curses.h>
-#include <linux/input.h>
 #include <mpd/status.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -8,7 +7,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "display-menu.h"
 #include "display-sysfont.h"
 #include "mcp.h"
 #include "utils.h"
