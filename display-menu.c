@@ -95,7 +95,7 @@ void menu_exit() {
 void menu_select() {
 	ITEM *cur = current_item(menu);
 	func *fptr = item_userptr(cur);
-	selected_item = item_name(cur);
+	selected_item = (char *) item_name(cur);
 	(*fptr)();
 }
 
