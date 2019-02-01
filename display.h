@@ -5,11 +5,11 @@ void display_handle(int c);
 void display_fullscreen_int(int value);
 void display_fullscreen_char(char *value);
 
-void menu_open(void);
+void menu_open();
 void menu_down(void);
 void menu_up(void);
 void menu_select(void);
 void menu_exit();
 
-void show_selection(char *selection);
+void show_selection(void);
 

@@ -21,7 +21,7 @@
 #define DISPLAY			"/dev/tty"
 #endif
 
-// #define LOCALMAIN
+#define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -426,7 +426,7 @@ int main(void) {
 			display_fullscreen_int(++z);
 			break;
 		case '\n':
-			menu_open();
+			display_menu();
 		}
 	}
 
