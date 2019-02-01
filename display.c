@@ -21,7 +21,7 @@
 #define DISPLAY			"/dev/tty"
 #endif
 
-#define LOCALMAIN
+// #define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -333,6 +333,33 @@ void display_close() {
 	endwin();
 }
 
+void display_menu() {
+	mcp->menu = 1;
+	menu_open();
+}
+
+// !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
+void display_handle(int c) {
+	switch (c) {
+	case 0x72: // KEY_VOLUMEDOWN
+	case KEY_DOWN:
+		menu_down();
+		break;
+	case 0x73: // KEY_VOLUMEUP
+	case KEY_UP:
+		menu_up();
+		break;
+	case 0xcf: // KEY_PLAY
+	case '\n':
+		menu_select();
+		break;
+	case 0x80: // KEY_STOP
+	case 'q':
+		menu_exit("xxx");
+		break;
+	}
+}
+
 void *display(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -383,7 +410,7 @@ int main(void) {
 		xlog("input 0x%02x", c);
 
 		if (mcp->menu) {
-			menu_handle(c);
+			display_handle(c);
 			continue;
 		}
 

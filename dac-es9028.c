@@ -270,7 +270,7 @@ void dac_close() {
 
 void dac_handle(int c) {
 	if (mcp->menu) {
-		menu_handle(c);
+		display_handle(c);
 		return;
 	}
 
@@ -291,8 +291,7 @@ void dac_handle(int c) {
 		display_fullscreen_char("xXx");
 		break;
 	case KEY_F1:
-		mcp->menu = 1;
-		menu_open();
+		display_menu();
 		break;
 	default:
 		mpdclient_handle(c);

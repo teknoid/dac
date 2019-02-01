@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "display.h"
 #include "display-menu-options.h"
 #include "mcp.h"
 #include "utils.h"
@@ -61,8 +62,6 @@ static WINDOW *create_menu_window() {
 }
 
 void menu_open(void) {
-	mcp->menu = 1;
-
 	/* create menu with its own window */
 	int n_options = ARRAY_SIZE(menuoptions);
 	ITEM **mitems = create_menu_items(menuoptions, n_options);
@@ -77,7 +76,7 @@ void menu_open(void) {
 	wrefresh(menu_window);
 }
 
-void menu_exit(char *x) {
+void menu_exit() {
 	unpost_menu(menu);
 	wrefresh(menu_window);
 
@@ -92,40 +91,26 @@ void menu_exit(char *x) {
 	mcp->menu = 0;
 }
 
+void menu_select() {
+	ITEM *cur = current_item(menu);
+	func *fptr = item_userptr(cur);
+	(*fptr)((char *) item_description(cur));
+}
+
+void menu_down() {
+	menu_driver(menu, REQ_DOWN_ITEM);
+	wrefresh(menu_window);
+}
+
+void menu_up() {
+	menu_driver(menu, REQ_UP_ITEM);
+	wrefresh(menu_window);
+}
+
 /*
  * Function to be called for most menu items -- display text in center
  * of screen.
  */
 void show_selection(char *selection) {
 	xlog(selection);
-}
-
-void execute_item() {
-	ITEM *cur = current_item(menu);
-	func *fptr = item_userptr(cur);
-	(*fptr)((char *) item_description(cur));
-}
-
-// !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
-void menu_handle(int c) {
-	switch (c) {
-	case 0x72: // KEY_VOLUMEDOWN
-	case KEY_DOWN:
-		menu_driver(menu, REQ_DOWN_ITEM);
-		wrefresh(menu_window);
-		break;
-	case 0x73: // KEY_VOLUMEUP
-	case KEY_UP:
-		menu_driver(menu, REQ_UP_ITEM);
-		wrefresh(menu_window);
-		break;
-	case 0xcf: // KEY_PLAY
-	case '\n':
-		execute_item();
-		break;
-	case 0x80: // KEY_STOP
-	case 'q':
-		menu_exit("xxx");
-		break;
-	}
 }
