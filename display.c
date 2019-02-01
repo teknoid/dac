@@ -1,17 +1,16 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <time.h>
-#include <memory.h>
-#include <pthread.h>
-#include <ncurses.h>
-
+#include <curses.h>
 #include <mpd/status.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
+#include "display-sysfont.h"
 #include "mcp.h"
 #include "utils.h"
-#include "display-sysfont.h"
 
 #define FULLSCREEN_CHAR		'*'
 
@@ -39,6 +38,8 @@
 #define RED				2
 #define YELLOW			3
 #define GREEN			4
+
+#define msleep(x) usleep(x*1000)
 
 static char fullscreen[4]; // xxx\0
 static int fullscreen_countdown;

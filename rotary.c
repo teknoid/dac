@@ -103,7 +103,7 @@ void *rotary(void *arg) {
 			ev.code = KEY_ENTER;
 		}
 		old = new;
-		dac_handle(ev);
+		dac_handle(ev.code);
 		usleep(100 * 1000);
 	}
 }

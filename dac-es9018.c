@@ -1,5 +1,5 @@
-#include <linux/input.h>
 #include <linux/input-event-codes.h>
+#include <unistd.h>
 #include <wiringPi.h>
 
 #include "mcp.h"
@@ -9,6 +9,8 @@
 
 #define GPIO_VOL_UP		4
 #define GPIO_VOL_DOWN	0
+
+#define msleep(x) usleep(x*1000)
 
 static void dac_on() {
 	digitalWrite(GPIO_POWER, 1);
@@ -86,8 +88,8 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(struct input_event ev) {
-	switch (ev.code) {
+void dac_handle(int c) {
+	switch (c) {
 	case KEY_VOLUMEUP:
 		dac_volume_up();
 		break;
@@ -98,6 +100,6 @@ void dac_handle(struct input_event ev) {
 		dac_power();
 		break;
 	default:
-		mpdclient_handle(ev.code);
+		mpdclient_handle(c);
 	}
 }

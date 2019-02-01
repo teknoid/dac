@@ -1,7 +1,6 @@
 #include "display-menu.h"
 
 #include <curses.h>
-#include <linux/input-event-codes.h>
 #include <menu.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +12,7 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
+
 
 static MENU *menu;
 static WINDOW *menu_window;
@@ -108,20 +108,20 @@ void execute_item() {
 	(*fptr)((char *) item_description(cur));
 }
 
-void menu_handle(struct input_event ev) {
-	switch (ev.code) {
-	case KEY_VOLUMEDOWN:
+void menu_handle(int c) {
+	switch (c) {
+	case 0x72:
 		menu_driver(menu, REQ_DOWN_ITEM);
 		wrefresh(menu_window);
 		break;
-	case KEY_VOLUMEUP:
+	case 0x73:
 		menu_driver(menu, REQ_UP_ITEM);
 		wrefresh(menu_window);
 		break;
-	case KEY_PLAY:
+	case 0xcf:
 		execute_item();
 		break;
-	case KEY_STOP:
+	case 0x80:
 		menu_exit("xxx");
 		break;
 	}

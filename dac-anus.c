@@ -1,8 +1,5 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 
-#include "mcp.h"
 #include "utils.h"
 
 void dac_power() {
@@ -34,5 +31,5 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(struct input_event ev) {
+void dac_handle(int c) {
 }

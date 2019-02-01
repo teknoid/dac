@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <linux/input-event-codes.h>
 
 #ifdef WIRINGPI
 #include <wiringPi.h>
@@ -73,6 +71,6 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(struct input_event ev) {
-	mpdclient_handle(ev.code);
+void dac_handle(int c) {
+	mpdclient_handle(c);
 }

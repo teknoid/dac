@@ -1,11 +1,12 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <linux/input.h>
+#include <linux/input-event-codes.h>
+#include <pthread.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "mcp.h"
 #include "utils.h"
@@ -119,7 +120,7 @@ static void *rotary_axis(void *arg) {
 
 		xlog("ROTARY: distributing axis %s (0x%0x)", devinput_keyname(ev.code), ev.code);
 #ifndef LOCALMAIN
-		dac_handle(ev);
+		dac_handle(ev.code);
 #endif
 	}
 
@@ -150,7 +151,7 @@ static void *rotary_button(void *arg) {
 
 		xlog("ROTARY: distributing button %s (0x%0x)", devinput_keyname(ev.code), ev.code);
 #ifndef LOCALMAIN
-		dac_handle(ev);
+		dac_handle(ev.code);
 #endif
 	}
 

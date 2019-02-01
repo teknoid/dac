@@ -42,12 +42,9 @@
 #define MPD_HOST		"localhost"
 #define MPD_PORT		6600
 
-#define msleep(x) usleep(x*1000)
-
 #define BUFSIZE			256
 
 #include <mpd/status.h>
-#include <linux/input.h>
 
 typedef enum {
 	nlock, pcm, dsd, dop
@@ -98,7 +95,7 @@ void dac_unmute(void);
 void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
-void dac_handle(struct input_event ev);
+void dac_handle(int c);
 
 int ir_init(void);
 void ir_close(void);

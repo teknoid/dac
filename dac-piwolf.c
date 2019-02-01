@@ -1,16 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <linux/input-event-codes.h>
 #include <unistd.h>
-
-#include <linux/input.h>
-
 #include <wiringPi.h>
 
 #include "mcp.h"
 #include "utils.h"
 
 #define GPIO_POWER		0
+
+#define msleep(x) usleep(x*1000)
 
 // WM8741 workaround: switch through all channels
 static void workaround_channel() {
@@ -91,12 +88,12 @@ int dac_init() {
 void dac_close() {
 }
 
-void dac_handle(struct input_event ev) {
-	switch (ev.code) {
+void dac_handle(int c) {
+	switch (c) {
 	case KEY_PAUSE:
 	case KEY_PLAY:
 		workaround_volume();
-		mpdclient_handle(ev.code);
+		mpdclient_handle(c);
 		break;
 	case KEY_EJECTCD:
 		workaround_channel();
@@ -109,6 +106,6 @@ void dac_handle(struct input_event ev) {
 		dac_power();
 		break;
 	default:
-		mpdclient_handle(ev.code);
+		mpdclient_handle(c);
 	}
 }

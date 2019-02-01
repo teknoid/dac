@@ -1,14 +1,13 @@
-#include <linux/input.h>
 #include <linux/input-event-codes.h>
 #include <math.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <wiringPi.h>
 
+#include "display-menu.h"
 #include "i2c.h"
 #include "mcp.h"
 #include "utils.h"
-#include "display-menu.h"
 
 #define GPIO_EXT_POWER		0
 #define GPIO_DAC_POWER		7
@@ -21,6 +20,8 @@
 #define REG_STATUS			0x40
 
 #define MCLK				100000000
+
+#define msleep(x) usleep(x*1000)
 
 static void gpio_toggle(int gpio) {
 	int state = digitalRead(gpio);
@@ -267,13 +268,13 @@ void dac_close() {
 	i2c_close();
 }
 
-void dac_handle(struct input_event ev) {
+void dac_handle(int c) {
 	if (mcp->menu) {
-		menu_handle(ev);
+		menu_handle(c);
 		return;
 	}
 
-	switch (ev.code) {
+	switch (c) {
 	case KEY_VOLUMEUP:
 		dac_volume_up();
 		break;
@@ -294,6 +295,6 @@ void dac_handle(struct input_event ev) {
 		menu_open();
 		break;
 	default:
-		mpdclient_handle(ev.code);
+		mpdclient_handle(c);
 	}
 }

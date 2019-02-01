@@ -1,4 +1,2 @@
-#include <linux/input.h>
-
 void menu_open(void);
-void menu_handle(struct input_event ev);
+void menu_handle(int c);

@@ -126,6 +126,6 @@ static void* lirc(void *arg) {
 		ev.code = key;
 		ev.value = seq; // abuse value for sequence
 
-		dac_handle(ev);
+		dac_handle(ev.code);
 	}
 }

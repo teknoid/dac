@@ -1,6 +1,7 @@
 #include "mcp.h"
 
 #include <getopt.h>
+#include <linux/input.h>
 #include <linux/input-event-codes.h>
 #include <signal.h>
 #include <stdio.h>
@@ -170,7 +171,7 @@ static void mcp_input() {
 		}
 
 		xlog("CONSOLE: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
-		dac_handle(ev);
+		dac_handle(ev.code);
 	}
 
 	// reset terminal
