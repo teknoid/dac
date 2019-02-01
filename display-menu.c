@@ -1,6 +1,6 @@
 #include "display-menu.h"
 
-#include <ncurses.h>
+#include <curses.h>
 #include <menu.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,24 +108,25 @@ void execute_item() {
 	(*fptr)((char *) item_description(cur));
 }
 
+// !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
 void menu_handle(int c) {
 	switch (c) {
-	case 0x72:
-	case 0x102:
+	case 0x72: // KEY_VOLUMEDOWN
+	case KEY_DOWN:
 		menu_driver(menu, REQ_DOWN_ITEM);
 		wrefresh(menu_window);
 		break;
-	case 0x73:
-	case 0x103:
+	case 0x73: // KEY_VOLUMEUP
+	case KEY_UP:
 		menu_driver(menu, REQ_UP_ITEM);
 		wrefresh(menu_window);
 		break;
-	case 0x0a:
-	case 0xcf:
+	case 0xcf: // KEY_PLAY
+	case '\n':
 		execute_item();
 		break;
-	case 0x71:
-	case 0x80:
+	case 0x80: // KEY_STOP
+	case 'q':
 		menu_exit("xxx");
 		break;
 	}
