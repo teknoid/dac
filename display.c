@@ -355,7 +355,7 @@ void display_handle(int c) {
 		break;
 	case 0x80: // KEY_STOP
 	case 'q':
-		menu_exit("xxx");
+//		menu_exit("xxx");
 		break;
 	}
 }

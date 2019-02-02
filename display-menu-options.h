@@ -9,8 +9,9 @@ typedef struct menuoption_t {
     func fptr;
 } menuoption_t;
 
-void menu_next(menuoption_t *options, int size);
+static void menu_next(menuoption_t *options, int size);
 
+void next_exit(void);
 void next_m0(void);
 void next_m1(void);
 void next_m2(void);
@@ -20,7 +21,7 @@ menuoption_t m0[] = {
     { "0.2", "(2)", next_m2 },
     { "0.3", "(3)", show_selection },
     { "0.4", "(4)", show_selection },
-    { "Exit", "(exit)", menu_exit }
+    { "Exit", "(exit)", next_exit }
 };
 
 menuoption_t m1[] = {
@@ -38,6 +39,10 @@ menuoption_t m2[] = {
     { "2.4", "(4)", show_selection },
     { "Return", "(return)", next_m0 }
 };
+
+void next_exit() {
+	menu_next(NULL, 0);
+}
 
 void next_m0() {
 	menu_next(m0, ARRAY_SIZE(m0));
