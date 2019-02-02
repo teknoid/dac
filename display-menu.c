@@ -52,13 +52,13 @@ static ITEM **create_menu_items(menu_t *m) {
  */
 static WINDOW *create_menu_window(menu_t *m) {
 	WINDOW *menu_window = newwin(HEIGHT, WIDTH, 0, 0);
-	wbkgd(menu_window, COLOR_PAIR(BLUEONWHITE));
+	wbkgd(menu_window, COLOR_PAIR(WHITEONBLUE));
 	set_menu_win(menu, menu_window);
 	set_menu_sub(menu, derwin(menu_window, HEIGHT - 2, WIDTH - 2, 1, 1));
 	set_menu_format(menu, HEIGHT - 2, 1);
 	set_menu_mark(menu, " * ");
-	set_menu_back(menu, COLOR_PAIR(BLUEONWHITE));
-	set_menu_fore(menu, COLOR_PAIR(WHITEONBLUE) | WA_BOLD);
+	set_menu_back(menu, COLOR_PAIR(WHITEONBLUE));
+	set_menu_fore(menu, COLOR_PAIR(BLUEONWHITE) | WA_BOLD);
 	box(menu_window, 0, 0);
 	int center_pos = (int) (WIDTH / 2) - (strlen(m->title) / 2);
 	mvwprintw(menu_window, 0, center_pos, "%s", m->title);

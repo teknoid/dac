@@ -287,6 +287,7 @@ void dac_handle(int c) {
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);
 		break;
+	case '\n':
 	case KEY_SYSRQ:
 	case KEY_F1:
 		display_menu();

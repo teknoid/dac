@@ -336,10 +336,12 @@ void display_menu() {
 void display_handle(int c) {
 	menu_countdown = 30;
 	switch (c) {
+	case 0x42:
 	case 0x73:	// KEY_VOLUMEUP
 	case KEY_DOWN:
 		menu_down();
 		break;
+	case 0x41:
 	case 0x72:	// KEY_VOLUMEDOWN
 	case KEY_UP:
 		menu_up();

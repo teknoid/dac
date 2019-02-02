@@ -130,7 +130,6 @@ static void mcp_close() {
 static void mcp_input() {
 	struct termios new_io;
 	struct termios old_io;
-	struct input_event ev;
 
 	printf("quit with 'q'\r\n");
 
@@ -148,31 +147,19 @@ static void mcp_input() {
 		exit(EXIT_FAILURE);
 	}
 
-	ev.type = EV_KEY;
-	ev.time.tv_sec = 0;
-	ev.time.tv_usec = 0;
-	ev.value = 1;
 	while (1) {
 		int c = getchar();
+		// xlog("console 0x%20x", c);
+
 		if (c == 'q') {
 			break;
 		}
-
-		// translate to devinput KEY values
-		switch (c) {
-		case ' ':
-			ev.code = KEY_ENTER;
-			break;
-		case '+':
-			ev.code = KEY_VOLUMEUP;
-			break;
-		case '-':
-			ev.code = KEY_VOLUMEDOWN;
-			break;
+		if (c == 0x1b || c == 0x5b) {
+			continue; // ignore
 		}
 
-		xlog("CONSOLE: distributing key %s (0x%0x)", devinput_keyname(ev.code), ev.code);
-		dac_handle(ev.code);
+		xlog("CONSOLE: distributing key 0x%02x", c);
+		dac_handle(c);
 	}
 
 	// reset terminal
