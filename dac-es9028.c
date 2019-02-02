@@ -275,9 +275,11 @@ void dac_handle(int c) {
 	}
 
 	switch (c) {
+	case 0x41:
 	case KEY_VOLUMEUP:
 		dac_volume_up();
 		break;
+	case 0x42:
 	case KEY_VOLUMEDOWN:
 		dac_volume_down();
 		break;
@@ -290,7 +292,7 @@ void dac_handle(int c) {
 	case '\n':
 	case KEY_SYSRQ:
 	case KEY_F1:
-		display_menu();
+		display_menu_open();
 		break;
 	default:
 		mpdclient_handle(c);

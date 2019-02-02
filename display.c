@@ -13,20 +13,13 @@
 #include "mcp.h"
 #include "utils.h"
 
-#define msleep(x) usleep(x*1000)
-
-#define FULLSCREEN_CHAR		'*'
-
 #ifndef DISPLAY
 #define DISPLAY			"/dev/tty"
 #endif
 
-// #define LOCALMAIN
+#define msleep(x) usleep(x*1000)
 
-//#ifdef LOCALMAIN
-//#undef DISPLAY
-//#define DISPLAY			"/dev/tty"
-//#endif
+// #define LOCALMAIN
 
 static char fullscreen[4]; // xxx\0
 static int fullscreen_countdown;
@@ -36,8 +29,6 @@ static int scroller_title = 0;
 
 static pthread_t thread_display;
 static void *display(void *arg);
-
-//static WINDOW *win;
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -246,8 +237,7 @@ static void display_update() {
 	}
 	if (mcp->menu) {
 		if (--menu_countdown == 0) {
-			menu_close(); // no input -> close menu
-			mcp->menu = 0;
+			display_menu_exit(); // no input -> close menu
 		} else {
 			return; // still in menu mode
 		}
@@ -305,9 +295,6 @@ int display_init() {
 	curs_set(0); /* set cursor to be invisible */
 	keypad(stdscr, TRUE); /* enable keypad */
 
-//	win = newwin(HEIGHT, WIDTH, 0, 0);
-//	keypad(win, TRUE);
-
 	// start painter thread
 	if (pthread_create(&thread_display, NULL, &display, NULL)) {
 		xlog("Error creating thread_display");
@@ -327,9 +314,19 @@ void display_close() {
 	endwin();
 }
 
-void display_menu() {
+void display_menu_open() {
+	xlog("entering menu mode");
+	mcp->menu = 1;
 	menu_countdown = 30;
+	menu_setup();
 	menu_open();
+}
+
+void display_menu_exit() {
+	menu_close();
+	mcp->menu = 0;
+	menu_countdown = 0;
+	xlog("leaving menu mode");
 }
 
 // !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
@@ -405,7 +402,7 @@ int main(void) {
 	int z = -23;
 	while (1) {
 		int c = getch();
-		xlog("input 0x%02x", c);
+		xlog("display main input 0x%02x", c);
 
 		if (mcp->menu) {
 			display_handle(c);

@@ -10,15 +10,15 @@
 
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
 
-static char *selected_item;
 static MENU *menu = NULL;
 static WINDOW *menu_window = NULL;
+static menuitem_t *selected;
 
 /*
  * Create a menu with items.
  */
 static ITEM **create_menu_items(menu_t *m) {
-	const menuoption_t *items = m->items;
+	const menuitem_t *items = m->items;
 	int length = m->items_size;
 	xlog("creating %s with %d entries", m->title, length);
 
@@ -35,7 +35,7 @@ static ITEM **create_menu_items(menu_t *m) {
 	}
 
 	/* back item (no item_userptr) */
-	if (m == &m0) {
+	if (m == &m_main) {
 		mitems[length] = new_item("Exit", NULL);
 	} else {
 		mitems[length] = new_item("Back", NULL);
@@ -66,16 +66,9 @@ static WINDOW *create_menu_window(menu_t *m) {
 }
 
 static void menu_show(menu_t *m) {
-	// close if open
+	// close any open menu
 	menu_close();
-
-	// exit?
-	if (!m) {
-		mcp->menu = 0;
-		return;
-	}
-
-	// create new menu
+	// create and show menu
 	ITEM **mitems = create_menu_items(m);
 	menu = new_menu(mitems);
 	menu->userptr = m;
@@ -86,9 +79,7 @@ static void menu_show(menu_t *m) {
 }
 
 void menu_open() {
-	mcp->menu = 1;
-	menu_back_connect();
-	menu_show(&m0);
+	menu_show(&m_main);
 }
 
 void menu_close() {
@@ -106,32 +97,6 @@ void menu_close() {
 	}
 }
 
-void menu_select() {
-	ITEM *cur = current_item(menu);
-	selected_item = (char *) item_name(cur);
-	menuoption_t *current = item_userptr(cur);
-
-	// open back menu
-	if (!current) {
-		menu_t *m = menu->userptr;
-		menu_show(m->back);
-		return;
-	}
-
-	// open sub menu
-	if (current->submenu) {
-		xlog("sub menu");
-		menu_show(current->submenu);
-		return;
-	}
-
-	// execute a function
-	if (current->fptr) {
-		xlog("function");
-		(*current->fptr)();
-	}
-}
-
 void menu_down() {
 	if (menu) {
 		menu_driver(menu, REQ_DOWN_ITEM);
@@ -146,6 +111,39 @@ void menu_up() {
 	}
 }
 
-void show_selection() {
-	xlog(selected_item);
+void menu_select() {
+	if (menu) {
+		ITEM *cur = current_item(menu);
+		selected = item_userptr(cur);
+
+		// open back menu
+		if (!selected) {
+			menu_t *m = menu->userptr;
+			if (m->back) {
+				menu_show(m->back);
+			} else {
+				display_menu_exit();
+			}
+			return;
+		}
+
+		// open sub menu
+		if (selected->submenu) {
+			xlog("sub menu");
+			menu_close();
+			menu_show(selected->submenu);
+			return;
+		}
+
+		// execute item function
+		if (selected->fptr) {
+			display_menu_exit();
+			xlog("executing function with %d", selected->fptr_arg);
+			(*selected->fptr)(selected->fptr_arg);
+		}
+	}
+}
+
+void show_selection(int value) {
+	xlog("name %s value %d", selected->name, value);
 }
