@@ -22,8 +22,8 @@
 // #define LOCALMAIN
 
 static char fullscreen[4]; // xxx\0
-static int fullscreen_countdown;
-static int menu_countdown;
+static int countdown_fullscreen;
+static int countdown_menu;
 static int scroller_artist = 0;
 static int scroller_title = 0;
 
@@ -232,11 +232,11 @@ static void get_system_status() {
 }
 
 static void display_update() {
-	if (--fullscreen_countdown > 0) {
+	if (--countdown_fullscreen > 0) {
 		return; // still in fullscreen mode
 	}
 	if (mcp->menu) {
-		if (--menu_countdown == 0) {
+		if (--countdown_menu == 0) {
 			display_menu_exit(); // no input -> close menu
 		} else {
 			return; // still in menu mode
@@ -254,13 +254,13 @@ static void display_update() {
 }
 
 void display_fullscreen_int(int value) {
-	fullscreen_countdown = 10;
+	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%d", value);
 	paint_fullscreen();
 }
 
 void display_fullscreen_char(char *value) {
-	fullscreen_countdown = 10;
+	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%s", value);
 	paint_fullscreen();
 }
@@ -317,7 +317,7 @@ void display_close() {
 void display_menu_open() {
 	xlog("entering menu mode");
 	mcp->menu = 1;
-	menu_countdown = 30;
+	countdown_menu = 30;
 	menu_setup();
 	menu_open();
 }
@@ -325,13 +325,13 @@ void display_menu_open() {
 void display_menu_exit() {
 	menu_close();
 	mcp->menu = 0;
-	menu_countdown = 0;
+	countdown_menu = 0;
 	xlog("leaving menu mode");
 }
 
 // !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
 void display_handle(int c) {
-	menu_countdown = 30;
+	countdown_menu = 30;
 	switch (c) {
 	case 0x42:
 	case 0x73:	// KEY_VOLUMEUP
