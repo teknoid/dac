@@ -21,7 +21,7 @@
 #define DISPLAY			"/dev/tty"
 #endif
 
-#define LOCALMAIN
+// #define LOCALMAIN
 
 //#ifdef LOCALMAIN
 //#undef DISPLAY
@@ -336,21 +336,22 @@ void display_menu() {
 void display_handle(int c) {
 	menu_countdown = 30;
 	switch (c) {
-	case 0x72: // KEY_VOLUMEDOWN
+	case 0x73:	// KEY_VOLUMEUP
 	case KEY_DOWN:
 		menu_down();
 		break;
-	case 0x73: // KEY_VOLUMEUP
+	case 0x72:	// KEY_VOLUMEDOWN
 	case KEY_UP:
 		menu_up();
 		break;
-	case 0xcf: // KEY_PLAY
+	case 0xcf:	// KEY_PLAY
+	case 99:	// KEY_SYSRQ
 	case '\n':
 		menu_select();
 		break;
-	case 0x80: // KEY_STOP
+	case 0x80:	// KEY_STOP
 	case 'q':
-//		menu_exit("xxx");
+		menu_close();
 		break;
 	}
 }
@@ -414,13 +415,13 @@ int main(void) {
 		}
 
 		switch (c) {
-		case KEY_DOWN:
+			case KEY_DOWN:
 			display_fullscreen_int(--z);
 			break;
-		case KEY_UP:
+			case KEY_UP:
 			display_fullscreen_int(++z);
 			break;
-		case '\n':
+			case '\n':
 			display_menu();
 		}
 	}

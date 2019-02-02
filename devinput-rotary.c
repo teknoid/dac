@@ -103,25 +103,25 @@ static void *rotary_axis(void *arg) {
 			errno = EIO;
 			break;
 		}
+		// xlog("axis type 0x%0x code 0x%0x value 0x%0x", ev.type, ev.code, ev.value);
 
-		// transform into KEYDOWN event
-		switch (ev.value) {
-		case -1:
-			ev.type = EV_KEY;
-			ev.value = 1;
-			ev.code = KEY_VOLUMEUP;
-			break;
-		case +1:
-			ev.type = EV_KEY;
-			ev.value = 1;
-			ev.code = KEY_VOLUMEDOWN;
-			break;
+		if (ev.type != EV_REL) {
+			continue; // ignore others
 		}
 
 		xlog("ROTARY: distributing axis %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+		switch (ev.value) {
+		case -1:
 #ifndef LOCALMAIN
-		dac_handle(ev.code);
+			dac_handle(KEY_VOLUMEUP);
 #endif
+			break;
+		case +1:
+#ifndef LOCALMAIN
+			dac_handle(KEY_VOLUMEDOWN);
+#endif
+			break;
+		}
 	}
 
 	xlog("ROTARY axis error %s", strerror(errno));
@@ -148,11 +148,18 @@ static void *rotary_button(void *arg) {
 			errno = EIO;
 			break;
 		}
+		// xlog("button type 0x%0x code 0x%0x value 0x%0x", ev.type, ev.code, ev.value);
 
-		xlog("ROTARY: distributing button %s (0x%0x)", devinput_keyname(ev.code), ev.code);
+		if (ev.type != EV_KEY) {
+			continue; // ignore others
+		}
+
+		xlog("ROTARY: distributing button %s (0x%0x) %d", devinput_keyname(ev.code), ev.code, ev.value);
+		if (ev.value == 1) {
 #ifndef LOCALMAIN
-		dac_handle(ev.code);
+			dac_handle(ev.code); // only KEYDOWN event
 #endif
+		}
 	}
 
 	xlog("ROTARY button error %s", strerror(errno));

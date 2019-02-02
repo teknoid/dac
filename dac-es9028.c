@@ -288,8 +288,6 @@ void dac_handle(int c) {
 		gpio_toggle(GPIO_LAMP);
 		break;
 	case KEY_SYSRQ:
-		display_fullscreen_char("xXx");
-		break;
 	case KEY_F1:
 		display_menu();
 		break;
