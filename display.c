@@ -297,6 +297,8 @@ int display_init() {
 	init_pair(RED, COLOR_RED, COLOR_BLACK);
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
+	init_pair(BLUEONWHITE, COLOR_BLUE, COLOR_WHITE);
+	init_pair(WHITEONBLUE, COLOR_WHITE, COLOR_BLUE);
 
 	cbreak();
 	noecho();

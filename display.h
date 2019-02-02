@@ -11,6 +11,8 @@
 #define RED				2
 #define YELLOW			3
 #define GREEN			4
+#define BLUEONWHITE		5
+#define WHITEONBLUE		6
 
 int display_init(void);
 void display_close(void);
