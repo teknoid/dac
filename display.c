@@ -28,20 +28,6 @@
 //#define DISPLAY			"/dev/tty"
 //#endif
 
-#define WIDTH			20
-#define HEIGHT			7
-
-#define HEADER			0
-#define MAINAREA		2
-#define FOOTER			6
-
-#define SCROLLDELAY		6
-
-#define	WHITE			1
-#define RED				2
-#define YELLOW			3
-#define GREEN			4
-
 static char fullscreen[4]; // xxx\0
 static int fullscreen_countdown;
 static int menu_countdown;

@@ -21,8 +21,8 @@ typedef struct menuoption_t {
 
 /* Sub Menu 4 */
 static const menuoption_t mo4[] = {
-    { "reboot", "Reboot", NULL, show_selection },
-    { "shutdown", "Shutdown", NULL, show_selection },
+    { "Reboot", "Reboot", NULL, show_selection },
+    { "Shutdown", "Shutdown", NULL, show_selection },
 };
 static menu_t m4 = { "System", NULL, mo4, ARRAY_SIZE(mo4) };
 
@@ -59,10 +59,13 @@ static menu_t m1 = { "Sub Menu 1", NULL, mo1, ARRAY_SIZE(mo1) };
 
 /* Main Menu */
 static const menuoption_t mo0[] = {
-    { "1", "(1)", &m1, NULL },
-    { "2", "(2)", &m2, NULL },
-    { "3", "(3)", &m3, NULL },
-    { "4", "(4)", &m4, NULL },
+    { "Stop/Play", "", &m1, NULL },
+    { "Playlist", "", &m2, NULL },
+    { "xxx1", "", &m3, NULL },
+    { "xxx2", "", &m3, NULL },
+    { "xxx3", "", &m3, NULL },
+    { "xxx4", "", &m3, NULL },
+    { "System", "", &m4, NULL },
 };
 static menu_t m0 = { "Main Menu", NULL, mo0, ARRAY_SIZE(mo0) };
 

@@ -29,16 +29,16 @@ static ITEM **create_menu_items(menu_t *m) {
 	}
 	for (int i = 0; i < length; ++i) {
 		/* make menu item */
-		mitems[i] = new_item(items[i].name, items[i].descr);
+		mitems[i] = new_item(items[i].name, NULL);
 		/* set item_userptr to point to function to execute for this option */
 		set_item_userptr(mitems[i], (void*) &items[i]);
 	}
 
 	/* back item (no item_userptr) */
 	if (m == &m0) {
-		mitems[length] = new_item("Exit", "Exit");
+		mitems[length] = new_item("Exit", NULL);
 	} else {
-		mitems[length] = new_item("Back", "Back");
+		mitems[length] = new_item("Back", NULL);
 	}
 	set_item_userptr(mitems[length], NULL);
 
@@ -50,31 +50,20 @@ static ITEM **create_menu_items(menu_t *m) {
 /*
  * Create window for menu.
  */
-static WINDOW *create_menu_window() {
-	ITEM **mitems = menu_items(menu);
-	/* find maximum size of text for menu items */
-	int name_cols = 0;
-	/* maximum width of menu names */
-	for (int i = 0; i < item_count(menu); ++i) {
-		name_cols = MAX(name_cols, strlen(item_name(mitems[i])));
-	}
-	int descr_cols = 0;
-	/* maximum width of menu names */
-	for (int i = 0; i < item_count(menu); ++i) {
-		descr_cols = MAX(descr_cols, strlen(item_description(mitems[i])));
-	}
-
-	/* make menu window */
-	char *marker = "*";
-	WINDOW * menu_window = newwin(item_count(menu), strlen(marker) + name_cols + 1 + descr_cols, 0, 0);
+static WINDOW *create_menu_window(menu_t *m) {
+	WINDOW *menu_window = newwin(HEIGHT, WIDTH, 0, 0);
 	set_menu_win(menu, menu_window);
-	set_menu_mark(menu, marker);
-	box(menu_window, ACS_HLINE, ACS_VLINE);
+	set_menu_sub(menu, derwin(menu_window, HEIGHT - 2, WIDTH - 2, 1, 1));
+	set_menu_format(menu, HEIGHT - 2, 1);
+	set_menu_mark(menu, " * ");
+	box(menu_window, 0, 0);
+	int center_pos = (int) (WIDTH / 2) - (strlen(m->title) / 2);
+	mvwprintw(menu_window, 0, center_pos, "%s", m->title);
 	return menu_window;
 }
 
 static void menu_show(menu_t *m) {
-	// close if open
+	// close if openq
 	menu_close();
 
 	// exit?
@@ -88,7 +77,7 @@ static void menu_show(menu_t *m) {
 	ITEM **mitems = create_menu_items(m);
 	menu = new_menu(mitems);
 	menu->userptr = m;
-	menu_window = create_menu_window();
+	menu_window = create_menu_window(m);
 	post_menu(menu);
 	wrefresh(menu_window);
 }
