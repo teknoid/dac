@@ -185,6 +185,11 @@ void system_shutdown() {
 	system("shutdown -h now");
 }
 
+void system_reboot() {
+	xlog("rebooting system now!");
+	system("shutdown -r now");
+}
+
 int main(int argc, char **argv) {
 	xlog("MCP initializing");
 

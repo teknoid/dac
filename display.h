@@ -6,6 +6,7 @@ void display_fullscreen_int(int value);
 void display_fullscreen_char(char *value);
 
 void menu_open(void);
+void menu_close(void);
 void menu_down(void);
 void menu_up(void);
 void menu_select(void);

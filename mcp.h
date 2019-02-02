@@ -114,3 +114,4 @@ void mpdclient_handle(int key);
 void replaygain(const char *filename);
 
 void system_shutdown(void);
+void system_reboot(void);

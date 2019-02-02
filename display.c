@@ -44,6 +44,7 @@
 
 static char fullscreen[4]; // xxx\0
 static int fullscreen_countdown;
+static int menu_countdown;
 static int scroller_artist = 0;
 static int scroller_title = 0;
 
@@ -254,11 +255,16 @@ static void get_system_status() {
 }
 
 static void display_update() {
-	if (fullscreen_countdown-- > 0) {
-		return;
+	if (--fullscreen_countdown > 0) {
+		return; // still in fullscreen mode
 	}
 	if (mcp->menu) {
-		return;
+		if (--menu_countdown == 0) {
+			menu_close(); // no input -> close menu
+			mcp->menu = 0;
+		} else {
+			return; // still in menu mode
+		}
 	}
 	if (!mcp->dac_power) {
 		paint_stdby();
@@ -334,11 +340,13 @@ void display_close() {
 }
 
 void display_menu() {
+	menu_countdown = 30;
 	menu_open();
 }
 
 // !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
 void display_handle(int c) {
+	menu_countdown = 30;
 	switch (c) {
 	case 0x72: // KEY_VOLUMEDOWN
 	case KEY_DOWN:

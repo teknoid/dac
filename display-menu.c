@@ -6,7 +6,6 @@
 
 #include "display.h"
 #include "display-menu-options.h"
-#include "mcp.h"
 #include "utils.h"
 
 #define MAX(a, b) ((a) > (b)) ? (a) : (b)
@@ -18,20 +17,33 @@ static WINDOW *menu_window = NULL;
 /*
  * Create a menu with items.
  */
-static ITEM **create_menu_items(menuoption_t *options, int size) {
-	ITEM **mitems = malloc((size + 1) * sizeof(mitems[0]));
+static ITEM **create_menu_items(menu_t *m) {
+	const menuoption_t *items = m->items;
+	int length = m->items_size;
+	xlog("creating %s with %d entries", m->title, length);
+
+	ITEM **mitems = malloc((length + 2) * sizeof(mitems[0])); // +back +NULL
 	if (mitems == NULL) {
-		fprintf(stderr, "not enough memory\n");
+		xlog("not enough memory");
 		exit(EXIT_FAILURE);
 	}
-	for (int i = 0; i < size; ++i) {
+	for (int i = 0; i < length; ++i) {
 		/* make menu item */
-		mitems[i] = new_item(options[i].name, options[i].descr);
-		/* set userptr to point to function to execute for this option */
-		set_item_userptr(mitems[i], &options[i].fptr);
+		mitems[i] = new_item(items[i].name, items[i].descr);
+		/* set item_userptr to point to function to execute for this option */
+		set_item_userptr(mitems[i], (void*) &items[i]);
 	}
-	/* menu library wants null-terminated array */
-	mitems[size] = NULL;
+
+	/* back item (no item_userptr) */
+	if (m == &m0) {
+		mitems[length] = new_item("Exit", "Exit");
+	} else {
+		mitems[length] = new_item("Back", "Back");
+	}
+	set_item_userptr(mitems[length], NULL);
+
+	/* NULL */
+	mitems[length + 1] = NULL;
 	return mitems;
 }
 
@@ -61,8 +73,33 @@ static WINDOW *create_menu_window() {
 	return menu_window;
 }
 
-static void menu_next(menuoption_t *next, int size) {
-	// close current
+static void menu_show(menu_t *m) {
+	// close if open
+	menu_close();
+
+	// exit?
+	if (!m) {
+		mcp->menu = 0;
+		refresh();
+		return;
+	}
+
+	// create new menu
+	ITEM **mitems = create_menu_items(m);
+	menu = new_menu(mitems);
+	menu->userptr = m;
+	menu_window = create_menu_window();
+	post_menu(menu);
+	wrefresh(menu_window);
+}
+
+void menu_open() {
+	mcp->menu = 1;
+	menu_back_connect();
+	menu_show(&m0);
+}
+
+void menu_close() {
 	if (menu) {
 		unpost_menu(menu);
 		wrefresh(menu_window);
@@ -72,33 +109,34 @@ static void menu_next(menuoption_t *next, int size) {
 		}
 		free_menu(menu);
 		delwin(menu_window);
+		menu = NULL;
 	}
-
-	// exit?
-	if (next == NULL) {
-		mcp->menu = 0;
-		refresh();
-		return;
-	}
-
-	// create new menu
-	ITEM **mitems = create_menu_items(next, size);
-	menu = new_menu(mitems);
-	menu_window = create_menu_window();
-	post_menu(menu);
-	wrefresh(menu_window);
-}
-
-void menu_open() {
-	mcp->menu = 1;
-	menu_next(m0, ARRAY_SIZE(m0));
 }
 
 void menu_select() {
 	ITEM *cur = current_item(menu);
 	selected_item = (char *) item_name(cur);
-	func *fptr = item_userptr(cur);
-	(*fptr)();
+	menuoption_t *current = item_userptr(cur);
+
+	// open back menu
+	if (!current) {
+		menu_t *m = menu->userptr;
+		menu_show(m->back);
+		return;
+	}
+
+	// open sub menu
+	if (current->submenu) {
+		xlog("sub menu");
+		menu_show(current->submenu);
+		return;
+	}
+
+	// execute a function
+	if (current->fptr) {
+		xlog("function");
+		(*current->fptr)();
+	}
 }
 
 void menu_down() {
@@ -115,10 +153,6 @@ void menu_up() {
 	}
 }
 
-/*
- * Function to be called for most menu items -- display text in center
- * of screen.
- */
 void show_selection() {
 	xlog(selected_item);
 }
