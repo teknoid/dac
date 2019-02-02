@@ -334,7 +334,6 @@ void display_close() {
 }
 
 void display_menu() {
-	mcp->menu = 1;
 	menu_open();
 }
 
