@@ -27,10 +27,11 @@ static ITEM **create_menu_items(menu_t *m) {
 		xlog("not enough memory");
 		exit(EXIT_FAILURE);
 	}
+
+	/* make menu items */
 	for (int i = 0; i < length; ++i) {
-		/* make menu item */
 		mitems[i] = new_item(items[i].name, NULL);
-		/* set item_userptr to point to function to execute for this option */
+		/* set item_userptr to item definition */
 		set_item_userptr(mitems[i], (void*) &items[i]);
 	}
 
@@ -42,7 +43,7 @@ static ITEM **create_menu_items(menu_t *m) {
 	}
 	set_item_userptr(mitems[length], NULL);
 
-	/* NULL */
+	// terminate list
 	mitems[length + 1] = NULL;
 	return mitems;
 }
@@ -65,7 +66,7 @@ static WINDOW *create_menu_window(menu_t *m) {
 	return menu_window;
 }
 
-static void menu_show(menu_t *m) {
+static void menu_paint(menu_t *m) {
 	// close any open menu
 	menu_close();
 	// create and show menu
@@ -79,7 +80,7 @@ static void menu_show(menu_t *m) {
 }
 
 void menu_open() {
-	menu_show(&m_main);
+	menu_paint(&m_main);
 }
 
 void menu_close() {
@@ -120,7 +121,7 @@ void menu_select() {
 		if (!selected) {
 			menu_t *m = menu->userptr;
 			if (m->back) {
-				menu_show(m->back);
+				menu_paint(m->back);
 			} else {
 				display_menu_exit();
 			}
@@ -131,7 +132,7 @@ void menu_select() {
 		if (selected->submenu) {
 			xlog("sub menu");
 			menu_close();
-			menu_show(selected->submenu);
+			menu_paint(selected->submenu);
 			return;
 		}
 
