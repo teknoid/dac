@@ -136,10 +136,17 @@ void menu_select() {
 		}
 
 		// execute item function
-		if (selected->fptr) {
+		if (selected->func) {
 			display_menu_exit();
-			xlog("executing function with %d", selected->fptr_arg);
-			(*selected->fptr)(selected->fptr_arg);
+			xlog("executing void function");
+			(*selected->func)();
+			return;
+		}
+		if (selected->ifunc) {
+			display_menu_exit();
+			xlog("executing int function with %d", selected->ifunc_arg);
+			(*selected->ifunc)(selected->ifunc_arg);
+			return;
 		}
 	}
 }

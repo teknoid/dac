@@ -167,7 +167,7 @@ static void mcp_input() {
 	printf("quit\r\n");
 }
 
-void system_shutdown(int i) {
+void system_shutdown() {
 	xlog("shutting down system now!");
 	if (mcp->dac_power) {
 		dac_power();
@@ -175,7 +175,7 @@ void system_shutdown(int i) {
 	system("shutdown -h now");
 }
 
-void system_reboot(int i) {
+void system_reboot() {
 	xlog("rebooting system now!");
 	if (mcp->dac_power) {
 		dac_power();
