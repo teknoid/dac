@@ -5,11 +5,14 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+// !!! do not include when compiling on ARM board
+// #include <linux/i2c.h>
+
 #include "utils.h"
 
 static int fd_i2c;
 
-int i2c_write(char addr, char reg, char value) {
+int i2c_write(uint8_t addr, uint8_t reg, char value) {
 	char outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
@@ -39,7 +42,7 @@ int i2c_write(char addr, char reg, char value) {
 	return 0;
 }
 
-int i2c_read(char addr, char reg, char *val) {
+int i2c_read(uint8_t addr, uint8_t reg, char *val) {
 	char inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
@@ -72,7 +75,7 @@ int i2c_read(char addr, char reg, char *val) {
 	return 0;
 }
 
-int i2c_set_bit(char addr, char reg, int n) {
+int i2c_set_bit(uint8_t addr, uint8_t reg, int n) {
 	char value;
 	if (i2c_read(addr, reg, &value) < 0) {
 		return -1;
@@ -82,7 +85,7 @@ int i2c_set_bit(char addr, char reg, int n) {
 	return 0;
 }
 
-int i2c_clear_bit(char addr, char reg, int n) {
+int i2c_clear_bit(uint8_t addr, uint8_t reg, int n) {
 	char value;
 	if (i2c_read(addr, reg, &value) < 0) {
 		return -1;
@@ -92,7 +95,7 @@ int i2c_clear_bit(char addr, char reg, int n) {
 	return 0;
 }
 
-void i2c_dump_reg(char addr, char reg) {
+void i2c_dump_reg(uint8_t addr, uint8_t reg) {
 	char value;
 	i2c_read(addr, reg, &value);
 	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printBits(value));
