@@ -2,10 +2,6 @@
 TODO
 ----------------------------------------------
 
-* vol++ vol-- input: kurz fullscreen grafik einblenden mit anzeige
-	- digitalanzeige 7x4 in ascii arts
-	- counter zählt rückwärts, wenn 0 wieder auf normalanzeige schalten, erneutes +/- setzt counter wieder zurück
-
 * input selector ausprogrammieren
 
 * ascii arts: cfire, astreroids etc...
@@ -15,6 +11,11 @@ TODO
 
 DONE
 ----------------------------------------------
+
+* vol++ vol-- input: kurz fullscreen grafik einblenden mit anzeige
+	- digitalanzeige 7x4 in ascii arts
+	- counter zählt rückwärts, wenn 0 wieder auf normalanzeige schalten, erneutes +/- setzt counter wieder zurück
+
 * verschiedene screens ON OFF STDBY NIGHT usw. 
 
 * artist+title: mittig und scroll wenn > 20

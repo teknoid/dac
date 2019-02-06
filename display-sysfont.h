@@ -1,4 +1,9 @@
 
+/*
+ * taken from https://www.mikrocontroller.net/topic/68446#552259
+ */
+
+
 /* Font character bitmap data. */
 static const unsigned char _font_bits[] = {
 
