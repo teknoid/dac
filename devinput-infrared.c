@@ -1,4 +1,3 @@
-#include <asm-generic/errno-base.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/input.h>
@@ -75,13 +74,13 @@ static void *ir(void *arg) {
 	}
 
 	while (1) {
-		n = read(fd_ir, &ev, sizeof ev);
+		n = read(fd_ir, &ev, sizeof(ev));
 		if (n == -1) {
 			if (errno == EINTR)
 				return (void *) 0;
 			else
 				break;
-		} else if (n != sizeof ev) {
+		} else if (n != sizeof(ev)) {
 			errno = EIO;
 			break;
 		}

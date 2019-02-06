@@ -6,7 +6,7 @@ a MPD + DAC Controller for *Pi Boards
 
 # Features
 
-* written in plain C by using eclipse CDT
+* written in plain C using eclipse CDT
 * running on many ARM Boards (tested on Raspberry 2, Odroid C2, Nanopi Neo Plus2, even on x86)
 * DAC connection via XMOS / Amanero USB device or I2S (alternative GPIO function, depending on board support
 * MPD player + playlist support

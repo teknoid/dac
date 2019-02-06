@@ -1,26 +1,25 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <pthread.h>
 #include <assert.h>
 #include <ctype.h>
-#include <pthread.h>
-#include <linux/input.h>
-
+#include <linux/input-event-codes.h>
+#include <mpd/audio_format.h>
 #include <mpd/connection.h>
-#include <mpd/message.h>
-#include <mpd/client.h>
-#include <mpd/entity.h>
-#include <mpd/search.h>
+#include <mpd/database.h>
+#include <mpd/error.h>
 #include <mpd/idle.h>
+#include <mpd/player.h>
+#include <mpd/playlist.h>
+#include <mpd/queue.h>
+#include <mpd/song.h>
+#include <mpd/status.h>
 #include <mpd/tag.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "mcp.h"
-#include "utils.h"
 #include "playlists.h"
+#include "utils.h"
 
 static int current_song = -1;
 static int playlist_mode = 1;

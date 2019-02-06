@@ -142,7 +142,7 @@ static void dac_off() {
 
 	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
-	mcp->ext_power = 1;
+	mcp->ext_power = 0;
 	xlog("switched EXT off");
 	sleep(6);
 

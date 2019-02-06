@@ -11,8 +11,8 @@
 #define RED					2
 #define YELLOW				3
 #define GREEN				4
-#define BLUEONWHITE			5
-#define WHITEONBLUE			6
+#define YELLOWONBLUE		5
+#define REDONWHITE			6
 
 #define FULLSCREEN_CHAR		'*'
 

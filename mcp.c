@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
 	xlog("MCP initializing");
 
 	cfg = malloc(sizeof(*cfg));
-	memset(cfg, 0, sizeof *cfg);
+	memset(cfg, 0, sizeof(*cfg));
 
 	// parse command line arguments
 	int c;
@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
 	}
 
 	mcp = malloc(sizeof(*mcp));
-	memset(mcp, 0, sizeof *mcp);
+	memset(mcp, 0, sizeof(*mcp));
 
 	/* setup wiringPi */
 #ifdef WIRINGPI

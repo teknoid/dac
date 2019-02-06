@@ -68,13 +68,13 @@ int main(void) {
 
 	// listen for rotary events
 	while (1) {
-		n = read(fd_rotary, &ev, sizeof ev);
+		n = read(fd_rotary, &ev, sizeof(ev));
 		if (n == -1) {
 			if (errno == EINTR)
 				continue;
 			else
 				break;
-		} else if (n != sizeof ev) {
+		} else if (n != sizeof(ev)) {
 			errno = EIO;
 			break;
 		}

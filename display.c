@@ -287,8 +287,8 @@ int display_init() {
 	init_pair(RED, COLOR_RED, COLOR_BLACK);
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
-	init_pair(BLUEONWHITE, COLOR_BLUE, COLOR_WHITE);
-	init_pair(WHITEONBLUE, COLOR_WHITE, COLOR_BLUE);
+	init_pair(YELLOWONBLUE, COLOR_YELLOW, COLOR_BLUE);
+	init_pair(REDONWHITE, COLOR_RED, COLOR_WHITE);
 
 	cbreak();
 	noecho();
@@ -333,24 +333,25 @@ void display_menu_exit() {
 void display_handle(int c) {
 	countdown_menu = 30;
 	switch (c) {
-	case 0x42:
-	case 0x73:	// KEY_VOLUMEUP
+	case 0x42:	// down
+	case 115:	// KEY_VOLUMEUP
 	case KEY_DOWN:
 		menu_down();
 		break;
-	case 0x41:
-	case 0x72:	// KEY_VOLUMEDOWN
+	case 0x41:	// up
+	case 114:	// KEY_VOLUMEDOWN
 	case KEY_UP:
 		menu_up();
 		break;
-	case 0xcf:	// KEY_PLAY
+	case 207:	// KEY_PLAY
 	case 99:	// KEY_SYSRQ
 	case '\n':
 		menu_select();
 		break;
-	case 0x80:	// KEY_STOP
+	case 59:	// KEY_F1
+	case 128:	// KEY_STOP
 	case 'q':
-		menu_close();
+		display_menu_exit();
 		break;
 	}
 }
