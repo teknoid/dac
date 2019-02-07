@@ -1,6 +1,5 @@
 #include <curses.h>
 #include <menu.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,148 +7,134 @@
 #include "display-menu-options.h"
 #include "utils.h"
 
-#define MAX(a, b) ((a) > (b)) ? (a) : (b)
+static menu_t *menu = NULL;
 
-static MENU *menu = NULL;
-static WINDOW *menu_window = NULL;
-static menuitem_t *selected;
+static void create_menu(menu_t *menu, menu_t *parent) {
+	int length = menu->items_size;
+	xlog("creating '%s' with %d entries", menu->title, length);
 
-/*
- * Create a menu with items.
- */
-static ITEM **create_menu_items(menu_t *m) {
-	const menuitem_t *items = m->items;
-	int length = m->items_size;
-	xlog("creating %s with %d entries", m->title, length);
-
-	ITEM **mitems = malloc((length + 2) * sizeof(mitems[0])); // +back +NULL
-	if (mitems == NULL) {
+	ITEM **citems = malloc((length + 2) * sizeof(citems[0])); // +back +NULL
+	if (citems == NULL) {
 		xlog("not enough memory");
 		exit(EXIT_FAILURE);
 	}
 
-	/* make menu items */
+	// make menu items
+	const menuitem_t *items = menu->items;
 	for (int i = 0; i < length; ++i) {
-		mitems[i] = new_item(items[i].name, NULL);
-		/* set item_userptr to item definition */
-		set_item_userptr(mitems[i], (void*) &items[i]);
+		citems[i] = new_item(items[i].name, NULL);
+		set_item_userptr(citems[i], (void*) &items[i]); // set to menu definition
 	}
 
-	/* back item (no item_userptr) */
-	if (m == &m_main) {
-		mitems[length] = new_item("Exit", NULL);
+	// back item with empty item_userptr
+	menu->back = parent;
+	if (!parent) {
+		citems[length] = new_item("Exit", NULL);
 	} else {
-		mitems[length] = new_item("Back", NULL);
+		citems[length] = new_item("Back", NULL);
 	}
-	set_item_userptr(mitems[length], NULL);
+	set_item_userptr(citems[length], NULL);
 
-	// terminate list
-	mitems[length + 1] = NULL;
-	return mitems;
+	// NULL terminated list
+	citems[length + 1] = NULL;
+
+	// create the menu
+	MENU *cmenu = new_menu(citems);
+	menu->cmenu = cmenu;
+	set_menu_format(cmenu, HEIGHT - 2, 1);
+	set_menu_mark(cmenu, " * ");
+	set_menu_fore(cmenu, COLOR_PAIR(REDONWHITE) | A_BOLD | A_REVERSE);
+	set_menu_back(cmenu, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
+
+	// create a window for the menu
+	WINDOW *cwindow = newwin(HEIGHT, WIDTH, 0, 0);
+	menu->cwindow = cwindow;
+	wbkgd(cwindow, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
+	wborder(cwindow, 0, 0, 0, 0, 0, 0, 0, 0);
+	set_menu_win(cmenu, cwindow);
+	set_menu_sub(cmenu, derwin(cwindow, HEIGHT - 2, WIDTH - 2, 1, 1));
+	post_menu(menu->cmenu);
+
+	// set window title
+	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);
+	mvwprintw(cwindow, 0, center_pos, "%s", menu->title);
 }
 
-/*
- * Create window for menu.
- */
-static WINDOW *create_menu_window(menu_t *m) {
-	WINDOW *menu_window = newwin(HEIGHT, WIDTH, 0, 0);
-	wbkgd(menu_window, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
-	set_menu_win(menu, menu_window);
-	set_menu_sub(menu, derwin(menu_window, HEIGHT - 2, WIDTH - 2, 1, 1));
-	set_menu_format(menu, HEIGHT - 2, 1);
-	set_menu_mark(menu, " * ");
-	set_menu_fore(menu, COLOR_PAIR(REDONWHITE) | A_BOLD | A_REVERSE);
-	set_menu_back(menu, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
-	box(menu_window, 0, 0);
-	int center_pos = (int) (WIDTH / 2) - (strlen(m->title) / 2);
-	mvwprintw(menu_window, 0, center_pos, "%s", m->title);
-	return menu_window;
-}
-
-static void menu_paint(menu_t *m) {
-	// close any open menu
-	menu_close();
-	// create and show menu
-	ITEM **mitems = create_menu_items(m);
-	menu = new_menu(mitems);
-	menu->userptr = m;
-	menu_window = create_menu_window(m);
-	post_menu(menu);
-	wrefresh(menu_window);
+void menu_prepare() {
+	create_menu(&m_main, NULL);
+	create_menu(&m_playlist, &m_main);
+	create_menu(&m_input, &m_main);
+	create_menu(&m_system, &m_main);
 }
 
 void menu_open() {
-	menu_paint(&m_main);
+	if (!menu) {
+		menu = &m_main;
+	}
+	xlog("painting '%s'", menu->title);
+	redrawwin(menu->cwindow);
+	wrefresh(menu->cwindow);
 }
 
 void menu_close() {
-	if (menu) {
-		unpost_menu(menu);
-		wrefresh(menu_window);
-		ITEM **mitems = menu_items(menu);
-		for (int i = 0; i < ARRAY_SIZE(mitems); ++i) {
-			free_item(mitems[i]);
-		}
-		free_menu(menu);
-		delwin(menu_window);
-		menu = NULL;
-	}
+	menu = NULL;
 }
 
 void menu_down() {
 	if (menu) {
-		menu_driver(menu, REQ_DOWN_ITEM);
-		wrefresh(menu_window);
+		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
+		wrefresh(menu->cwindow);
 	}
 }
 
 void menu_up() {
 	if (menu) {
-		menu_driver(menu, REQ_UP_ITEM);
-		wrefresh(menu_window);
+		menu_driver(menu->cmenu, REQ_UP_ITEM);
+		wrefresh(menu->cwindow);
 	}
 }
 
 void menu_select() {
 	if (menu) {
-		ITEM *cur = current_item(menu);
-		selected = item_userptr(cur);
+		ITEM *citem = current_item(menu->cmenu);
+		menuitem_t *item = item_userptr(citem);
 
 		// open back menu
-		if (!selected) {
-			menu_t *m = menu->userptr;
-			if (m->back) {
-				menu_paint(m->back);
-			} else {
+		if (!item) {
+			if (!menu->back) {
 				display_menu_exit();
+			} else {
+				menu = menu->back;
+				menu_open();
 			}
 			return;
 		}
 
 		// open sub menu
-		if (selected->submenu) {
-			xlog("sub menu");
-			menu_close();
-			menu_paint(selected->submenu);
+		if (item->submenu) {
+			menu = item->submenu;
+			menu_open();
 			return;
 		}
 
-		// execute item function
-		if (selected->func) {
+		// execute void item function
+		if (item->func) {
 			display_menu_exit();
-			xlog("executing void function");
-			(*selected->func)();
+			xlog("executing void function for %s", item->name);
+			(*item->func)();
 			return;
 		}
-		if (selected->ifunc) {
+
+		// execute integer item function
+		if (item->ifunc) {
 			display_menu_exit();
-			xlog("executing int function with %d", selected->ifunc_arg);
-			(*selected->ifunc)(selected->ifunc_arg);
+			xlog("executing integer function for %s with %d", item->name, item->ifunc_arg);
+			(*item->ifunc)(item->ifunc_arg);
 			return;
 		}
 	}
 }
 
 void show_selection(int value) {
-	xlog("name %s value %d", selected->name, value);
+	xlog("show_selection");
 }

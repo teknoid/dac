@@ -10,6 +10,8 @@ typedef struct menu_t {
     struct menu_t *back;
     const struct menuitem_t *items;
     int items_size;
+    MENU *cmenu;
+    WINDOW *cwindow;
 } menu_t;
 
 typedef struct menuitem_t {
@@ -28,7 +30,7 @@ static const menuitem_t mi_system[] = {
     { "Reboot", 		NULL, NULL, system_reboot, NULL, 0 },
     { "Shutdown", 		NULL, NULL, system_shutdown, NULL, 0 },
 };
-static menu_t m_system = { " System ", NULL, mi_system, ARRAY_SIZE(mi_system) };
+static menu_t m_system = { " System ", NULL, mi_system, ARRAY_SIZE(mi_system), NULL, NULL };
 
 
 /* Input Selection Menu */
@@ -37,7 +39,7 @@ static const menuitem_t mi_input[] = {
     { "Optical", 		NULL, NULL, NULL, show_selection, 2 },
     { "Coax", 			NULL, NULL, NULL, show_selection, 3 },
 };
-static menu_t m_input = { " Input ", NULL, mi_input, ARRAY_SIZE(mi_input) };
+static menu_t m_input = { " Input ", NULL, mi_input, ARRAY_SIZE(mi_input), NULL, NULL };
 
 
 /* PlayList Menu */
@@ -53,7 +55,7 @@ static const menuitem_t mi_playlist[] = {
     { "08 slow", 		NULL, NULL, NULL, mpdclient_handle, 9 },
     { "09 movie", 		NULL, NULL, NULL, mpdclient_handle, 10 },
 };
-static menu_t m_playlist = { " Playlist ", NULL, mi_playlist, ARRAY_SIZE(mi_playlist) };
+static menu_t m_playlist = { " Playlist ", NULL, mi_playlist, ARRAY_SIZE(mi_playlist), NULL, NULL };
 
 
 /* Main Menu */
@@ -63,11 +65,4 @@ static const menuitem_t mi_main[] = {
     { "Input", 			NULL, &m_input, NULL, NULL, 0 },
     { "System", 		NULL, &m_system, NULL, NULL, 0 },
 };
-static menu_t m_main = { " Main Menu ", NULL, mi_main, ARRAY_SIZE(mi_main) };
-
-
-void menu_setup() {
-	m_playlist.back 	= &m_main;
-	m_input.back 		= &m_main;
-	m_system.back 		= &m_main;
-}
+static menu_t m_main = { " Main Menu ", NULL, mi_main, ARRAY_SIZE(mi_main), NULL, NULL };

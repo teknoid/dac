@@ -24,8 +24,8 @@ void display_handle(int c);
 void display_fullscreen_int(int value);
 void display_fullscreen_char(char *value);
 
-void menu_setup(void);
-void menu_open(void);
+void menu_prepare(void);
+void menu_open();
 void menu_close(void);
 void menu_down(void);
 void menu_up(void);

@@ -301,6 +301,9 @@ int display_init() {
 		return -1;
 	}
 
+	// prepare the menus
+	menu_prepare();
+
 	return 0;
 }
 
@@ -318,7 +321,6 @@ void display_menu_open() {
 	xlog("entering menu mode");
 	mcp->menu = 1;
 	countdown_menu = 30;
-	menu_setup();
 	menu_open();
 }
 
