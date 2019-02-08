@@ -258,7 +258,7 @@ void dac_source_next() {
 	}
 }
 
-void dac_source(dac_source_t source) {
+void dac_source(int source) {
 	if (!mcp->dac_power) {
 		return;
 	}

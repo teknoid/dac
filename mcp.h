@@ -51,7 +51,7 @@ typedef enum {
 } dac_signal_t;
 
 typedef enum {
-	mpd, opt, coax
+	mpd = 1, opt = 2, coax = 3
 } dac_source_t;
 
 typedef struct mcp_state_t {
@@ -89,13 +89,13 @@ extern mcp_config_t *cfg;
 
 int dac_init(void);
 void dac_close(void);
-void dac_power();
+void dac_power(void);
 void dac_mute(void);
 void dac_unmute(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
-void dac_source(dac_source_t source);
-void dac_handle(int c);
+void dac_source(int);
+void dac_handle(int);
 
 int ir_init(void);
 void ir_close(void);
@@ -105,13 +105,13 @@ void rotary_close(void);
 
 int lirc_init(void);
 void lirc_close(void);
-void lirc_send(const char *remote, const char *command);
+void lirc_send(const char *, const char *);
 
 int mpdclient_init(void);
 void mpdclient_close(void);
-void mpdclient_handle(int key);
+void mpdclient_handle(int);
 
-void replaygain(const char *filename);
+void replaygain(const char *);
 
-void system_shutdown();
-void system_reboot();
+void system_shutdown(void);
+void system_reboot(void);

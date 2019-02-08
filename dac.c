@@ -51,7 +51,7 @@ void dac_unmute() {
 	xlog("UNMUTE");
 }
 
-void dac_source(dac_source_t source) {
+void dac_source(int source) {
 	xlog("SOURCE");
 }
 

@@ -22,7 +22,7 @@ void dac_mute() {
 void dac_unmute() {
 }
 
-void dac_source(dac_source_t source) {
+void dac_source(int source) {
 }
 
 int dac_init() {
