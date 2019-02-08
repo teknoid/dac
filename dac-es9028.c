@@ -1,5 +1,7 @@
 #include <linux/input-event-codes.h>
 #include <math.h>
+#include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <wiringPi.h>
@@ -15,13 +17,22 @@
 #define GPIO_LAMP			3
 
 #define ADDR				0x48
+#define	REG_SYSTEM			0x00
+#define REG_INPUT			0x01
+#define REG_FILTER_MUTE		0x07
+#define REG_SOURCE			0x0b
 #define REG_CONFIG			0x0f
 #define REG_VOLUME			0x10
 #define REG_STATUS			0x40
+#define REG_SIGNAL			0x64
 
+#define DEFAULT_VOLUME		0x60
 #define MCLK				100000000
 
 #define msleep(x) usleep(x*1000)
+
+static pthread_t thread_dac;
+static void *dac(void *arg);
 
 static void gpio_toggle(int gpio) {
 	int state = digitalRead(gpio);
@@ -37,13 +48,33 @@ static void gpio_toggle(int gpio) {
 
 static dac_signal_t dac_get_signal() {
 	char value;
-	i2c_read(ADDR, 100, &value);
-	if (value == 2) {
-		return pcm;
-	} else if (value == 1) {
-		return dsd;
-	} else {
-		return nlock;
+	i2c_read(ADDR, REG_STATUS, &value);
+	if (value & 0x01) { // DPLL locked?
+		i2c_read(ADDR, REG_SIGNAL, &value);
+		switch (value & 0x0f) {
+		case 0x01:
+			return dsd;
+		case 0x02:
+			return pcm;
+		case 0x04:
+			return spdif;
+		case 0x08:
+			return dop;
+		}
+	}
+	return nlock;
+}
+
+static dac_source_t dac_get_source() {
+	char value;
+	i2c_read(ADDR, REG_SOURCE, &value);
+	switch (value) {
+	case 0x70:
+		return opt;
+	case 0x80:
+		return coax;
+	default:
+		return mpd;
 	}
 }
 
@@ -95,8 +126,6 @@ static void dac_on() {
 
 	// power on
 	digitalWrite(GPIO_DAC_POWER, 1);
-	xlog("switched DAC on");
-	mcp->dac_power = 1;
 	msleep(100);
 
 	// check status
@@ -123,13 +152,13 @@ static void dac_on() {
 	if (i2c_write(ADDR, REG_CONFIG, 0x07) < 0) {
 		return;
 	}
-	if (i2c_write(ADDR, REG_VOLUME, 0x60) < 0) {
+	if (i2c_write(ADDR, REG_VOLUME, DEFAULT_VOLUME) < 0) {
 		return;
 	}
-	i2c_dump_reg(ADDR, REG_STATUS);
-
 	dac_unmute();
-	dac_update();
+
+	mcp->dac_power = 1;
+	xlog("switched DAC on");
 
 	// power on Externals
 	digitalWrite(GPIO_EXT_POWER, 1);
@@ -203,7 +232,7 @@ void dac_mute() {
 		return;
 	}
 
-	i2c_set_bit(ADDR, 0x07, 0);
+	i2c_set_bit(ADDR, REG_FILTER_MUTE, 0);
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
@@ -213,36 +242,46 @@ void dac_unmute() {
 		return;
 	}
 
-	i2c_clear_bit(ADDR, 0x07, 0);
+	i2c_clear_bit(ADDR, REG_FILTER_MUTE, 0);
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
 
-void dac_update() {
+void dac_source_next() {
+	switch (mcp->dac_source) {
+	case mpd:
+		return dac_source(opt);
+	case opt:
+		return dac_source(coax);
+	case coax:
+		return dac_source(mpd);
+	}
+}
+
+void dac_source(dac_source_t source) {
 	if (!mcp->dac_power) {
 		return;
 	}
 
-	sleep(1); // wait for dac acquiring signal
-	mcp->dac_volume = dac_get_vol();
-	mcp->dac_signal = dac_get_signal();
-	mcp->dac_rate = dac_get_fsr();
-	mcp->dac_bits = 32; // DAC receives always 32bit from amanero - read from MPD
-
-	switch (mcp->dac_signal) {
-	case nlock:
-		xlog("NLOCK");
+	switch (source) {
+	case mpd:
+		i2c_write(ADDR, REG_INPUT, 0x04); // auto detect DSD/PCM
+		i2c_write(ADDR, REG_SOURCE, 0x00); // DATA_CLK
+		display_fullscreen_char("MPD");
 		break;
-	case pcm:
-		xlog("PCM %d/%d %03ddB", mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+	case opt:
+		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
+		i2c_write(ADDR, REG_SOURCE, 0x70); // DATA7
+		display_fullscreen_char("OPT");
 		break;
-	case dsd:
-		xlog("DSD %d %03ddB", mcp->dac_rate, mcp->dac_volume);
-		break;
-	default:
-		xlog("??? %d %03ddB", mcp->dac_rate, mcp->dac_volume);
+	case coax:
+		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
+		i2c_write(ADDR, REG_SOURCE, 0x80); // DATA8
+		display_fullscreen_char("COX");
 		break;
 	}
+	mcp->dac_source = source;
+	mcp->dac_state_changed = 1;
 }
 
 int dac_init() {
@@ -255,16 +294,26 @@ int dac_init() {
 	pinMode(GPIO_LAMP, OUTPUT);
 
 	mcp->dac_power = digitalRead(GPIO_DAC_POWER);
-	if (mcp->dac_power) {
-		xlog("DAC  power is ON");
-	} else {
-		xlog("DAC  power is OFF");
+	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
+	mcp->ext_power = digitalRead(GPIO_EXT_POWER);
+	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
+
+	// start dac update thread
+	if (pthread_create(&thread_dac, NULL, &dac, NULL)) {
+		xlog("Error creating thread_dac");
+		return -1;
 	}
 
 	return 0;
 }
 
 void dac_close() {
+	if (pthread_cancel(thread_dac)) {
+		xlog("Error canceling thread_display");
+	}
+	if (pthread_join(thread_dac, NULL)) {
+		xlog("Error joining thread_display");
+	}
 	i2c_close();
 }
 
@@ -294,7 +343,67 @@ void dac_handle(int c) {
 	case KEY_F1:
 		display_menu_open();
 		break;
+	case KEY_F4:
+		dac_source_next();
+		break;
 	default:
 		mpdclient_handle(c);
+	}
+}
+
+void *dac(void *arg) {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return (void *) 0;
+	}
+
+	char *s, s_mpd[] = "MPD", s_opt[] = "OPT", s_coax[] = "COAX";
+	while (1) {
+		msleep(250);
+
+		if (!mcp->dac_power) {
+			continue;
+		}
+
+		mcp->dac_source = dac_get_source();
+		mcp->dac_signal = dac_get_signal();
+		mcp->dac_volume = dac_get_vol();
+		mcp->dac_rate = dac_get_fsr();
+
+		if (!mcp->dac_state_changed) {
+			continue;
+		}
+		mcp->dac_state_changed = 0;
+
+		// print status only when state has changed
+		switch (mcp->dac_source) {
+		case mpd:
+			s = s_mpd;
+			break;
+		case opt:
+			s = s_opt;
+			break;
+		case coax:
+			s = s_coax;
+			break;
+		}
+
+		switch (mcp->dac_signal) {
+		case dsd:
+			xlog("%s DSD %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			break;
+		case pcm:
+			xlog("%s PCM %d/%d %03ddB", s, mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+			break;
+		case spdif:
+			xlog("%s SPDIF %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			break;
+		case dop:
+			xlog("%s DOP %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			break;
+		default:
+			xlog("%s NLOCK", s);
+			break;
+		}
 	}
 }

@@ -47,19 +47,19 @@
 #include <mpd/status.h>
 
 typedef enum {
-	nlock, pcm, dsd, dop
+	nlock, dsd, pcm, spdif, dop
 } dac_signal_t;
 
 typedef enum {
-	i2s, opt, coax
+	mpd, opt, coax
 } dac_source_t;
 
 typedef struct mcp_state_t {
 	dac_signal_t dac_signal;
 	dac_source_t dac_source;
+	int dac_state_changed;
 	int ext_power;
 	int dac_power;
-	int dac_bits;
 	int dac_rate;
 	int dac_volume;
 	int dac_mute;
@@ -92,9 +92,9 @@ void dac_close(void);
 void dac_power();
 void dac_mute(void);
 void dac_unmute(void);
-void dac_update(void);
 void dac_volume_up(void);
 void dac_volume_down(void);
+void dac_source(dac_source_t source);
 void dac_handle(int c);
 
 int ir_init(void);

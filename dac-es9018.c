@@ -64,7 +64,7 @@ void dac_mute() {
 void dac_unmute() {
 }
 
-void dac_update() {
+void dac_source(dac_source_t source) {
 }
 
 int dac_init() {

@@ -88,10 +88,24 @@ static void audioinfo(int line) {
 	if (mcp->dac_signal == nlock) {
 		mvaddstr(line, 8, "NLOCK");
 		mvaddstr(line, 15, "--/--");
-	} else if (mcp->dac_signal == pcm) {
+		return;
+	}
+	if (mcp->dac_source == opt) {
+		mvaddstr(line, 9, "OPT");
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%dkHz", mcp->dac_rate);
+		return;
+	}
+	if (mcp->dac_source == coax) {
+		mvaddstr(line, 8, "COAX");
+		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%dkHz", mcp->dac_rate);
+		return;
+	}
+	if (mcp->dac_signal == pcm) {
 		mvaddstr(line, strlen(mcp->extension) == 4 ? 8 : 9, mcp->extension);
 		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
-	} else if (mcp->dac_signal == dsd) {
+		return;
+	}
+	if (mcp->dac_signal == dsd) {
 		if (mcp->dac_rate == 44) {
 			mvaddstr(line, 9, "DSD64");
 		} else if (mcp->dac_rate == 88) {
@@ -103,11 +117,15 @@ static void audioinfo(int line) {
 		} else if (mcp->dac_rate == 176) {
 			mvaddstr(line, 9, "DSD?");
 		}
-		mvprintw(line, 18, "%d", mcp->dac_rate);
-	} else if (mcp->dac_signal == dop) {
-		mvaddstr(line, 9, "DOP");
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->dac_bits, mcp->dac_rate);
+		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
+		return;
 	}
+	if (mcp->dac_signal == dop) {
+		mvaddstr(line, 9, "DOP");
+		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
+	}
+	mvaddstr(line, 9, "???");
+	mvprintw(line, 18, "%d", mcp->dac_rate);
 }
 
 static void songinfo(int line) {
@@ -190,6 +208,17 @@ static void paint_stdby() {
 	refresh();
 }
 
+static void paint_source_ext() {
+	clear();
+	curs_set(0);
+	color_set(WHITE, NULL);
+	check_nightmode();
+	audioinfo(HEADER);
+	attroff(A_BOLD);
+	systeminfo(FOOTER);
+	refresh();
+}
+
 static void paint_fullscreen() {
 	clear();
 	color_set(WHITE, NULL);
@@ -244,6 +273,10 @@ static void display_update() {
 	}
 	if (!mcp->dac_power) {
 		paint_stdby();
+		return;
+	}
+	if (mcp->dac_source != mpd) {
+		paint_source_ext();
 		return;
 	}
 	if (mcp->mpd_state == MPD_STATE_STOP || mcp->mpd_state == MPD_STATE_PAUSE) {

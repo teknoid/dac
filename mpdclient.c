@@ -333,8 +333,7 @@ static void *mpdclient(void *arg) {
 				dac_unmute();
 			}
 		}
-
-		dac_update();
+		mcp->dac_state_changed = 1;
 		mpd_run_idle(conn_status);
 	}
 

@@ -53,7 +53,7 @@ static void create_menu(menu_t *menu, menu_t *parent) {
 	wborder(cwindow, 0, 0, 0, 0, 0, 0, 0, 0);
 	set_menu_win(cmenu, cwindow);
 	set_menu_sub(cmenu, derwin(cwindow, HEIGHT - 2, WIDTH - 2, 1, 1));
-	post_menu(menu->cmenu);
+	post_menu(cmenu);
 
 	// set window title
 	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);

@@ -2,8 +2,6 @@
 TODO
 ----------------------------------------------
 
-* input selector ausprogrammieren
-
 * ascii arts: cfire, astreroids etc...
 
 
@@ -11,6 +9,8 @@ TODO
 
 DONE
 ----------------------------------------------
+
+* input selector ausprogrammieren
 
 * vol++ vol-- input: kurz fullscreen grafik einblenden mit anzeige
 	- digitalanzeige 7x4 in ascii arts
