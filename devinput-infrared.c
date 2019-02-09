@@ -49,6 +49,7 @@ int ir_init() {
 		return -1;
 	}
 
+	xlog("INFARRED initialized");
 	return 0;
 }
 

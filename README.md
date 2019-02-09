@@ -8,7 +8,7 @@ a MPD + DAC Controller for *Pi Boards
 
 * written in plain C using eclipse CDT
 * running on many ARM Boards (tested on Raspberry 2, Odroid C2, Nanopi Neo Plus2, even on x86)
-* DAC connection via XMOS / Amanero USB device or I2S (alternative GPIO function, depending on board support
+* DAC connection via XMOS / Amanero USB device or I2S
 * MPD player + playlist support
 * command input via infrared, rotary encoder, console 
 * hardware controlled volume up / down + input selection
@@ -117,16 +117,23 @@ Compile
 make clean && make
 make <target>
 ```
-Run in console mode, watch logfile /var/log/mcp.log
+Run in interactive mode (console input):
 
 ```bash
-./mcp
+./mcp -i
 ```
-Run as systemd service:
+Run in daemon mode (watch logfile /var/log/mcp.log):
 
 ```bash
-cp misc/mcp.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable mcp
+./mcp -d
+```
+Install a systemd service unit:
+
+```bash
+make install-service
+```
+Install and run mcp as systemd service:
+
+```bash
 make install
 ```

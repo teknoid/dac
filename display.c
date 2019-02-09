@@ -28,7 +28,7 @@ static int scroller_artist = 0;
 static int scroller_title = 0;
 
 static pthread_t thread_display;
-static void *display(void *arg);
+static void *display(void *);
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -114,7 +114,7 @@ static void audioinfo(int line) {
 			mvaddstr(line, 8, "DSD256");
 		} else if (mcp->dac_rate == 384) {
 			mvaddstr(line, 8, "DSD512");
-		} else if (mcp->dac_rate == 176) {
+		} else {
 			mvaddstr(line, 9, "DSD?");
 		}
 		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
@@ -337,6 +337,7 @@ int display_init() {
 	// prepare the menus
 	menu_prepare();
 
+	xlog("DISPLAY initialized");
 	return 0;
 }
 

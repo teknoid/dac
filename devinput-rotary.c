@@ -57,6 +57,7 @@ int rotary_init() {
 		return -1;
 	}
 
+	xlog("ROTARY initialized");
 	return 0;
 }
 

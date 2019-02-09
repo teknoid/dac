@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <ctype.h>
 #include <linux/input-event-codes.h>
 #include <mpd/audio_format.h>
@@ -25,8 +24,37 @@ static int current_song = -1;
 static int playlist_mode = 1;
 
 static struct mpd_connection *conn;
+static struct mpd_connection *conn_status;
+
 static pthread_t thread_mpdclient;
 static void *mpdclient(void *arg);
+
+static struct mpd_connection *mpdclient_get_connection() {
+	// wait for mpd connect success
+	int timeout = 10;
+	while (1) {
+		xlog("while");
+		struct mpd_connection *connection = mpd_connection_new(MPD_HOST, MPD_PORT, 1000);
+		if (connection == NULL) {
+			xlog("Out of memory");
+			return NULL;
+		}
+
+		xlog("mpd_connection_new");
+		if (mpd_connection_get_error(connection) == MPD_ERROR_SUCCESS) {
+			return connection;
+		}
+
+		if (--timeout == 0) {
+			xlog("error connecting to MPD: %s", mpd_connection_get_error_message(connection));
+			return NULL;
+		}
+		xlog("waiting for MPD connection %d", timeout);
+		mpd_connection_free(connection);
+		sleep(1);
+	}
+	return NULL;
+}
 
 static void upper(char *s) {
 	while (*s != 0x00) {
@@ -176,7 +204,7 @@ void mpdclient_handle(int key) {
 	struct plist *playlist;
 
 	// check connection
-	assert(conn != NULL);
+	// assert(conn != NULL);
 	struct mpd_status *status = mpd_run_status(conn);
 	if (mpd_connection_get_error(conn) != MPD_ERROR_SUCCESS) {
 		xlog("status: %s", mpd_connection_get_error_message(conn));
@@ -250,25 +278,20 @@ void mpdclient_handle(int key) {
 
 int mpdclient_init() {
 
-	// wait for mpd connect success
-	int timeout = 10;
-	while (1) {
-		conn = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
-		if (mpd_connection_get_error(conn) == MPD_ERROR_SUCCESS) {
-			break;
-		}
-		if (--timeout == 0) {
-			xlog("%s", mpd_connection_get_error_message(conn));
-			return -1;
-		}
-		xlog("waiting for MPD connection %d", timeout);
-		mpd_connection_free(conn);
-		sleep(1);
+	// get connection for sending events
+	conn = mpdclient_get_connection();
+	if (!conn) {
+		return -1;
 	}
 
-	// requires libmpdclient >= 2.10
-	//mpd_connection_set_keepalive(conn, true);
-	//mpd_connection_set_timeout(conn, 5000);
+	const unsigned int* v = mpd_connection_get_server_version(conn);
+	xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
+
+	// get connection for mpd status changes
+	conn_status = mpdclient_get_connection();
+	if (!conn_status) {
+		return -1;
+	}
 
 	// listen for mpd state changes
 	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
@@ -276,6 +299,7 @@ int mpdclient_init() {
 		return -1;
 	}
 
+	xlog("MPDCLIENT initialized");
 	return 0;
 }
 
@@ -286,18 +310,18 @@ void mpdclient_close() {
 	if (pthread_join(thread_mpdclient, NULL)) {
 		xlog("Error joining thread_mpdclient");
 	}
+
+	if (conn) {
+		mpd_connection_free(conn);
+	}
+	if (conn_status) {
+		mpd_connection_free(conn_status);
+	}
 }
 
 static void *mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
-	}
-
-	struct mpd_connection *conn_status = mpd_connection_new(MPD_HOST, MPD_PORT, 0);
-	if (mpd_connection_get_error(conn_status) != MPD_ERROR_SUCCESS) {
-		xlog("connect: %s", mpd_connection_get_error_message(conn_status));
-		mpd_connection_free(conn_status);
 		return (void *) 0;
 	}
 

@@ -64,6 +64,7 @@ int lirc_init() {
 		return -1;
 	}
 
+	xlog("LIRC initialized");
 	return 0;
 }
 

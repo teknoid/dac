@@ -35,9 +35,9 @@ static menu_t m_system = { " System ", NULL, mi_system, ARRAY_SIZE(mi_system), N
 
 /* Input Selection Menu */
 static const menuitem_t mi_input[] = {
-    { "MPD", 			NULL, NULL, NULL, dac_source, 1 },
-    { "Optical", 		NULL, NULL, NULL, dac_source, 2 },
-    { "Coax", 			NULL, NULL, NULL, dac_source, 3 },
+    { "MPD", 			NULL, NULL, NULL, dac_source, mpd },
+    { "Optical", 		NULL, NULL, NULL, dac_source, opt },
+    { "Coax", 			NULL, NULL, NULL, dac_source, coax },
 };
 static menu_t m_input = { " Input ", NULL, mi_input, ARRAY_SIZE(mi_input), NULL, NULL };
 

@@ -76,12 +76,9 @@ int dac_init() {
 	digitalWrite(GPIO_VOL_DOWN, 0);
 
 	mcp->dac_power = digitalRead(GPIO_POWER);
-	if (mcp->dac_power) {
-		xlog("DAC is powered on");
-	} else {
-		xlog("DAC is powered off");
-	}
+	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 
+	xlog("ES9018 initialized");
 	return 0;
 }
 

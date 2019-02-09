@@ -84,6 +84,7 @@ extern mcp_state_t *mcp;
 
 typedef struct mcp_config_t {
 	int daemonize;
+	int interactive;
 } mcp_config_t;
 extern mcp_config_t *cfg;
 

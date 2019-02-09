@@ -304,6 +304,7 @@ int dac_init() {
 		return -1;
 	}
 
+	xlog("ES9028 initialized");
 	return 0;
 }
 

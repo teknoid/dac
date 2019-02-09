@@ -1,14 +1,11 @@
 #include "mcp.h"
 
 #include <getopt.h>
-#include <linux/input.h>
-#include <linux/input-event-codes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -22,8 +19,66 @@
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
+void system_shutdown() {
+	xlog("shutting down system now!");
+	if (mcp->dac_power) {
+		dac_power();
+	}
+	system("shutdown -h now");
+}
+
+void system_reboot() {
+	xlog("rebooting system now!");
+	if (mcp->dac_power) {
+		dac_power();
+	}
+	system("shutdown -r now");
+}
+
 static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
+}
+
+static void interactive() {
+	struct termios new_io;
+	struct termios old_io;
+
+	printf("interactive mode, use keys UP / DOWN / ENTER; quit with 'q'\r\n");
+
+	// set terminal into CBREAK mode
+	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
+		xlog("cannot set CBREAK");
+		exit(EXIT_FAILURE);
+	}
+
+	new_io = old_io;
+	new_io.c_lflag = new_io.c_lflag & ~(ECHO | ICANON);
+	new_io.c_cc[VMIN] = 1;
+	new_io.c_cc[VTIME] = 0;
+
+	if ((tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_io)) == -1) {
+		xlog("cannot set TCSAFLUSH");
+		exit(EXIT_FAILURE);
+	}
+
+	while (1) {
+		int c = getchar();
+		// xlog("console 0x%20x", c);
+
+		if (c == 'q') {
+			break;
+		}
+		if (c == 0x1b || c == 0x5b) {
+			continue; // ignore
+		}
+
+		xlog("CONSOLE: distributing key 0x%02x", c);
+		dac_handle(c);
+	}
+
+	// reset terminal
+	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
+	printf("quit\r\n");
 }
 
 static void daemonize() {
@@ -127,62 +182,6 @@ static void mcp_close() {
 	xlog("all modules successfully closed");
 }
 
-static void mcp_input() {
-	struct termios new_io;
-	struct termios old_io;
-
-	printf("quit with 'q'\r\n");
-
-	// set terminal into CBREAK kmode
-	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
-		exit(EXIT_FAILURE);
-	}
-
-	new_io = old_io;
-	new_io.c_lflag = new_io.c_lflag & ~(ECHO | ICANON);
-	new_io.c_cc[VMIN] = 1;
-	new_io.c_cc[VTIME] = 0;
-
-	if ((tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_io)) == -1) {
-		exit(EXIT_FAILURE);
-	}
-
-	while (1) {
-		int c = getchar();
-		// xlog("console 0x%20x", c);
-
-		if (c == 'q') {
-			break;
-		}
-		if (c == 0x1b || c == 0x5b) {
-			continue; // ignore
-		}
-
-		xlog("CONSOLE: distributing key 0x%02x", c);
-		dac_handle(c);
-	}
-
-	// reset terminal
-	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
-	printf("quit\r\n");
-}
-
-void system_shutdown() {
-	xlog("shutting down system now!");
-	if (mcp->dac_power) {
-		dac_power();
-	}
-	system("shutdown -h now");
-}
-
-void system_reboot() {
-	xlog("rebooting system now!");
-	if (mcp->dac_power) {
-		dac_power();
-	}
-	system("shutdown -r now");
-}
-
 int main(int argc, char **argv) {
 	xlog("MCP initializing");
 
@@ -191,23 +190,40 @@ int main(int argc, char **argv) {
 
 	// parse command line arguments
 	int c;
-	while ((c = getopt(argc, argv, "d")) != -1) {
+	while ((c = getopt(argc, argv, "di")) != -1) {
 		switch (c) {
 		case 'd':
 			cfg->daemonize = 1;
 			break;
+		case 'i':
+			cfg->interactive = 1;
+			break;
 		}
 	}
 
-	/* fork into background */
+	// fork into background
 	if (cfg->daemonize) {
 		daemonize();
+	}
+
+	// install signal handler
+	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGINT");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGTERM, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGTERM");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGHUP");
+		exit(EXIT_FAILURE);
 	}
 
 	mcp = malloc(sizeof(*mcp));
 	memset(mcp, 0, sizeof(*mcp));
 
-	/* setup wiringPi */
+	// setup wiringPi
 #ifdef WIRINGPI
 	if (wiringPiSetup() == -1) {
 		perror("Unable to start wiringPi");
@@ -215,23 +231,18 @@ int main(int argc, char **argv) {
 	}
 #endif
 
-	/* initialize modules */
+	// initialize modules
 	mcp_init();
 
-	if (cfg->daemonize) {
-		/* install signal handler */
-		if (signal(SIGTERM, sig_handler) == SIG_ERR) {
-			xlog("can't catch SIGTERM");
-			exit(EXIT_FAILURE);
-		}
+	if (cfg->interactive) {
+		xlog("MCP online, waiting for input");
+		interactive();
+	} else {
 		xlog("MCP online");
 		pause();
-	} else {
-		xlog("MCP online, waiting for input");
-		mcp_input();
 	}
 
-	/* close modules */
+	// close modules
 	mcp_close();
 
 	xlog("MCP terminated");

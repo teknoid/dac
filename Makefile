@@ -36,21 +36,27 @@ rotary2uinput: rotary2uinput.o
 .c.o:
 	$(CC) -c $(CFLAGS) $< 
 
-.PHONY: clean install
+.PHONY: clean install install-local install-service keytable
 
 clean:
 	rm -f *.o mcp display rotary2uinput test
 
 install:
+	@echo "[Installing and starting mcp]"
 	systemctl stop mcp
-	rm /usr/local/bin/mcp || true
-	cp mcp /usr/local/bin
+	install -m 0755 mcp /usr/local/bin
 	systemctl start mcp
 
+install-service:
+	@echo "[Installing systemd service unit]"
+	install -m 0644 misc/mcp.service /usr/local/lib/systemd/system/
+	systemctl daemon-reload
+	systemctl enable mcp
+
 install-local:
+	@echo "[Installing and starting local mcp]"
 	killall -q mcp || true
-	rm ~hje/bin/mcp || true
-	cp mcp ~hje/bin
+	install -m 0755 mcp ~hje/bin
 	~hje/bin/mcp
 
 keytable:
