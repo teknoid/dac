@@ -122,11 +122,6 @@ Run in interactive mode (console input):
 ```bash
 ./mcp -i
 ```
-Run in daemon mode (watch logfile /var/log/mcp.log):
-
-```bash
-./mcp -d
-```
 Install a systemd service unit:
 
 ```bash

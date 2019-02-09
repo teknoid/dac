@@ -202,6 +202,7 @@ int main(int argc, char **argv) {
 	}
 
 	// fork into background
+	// not necessary anymore, see http://jdebp.eu/FGA/unix-daemon-design-mistakes-to-avoid.html
 	if (cfg->daemonize) {
 		daemonize();
 	}
@@ -220,9 +221,6 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	mcp = malloc(sizeof(*mcp));
-	memset(mcp, 0, sizeof(*mcp));
-
 	// setup wiringPi
 #ifdef WIRINGPI
 	if (wiringPiSetup() == -1) {
@@ -230,6 +228,10 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 #endif
+
+	// allocate global data exchange structure
+	mcp = malloc(sizeof(*mcp));
+	memset(mcp, 0, sizeof(*mcp));
 
 	// initialize modules
 	mcp_init();
