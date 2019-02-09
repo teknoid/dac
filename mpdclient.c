@@ -33,18 +33,14 @@ static struct mpd_connection *mpdclient_get_connection() {
 	// wait for mpd connect success
 	int timeout = 10;
 	while (1) {
-		xlog("while");
 		struct mpd_connection *connection = mpd_connection_new(MPD_HOST, MPD_PORT, 1000);
-		if (connection == NULL) {
+		if (!connection) {
 			xlog("Out of memory");
 			return NULL;
 		}
-
-		xlog("mpd_connection_new");
 		if (mpd_connection_get_error(connection) == MPD_ERROR_SUCCESS) {
 			return connection;
 		}
-
 		if (--timeout == 0) {
 			xlog("error connecting to MPD: %s", mpd_connection_get_error_message(connection));
 			return NULL;
