@@ -266,6 +266,17 @@ void dac_source(int source) {
 	mcp->dac_state_changed = 1;
 }
 
+int dac_config_get(const void *ptr) {
+	const menuconfig_t *config = ptr;
+	xlog("dac_config_get");
+	return 0;
+}
+
+void dac_config_set(const void *ptr, int value) {
+	const menuconfig_t *config = ptr;
+	xlog("dac_config_set");
+}
+
 int dac_init() {
 	if (i2c_init(I2C) < 0) {
 		return -1;
@@ -287,10 +298,7 @@ int dac_init() {
 	}
 
 	// prepare the menus
-	menu_create(&m_main, NULL);
-	menu_create(&m_playlist, &m_main);
-	menu_create(&m_input, &m_main);
-	menu_create(&m_system, &m_main);
+	dac_prepeare_menus();
 
 	xlog("ES9028 initialized");
 	return 0;

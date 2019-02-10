@@ -350,7 +350,7 @@ void display_close() {
 }
 
 void display_menu_mode() {
-	xlog("entering menu mode");
+	xlog("menu mode");
 	mcp->menu = 1;
 	countdown_menu = 30;
 }

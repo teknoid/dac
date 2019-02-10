@@ -55,6 +55,15 @@ void dac_source(int source) {
 	xlog("SOURCE");
 }
 
+int dac_config_get(const void *ptr) {
+	xlog("dac_config_get");
+	return 0;
+}
+
+void dac_config_set(const void *ptr, int value) {
+	xlog("dac_config_set");
+}
+
 int dac_init() {
 #ifdef GPIO_POWER
 	pinMode(GPIO_POWER, OUTPUT);

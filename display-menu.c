@@ -32,7 +32,6 @@ static void menu_select() {
 		if (!item) {
 			if (!menu->back) {
 				mcp->menu = 0;
-				menu = NULL;
 				xlog("leaving menu mode");
 			} else {
 				menu_open(menu->back);
@@ -46,26 +45,33 @@ static void menu_select() {
 			return;
 		}
 
+		// execute menu function with configuration and selected item value
+		if (menu->config) {
+			const menuconfig_t *config = menu->config;
+			(config->setfunc)(config, item->value);
+			return;
+		}
+
 		// execute void item function
-		if (item->func) {
+		if (item->vfunc) {
 			mcp->menu = 0;
 			xlog("executing void function for %s", item->name);
-			(*item->func)();
+			(*item->vfunc)();
 			return;
 		}
 
 		// execute integer item function
 		if (item->ifunc) {
 			mcp->menu = 0;
-			xlog("executing integer function for %s with %d", item->name, item->ifunc_arg);
-			(*item->ifunc)(item->ifunc_arg);
+			xlog("executing integer function for %s with %d", item->name, item->value);
+			(*item->ifunc)(item->value);
 			return;
 		}
 	}
 }
 
 void menu_create(menu_t *menu, menu_t *parent) {
-	int length = menu->items_size;
+	int length = menu->size;
 	xlog("creating '%s' with %d entries", menu->title, length);
 
 	ITEM **citems = malloc((length + 2) * sizeof(citems[0])); // +back +NULL
@@ -80,7 +86,6 @@ void menu_create(menu_t *menu, menu_t *parent) {
 		citems[i] = new_item(items[i].name, NULL);
 		set_item_userptr(citems[i], (void*) &items[i]); // set to menu definition
 	}
-//	item_opts_off(citems[1], O_SELECTABLE);
 
 	// back item with empty item_userptr
 	menu->back = parent;
@@ -119,6 +124,11 @@ void menu_create(menu_t *menu, menu_t *parent) {
 void menu_open(menu_t *m) {
 	menu = m;
 	xlog("painting '%s'", menu->title);
+	if (menu->config) {
+		const menuconfig_t *config = menu->config;
+		int current = (config->getfunc)(config);
+		// TODO mark current selected value
+	}
 	redrawwin(menu->cwindow);
 	wrefresh(menu->cwindow);
 }
@@ -146,6 +156,7 @@ void menu_handle(int c) {
 	case 128:	// KEY_STOP
 	case 'q':
 		mcp->menu = 0;
+		xlog("leaving menu mode");
 		break;
 	}
 }

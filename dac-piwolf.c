@@ -72,6 +72,13 @@ void dac_unmute() {
 void dac_source(int source) {
 }
 
+int dac_config_get(const void *ptr) {
+	return 0;
+}
+
+void dac_config_set(const void *ptr, int value) {
+}
+
 int dac_init() {
 	pinMode(GPIO_POWER, OUTPUT);
 

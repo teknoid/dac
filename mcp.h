@@ -52,7 +52,7 @@ typedef enum {
 } dac_signal_t;
 
 typedef enum {
-	mpd = 1, opt = 2, coax = 3
+	mpd, opt, coax
 } dac_source_t;
 
 typedef struct mcp_state_t {
@@ -98,6 +98,8 @@ void dac_volume_up(void);
 void dac_volume_down(void);
 void dac_source(int);
 void dac_handle(int);
+int dac_config_get(const void *);
+void dac_config_set(const void *, int);
 
 int ir_init(void);
 void ir_close(void);

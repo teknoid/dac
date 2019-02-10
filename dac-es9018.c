@@ -1,10 +1,9 @@
-#include "dac-es9028.h"
-
 #include <linux/input-event-codes.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <wiringPi.h>
 
+#include "mcp.h"
 #include "utils.h"
 
 #define GPIO_POWER		5
@@ -69,6 +68,13 @@ void dac_unmute() {
 void dac_source(int source) {
 }
 
+int dac_config_get(const void *ptr) {
+	return 0;
+}
+
+void dac_config_set(const void *ptr, int value) {
+}
+
 int dac_init() {
 	pinMode(GPIO_POWER, OUTPUT);
 
@@ -81,10 +87,7 @@ int dac_init() {
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 
 	// prepare the menus
-	menu_create(&m_main, NULL);
-	menu_create(&m_playlist, &m_main);
-	menu_create(&m_input, &m_main);
-	menu_create(&m_system, &m_main);
+//	dac_prepeare_menus();
 
 	xlog("ES9018 initialized");
 	return 0;
@@ -95,8 +98,8 @@ void dac_close() {
 
 void dac_handle(int c) {
 	if (mcp->menu) {
-		display_menu_mode();
-		menu_handle(c);
+//		display_menu_mode();
+//		menu_handle(c);
 		return;
 	}
 
@@ -114,8 +117,8 @@ void dac_handle(int c) {
 	case 0x0d:
 	case KEY_SYSRQ:
 	case KEY_F1:
-		display_menu_mode();
-		menu_open(&m_main);
+//		display_menu_mode();
+//		menu_open(&m_main);
 		break;
 	default:
 		mpdclient_handle(c);
