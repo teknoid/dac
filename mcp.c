@@ -124,6 +124,12 @@ static void daemonize() {
 }
 
 static void mcp_init() {
+#ifdef DISPLAY
+	if (display_init() < 0) {
+		exit(EXIT_FAILURE);
+	}
+#endif
+
 	if (dac_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
@@ -131,12 +137,6 @@ static void mcp_init() {
 	if (mpdclient_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
-
-#ifdef DISPLAY
-	if (display_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
 
 #ifdef DEVINPUT_IR
 	if (ir_init() < 0) {
@@ -172,12 +172,12 @@ static void mcp_close() {
 	rotary_close();
 #endif
 
+	mpdclient_close();
+	dac_close();
+
 #ifdef DISPLAY
 	display_close();
 #endif
-
-	mpdclient_close();
-	dac_close();
 
 	xlog("all modules successfully closed");
 }

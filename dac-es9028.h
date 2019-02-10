@@ -1,28 +1,41 @@
 #include "mcp.h"
+#include "display.h"
+#include "display-menu.h"
+
+#define GPIO_EXT_POWER		0
+#define GPIO_DAC_POWER		7
+
+#define GPIO_LAMP			3
+
+#define ADDR				0x48
+#define	REG_SYSTEM			0x00
+#define REG_INPUT			0x01
+#define REG_FILTER_MUTE		0x07
+#define REG_SOURCE			0x0b
+#define REG_CONFIG			0x0f
+#define REG_VOLUME			0x10
+#define REG_STATUS			0x40
+#define REG_SIGNAL			0x64
+
+#define DEFAULT_VOLUME		0x60
+#define MCLK				100000000
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-typedef void (*func_t)(void);
-typedef void (*ifunc_t)(int);
+/**
+ * DAC Settings configuration
+ */
 
-typedef struct menu_t {
-    char *title;
-    struct menu_t *back;
-    const struct menuitem_t *items;
-    int items_size;
-    MENU *cmenu;
-    WINDOW *cwindow;
-} menu_t;
+static const label_value_t filter_values[] = {
+		{ "1", 1 },
+		{ "2", 2 },
+		{ "3", 3 },
+};
+static setting_t lv_filters = { " Filters ", 0x22, 0xf0, filter_values };
 
-typedef struct menuitem_t {
-    char *name;
-    char *descr;
-    menu_t *submenu;
-    func_t func;
-    ifunc_t ifunc;
-    int ifunc_arg;
-} menuitem_t;
-
+/**
+ * Menu structure
+ */
 
 /* System Menu */
 static const menuitem_t mi_system[] = {

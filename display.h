@@ -18,17 +18,6 @@
 
 int display_init(void);
 void display_close(void);
-void display_menu_open(void);
-void display_menu_exit(void);
-void display_handle(int c);
+void display_menu_mode(void);
 void display_fullscreen_int(int value);
 void display_fullscreen_char(char *value);
-
-void menu_prepare(void);
-void menu_open();
-void menu_close(void);
-void menu_down(void);
-void menu_up(void);
-void menu_select(void);
-
-void show_selection(int);

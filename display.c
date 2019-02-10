@@ -266,7 +266,8 @@ static void display_update() {
 	}
 	if (mcp->menu) {
 		if (--countdown_menu == 0) {
-			display_menu_exit(); // no input -> close menu
+			mcp->menu = 0; // no input -> close
+			xlog("menu timeout");
 		} else {
 			return; // still in menu mode
 		}
@@ -334,9 +335,6 @@ int display_init() {
 		return -1;
 	}
 
-	// prepare the menus
-	menu_prepare();
-
 	xlog("DISPLAY initialized");
 	return 0;
 }
@@ -351,45 +349,10 @@ void display_close() {
 	endwin();
 }
 
-void display_menu_open() {
+void display_menu_mode() {
 	xlog("entering menu mode");
 	mcp->menu = 1;
 	countdown_menu = 30;
-	menu_open();
-}
-
-void display_menu_exit() {
-	menu_close();
-	mcp->menu = 0;
-	countdown_menu = 0;
-	xlog("leaving menu mode");
-}
-
-// !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
-void display_handle(int c) {
-	countdown_menu = 30;
-	switch (c) {
-	case 0x42:	// down
-	case 115:	// KEY_VOLUMEUP
-	case KEY_DOWN:
-		menu_down();
-		break;
-	case 0x41:	// up
-	case 114:	// KEY_VOLUMEDOWN
-	case KEY_UP:
-		menu_up();
-		break;
-	case 207:	// KEY_PLAY
-	case 99:	// KEY_SYSRQ
-	case '\n':
-		menu_select();
-		break;
-	case 59:	// KEY_F1
-	case 128:	// KEY_STOP
-	case 'q':
-		display_menu_exit();
-		break;
-	}
 }
 
 void *display(void *arg) {

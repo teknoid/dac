@@ -1,15 +1,70 @@
-#include <curses.h>
-#include <menu.h>
+#include "display-menu.h"
+
 #include <stdlib.h>
 #include <string.h>
 
 #include "display.h"
-#include "display-menu-options.h"
+#include "mcp.h"
 #include "utils.h"
 
 static menu_t *menu = NULL;
 
-static void create_menu(menu_t *menu, menu_t *parent) {
+static void menu_down() {
+	if (menu) {
+		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
+		wrefresh(menu->cwindow);
+	}
+}
+
+static void menu_up() {
+	if (menu) {
+		menu_driver(menu->cmenu, REQ_UP_ITEM);
+		wrefresh(menu->cwindow);
+	}
+}
+
+static void menu_select() {
+	if (menu) {
+		ITEM *citem = current_item(menu->cmenu);
+		menuitem_t *item = item_userptr(citem);
+
+		// open back menu
+		if (!item) {
+			if (!menu->back) {
+				mcp->menu = 0;
+				menu = NULL;
+				xlog("leaving menu mode");
+			} else {
+				menu_open(menu->back);
+			}
+			return;
+		}
+
+		// open sub menu
+		if (item->submenu) {
+			menu_open(item->submenu);
+			return;
+		}
+
+		// execute void item function
+		if (item->func) {
+			mcp->menu = 0;
+			xlog("executing void function for %s", item->name);
+			(*item->func)();
+			return;
+		}
+
+		// execute integer item function
+		if (item->ifunc) {
+			mcp->menu = 0;
+			xlog("executing integer function for %s with %d", item->name, item->ifunc_arg);
+			(*item->ifunc)(item->ifunc_arg);
+			return;
+		}
+	}
+}
+
+void menu_create(menu_t *menu, menu_t *parent) {
 	int length = menu->items_size;
 	xlog("creating '%s' with %d entries", menu->title, length);
 
@@ -25,6 +80,7 @@ static void create_menu(menu_t *menu, menu_t *parent) {
 		citems[i] = new_item(items[i].name, NULL);
 		set_item_userptr(citems[i], (void*) &items[i]); // set to menu definition
 	}
+//	item_opts_off(citems[1], O_SELECTABLE);
 
 	// back item with empty item_userptr
 	menu->back = parent;
@@ -60,81 +116,40 @@ static void create_menu(menu_t *menu, menu_t *parent) {
 	mvwprintw(cwindow, 0, center_pos, "%s", menu->title);
 }
 
-void menu_prepare() {
-	create_menu(&m_main, NULL);
-	create_menu(&m_playlist, &m_main);
-	create_menu(&m_input, &m_main);
-	create_menu(&m_system, &m_main);
-}
-
-void menu_open() {
-	if (!menu) {
-		menu = &m_main;
-	}
+void menu_open(menu_t *m) {
+	menu = m;
 	xlog("painting '%s'", menu->title);
 	redrawwin(menu->cwindow);
 	wrefresh(menu->cwindow);
 }
 
-void menu_close() {
-	menu = NULL;
-}
-
-void menu_down() {
-	if (menu) {
-		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
-		wrefresh(menu->cwindow);
+// !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
+void menu_handle(int c) {
+	switch (c) {
+	case 0x42:	// down
+	case 115:	// KEY_VOLUMEUP
+	case KEY_DOWN:
+		menu_down();
+		break;
+	case 0x41:	// up
+	case 114:	// KEY_VOLUMEDOWN
+	case KEY_UP:
+		menu_up();
+		break;
+	case 207:	// KEY_PLAY
+	case 99:	// KEY_SYSRQ
+	case 0x0d:
+	case '\n':
+		menu_select();
+		break;
+	case 59:	// KEY_F1
+	case 128:	// KEY_STOP
+	case 'q':
+		mcp->menu = 0;
+		break;
 	}
 }
 
-void menu_up() {
-	if (menu) {
-		menu_driver(menu->cmenu, REQ_UP_ITEM);
-		wrefresh(menu->cwindow);
-	}
-}
-
-void menu_select() {
-	if (menu) {
-		ITEM *citem = current_item(menu->cmenu);
-		menuitem_t *item = item_userptr(citem);
-
-		// open back menu
-		if (!item) {
-			if (!menu->back) {
-				display_menu_exit();
-			} else {
-				menu = menu->back;
-				menu_open();
-			}
-			return;
-		}
-
-		// open sub menu
-		if (item->submenu) {
-			menu = item->submenu;
-			menu_open();
-			return;
-		}
-
-		// execute void item function
-		if (item->func) {
-			display_menu_exit();
-			xlog("executing void function for %s", item->name);
-			(*item->func)();
-			return;
-		}
-
-		// execute integer item function
-		if (item->ifunc) {
-			display_menu_exit();
-			xlog("executing integer function for %s with %d", item->name, item->ifunc_arg);
-			(*item->ifunc)(item->ifunc_arg);
-			return;
-		}
-	}
-}
-
-void show_selection(int value) {
+void menu_show_selection(int value) {
 	xlog("show_selection");
 }

@@ -1,3 +1,5 @@
+#include "dac-es9028.h"
+
 #include <linux/input-event-codes.h>
 #include <math.h>
 #include <pthread.h>
@@ -6,28 +8,8 @@
 #include <unistd.h>
 #include <wiringPi.h>
 
-#include "display.h"
 #include "i2c.h"
-#include "mcp.h"
 #include "utils.h"
-
-#define GPIO_EXT_POWER		0
-#define GPIO_DAC_POWER		7
-
-#define GPIO_LAMP			3
-
-#define ADDR				0x48
-#define	REG_SYSTEM			0x00
-#define REG_INPUT			0x01
-#define REG_FILTER_MUTE		0x07
-#define REG_SOURCE			0x0b
-#define REG_CONFIG			0x0f
-#define REG_VOLUME			0x10
-#define REG_STATUS			0x40
-#define REG_SIGNAL			0x64
-
-#define DEFAULT_VOLUME		0x60
-#define MCLK				100000000
 
 #define msleep(x) usleep(x*1000)
 
@@ -304,6 +286,12 @@ int dac_init() {
 		return -1;
 	}
 
+	// prepare the menus
+	menu_create(&m_main, NULL);
+	menu_create(&m_playlist, &m_main);
+	menu_create(&m_input, &m_main);
+	menu_create(&m_system, &m_main);
+
 	xlog("ES9028 initialized");
 	return 0;
 }
@@ -320,7 +308,8 @@ void dac_close() {
 
 void dac_handle(int c) {
 	if (mcp->menu) {
-		display_handle(c);
+		display_menu_mode();
+		menu_handle(c);
 		return;
 	}
 
@@ -340,9 +329,11 @@ void dac_handle(int c) {
 		gpio_toggle(GPIO_LAMP);
 		break;
 	case '\n':
+	case 0x0d:
 	case KEY_SYSRQ:
 	case KEY_F1:
-		display_menu_open();
+		display_menu_mode();
+		menu_open(&m_main);
 		break;
 	case KEY_F4:
 		dac_source_next();
