@@ -8,6 +8,9 @@
 #include <unistd.h>
 #include <wiringPi.h>
 
+#include "display.h"
+#include "display-menu.h"
+#include "es9028.h"
 #include "i2c.h"
 #include "utils.h"
 
@@ -298,7 +301,7 @@ int dac_init() {
 	}
 
 	// prepare the menus
-	dac_prepeare_menus();
+	es9028_prepeare_menus();
 
 	xlog("ES9028 initialized");
 	return 0;

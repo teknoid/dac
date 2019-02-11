@@ -9,17 +9,19 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "display-menu.h"
 #include "display-sysfont.h"
 #include "mcp.h"
 #include "utils.h"
 
-#ifndef DISPLAY
-#define DISPLAY			"/dev/tty"
-#endif
-
 #define msleep(x) usleep(x*1000)
 
-// #define LOCALMAIN
+//#define LOCALMAIN
+
+#ifdef LOCALMAIN
+#define DISPLAY			"/dev/tty"
+#include "es9028.h"
+#endif
 
 static char fullscreen[4]; // xxx\0
 static int countdown_fullscreen;
@@ -389,23 +391,31 @@ void *display(void *arg) {
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
+void mpdclient_handle(int key) {
+}
+void system_shutdown() {
+}
+void system_reboot() {
+}
+
 int main(void) {
 	cfg = malloc(sizeof(*cfg));
 	mcp = malloc(sizeof(*mcp));
-	strcpy(mcp->artist, "Above & Beyond & Gareth Emery Presents Oceanlab");
-	strcpy(mcp->title, "On A Good Day (Metropolis)");
+	strcpy(mcp->artist, "The KLF");
+	strcpy(mcp->title, "Justified & Ancient (Stand by the Jams)");
 	strcpy(mcp->album, "");
 	mcp->dac_power = 1;
 	mcp->mpd_state = MPD_STATE_PLAY;
 	display_init();
+	es9028_prepeare_menus();
 
 	int z = -23;
 	while (1) {
 		int c = getch();
-		xlog("display main input 0x%02x", c);
 
 		if (mcp->menu) {
-			display_handle(c);
+			display_menu_mode();
+			menu_handle(c);
 			continue;
 		}
 
@@ -414,14 +424,16 @@ int main(void) {
 		}
 
 		switch (c) {
-			case KEY_DOWN:
+		case KEY_DOWN:
 			display_fullscreen_int(--z);
 			break;
-			case KEY_UP:
+		case KEY_UP:
 			display_fullscreen_int(++z);
 			break;
-			case '\n':
-			display_menu();
+		case '\n':
+			display_menu_mode();
+			menu_open(&m_main);
+			break;
 		}
 	}
 
