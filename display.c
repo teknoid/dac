@@ -16,7 +16,7 @@
 
 #define msleep(x) usleep(x*1000)
 
-#define LOCALMAIN
+// #define LOCALMAIN
 
 #ifdef LOCALMAIN
 #define DISPLAY			"/dev/tty"

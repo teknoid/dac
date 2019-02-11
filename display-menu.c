@@ -140,7 +140,7 @@ void menu_create(menu_t *menu, menu_t *parent) {
 
 	// set window title
 	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);
-	mvwprintw(cwindow, 0, center_pos, " %s ", menu->title);
+	mvwprintw(cwindow, 0, center_pos - 2, " %s ", menu->title);
 }
 
 void menu_open(menu_t *m) {
