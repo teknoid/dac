@@ -23,6 +23,27 @@ static void menu_up() {
 	}
 }
 
+static void menu_get_selected() {
+	const menuconfig_t *config = menu->config;
+	int current = (config->getfunc)(config);
+	for (ITEM **citem = menu->cmenu->items; *citem++;) {
+		menuitem_t *item = item_userptr(*citem);
+		if (item && item->value == current) {
+			item_opts_off(*citem, O_SELECTABLE);
+		} else {
+			item_opts_on(*citem, O_SELECTABLE);
+		}
+	}
+}
+
+static void menu_set_selected(int value) {
+	const menuconfig_t *config = menu->config;
+	(config->setfunc)(config, value);
+	menu_get_selected();
+	redrawwin(menu->cwindow);
+	wrefresh(menu->cwindow);
+}
+
 static void menu_select() {
 	if (menu) {
 		ITEM *citem = current_item(menu->cmenu);
@@ -45,10 +66,9 @@ static void menu_select() {
 			return;
 		}
 
-		// execute menu function with configuration and selected item value
+		// write selected value with config's setter function
 		if (menu->config) {
-			const menuconfig_t *config = menu->config;
-			(config->setfunc)(config, item->value);
+			menu_set_selected(item->value);
 			return;
 		}
 
@@ -102,10 +122,11 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	// create the menu
 	MENU *cmenu = new_menu(citems);
 	menu->cmenu = cmenu;
-	set_menu_format(cmenu, HEIGHT - 2, 1);
-	set_menu_mark(cmenu, " * ");
+	set_menu_format(cmenu, HEIGHT - 2, 1); // 5 rows, 1 column
+	set_menu_mark(cmenu, NULL);
 	set_menu_fore(cmenu, COLOR_PAIR(REDONWHITE) | A_BOLD | A_REVERSE);
 	set_menu_back(cmenu, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
+	set_menu_grey(cmenu, COLOR_PAIR(CYANONBLUE));
 
 	// create a window for the menu
 	WINDOW *cwindow = newwin(HEIGHT, WIDTH, 0, 0);
@@ -113,21 +134,21 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	wbkgd(cwindow, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
 	wborder(cwindow, 0, 0, 0, 0, 0, 0, 0, 0);
 	set_menu_win(cmenu, cwindow);
-	set_menu_sub(cmenu, derwin(cwindow, HEIGHT - 2, WIDTH - 2, 1, 1));
+	// use full width height (without box and one space left/right)
+	set_menu_sub(cmenu, derwin(cwindow, HEIGHT - 2, WIDTH - 4, 1, 2));
 	post_menu(cmenu);
 
 	// set window title
 	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);
-	mvwprintw(cwindow, 0, center_pos, "%s", menu->title);
+	mvwprintw(cwindow, 0, center_pos, " %s ", menu->title);
 }
 
 void menu_open(menu_t *m) {
 	menu = m;
 	xlog("painting '%s'", menu->title);
 	if (menu->config) {
-		const menuconfig_t *config = menu->config;
-		int current = (config->getfunc)(config);
-		// TODO mark current selected value
+		// get current value from config's getter function
+		menu_get_selected();
 	}
 	redrawwin(menu->cwindow);
 	wrefresh(menu->cwindow);

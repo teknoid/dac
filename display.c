@@ -9,14 +9,14 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "display-menu.h"
 #include "display-sysfont.h"
+#include "display-menu.h"
 #include "mcp.h"
 #include "utils.h"
 
 #define msleep(x) usleep(x*1000)
 
-//#define LOCALMAIN
+#define LOCALMAIN
 
 #ifdef LOCALMAIN
 #define DISPLAY			"/dev/tty"
@@ -116,6 +116,8 @@ static void audioinfo(int line) {
 			mvaddstr(line, 8, "DSD256");
 		} else if (mcp->dac_rate == 384) {
 			mvaddstr(line, 8, "DSD512");
+		} else if (mcp->dac_rate == 768) {
+			mvaddstr(line, 7, "DSD1024");
 		} else {
 			mvaddstr(line, 9, "DSD?");
 		}
@@ -325,6 +327,7 @@ int display_init() {
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 	init_pair(YELLOWONBLUE, COLOR_YELLOW, COLOR_BLUE);
 	init_pair(REDONWHITE, COLOR_RED, COLOR_WHITE);
+	init_pair(CYANONBLUE, COLOR_CYAN, COLOR_BLUE);
 
 	cbreak();
 	noecho();

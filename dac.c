@@ -7,6 +7,8 @@
 #include "mcp.h"
 #include "utils.h"
 
+int current_value;
+
 static void dac_on() {
 #ifdef GPIO_POWER
 	digitalWrite(GPIO_POWER, 1);
@@ -57,11 +59,12 @@ void dac_source(int source) {
 
 int dac_config_get(const void *ptr) {
 	xlog("dac_config_get");
-	return 0;
+	return current_value;
 }
 
 void dac_config_set(const void *ptr, int value) {
 	xlog("dac_config_set");
+	current_value = value;
 }
 
 int dac_init() {

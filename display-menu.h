@@ -8,6 +8,7 @@
 //
 typedef struct menu_t {
 	char *title;
+	char *descr;
 	struct menu_t *back;
 	const struct menuconfig_t *config;
 	const struct menuitem_t *items;
@@ -29,6 +30,7 @@ typedef struct menuconfig_t {
 	setfunc_t setfunc;
 	int reg;
 	int mask;
+	int def;
 } menuconfig_t;
 
 //

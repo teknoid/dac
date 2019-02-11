@@ -13,6 +13,7 @@
 #define GREEN				4
 #define YELLOWONBLUE		5
 #define REDONWHITE			6
+#define CYANONBLUE			7
 
 #define FULLSCREEN_CHAR		'*'
 
