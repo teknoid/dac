@@ -35,6 +35,7 @@
 				};
 			};
 			rotary_axis {
+				/* https://mchehab.fedorapeople.org/kernel_docs/input/devices/rotary-encoder.html */
 				compatible = "rotary-encoder";
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_rotary>;
