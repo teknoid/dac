@@ -59,7 +59,7 @@ static menu_t m_system = { "System", "System Operations", NULL, NULL, mi_system,
 
 
 /* Filter Type Menu */
-static const menuconfig_t mc_filter = { dac_config_get, dac_config_set, 7, 0b1110000, 2 };
+static const menuconfig_t mc_filter = { dac_config_get, dac_config_set, 7, 0b11100000, 2 };
 static const menuitem_t mi_filter[] = {
 	{ 0,	"Fast/Linear",		"Fast Roll-off, Linear Phase Filter", NULL, NULL, NULL },
 	{ 1,	"Slow/Linear",		"Slow Roll-off, Linear Phase Filter", NULL, NULL, NULL },
@@ -69,7 +69,7 @@ static const menuitem_t mi_filter[] = {
 	{ 6,	"Hybrid",			"Hybrid, Fast Roll-off, Minimum Phase", NULL, NULL, NULL },
 	{ 7,	"Brickwall",		"Brickwall Filter", NULL, NULL, NULL },
 };
-static menu_t m_filter 	= { "Filter Shape", "Selects the type of filter to use during the 8x FIR interpolation phase", NULL, &mc_filter, mi_filter, ARRAY_SIZE(mi_filter), NULL, NULL };
+static menu_t m_filter = { "Filter Shape", "Selects the type of filter to use during the 8x FIR interpolation phase", NULL, &mc_filter, mi_filter, ARRAY_SIZE(mi_filter), NULL, NULL };
 
 
 /* IIR Bandwidth Menu */
@@ -80,7 +80,7 @@ static const menuitem_t mi_iir[] = {
 	{ 2,	"60k @ 44.1kHz",	NULL, NULL, NULL, NULL },
 	{ 3,	"70k @ 44.1kHz",	NULL, NULL, NULL, NULL },
 };
-static menu_t m_iir 	= { "IIR Bandwidth", "Selects the type of filter to use during the 8x IIR interpolation phase", NULL, &mc_iir, mi_iir, ARRAY_SIZE(mi_iir), NULL, NULL };
+static menu_t m_iir = { "IIR Bandwidth", "Selects the type of filter to use during the 8x IIR interpolation phase", NULL, &mc_iir, mi_iir, ARRAY_SIZE(mi_iir), NULL, NULL };
 
 
 /* Jitter Eliminator / DPLL Bandwidth in I2S / SPDIF mode */
@@ -103,7 +103,7 @@ static const menuitem_t mi_dpll_spdif[] = {
 	{ 14,	"14",				NULL, NULL, NULL, NULL },
 	{ 15,	"15",				NULL, NULL, NULL, NULL },
 };
-static menu_t m_dpll_spdif 	= { "DPLL I2S/SPDIF", "Sets the bandwidth of the DPLL when operating in I2S/SPDIF mode", NULL, &mc_dpll_spdif, mi_dpll_spdif, ARRAY_SIZE(mi_dpll_spdif), NULL, NULL };
+static menu_t m_dpll_spdif = { "DPLL I2S/SPDIF", "Sets the bandwidth of the DPLL when operating in I2S/SPDIF mode", NULL, &mc_dpll_spdif, mi_dpll_spdif, ARRAY_SIZE(mi_dpll_spdif), NULL, NULL };
 
 /* Jitter Eliminator / DPLL Bandwidth in DSD mode */
 static const menuconfig_t mc_dpll_dsd = { dac_config_get, dac_config_set, 12, 0b00001111, 10 };
@@ -125,7 +125,7 @@ static const menuitem_t mi_dpll_dsd[] = {
 	{ 14,	"14",				NULL, NULL, NULL, NULL },
 	{ 15,	"15",				NULL, NULL, NULL, NULL },
 };
-static menu_t m_dpll_dsd 	= { "DPLL DSD", "Sets the bandwidth of the DPLL when operating in DSD mode", NULL, &mc_dpll_dsd, mi_dpll_dsd, ARRAY_SIZE(mi_dpll_dsd), NULL, NULL };
+static menu_t m_dpll_dsd = { "DPLL DSD", "Sets the bandwidth of the DPLL when operating in DSD mode", NULL, &mc_dpll_dsd, mi_dpll_dsd, ARRAY_SIZE(mi_dpll_dsd), NULL, NULL };
 
 
 /* Setup Menu */

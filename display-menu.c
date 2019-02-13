@@ -24,24 +24,29 @@ static void menu_up() {
 }
 
 static void menu_get_selected() {
-	const menuconfig_t *config = menu->config;
-	int current = (config->getfunc)(config);
-	for (ITEM **citem = menu->cmenu->items; *citem++;) {
-		menuitem_t *item = item_userptr(*citem);
-		if (item && item->value == current) {
-			item_opts_off(*citem, O_SELECTABLE);
-		} else {
-			item_opts_on(*citem, O_SELECTABLE);
+	if (menu && menu->config) {
+		const menuconfig_t *config = menu->config;
+		int current = (config->getfunc)(config);
+		xlog("register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
+		for (ITEM **citem = menu->cmenu->items; *citem; citem++) {
+			menuitem_t *item = item_userptr(*citem);
+			if (item && item->value == current) {
+				item_opts_off(*citem, O_SELECTABLE);
+			} else {
+				item_opts_on(*citem, O_SELECTABLE);
+			}
 		}
 	}
 }
 
 static void menu_set_selected(int value) {
-	const menuconfig_t *config = menu->config;
-	(config->setfunc)(config, value);
-	menu_get_selected();
-	redrawwin(menu->cwindow);
-	wrefresh(menu->cwindow);
+	if (menu && menu->config) {
+		const menuconfig_t *config = menu->config;
+		(config->setfunc)(config, value);
+		menu_get_selected();
+		redrawwin(menu->cwindow);
+		wrefresh(menu->cwindow);
+	}
 }
 
 static void menu_select() {
@@ -66,12 +71,6 @@ static void menu_select() {
 			return;
 		}
 
-		// write selected value with config's setter function
-		if (menu->config) {
-			menu_set_selected(item->value);
-			return;
-		}
-
 		// execute void item function
 		if (item->vfunc) {
 			mcp->menu = 0;
@@ -87,6 +86,9 @@ static void menu_select() {
 			(*item->ifunc)(item->value);
 			return;
 		}
+
+		// write selected value with config's setter function
+		menu_set_selected(item->value);
 	}
 }
 
@@ -127,6 +129,7 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	set_menu_fore(cmenu, COLOR_PAIR(REDONWHITE) | A_BOLD | A_REVERSE);
 	set_menu_back(cmenu, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
 	set_menu_grey(cmenu, COLOR_PAIR(CYANONBLUE));
+	set_menu_mark(cmenu, "*");
 
 	// create a window for the menu
 	WINDOW *cwindow = newwin(HEIGHT, WIDTH, 0, 0);
@@ -146,10 +149,8 @@ void menu_create(menu_t *menu, menu_t *parent) {
 void menu_open(menu_t *m) {
 	menu = m;
 	xlog("painting '%s'", menu->title);
-	if (menu->config) {
-		// get current value from config's getter function
-		menu_get_selected();
-	}
+	// get current value from config's getter function
+	menu_get_selected();
 	redrawwin(menu->cwindow);
 	wrefresh(menu->cwindow);
 }

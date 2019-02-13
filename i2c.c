@@ -12,6 +12,18 @@
 
 static int fd_i2c;
 
+static int _get_shift(uint8_t mask) {
+	uint8_t shift = 0;
+	if (!mask) {
+		return 0;
+	}
+	while ((mask & 1) == 0) {
+		mask >>= 1;
+		shift++;
+	};
+	return shift;
+}
+
 int i2c_read(uint8_t addr, uint8_t reg, char *val) {
 	char inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
@@ -76,21 +88,30 @@ int i2c_write(uint8_t addr, uint8_t reg, char value) {
 }
 
 // TODO test
-int i2c_write_bits(uint8_t addr, uint8_t reg, char value, uint8_t mask) {
-	// derive left shift from mask
-	uint8_t shift = 0, temp = mask;
-	while (!(temp >> 1)) {
-		shift++;
+int i2c_read_bits(uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
+	// read current
+	if (i2c_read(addr, reg, val) < 0) {
+		return -1;
 	}
+	// derive shift right from mask
+	uint8_t shift = _get_shift(mask);
+	*val = (*val & mask) >> shift; // mask and shift bits
+	return 0;
+}
+
+// TODO test
+int i2c_write_bits(uint8_t addr, uint8_t reg, char value, uint8_t mask) {
 	// read current
 	char current;
 	if (i2c_read(addr, reg, &current) < 0) {
 		return -1;
 	}
+	// derive shift left from mask
+	uint8_t shift = _get_shift(mask);
 	current &= ~mask; // clear bits
 	current |= (value << shift) & mask; // set bits
 	// write
-	i2c_write(addr, reg, value);
+	i2c_write(addr, reg, current);
 	return 0;
 }
 

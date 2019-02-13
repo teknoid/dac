@@ -18,10 +18,10 @@
 
 // #define LOCALMAIN
 
-#ifdef LOCALMAIN
+//#ifdef LOCALMAIN
 #define DISPLAY			"/dev/tty"
-#include "es9028.h"
-#endif
+//#include "es9028.h"
+//#endif
 
 static char fullscreen[4]; // xxx\0
 static int countdown_fullscreen;

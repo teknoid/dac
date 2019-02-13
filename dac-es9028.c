@@ -271,13 +271,14 @@ void dac_source(int source) {
 
 int dac_config_get(const void *ptr) {
 	const menuconfig_t *config = ptr;
-	xlog("dac_config_get");
-	return 0;
+	char value;
+	i2c_read_bits(ADDR, config->reg, &value, config->mask);
+	return value;
 }
 
 void dac_config_set(const void *ptr, int value) {
 	const menuconfig_t *config = ptr;
-	xlog("dac_config_set");
+	i2c_write_bits(ADDR, config->reg, value, config->mask);
 }
 
 int dac_init() {
