@@ -20,5 +20,5 @@
 int display_init(void);
 void display_close(void);
 void display_menu_mode(void);
-void display_fullscreen_int(int value);
-void display_fullscreen_char(char *value);
+void display_fullscreen_number(int value);
+void display_fullscreen_string(char *value);

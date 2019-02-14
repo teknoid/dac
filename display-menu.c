@@ -8,91 +8,154 @@
 #include "utils.h"
 
 static menu_t *menu = NULL;
+static int current;
+
+static void menu_get_selected() {
+	if (!menu)
+		return;
+
+	if (menu->config) {
+		const menuconfig_t *config = menu->config;
+		current = (config->getfunc)(config);
+		xlog("register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
+
+		if (!menu->cmenu) {
+			// direct input menu without items -> print current value
+			mvwprintw(menu->cwindow, 3, (WIDTH / 2) - 1, "%02d", current);
+		} else {
+			// we have items -> mark current as not selectable
+			for (ITEM **citem = menu->cmenu->items; *citem; citem++) {
+				menuitem_t *item = item_userptr(*citem);
+				if (item && item->value == current) {
+					item_opts_off(*citem, O_SELECTABLE);
+				} else {
+					item_opts_on(*citem, O_SELECTABLE);
+				}
+			}
+		}
+	}
+
+	redrawwin(menu->cwindow);
+	wrefresh(menu->cwindow);
+}
+
+static void menu_set_selected(int value) {
+	if (!menu)
+		return;
+
+	if (!menu->config)
+		return;
+
+	const menuconfig_t *config = menu->config;
+	(config->setfunc)(config, value);
+}
 
 static void menu_down() {
-	if (menu) {
+	if (!menu)
+		return;
+
+	// we have items, let menu driver do it's work
+	if (menu->cmenu) {
 		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
 		wrefresh(menu->cwindow);
+		return;
+	}
+
+	// check and store decremented value
+	if (menu->config && current > menu->config->min) {
+		menu_set_selected(--current);
+		menu_get_selected();
 	}
 }
 
 static void menu_up() {
-	if (menu) {
+	if (!menu)
+		return;
+
+	// we have items, let menu driver do it's work
+	if (menu->cmenu) {
 		menu_driver(menu->cmenu, REQ_UP_ITEM);
 		wrefresh(menu->cwindow);
+		return;
 	}
-}
 
-static void menu_get_selected() {
-	if (menu && menu->config) {
-		const menuconfig_t *config = menu->config;
-		int current = (config->getfunc)(config);
-		xlog("register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
-		for (ITEM **citem = menu->cmenu->items; *citem; citem++) {
-			menuitem_t *item = item_userptr(*citem);
-			if (item && item->value == current) {
-				item_opts_off(*citem, O_SELECTABLE);
-			} else {
-				item_opts_on(*citem, O_SELECTABLE);
-			}
-		}
-	}
-}
-
-static void menu_set_selected(int value) {
-	if (menu && menu->config) {
-		const menuconfig_t *config = menu->config;
-		(config->setfunc)(config, value);
+	// check and store incremented value
+	if (menu->config && current < menu->config->max) {
+		menu_set_selected(++current);
 		menu_get_selected();
-		redrawwin(menu->cwindow);
-		wrefresh(menu->cwindow);
 	}
 }
 
 static void menu_select() {
-	if (menu) {
-		ITEM *citem = current_item(menu->cmenu);
-		menuitem_t *item = item_userptr(citem);
+	if (!menu)
+		return;
 
-		// open back menu
-		if (!item) {
-			if (!menu->back) {
-				mcp->menu = 0;
-				xlog("leaving menu mode");
-			} else {
-				menu_open(menu->back);
-			}
-			return;
-		}
-
-		// open sub menu
-		if (item->submenu) {
-			menu_open(item->submenu);
-			return;
-		}
-
-		// execute void item function
-		if (item->vfunc) {
-			mcp->menu = 0;
-			xlog("executing void function for %s", item->name);
-			(*item->vfunc)();
-			return;
-		}
-
-		// execute integer item function
-		if (item->ifunc) {
-			mcp->menu = 0;
-			xlog("executing integer function for %s with %d", item->name, item->value);
-			(*item->ifunc)(item->value);
-			return;
-		}
-
-		// write selected value with config's setter function
-		menu_set_selected(item->value);
+	// direct input menu without items - go back
+	if (!menu->cmenu) {
+		menu_open(menu->back);
+		return;
 	}
+
+	ITEM *citem = current_item(menu->cmenu);
+	menuitem_t *item = item_userptr(citem);
+
+	// open back menu
+	if (!item) {
+		if (!menu->back) {
+			mcp->menu = 0;
+			xlog("leaving menu mode");
+		} else {
+			menu_open(menu->back);
+		}
+		return;
+	}
+
+	// open sub menu
+	if (item->submenu) {
+		menu_open(item->submenu);
+		return;
+	}
+
+	// execute void item function
+	if (item->vfunc) {
+		mcp->menu = 0;
+		xlog("executing void function for %s", item->name);
+		(*item->vfunc)();
+		return;
+	}
+
+	// execute integer item function
+	if (item->ifunc) {
+		mcp->menu = 0;
+		xlog("executing integer function for %s with %d", item->name, item->value);
+		(*item->ifunc)(item->value);
+		return;
+	}
+
+	// write selected value with config's setter function and read back
+	menu_set_selected(item->value);
+	menu_get_selected();
 }
 
 void menu_create(menu_t *menu, menu_t *parent) {
+	menu->back = parent;
+
+	// create a window for the menu
+	WINDOW *cwindow = newwin(HEIGHT, WIDTH, 0, 0);
+	menu->cwindow = cwindow;
+	wbkgd(cwindow, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
+	wborder(cwindow, 0, 0, 0, 0, 0, 0, 0, 0);
+	// set window title
+	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);
+	mvwprintw(cwindow, 0, center_pos - 2, " %s ", menu->title);
+
+	if (!menu->items) {
+		// TODO windows too small & overwriting borders
+		// mvwprintw(cwindow, 3, 1, menu->descr);
+		return;
+	}
+
+	// we have items then build the curses menu
 	int length = menu->size;
 	xlog("creating '%s' with %d entries", menu->title, length);
 
@@ -110,7 +173,6 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	}
 
 	// back item with empty item_userptr
-	menu->back = parent;
 	if (!parent) {
 		citems[length] = new_item("Exit", NULL);
 	} else {
@@ -131,19 +193,10 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	set_menu_grey(cmenu, COLOR_PAIR(CYANONBLUE));
 	set_menu_mark(cmenu, "*");
 
-	// create a window for the menu
-	WINDOW *cwindow = newwin(HEIGHT, WIDTH, 0, 0);
-	menu->cwindow = cwindow;
-	wbkgd(cwindow, COLOR_PAIR(YELLOWONBLUE) | A_BOLD);
-	wborder(cwindow, 0, 0, 0, 0, 0, 0, 0, 0);
-	set_menu_win(cmenu, cwindow);
 	// use full width height (without box and one space left/right)
+	set_menu_win(cmenu, cwindow);
 	set_menu_sub(cmenu, derwin(cwindow, HEIGHT - 2, WIDTH - 4, 1, 2));
 	post_menu(cmenu);
-
-	// set window title
-	int center_pos = (int) (WIDTH / 2) - (strlen(menu->title) / 2);
-	mvwprintw(cwindow, 0, center_pos - 2, " %s ", menu->title);
 }
 
 void menu_open(menu_t *m) {
@@ -151,8 +204,6 @@ void menu_open(menu_t *m) {
 	xlog("painting '%s'", menu->title);
 	// get current value from config's getter function
 	menu_get_selected();
-	redrawwin(menu->cwindow);
-	wrefresh(menu->cwindow);
 }
 
 // !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!

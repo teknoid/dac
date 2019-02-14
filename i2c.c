@@ -17,7 +17,7 @@ static int _get_shift(uint8_t mask) {
 	if (!mask) {
 		return 0;
 	}
-	while ((mask & 1) == 0) {
+	while (!(mask & 0b00000001)) {
 		mask >>= 1;
 		shift++;
 	};
@@ -87,7 +87,6 @@ int i2c_write(uint8_t addr, uint8_t reg, char value) {
 	return 0;
 }
 
-// TODO test
 int i2c_read_bits(uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
 	// read current
 	if (i2c_read(addr, reg, val) < 0) {
@@ -99,7 +98,6 @@ int i2c_read_bits(uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
 	return 0;
 }
 
-// TODO test
 int i2c_write_bits(uint8_t addr, uint8_t reg, char value, uint8_t mask) {
 	// read current
 	char current;

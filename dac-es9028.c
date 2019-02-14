@@ -190,7 +190,7 @@ void dac_volume_up() {
 	i2c_write(ADDR, REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	display_fullscreen_int(mcp->dac_volume);
+	display_fullscreen_number(mcp->dac_volume);
 	xlog("VOL++ %03d", db);
 }
 
@@ -208,7 +208,7 @@ void dac_volume_down() {
 	i2c_write(ADDR, REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
-	display_fullscreen_int(mcp->dac_volume);
+	display_fullscreen_number(mcp->dac_volume);
 	xlog("VOL-- %03d", db);
 }
 
@@ -252,17 +252,17 @@ void dac_source(int source) {
 	case mpd:
 		i2c_write(ADDR, REG_INPUT, 0x04); // auto detect DSD/PCM
 		i2c_write(ADDR, REG_SOURCE, 0x00); // DATA_CLK
-		display_fullscreen_char("MPD");
+		display_fullscreen_string("MPD");
 		break;
 	case opt:
 		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
 		i2c_write(ADDR, REG_SOURCE, 0x70); // DATA7
-		display_fullscreen_char("OPT");
+		display_fullscreen_string("OPT");
 		break;
 	case coax:
 		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
 		i2c_write(ADDR, REG_SOURCE, 0x80); // DATA8
-		display_fullscreen_char("COX");
+		display_fullscreen_string("COX");
 		break;
 	}
 	mcp->dac_source = source;

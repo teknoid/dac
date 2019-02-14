@@ -18,10 +18,10 @@
 
 // #define LOCALMAIN
 
-//#ifdef LOCALMAIN
+#ifdef LOCALMAIN
 #define DISPLAY			"/dev/tty"
-//#include "es9028.h"
-//#endif
+#include "es9028.h"
+#endif
 
 static char fullscreen[4]; // xxx\0
 static int countdown_fullscreen;
@@ -291,13 +291,13 @@ static void display_update() {
 	paint_play();
 }
 
-void display_fullscreen_int(int value) {
+void display_fullscreen_number(int value) {
 	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%d", value);
 	paint_fullscreen();
 }
 
-void display_fullscreen_char(char *value) {
+void display_fullscreen_string(char *value) {
 	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%s", value);
 	paint_fullscreen();
@@ -427,13 +427,13 @@ int main(void) {
 		}
 
 		switch (c) {
-		case KEY_DOWN:
-			display_fullscreen_int(--z);
+			case KEY_DOWN:
+			display_fullscreen_number(--z);
 			break;
-		case KEY_UP:
-			display_fullscreen_int(++z);
+			case KEY_UP:
+			display_fullscreen_number(++z);
 			break;
-		case '\n':
+			case '\n':
 			display_menu_mode();
 			menu_open(&m_main);
 			break;
