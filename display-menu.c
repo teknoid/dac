@@ -7,23 +7,169 @@
 #include "mcp.h"
 #include "utils.h"
 
-static menu_t *menu = NULL;
+#define XPOS_BITS				(WIDTH / 2) - 4
+#define YPOS_BITS				3
+
+#define XPOS_VALUE				(WIDTH / 2) - 2
+#define YPOS_VALUE				3
+
+static menu_t *menu;
+static menu_style_t style;
 static int current;
+static int xpos;
+
+// toggle bit on current position
+static void current_bit_toogle() {
+	int mask = 1 << xpos;
+	if (current & mask) {
+		current &= ~mask; // clear
+	} else {
+		current |= mask; // set
+	}
+}
 
 static void menu_get_selected() {
-	if (!menu)
+	const menuconfig_t *config = menu->config;
+	current = (config->getfunc)(config);
+	xlog("get register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
+}
+
+static void menu_set_selected(int value) {
+	const menuconfig_t *config = menu->config;
+	(config->setfunc)(config, value);
+	xlog("set register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
+}
+
+static void menu_down() {
+	switch (style) {
+	case bits:
+		wchgat(menu->cwindow, 1, A_NORMAL, YELLOWONBLUE, NULL);
+		xpos++;
+		if (xpos > 8) {
+			// position 8 is outside and means "go back"
+			xpos = 8;
+		}
 		return;
+	case value:
+		// check and store decremented value
+		if (current > menu->config->min) {
+			menu_set_selected(--current);
+			menu_get_selected();
+		}
+		return;
+	case selection:
+		// we have items, let menu driver do it's work
+		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
+		return;
+	}
+}
 
-	if (menu->config) {
-		const menuconfig_t *config = menu->config;
-		current = (config->getfunc)(config);
-		xlog("register %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), current);
+static void menu_up() {
+	switch (style) {
+	case bits:
+		wchgat(menu->cwindow, 1, A_NORMAL, YELLOWONBLUE, NULL);
+		xpos--;
+		if (xpos < -1) {
+			// position -1 is outside and means "go back"
+			xpos = -1;
+		}
+		return;
+	case value:
+		// check and store incremented value
+		if (current < menu->config->max) {
+			menu_set_selected(++current);
+			menu_get_selected();
+		}
+		return;
+	case selection:
+		// we have items, let menu driver do it's work
+		menu_driver(menu->cmenu, REQ_UP_ITEM);
+		return;
+	}
+}
 
-		if (!menu->cmenu) {
-			// direct input menu without items -> print current value
-			mvwprintw(menu->cwindow, 3, (WIDTH / 2) - 1, "%02d", current);
+static void menu_select() {
+	ITEM *citem;
+	menuitem_t *item;
+
+	switch (style) {
+	case bits:
+		if (xpos < 0 || xpos > 7) {
+			// position outside - go back
+			return menu_open(menu->back);
 		} else {
-			// we have items -> mark current as not selectable
+			// toggle bit on current position
+			current_bit_toogle();
+			// write new value with config's setter function and read back
+			menu_set_selected(current);
+			menu_get_selected();
+		}
+		return;
+	case value:
+		// direct value input by up/down - go back
+		return menu_open(menu->back);
+	case selection:
+		citem = current_item(menu->cmenu);
+		item = item_userptr(citem);
+
+		// open back menu
+		if (!item) {
+			if (!menu->back) {
+				mcp->menu = 0;
+				xlog("leaving menu mode");
+			} else {
+				menu_open(menu->back);
+			}
+			return;
+		}
+
+		// open sub menu
+		if (item->submenu) {
+			menu_open(item->submenu);
+			return;
+		}
+
+		// execute void item function
+		if (item->vfunc) {
+			mcp->menu = 0;
+			xlog("executing void function for %s", item->name);
+			(*item->vfunc)();
+			return;
+		}
+
+		// execute integer item function
+		if (item->ifunc) {
+			mcp->menu = 0;
+			xlog("executing integer function for %s with %d", item->name, item->value);
+			(*item->ifunc)(item->value);
+			return;
+		}
+
+		// write selected value with config's setter function and read back
+		menu_set_selected(item->value);
+		menu_get_selected();
+		return;
+	}
+}
+
+static void menu_paint() {
+	switch (style) {
+	case bits:
+		// bitwise input > print current value as bits
+		mvwprintw(menu->cwindow, 3, XPOS_BITS, "%s", printBits(current));
+		wmove(menu->cwindow, YPOS_BITS, XPOS_BITS + 7 - xpos);
+		if (xpos >= 0 && xpos <= 7) {
+			// highlight position if cursor is inside
+			wchgat(menu->cwindow, 1, A_REVERSE | A_BOLD, 0, NULL);
+		}
+		break;
+	case value:
+		// direct input -> print current value as integer
+		mvwprintw(menu->cwindow, YPOS_VALUE, XPOS_VALUE, "%03d", current);
+		break;
+	case selection:
+		// we have items and configuration -> mark current as not selectable
+		if (menu->config) {
 			for (ITEM **citem = menu->cmenu->items; *citem; citem++) {
 				menuitem_t *item = item_userptr(*citem);
 				if (item && item->value == current) {
@@ -33,108 +179,11 @@ static void menu_get_selected() {
 				}
 			}
 		}
+		break;
 	}
 
 	redrawwin(menu->cwindow);
 	wrefresh(menu->cwindow);
-}
-
-static void menu_set_selected(int value) {
-	if (!menu)
-		return;
-
-	if (!menu->config)
-		return;
-
-	const menuconfig_t *config = menu->config;
-	(config->setfunc)(config, value);
-}
-
-static void menu_down() {
-	if (!menu)
-		return;
-
-	// we have items, let menu driver do it's work
-	if (menu->cmenu) {
-		menu_driver(menu->cmenu, REQ_DOWN_ITEM);
-		wrefresh(menu->cwindow);
-		return;
-	}
-
-	// check and store decremented value
-	if (menu->config && current > menu->config->min) {
-		menu_set_selected(--current);
-		menu_get_selected();
-	}
-}
-
-static void menu_up() {
-	if (!menu)
-		return;
-
-	// we have items, let menu driver do it's work
-	if (menu->cmenu) {
-		menu_driver(menu->cmenu, REQ_UP_ITEM);
-		wrefresh(menu->cwindow);
-		return;
-	}
-
-	// check and store incremented value
-	if (menu->config && current < menu->config->max) {
-		menu_set_selected(++current);
-		menu_get_selected();
-	}
-}
-
-static void menu_select() {
-	if (!menu)
-		return;
-
-	// direct input menu without items - go back
-	if (!menu->cmenu) {
-		menu_open(menu->back);
-		return;
-	}
-
-	ITEM *citem = current_item(menu->cmenu);
-	menuitem_t *item = item_userptr(citem);
-
-	// open back menu
-	if (!item) {
-		if (!menu->back) {
-			mcp->menu = 0;
-			xlog("leaving menu mode");
-		} else {
-			menu_open(menu->back);
-		}
-		return;
-	}
-
-	// open sub menu
-	if (item->submenu) {
-		menu_open(item->submenu);
-		return;
-	}
-
-	// execute void item function
-	if (item->vfunc) {
-		mcp->menu = 0;
-		xlog("executing void function for %s", item->name);
-		(*item->vfunc)();
-		return;
-	}
-
-	// execute integer item function
-	if (item->ifunc) {
-		mcp->menu = 0;
-		xlog("executing integer function for %s with %d", item->name, item->value);
-		(*item->ifunc)(item->value);
-		return;
-	}
-
-	// write selected value with config's setter function and read back
-	menu_set_selected(item->value);
-	menu_get_selected();
 }
 
 void menu_create(menu_t *menu, menu_t *parent) {
@@ -150,7 +199,7 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	mvwprintw(cwindow, 0, center_pos - 2, " %s ", menu->title);
 
 	if (!menu->items) {
-		// TODO windows too small & overwriting borders
+		// TODO window is too small & overwriting borders
 		// mvwprintw(cwindow, 3, 1, menu->descr);
 		return;
 	}
@@ -201,13 +250,40 @@ void menu_create(menu_t *menu, menu_t *parent) {
 
 void menu_open(menu_t *m) {
 	menu = m;
-	xlog("painting '%s'", menu->title);
+	xpos = 0;
+	current = 0;
+
+	// determine menu style
+	if (menu->items) {
+		style = selection;
+	} else {
+		if (menu->config) {
+			if (menu->config->min == 0 && menu->config->max == 0) {
+				style = bits;
+			} else {
+				style = value;
+			}
+		} else {
+			xlog("menu error: cannot determine menu style for %s", menu->title);
+			return;
+		}
+	}
+
 	// get current value from config's getter function
-	menu_get_selected();
+	if (menu->config) {
+		menu_get_selected();
+	}
+
+	// update screen
+	xlog("painting '%s'", menu->title);
+	menu_paint();
 }
 
 // !!! DO NOT use key names from linux/input.h - this breaks curses.h !!!
 void menu_handle(int c) {
+	if (!menu)
+		return;
+
 	switch (c) {
 	case 0x42:	// down
 	case 115:	// KEY_VOLUMEUP
@@ -232,8 +308,7 @@ void menu_handle(int c) {
 		xlog("leaving menu mode");
 		break;
 	}
-}
 
-void menu_show_selection(int value) {
-	xlog("show_selection");
+	// update screen
+	menu_paint();
 }

@@ -410,7 +410,7 @@ int main(void) {
 	mcp->dac_power = 1;
 	mcp->mpd_state = MPD_STATE_PLAY;
 	display_init();
-	es9028_prepeare_menus();
+	es9028_prepare_menus();
 
 	int z = -23;
 	while (1) {

@@ -217,7 +217,7 @@ void dac_mute() {
 		return;
 	}
 
-	i2c_set_bit(ADDR, REG_FILTER_MUTE, 0);
+	i2c_set_bit(ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
@@ -227,7 +227,7 @@ void dac_unmute() {
 		return;
 	}
 
-	i2c_clear_bit(ADDR, REG_FILTER_MUTE, 0);
+	i2c_clear_bit(ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
@@ -302,7 +302,7 @@ int dac_init() {
 	}
 
 	// prepare the menus
-	es9028_prepeare_menus();
+	es9028_prepare_menus();
 
 	xlog("ES9028 initialized");
 	return 0;

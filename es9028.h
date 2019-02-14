@@ -11,7 +11,7 @@
 
 #define	REG_SYSTEM			0x00
 #define REG_INPUT			0x01
-#define REG_FILTER_MUTE		0x07
+#define REG_MUTE			0x07
 #define REG_SOURCE			0x0b
 #define REG_CONFIG			0x0f
 #define REG_VOLUME			0x10
@@ -93,12 +93,59 @@ static const menuconfig_t mc_dpll_dsd = { dac_config_get, dac_config_set, 12, 0b
 static menu_t m_dpll_dsd = { "DPLL DSD", "Sets the bandwidth of the DPLL when operating in DSD mode", NULL, &mc_dpll_dsd, NULL, 0, NULL, NULL };
 
 
+/* Lock Speed */
+static const menuconfig_t mc_lock_speed = { dac_config_get, dac_config_set, 10, 0b00001111, 0, 15, 0 };
+static const menuitem_t mi_lock_speed[] = {
+	{ 0,	"16384 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 1,	" 8192 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 2,	" 5461 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 3,	" 4096 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 4,	" 3276 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 5,	" 2730 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 6,	" 2340 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 7,	" 2048 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 8,	" 1820 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 9,	" 1638 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 10,	" 1489 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 11,	" 1365 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 12,	" 1260 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 13,	" 1170 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 14,	" 1092 FSL edges",	NULL, NULL, NULL, NULL },
+	{ 15,	" 1024 FSL edges",	NULL, NULL, NULL, NULL },
+};
+static menu_t m_lock_speed = { "Lock Speed", "Sets the number of audio samples required before the DPLL and jitter eliminator lock to the incoming signal.", NULL, &mc_lock_speed, mi_lock_speed, ARRAY_SIZE(mi_lock_speed), NULL, NULL };
+
+
+/* Auto Mute */
+static const menuconfig_t mc_automute = { dac_config_get, dac_config_set, 2, 0b11000000, 0, 3, 0 };
+static const menuitem_t mi_automute[] = {
+	{ 0,	"normal",			NULL, NULL, NULL, NULL },
+	{ 1,	"mute",				NULL, NULL, NULL, NULL },
+	{ 2,	"ramp down",		NULL, NULL, NULL, NULL },
+	{ 3,	"mute+ramp down",	NULL, NULL, NULL, NULL },
+};
+static menu_t m_automute = { "Auto Mute", "Configures the automute state machine, which allows the SABRE DAC to perform different power saving and sound optimizations.", NULL, &mc_automute, mi_automute, ARRAY_SIZE(mi_automute), NULL, NULL };
+
+static const menuconfig_t mc_automute_time = { dac_config_get, dac_config_set, 4, 0b11111111, 0, 255, 0 };
+static menu_t m_automute_time = { "Auto Mute Time", "Configures the amount of time the audio data must remain below the automute_level before an automute condition is flagged. Defaults to 0 which disables automute.", NULL, &mc_automute_time, NULL, 0, NULL, NULL };
+
+static const menuconfig_t mc_automute_level = { dac_config_get, dac_config_set, 5, 0b01111111, 0, 127, 104 };
+static menu_t m_automute_level = { "Auto Mute Level", "Configures the threshold which the audio must be below before an automute condition is flagged. The level is measured in decibels (dB) and defaults to -104dB.", NULL, &mc_automute_level, NULL, 0, NULL, NULL };
+
+static const menuconfig_t mc_18db_gain = { dac_config_get, dac_config_set, 62, 0b11111111, 0, 0, 0 };
+static menu_t m_18db_gain = { "+18dB Gain", "+18dB gain applied after volume control. The +18dB gain only works in PCM mode and is applied prior to the channel mapping.", NULL, &mc_18db_gain, NULL, 0, NULL, NULL };
+
 /* Setup Menu */
 static const menuitem_t mi_setup[] = {
     { 0,	"Filter Shape",		NULL, &m_filter, NULL, NULL },
     { 0,	"IIR Bandwidth",	NULL, &m_iir, NULL, NULL },
     { 0,	"DPLL I2S/SPDIF",	NULL, &m_dpll_spdif, NULL, NULL },
     { 0,	"DPLL DSD",			NULL, &m_dpll_dsd, NULL, NULL },
+    { 0,	"Lock Speed",		NULL, &m_lock_speed, NULL, NULL },
+    { 0,	"Auto Mute",		NULL, &m_automute, NULL, NULL },
+    { 0,	"Auto Mute Time",	NULL, &m_automute_time, NULL, NULL },
+    { 0,	"Auto Mute Level",	NULL, &m_automute_level, NULL, NULL },
+    { 0,	"+18dB Gain",		NULL, &m_18db_gain, NULL, NULL },
 };
 static menu_t m_setup = { "Setup", "Configure DAC Settings", NULL, NULL, mi_setup, ARRAY_SIZE(mi_setup), NULL, NULL };
 
@@ -114,7 +161,7 @@ static const menuitem_t mi_main[] = {
 static menu_t m_main = { "Main Menu", "", NULL, NULL, mi_main, ARRAY_SIZE(mi_main), NULL, NULL };
 
 // create and connect the menus
-static void es9028_prepeare_menus() {
+static void es9028_prepare_menus() {
 	menu_create(&m_main, NULL);
 	menu_create(&m_playlist, &m_main);
 	menu_create(&m_input, &m_main);
@@ -124,4 +171,9 @@ static void es9028_prepeare_menus() {
 	menu_create(&m_iir, &m_setup);
 	menu_create(&m_dpll_spdif, &m_setup);
 	menu_create(&m_dpll_dsd, &m_setup);
+	menu_create(&m_lock_speed, &m_setup);
+	menu_create(&m_automute, &m_setup);
+	menu_create(&m_automute_time, &m_setup);
+	menu_create(&m_automute_level, &m_setup);
+	menu_create(&m_18db_gain, &m_setup);
 }

@@ -1,7 +1,16 @@
 #include <curses.h>
 #include <menu.h>
 
-/* Menu data structures */
+/*
+ * Menu data structures
+ */
+
+// selection --> items must be filled
+// value     --> no items but config->min and config-> max are set
+// bits      --> config->min and config-> max are 0
+typedef enum {
+	selection, value, bits
+} menu_style_t;
 
 //
 // the menu itself - one window on the screen
@@ -55,4 +64,3 @@ typedef struct menuitem_t {
 void menu_create(menu_t *, menu_t *);
 void menu_open(menu_t *);
 void menu_handle(int);
-void menu_show_selection(int);
