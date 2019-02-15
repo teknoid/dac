@@ -72,7 +72,7 @@ Install wiringpi - this is board specific, either use repository or compile from
 Clone dac repository:
 
 ```bash
-git https://github.com/teknoid/dac.git
+git clone https://github.com/teknoid/dac.git
 ```
 Configure DEVINPUT to use infrared and rotary encoder
 
