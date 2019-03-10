@@ -20,11 +20,12 @@
 #include "playlists.h"
 #include "utils.h"
 
+#define msleep(x) usleep(x*1000)
+
 static int current_song = -1;
 static int playlist_mode = 1;
 
 static struct mpd_connection *conn;
-static struct mpd_connection *conn_status;
 
 static pthread_t thread_mpdclient;
 static void *mpdclient(void *arg);
@@ -283,12 +284,6 @@ int mpdclient_init() {
 	const unsigned int* v = mpd_connection_get_server_version(conn);
 	xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
 
-	// get connection for mpd status changes
-	conn_status = mpdclient_get_connection();
-	if (!conn_status) {
-		return -1;
-	}
-
 	// listen for mpd state changes
 	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
 		xlog("Error creating thread_mpdclient");
@@ -310,9 +305,6 @@ void mpdclient_close() {
 	if (conn) {
 		mpd_connection_free(conn);
 	}
-	if (conn_status) {
-		mpd_connection_free(conn_status);
-	}
 }
 
 static void *mpdclient(void *arg) {
@@ -321,40 +313,68 @@ static void *mpdclient(void *arg) {
 		return (void *) 0;
 	}
 
+	struct mpd_connection *conn_status;
 	while (1) {
-		struct mpd_status *status = mpd_run_status(conn_status);
-		int state = mpd_status_get_state(status);
-		xlog("MPD State %d", state);
-		mcp->mpd_state = state;
+		msleep(500);
 
-		if (state == MPD_STATE_PAUSE) {
-			xlog("MPD State PAUSE");
-		} else if (state == MPD_STATE_STOP) {
-			xlog("MPD State STOP");
-		} else if (state == MPD_STATE_PLAY) {
-			xlog("MPD State PLAY");
+		if (!conn_status) {
+			conn_status = mpdclient_get_connection();
+			if (!conn_status) {
+				xlog("!conn_status");
+				return (void *) 0;
+			}
+		}
+
+		enum mpd_idle idle = mpd_run_idle(conn_status);
+		if (!idle) {
+			xlog("!idle");
+			mpd_connection_free(conn_status);
+			conn_status = NULL;
+			continue;
+		}
+
+		if (idle == MPD_IDLE_PLAYER || idle == MPD_IDLE_QUEUE) {
+			struct mpd_status* status = mpd_run_status(conn_status);
+			if (!status) {
+				xlog("!status");
+				mpd_connection_free(conn_status);
+				conn_status = NULL;
+				continue;
+			}
+
+			mcp->mpd_state = mpd_status_get_state(status);
+			switch (mcp->mpd_state) {
+			case MPD_STATE_PAUSE:
+				xlog("MPD State PAUSE");
+				break;
+			case MPD_STATE_STOP:
+				xlog("MPD State STOP");
+				break;
+			case MPD_STATE_PLAY:
+				xlog("MPD State PLAY");
+				break;
+			default:
+				xlog("MPD State UNKNOWN");
+			}
 
 			const struct mpd_audio_format *audio_format = mpd_status_get_audio_format(status);
-			if (audio_format != NULL) {
+			if (audio_format) {
 				mcp->mpd_bits = audio_format->bits;
 				mcp->mpd_rate = audio_format->sample_rate;
 			}
 
 			struct mpd_song *song = mpd_run_current_song(conn_status);
-			unsigned int this_song = mpd_song_get_id(song);
-			if (this_song != current_song) {
-				int pos = mpd_status_get_song_pos(status);
-				process_song(song, pos);
-				current_song = this_song;
-			}
-			mpd_song_free(song);
-
-			if (mcp->dac_mute) {
-				dac_unmute();
+			if (song) {
+				unsigned int this_song = mpd_song_get_id(song);
+				if (this_song != current_song) {
+					int pos = mpd_status_get_song_pos(status);
+					process_song(song, pos);
+					current_song = this_song;
+				}
+				mpd_song_free(song);
 			}
 		}
 		mcp->dac_state_changed = 1;
-		mpd_run_idle(conn_status);
 	}
 
 	mpd_connection_free(conn_status);
