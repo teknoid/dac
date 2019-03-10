@@ -394,19 +394,20 @@ void *dac(void *arg) {
 
 		switch (mcp->dac_signal) {
 		case dsd:
-			xlog("%s DSD %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("[%s] DSD %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case pcm:
-			xlog("%s PCM %d/%d %03ddB", s, mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+			xlog("[%s] PCM %d/%d %03ddB", s, mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case spdif:
-			xlog("%s SPDIF %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("[%s] SPDIF %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case dop:
-			xlog("%s DOP %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("[%s] DOP %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		default:
-			xlog("%s NLOCK", s);
+			xlog("[%s] NLOCK", s);
+			mcp->dac_state_changed = 1; // try again
 			break;
 		}
 	}
