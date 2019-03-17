@@ -1,26 +1,45 @@
+#include "dac-es9018.h"
+
 #include <linux/input-event-codes.h>
-#include <stddef.h>
 #include <unistd.h>
 #include <wiringPi.h>
 
-#include "mcp.h"
 #include "utils.h"
-
-#define GPIO_POWER		5
-
-#define GPIO_VOL_UP		4
-#define GPIO_VOL_DOWN	0
 
 #define msleep(x) usleep(x*1000)
 
+static void gpio_toggle(int gpio) {
+	int state = digitalRead(gpio);
+	if (state == 0) {
+		digitalWrite(gpio, 1); // on
+		return;
+	}
+	if (state == 1) {
+		digitalWrite(gpio, 0); // off
+		return;
+	}
+}
+
 static void dac_on() {
-	digitalWrite(GPIO_POWER, 1);
+	digitalWrite(GPIO_DAC_POWER, 1);
 	mcp->dac_power = 1;
 	xlog("switched DAC on");
+
+	msleep(500);
+
+	digitalWrite(GPIO_EXT_POWER, 1);
+	mcp->ext_power = 1;
+	xlog("switched EXT on");
 }
 
 static void dac_off() {
-	digitalWrite(GPIO_POWER, 0);
+	digitalWrite(GPIO_EXT_POWER, 0);
+	mcp->ext_power = 0;
+	xlog("switched EXT off");
+
+	msleep(500);
+
+	digitalWrite(GPIO_DAC_POWER, 0);
 	mcp->dac_power = 0;
 	xlog("switched DAC off");
 }
@@ -76,18 +95,19 @@ void dac_config_set(const void *ptr, int value) {
 }
 
 int dac_init() {
-	pinMode(GPIO_POWER, OUTPUT);
+	pinMode(GPIO_DAC_POWER, OUTPUT);
+	pinMode(GPIO_EXT_POWER, OUTPUT);
+	pinMode(GPIO_LAMP, OUTPUT);
 
 	pinMode(GPIO_VOL_UP, OUTPUT);
 	digitalWrite(GPIO_VOL_UP, 0);
 	pinMode(GPIO_VOL_DOWN, OUTPUT);
 	digitalWrite(GPIO_VOL_DOWN, 0);
 
-	mcp->dac_power = digitalRead(GPIO_POWER);
+	mcp->dac_power = digitalRead(GPIO_DAC_POWER);
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
-
-	// prepare the menus
-//	dac_prepeare_menus();
+	mcp->ext_power = digitalRead(GPIO_EXT_POWER);
+	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	xlog("ES9018 initialized");
 	return 0;
@@ -97,12 +117,6 @@ void dac_close() {
 }
 
 void dac_handle(int c) {
-	if (mcp->menu) {
-//		display_menu_mode();
-//		menu_handle(c);
-		return;
-	}
-
 	switch (c) {
 	case KEY_VOLUMEUP:
 		dac_volume_up();
@@ -113,12 +127,8 @@ void dac_handle(int c) {
 	case KEY_POWER:
 		dac_power();
 		break;
-	case '\n':
-	case 0x0d:
-	case KEY_SYSRQ:
-	case KEY_F1:
-//		display_menu_mode();
-//		menu_open(&m_main);
+	case KEY_TIME:
+		gpio_toggle(GPIO_LAMP);
 		break;
 	default:
 		mpdclient_handle(c);
