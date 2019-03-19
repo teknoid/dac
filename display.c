@@ -19,8 +19,11 @@
 // #define LOCALMAIN
 
 #ifdef LOCALMAIN
-#define DISPLAY			"/dev/tty"
 #include "es9028.h"
+#endif
+
+#ifndef DISPLAY
+#define DISPLAY			"/dev/tty"
 #endif
 
 static char fullscreen[4]; // xxx\0

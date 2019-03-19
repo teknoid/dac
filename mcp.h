@@ -23,7 +23,6 @@
 #define MUSIC 			"/public/music/"
 //#define MUSIC 			"/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
-#define DISPLAY			"/dev/tty"
 #endif
 
 #ifdef SABRE28
