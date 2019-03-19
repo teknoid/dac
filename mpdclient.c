@@ -328,7 +328,6 @@ static void *mpdclient(void *arg) {
 		enum mpd_idle idle = mpd_run_idle(conn_status);
 		if (!idle) {
 			xlog("!idle");
-			mpd_connection_free(conn_status);
 			conn_status = NULL;
 			continue;
 		}
@@ -337,7 +336,6 @@ static void *mpdclient(void *arg) {
 			struct mpd_status* status = mpd_run_status(conn_status);
 			if (!status) {
 				xlog("!status");
-				mpd_connection_free(conn_status);
 				conn_status = NULL;
 				continue;
 			}
