@@ -47,6 +47,8 @@ static void dac_off() {
 void dac_power() {
 	if (!mcp->dac_power) {
 		dac_on();
+		// wait for XMOS USB boot
+		msleep(5000);
 		mpdclient_handle(KEY_PLAY);
 	} else {
 		mpdclient_handle(KEY_STOP);
