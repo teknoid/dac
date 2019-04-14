@@ -313,7 +313,7 @@ static void *mpdclient(void *arg) {
 		return (void *) 0;
 	}
 
-	struct mpd_connection *conn_status;
+	struct mpd_connection *conn_status = NULL;
 	while (1) {
 		msleep(500);
 
