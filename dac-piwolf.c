@@ -97,6 +97,12 @@ void dac_close() {
 
 void dac_handle(int c) {
 	switch (c) {
+	case KEY_VOLUMEUP:
+		dac_volume_up();
+		break;
+	case KEY_VOLUMEDOWN:
+		dac_volume_down();
+		break;
 	case KEY_PAUSE:
 	case KEY_PLAY:
 		workaround_volume();
