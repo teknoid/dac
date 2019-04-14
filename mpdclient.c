@@ -40,6 +40,8 @@ static struct mpd_connection *mpdclient_get_connection() {
 			return NULL;
 		}
 		if (mpd_connection_get_error(connection) == MPD_ERROR_SUCCESS) {
+			const unsigned int* v = mpd_connection_get_server_version(connection);
+			xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
 			return connection;
 		}
 		if (--timeout == 0) {
@@ -280,9 +282,6 @@ int mpdclient_init() {
 	if (!conn) {
 		return -1;
 	}
-
-	const unsigned int* v = mpd_connection_get_server_version(conn);
-	xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
 
 	// listen for mpd state changes
 	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
