@@ -1,12 +1,10 @@
 #include "i2c.h"
 
 #include <fcntl.h>
+#include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
-// !!! do not include when compiling on ARM board
-// #include <linux/i2c.h>
 
 #include "utils.h"
 
@@ -25,7 +23,7 @@ static int _get_shift(uint8_t mask) {
 }
 
 int i2c_read(uint8_t addr, uint8_t reg, char *val) {
-	char inbuf, outbuf;
+	__u8 inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
 
@@ -58,7 +56,7 @@ int i2c_read(uint8_t addr, uint8_t reg, char *val) {
 }
 
 int i2c_write(uint8_t addr, uint8_t reg, char value) {
-	char outbuf[2];
+	__u8 outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
 
