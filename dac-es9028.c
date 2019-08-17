@@ -153,6 +153,7 @@ static void dac_on() {
 
 static void dac_off() {
 	dac_mute();
+	display_fullscreen_string("---");
 
 	// power off Externals and wait to avoid speaker plop
 	digitalWrite(GPIO_EXT_POWER, 0);
