@@ -12,51 +12,51 @@
 #include "mcp.h"
 #include "utils.h"
 
-static int fd_lirc = -1;
+static int fd_lirc_rx = -1;
 static pthread_t thread_lirc;
 static void *lirc(void *arg);
 
-static void _lirc_socket() {
+static int _lirc_socket(char *device) {
 	struct sockaddr_un addr_un;
 
-	fd_lirc = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (fd_lirc == -1) {
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1) {
 		xlog("could not open LIRC socket");
 	}
 
 	addr_un.sun_family = AF_UNIX;
-	strcpy(addr_un.sun_path, LIRC_DEV);
-	if (connect(fd_lirc, (struct sockaddr *) &addr_un, sizeof(addr_un)) == -1) {
+	strcpy(addr_un.sun_path, device);
+	if (connect(fd, (struct sockaddr *) &addr_un, sizeof(addr_un)) == -1) {
 		xlog("could not connect to LIRC socket");
 	}
+	return fd;
 }
 
 void lirc_send(const char *remote, const char *command) {
 	char buffer[BUFSIZE];
 	int done, todo;
 
+	int fd_lirc_tx = _lirc_socket(LIRC_DEV);
 	memset(buffer, 0, BUFSIZE);
 	sprintf(buffer, "SEND_ONCE %s %s\n", remote, command);
 	// xlog("LIRC sending %s", buffer);
 	todo = strlen(buffer);
 	char *data = buffer;
 	while (todo > 0) {
-		done = write(fd_lirc, (void *) data, todo);
+		done = write(fd_lirc_tx, (void *) data, todo);
 		if (done < 0) {
 			xlog("could not send LIRC packet");
+			close(fd_lirc_tx);
 			return;
 		}
 		data += done;
 		todo -= done;
 	}
-	if (todo != 0) {
-		_lirc_socket(); // next try
-		xlog("LIRC socket reopened");
-	}
+	close(fd_lirc_tx);
 }
 
 int lirc_init() {
-	_lirc_socket();
+	fd_lirc_rx = _lirc_socket(LIRC_DEV);
 
 	// listen for lirc events
 	if (pthread_create(&thread_lirc, NULL, &lirc, NULL)) {
@@ -76,8 +76,8 @@ void lirc_close() {
 		xlog("Error joining thread_lirc");
 	}
 
-	if (fd_lirc) {
-		close(fd_lirc);
+	if (fd_lirc_rx) {
+		close(fd_lirc_rx);
 	}
 }
 
@@ -97,14 +97,14 @@ static void* lirc(void *arg) {
 
 	while (1) {
 		memset(buffer, 0, BUFSIZE);
-		int i = read(fd_lirc, buffer, BUFSIZE);
+		int i = read(fd_lirc_rx, buffer, BUFSIZE);
 		if (i == -1) {
-			_lirc_socket();
+			fd_lirc_rx = _lirc_socket(LIRC_DEV);
 			xlog("could not read LIRC packet, socket reopened");
 			sleep(1);
 			continue;
 		} else if (i == 0) {
-			_lirc_socket();
+			fd_lirc_rx = _lirc_socket(LIRC_DEV);
 			xlog("LIRC: 0 read, socket reopened");
 			sleep(1);
 			continue;

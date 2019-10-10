@@ -150,7 +150,7 @@ static void mcp_init() {
 	}
 #endif
 
-#if defined(LIRC_RECEIVE) || defined(LIRC_SEND)
+#ifdef LIRC_DEV
 	if (lirc_init() < 0) {
 		exit(EXIT_FAILURE);
 	}
@@ -160,7 +160,7 @@ static void mcp_init() {
 }
 
 static void mcp_close() {
-#ifdef LIRC_RECEIVE
+#ifdef LIRC_DEV
 	lirc_close();
 #endif
 

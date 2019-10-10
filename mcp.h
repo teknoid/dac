@@ -11,8 +11,8 @@
 
 #ifdef PIWOLF
 #define WIRINGPI
-//#define LIRC_SEND
-#define DEVINPUT_IR		"/dev/input/infrared"
+#define LIRC_DEV 		"/run/lirc/lircd"
+#define LIRC_REMOTE 	"audiophonics-wolfson"
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/public/music/"
 #endif
@@ -37,8 +37,6 @@
 #endif
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
-#define LIRC_REMOTE 	"audiophonics-wolfson"
-#define LIRC_DEV 		"/run/lirc/lircd-tx"
 #define MPD_HOST		"localhost"
 #define MPD_PORT		6600
 
