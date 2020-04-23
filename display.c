@@ -251,6 +251,9 @@ static void paint() {
 }
 
 static void clear_clocktick() {
+	if (countdown_fullscreen || mcp->menu) {
+		return;
+	}
 	if (!mcp->dac_power) {
 		mvaddch(CENTER, mcp->clock_h < 10 ? 1 : 2, ' ');
 	} else {
