@@ -1,7 +1,7 @@
 // #define ANUS
-#define PIWOLF
+// #define PIWOLF
 // #define SABRE18
-// #define SABRE28
+#define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
@@ -77,6 +77,7 @@ typedef struct mcp_state_t {
 	char album[BUFSIZE];
 	char extension[8];
 	int menu;
+	int ir_active;
 } mcp_state_t;
 extern mcp_state_t *mcp;
 
@@ -95,8 +96,8 @@ void dac_volume_up(void);
 void dac_volume_down(void);
 void dac_source(int);
 void dac_handle(int);
-int dac_config_get(const void *);
-void dac_config_set(const void *, int);
+int dac_status_get(const void *, const void *);
+void dac_status_set(const void *, const void *, int);
 
 int ir_init(void);
 void ir_close(void);
@@ -114,5 +115,7 @@ void mpdclient_handle(int);
 
 void replaygain(const char *);
 
-void system_shutdown(void);
-void system_reboot(void);
+int mcp_status_get(const void *, const void *);
+void mcp_status_set(const void *, const void *, int value);
+void mcp_system_shutdown(void);
+void mcp_system_reboot(void);

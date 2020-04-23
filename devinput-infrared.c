@@ -90,6 +90,10 @@ static void *ir(void *arg) {
 			continue;
 		}
 
+		if (!mcp->ir_active) {
+			continue;
+		}
+
 		switch (ev.value) {
 		case 0: // RELEASE
 			seq = 0;

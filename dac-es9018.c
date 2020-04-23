@@ -1,10 +1,9 @@
-#include "dac-es9018.h"
-
 #include <linux/input-event-codes.h>
 #include <unistd.h>
 #include <wiringPi.h>
 
 #include "utils.h"
+#include "dac-es9018.h"
 
 #define msleep(x) usleep(x*1000)
 
@@ -89,11 +88,11 @@ void dac_unmute() {
 void dac_source(int source) {
 }
 
-int dac_config_get(const void *ptr) {
+int dac_status_get(const void *p1, const void *p2) {
 	return 0;
 }
 
-void dac_config_set(const void *ptr, int value) {
+void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 int dac_init() {

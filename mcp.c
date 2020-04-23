@@ -16,10 +16,38 @@
 #include <wiringPi.h>
 #endif
 
+#ifdef SABRE28
+#include "display.h"
+#include "display-menu.h"
+#endif
+
 mcp_state_t *mcp;
 mcp_config_t *cfg;
 
-void system_shutdown() {
+int mcp_status_get(const void *p1, const void *p2) {
+	// const menuconfig_t *config = p1;
+	const menuitem_t *item = p2;
+	xlog("mcp_status_get %i", item->index);
+	switch (item->index) {
+	case 1:
+		return mcp->ir_active;
+	default:
+		return 0;
+	}
+}
+
+void mcp_status_set(const void *p1, const void *p2, int value) {
+	// const menuconfig_t *config = p1;
+	const menuitem_t *item = p2;
+	xlog("mcp_status_set %i", item->index);
+	switch (item->index) {
+	case 1:
+		mcp->ir_active = value;
+		return;
+	}
+}
+
+void mcp_system_shutdown() {
 	xlog("shutting down system now!");
 	if (mcp->dac_power) {
 		dac_power();
@@ -27,7 +55,7 @@ void system_shutdown() {
 	system("shutdown -h now");
 }
 
-void system_reboot() {
+void mcp_system_reboot() {
 	xlog("rebooting system now!");
 	if (mcp->dac_power) {
 		dac_power();
@@ -234,6 +262,7 @@ int main(int argc, char **argv) {
 	memset(mcp, 0, sizeof(*mcp));
 
 	// initialize modules
+	mcp->ir_active = 1;
 	mcp_init();
 
 	if (cfg->interactive) {
