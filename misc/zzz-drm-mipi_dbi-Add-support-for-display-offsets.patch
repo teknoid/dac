@@ -76,3 +76,28 @@ index 67c66f5ee591e80f..33f325f5af2b921f 100644
  	/**
  	 * @backlight: backlight device (optional)
  	 */
+diff --git a/drivers/gpu/drm/tiny/st7735r.c b/drivers/gpu/drm/tiny/st7735r.c
+index 3f4487c71..85f989e4f 100644
+--- a/drivers/gpu/drm/tiny/st7735r.c
++++ b/drivers/gpu/drm/tiny/st7735r.c
+@@ -75,16 +75,16 @@ static void jd_t18003_t01_pipe_enable(struct drm_simple_display_pipe *pipe,
+ 	mipi_dbi_command(dbi, MIPI_DCS_EXIT_INVERT_MODE);
+ 	switch (dbidev->rotation) {
+ 	default:
+-		addr_mode = ST7735R_MX | ST7735R_MY;
++		addr_mode = ST7735R_MX | ST7735R_MY | (1 << 3);
+ 		break;
+ 	case 90:
+-		addr_mode = ST7735R_MX | ST7735R_MV;
++		addr_mode = ST7735R_MX | ST7735R_MV | (1 << 3);
+ 		break;
+ 	case 180:
+-		addr_mode = 0;
++		addr_mode = (1 << 3);
+ 		break;
+ 	case 270:
+-		addr_mode = ST7735R_MY | ST7735R_MV;
++		addr_mode = ST7735R_MY | ST7735R_MV | (1 << 3);
+ 		break;
+ 	}
+ 	mipi_dbi_command(dbi, MIPI_DCS_SET_ADDRESS_MODE, addr_mode);
