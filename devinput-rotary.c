@@ -113,12 +113,12 @@ static void *rotary_axis(void *arg) {
 		switch (ev.value) {
 		case -1:
 #ifndef LOCALMAIN
-			dac_handle(KEY_VOLUMEUP);
+			dac_handle(KEY_VOLUMEDOWN);
 #endif
 			break;
 		case +1:
 #ifndef LOCALMAIN
-			dac_handle(KEY_VOLUMEDOWN);
+			dac_handle(KEY_VOLUMEUP);
 #endif
 			break;
 		}
