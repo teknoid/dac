@@ -1,0 +1,57 @@
+/*
+ * Device Tree overlay for SPI TFT LCD with ST7735R chip 160x128 (1,8") 
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "allwinner,sun4i-a10", "allwinner,sun7i-a20", "allwinner,sun8i-h3", "allwinner,sun50i-a64", "allwinner,sun50i-h5";
+
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+
+			spidev@0{
+				status = "disabled";
+			};
+
+		};
+	};
+
+        fragment@1 {
+                target = <&pio>;
+                __overlay__ {
+                        st7735r_pins: st7735r_pins {
+                                pins = "PG6","PG7";
+                                function = "gpio_out";
+                        };
+                };
+        };
+
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			display@0{
+				compatible = "jianda,jd-t18003-t01", "sitronix,st7735r";
+				reg = <0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&st7735r_pins>;
+
+				spi-max-frequency = <4000000>;
+				rotation = <270>;
+//  				txbuflen = <40960>;
+				reset-gpios = <&pio 6 7 0>;
+				dc-gpios = <&pio 6 6 0>;
+				debug = <32>;
+			};
+		};
+	};
+};
+

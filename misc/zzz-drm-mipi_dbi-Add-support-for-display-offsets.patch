@@ -1,0 +1,78 @@
+diff --git a/drivers/gpu/drm/drm_mipi_dbi.c b/drivers/gpu/drm/drm_mipi_dbi.c
+index 16bff1be4b8ac622..27fe81a53c88e338 100644
+--- a/drivers/gpu/drm/drm_mipi_dbi.c
++++ b/drivers/gpu/drm/drm_mipi_dbi.c
+@@ -238,6 +238,23 @@ int mipi_dbi_buf_copy(void *dst, struct drm_framebuffer *fb,
+ }
+ EXPORT_SYMBOL(mipi_dbi_buf_copy);
+ 
++static void mipi_dbi_set_window_address(struct mipi_dbi_dev *dbidev,
++					unsigned int xs, unsigned int xe,
++					unsigned int ys, unsigned int ye)
++{
++	struct mipi_dbi *dbi = &dbidev->dbi;
++
++	xs += 1;
++	xe += 1;
++	ys += 2;
++	ye += 2;
++
++	mipi_dbi_command(dbi, MIPI_DCS_SET_COLUMN_ADDRESS, (xs >> 8) & 0xff,
++			 xs & 0xff, (xe >> 8) & 0xff, xe & 0xff);
++	mipi_dbi_command(dbi, MIPI_DCS_SET_PAGE_ADDRESS, (ys >> 8) & 0xff,
++			 ys & 0xff, (ye >> 8) & 0xff, ye & 0xff);
++}
++
+ static void mipi_dbi_fb_dirty(struct drm_framebuffer *fb, struct drm_rect *rect)
+ {
+ 	struct drm_gem_object *gem = drm_gem_fb_get_obj(fb, 0);
+@@ -271,12 +288,8 @@ static void mipi_dbi_fb_dirty(struct drm_framebuffer *fb, struct drm_rect *rect)
+ 		tr = cma_obj->vaddr;
+ 	}
+ 
+-	mipi_dbi_command(dbi, MIPI_DCS_SET_COLUMN_ADDRESS,
+-			 (rect->x1 >> 8) & 0xff, rect->x1 & 0xff,
+-			 ((rect->x2 - 1) >> 8) & 0xff, (rect->x2 - 1) & 0xff);
+-	mipi_dbi_command(dbi, MIPI_DCS_SET_PAGE_ADDRESS,
+-			 (rect->y1 >> 8) & 0xff, rect->y1 & 0xff,
+-			 ((rect->y2 - 1) >> 8) & 0xff, (rect->y2 - 1) & 0xff);
++	mipi_dbi_set_window_address(dbidev, rect->x1, rect->x2 - 1, rect->y1,
++				    rect->y2 - 1);
+ 
+ 	ret = mipi_dbi_command_buf(dbi, MIPI_DCS_WRITE_MEMORY_START, tr,
+ 				   width * height * 2);
+@@ -366,10 +379,7 @@ static void mipi_dbi_blank(struct mipi_dbi_dev *dbidev)
+ 
+ 	memset(dbidev->tx_buf, 0, len);
+ 
+-	mipi_dbi_command(dbi, MIPI_DCS_SET_COLUMN_ADDRESS, 0, 0,
+-			 ((width - 1) >> 8) & 0xFF, (width - 1) & 0xFF);
+-	mipi_dbi_command(dbi, MIPI_DCS_SET_PAGE_ADDRESS, 0, 0,
+-			 ((height - 1) >> 8) & 0xFF, (height - 1) & 0xFF);
++	mipi_dbi_set_window_address(dbidev, 0, width - 1, 0, height - 1);
+ 	mipi_dbi_command_buf(dbi, MIPI_DCS_WRITE_MEMORY_START,
+ 			     (u8 *)dbidev->tx_buf, len);
+ 
+diff --git a/include/drm/drm_mipi_dbi.h b/include/drm/drm_mipi_dbi.h
+index 67c66f5ee591e80f..33f325f5af2b921f 100644
+--- a/include/drm/drm_mipi_dbi.h
++++ b/include/drm/drm_mipi_dbi.h
+@@ -109,6 +109,18 @@ struct mipi_dbi_dev {
+ 	 */
+ 	unsigned int rotation;
+ 
++	/**
++	 * @left_offset: Horizontal offset of the display relative to the
++	 *               controller's driver array
++	 */
++	unsigned int left_offset;
++
++	/**
++	 * @top_offset: Vertical offset of the display relative to the
++	 *              controller's driver array
++	 */
++	unsigned int top_offset;
++
+ 	/**
+ 	 * @backlight: backlight device (optional)
+ 	 */

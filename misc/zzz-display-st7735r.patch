@@ -1,0 +1,17 @@
+diff --git a/drivers/staging/fbtft/fb_st7735r.c b/drivers/staging/fbtft/fb_st7735r.c
+index 9670a8989..5879182cd 100644
+--- a/drivers/staging/fbtft/fb_st7735r.c
++++ b/drivers/staging/fbtft/fb_st7735r.c
+@@ -86,10 +86,10 @@ static const s16 default_init_sequence[] = {
+ static void set_addr_win(struct fbtft_par *par, int xs, int ys, int xe, int ye)
+ {
+ 	write_reg(par, MIPI_DCS_SET_COLUMN_ADDRESS,
+-		  xs >> 8, xs & 0xFF, xe >> 8, xe & 0xFF);
++		  xs >> 8, (xs + 1) & 0xFF, xe >> 8, (xe + 1) & 0xFF);
+ 
+ 	write_reg(par, MIPI_DCS_SET_PAGE_ADDRESS,
+-		  ys >> 8, ys & 0xFF, ye >> 8, ye & 0xFF);
++		  ys >> 8, (ys + 2) & 0xFF, ye >> 8, (ye + 2) & 0xFF);
+ 
+ 	write_reg(par, MIPI_DCS_WRITE_MEMORY_START);
+ }
