@@ -66,7 +66,6 @@ typedef struct mcp_state_t {
 	int mpd_rate;
 	int clock_h;
 	int clock_m;
-	int clock_tick;
 	int nightmode;
 	double load;
 	double temp;
@@ -116,6 +115,6 @@ void mpdclient_handle(int);
 void replaygain(const char *);
 
 int mcp_status_get(const void *, const void *);
-void mcp_status_set(const void *, const void *, int value);
+void mcp_status_set(const void *, const void *, int);
 void mcp_system_shutdown(void);
 void mcp_system_reboot(void);

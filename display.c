@@ -11,7 +11,6 @@
 
 #include "display-sysfont.h"
 #include "display-menu.h"
-#include "mcp.h"
 #include "utils.h"
 
 #define msleep(x) usleep(x*1000)
@@ -19,11 +18,11 @@
 // #define LOCALMAIN
 
 #ifdef LOCALMAIN
-#include "es9028.h"
-#endif
-
-#ifndef DISPLAY
+#include "dac-es9028.h"
+#undef DISPLAY
 #define DISPLAY			"/dev/tty"
+#else
+#include "mcp.h"
 #endif
 
 static char fullscreen[4]; // xxx\0
@@ -158,11 +157,7 @@ static void songinfo(int line) {
 }
 
 static void systeminfo(int line) {
-	if (mcp->clock_tick) {
-		mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
-	} else {
-		mvprintw(line, 0, "%d %02d", mcp->clock_h, mcp->clock_m);
-	}
+	mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
 	if (mcp->temp >= 60) {
 		color_set(RED, NULL);
 		mvprintw(line, 8, "%2.1f", mcp->temp);
@@ -180,7 +175,6 @@ static void systeminfo(int line) {
 }
 
 static void paint_play() {
-	clear();
 	curs_set(0);
 	color_set(WHITE, NULL);
 	check_nightmode();
@@ -189,11 +183,9 @@ static void paint_play() {
 	songinfo(MAINAREA);
 	check_nightmode();
 	systeminfo(FOOTER);
-	refresh();
 }
 
 static void paint_stop() {
-	clear();
 	curs_set(0);
 	color_set(WHITE, NULL);
 	check_nightmode();
@@ -202,32 +194,26 @@ static void paint_stop() {
 	songinfo(MAINAREA);
 	check_nightmode();
 	systeminfo(FOOTER);
-	refresh();
 }
 
 static void paint_stdby() {
 	// TODO motd / uname / df -h
-	clear();
 	curs_set(0);
 	color_set(WHITE, NULL);
 	check_nightmode();
-	systeminfo(3);
-	refresh();
+	systeminfo(CENTER);
 }
 
 static void paint_source_ext() {
-	clear();
 	curs_set(0);
 	color_set(WHITE, NULL);
 	check_nightmode();
 	audioinfo(HEADER);
 	attroff(A_BOLD);
 	systeminfo(FOOTER);
-	refresh();
 }
 
 static void paint_fullscreen() {
-	clear();
 	color_set(WHITE, NULL);
 	attron(A_BOLD);
 	unsigned int x = 0;
@@ -235,6 +221,40 @@ static void paint_fullscreen() {
 		char c = fullscreen[i];
 		dotchar(x, 0, c);
 		x += 6;
+	}
+}
+
+static void paint() {
+	if (--countdown_fullscreen > 0) {
+		return; // still in fullscreen mode
+	}
+	if (mcp->menu) {
+		if (--countdown_menu == 0) {
+			mcp->menu = 0; // no input -> close
+			xlog("menu timeout");
+		} else {
+			return; // still in menu mode
+		}
+	}
+
+	clear();
+	if (!mcp->dac_power) {
+		paint_stdby();
+	} else if (mcp->dac_source != mpd) {
+		paint_source_ext();
+	} else if (mcp->mpd_state == MPD_STATE_PLAY) {
+		paint_play();
+	} else {
+		paint_stop();
+	}
+	refresh();
+}
+
+static void clear_clocktick() {
+	if (!mcp->dac_power) {
+		mvaddch(CENTER, mcp->clock_h < 10 ? 1 : 2, ' ');
+	} else {
+		mvaddch(FOOTER, mcp->clock_h < 10 ? 1 : 2, ' ');
 	}
 	refresh();
 }
@@ -267,43 +287,20 @@ static void get_system_status() {
 	}
 }
 
-static void display_update() {
-	if (--countdown_fullscreen > 0) {
-		return; // still in fullscreen mode
-	}
-	if (mcp->menu) {
-		if (--countdown_menu == 0) {
-			mcp->menu = 0; // no input -> close
-			xlog("menu timeout");
-		} else {
-			return; // still in menu mode
-		}
-	}
-	if (!mcp->dac_power) {
-		paint_stdby();
-		return;
-	}
-	if (mcp->dac_source != mpd) {
-		paint_source_ext();
-		return;
-	}
-	if (mcp->mpd_state == MPD_STATE_STOP || mcp->mpd_state == MPD_STATE_PAUSE) {
-		paint_stop();
-		return;
-	}
-	paint_play();
-}
-
 void display_fullscreen_number(int value) {
+	clear();
 	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%d", value);
 	paint_fullscreen();
+	refresh();
 }
 
 void display_fullscreen_string(char *value) {
+	clear();
 	countdown_fullscreen = 10;
 	sprintf(fullscreen, "%s", value);
 	paint_fullscreen();
+	refresh();
 }
 
 int display_init() {
@@ -370,23 +367,21 @@ void *display(void *arg) {
 	}
 
 	while (1) {
-		mcp->clock_tick = 1;
 		get_system_status();
-		display_update();
+		paint();
 
 		if (!mcp->dac_power) {
 			msleep(500);
-			mcp->clock_tick = 0;
-			display_update();
+			clear_clocktick();
 			msleep(500);
 		} else {
 			msleep(250);
-			display_update();
+			paint();
 			msleep(250);
-			mcp->clock_tick = 0;
-			display_update();
+			paint();
+			clear_clocktick();
 			msleep(250);
-			display_update();
+			paint();
 			msleep(250);
 		}
 	}
@@ -399,9 +394,14 @@ mcp_config_t *cfg;
 
 void mpdclient_handle(int key) {
 }
-void system_shutdown() {
+void mcp_system_shutdown() {
 }
-void system_reboot() {
+void mcp_system_reboot() {
+}
+int mcp_status_get(const void *p1, const void *p2) {
+	return 0;
+}
+void mcp_status_set(const void *p1, const void *p2, int value) {
 }
 
 int main(void) {

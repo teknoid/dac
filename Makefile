@@ -25,8 +25,8 @@ sabre18: $(COBJS-SABRE18)
 sabre28: $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -lmenu -o mcp $(COBJS-SABRE28)
 
-display: display.o display-menu.o utils.o dac.o
-	$(CC) $(CFLAGS) $(LIBS) -lncurses -lmenu -o display display.o display-menu.o utils.o dac.o
+display: display.o display-menu.o utils.o i2c.o dac-es9028.o
+	$(CC) $(CFLAGS) $(LIBS) -lwiringPi -lncurses -lmenu -o display display.o display-menu.o utils.o i2c.o dac-es9028.o
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
