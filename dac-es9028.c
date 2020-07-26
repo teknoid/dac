@@ -251,16 +251,19 @@ void dac_source(int source) {
 	case mpd:
 		i2c_write(ADDR, REG_INPUT, 0x04); // auto detect DSD/PCM
 		i2c_write(ADDR, REG_SOURCE, 0x00); // DATA_CLK
+		dac_unmute();
 		display_fullscreen_string("MPD");
 		break;
 	case opt:
 		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
 		i2c_write(ADDR, REG_SOURCE, 0x70); // DATA7
+		dac_unmute();
 		display_fullscreen_string("OPT");
 		break;
 	case coax:
 		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
 		i2c_write(ADDR, REG_SOURCE, 0x80); // DATA8
+		dac_unmute();
 		display_fullscreen_string("COX");
 		break;
 	}
