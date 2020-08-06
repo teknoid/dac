@@ -374,15 +374,15 @@ void *display(void *arg) {
 		paint();
 
 		if (!mcp->dac_power) {
-			msleep(500);
-			clear_clocktick();
-			msleep(500);
+//			msleep(500);
+//			clear_clocktick();
+			msleep(500 * 10);
 		} else {
 			msleep(250);
 			paint();
 			msleep(250);
 			paint();
-			clear_clocktick();
+//			clear_clocktick();
 			msleep(250);
 			paint();
 			msleep(250);

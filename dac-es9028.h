@@ -13,7 +13,7 @@
 
 
 //
-// based on inspirations from dimdims TFT HiFiDuino Pro Project
+// inspired by dimdims TFT HiFiDuino Pro Project
 // http://www.dimdim.gr/tft-hifiduino-pro-project/
 //
 

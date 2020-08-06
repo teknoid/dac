@@ -4,6 +4,23 @@ TODO
 
 * ascii arts: cfire, astreroids etc...
 
+* clear screen on shutdown
+
+* setup, playlist play/stop nur zeigen wenn DAC an ist
+
+* menu timeout geht nicht mehr?
+
+* system menu:
+	- switch mpd source: public / sda
+	- enable/disable wlan0
+	- enable/disable wifi hotspot for mpdroid
+	- switches 1-4
+	- wecker stellen
+
+* idle screen:
+	- oben li datum; re Uhr ohne clocktick
+	- mitte roating alle 3s via status counter der sich zurücksetzt: kernel version, disk free, uptime, IP addr eth0/wlan0
+	- unten li temp sys, temp sda; re load
 
 
 

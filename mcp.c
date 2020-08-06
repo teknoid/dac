@@ -16,7 +16,7 @@
 #include <wiringPi.h>
 #endif
 
-#ifdef SABRE28
+#if defined(SABRE18) || defined(SABRE28)
 #include "display.h"
 #include "display-menu.h"
 #endif

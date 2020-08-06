@@ -1,4 +1,3 @@
-#include <curses.h>
 #include <menu.h>
 
 /*

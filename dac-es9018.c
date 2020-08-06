@@ -128,6 +128,7 @@ void dac_handle(int c) {
 	case KEY_POWER:
 		dac_power();
 		break;
+	case KEY_REDO:
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);
 		break;

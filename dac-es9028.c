@@ -157,7 +157,7 @@ static void dac_off() {
 	digitalWrite(GPIO_EXT_POWER, 0);
 	mcp->ext_power = 0;
 	xlog("switched EXT off");
-	sleep(6);
+	sleep(10);
 
 	// power off DAC
 	digitalWrite(GPIO_DAC_POWER, 0);
@@ -343,6 +343,7 @@ void dac_handle(int c) {
 	case KEY_POWER:
 		dac_power();
 		break;
+	case 182: // KEY_REDO is defined different in curses.h !!!
 	case KEY_TIME:
 		gpio_toggle(GPIO_LAMP);
 		break;
