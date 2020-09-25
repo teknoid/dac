@@ -1,6 +1,10 @@
 /*
  * Device Tree overlay for SPI TFT LCD with ST7735R chip 160x128 (1,8") 
  *
+ * compile:
+ * dtc -@ -I dts -O dtb -o display-st7735r.dtbo display-st7735r.dts
+ *
+ * armbian-add-overlay display-st7735r.dts
  */
 
 /dts-v1/;
@@ -46,7 +50,10 @@
 
 				spi-max-frequency = <4000000>;
 				rotation = <270>;
-//  				txbuflen = <40960>;
+				bgr = <0>;
+				bpp = <1>;
+				fps = <25>;
+				buswidth = <8>;
 				reset-gpios = <&pio 6 7 0>;
 				dc-gpios = <&pio 6 6 0>;
 				debug = <32>;
