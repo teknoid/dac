@@ -26,7 +26,22 @@ transfer() {
   fi
 }
 
+link() {
+  TGT=$1
+  CUR=`mpc -f %file% current`
+  F=`basename "$CUR"`
+  FFROM="$MUSIC/$CUR"
+  FTO="$MUSIC/$TGT/$F"
+  if [ -f "$FFROM" ] && [ ! -L "$FTO" ]; then
+    echo "linking $FFROM --> $FTO"
+    ln -s "$FFROM" "$FTO"
+  fi
+}
+
 case $CMD in
+  SELECT)
+    link "01 sortiert/00 selection"
+    ;;
   RANDOM)
     mpc clear; mpc listall | shuf -n 100 | mpc add; mpc play
     ;;
@@ -62,20 +77,20 @@ case $CMD in
     ;;
   F1)
 #    transfer "01 sortiert/02 aktuell"
-    transfer "01 sortiert/04 eurodance"
+#    transfer "01 sortiert/04 eurodance"
 #    transfer "01 sortiert/13 oldies"
     ;;
   F2)
-    transfer "01 sortiert/01 top"
+#    transfer "01 sortiert/01 top"
 #    transfer "01 sortiert/17 house"
     ;;
   F3)
-    transfer "01 sortiert/03 modern"
+#    transfer "01 sortiert/03 modern"
     ;;
   F4)
 #    transfer "01 sortiert/07 classics"
 #    transfer "01 sortiert/06 extended"
-    transfer "01 sortiert/05 umz"
+#    transfer "01 sortiert/05 umz"
     ;;
   *)
     ;;

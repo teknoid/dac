@@ -71,6 +71,7 @@ static const char *get_filename_ext(const char *filename) {
 
 static void external(char *key) {
 	char command[64];
+	xlog("external %s", key);
 	strcpy(command, EXTERNAL);
 	strcat(command, " ");
 	strcat(command, key);
@@ -271,6 +272,21 @@ void mpdclient_handle(int key) {
 	case KEY_EJECTCD:
 		playlist_mode = 0;
 		external("RANDOM");
+		break;
+	case KEY_SELECT:
+		external("SELECT");
+		break;
+	case KEY_F1:
+		external("F1");
+		break;
+	case KEY_F2:
+		external("F2");
+		break;
+	case KEY_F3:
+		external("F3");
+		break;
+	case KEY_F4:
+		external("F4");
 		break;
 	}
 }
