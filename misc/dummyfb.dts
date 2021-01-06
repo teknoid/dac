@@ -1,0 +1,35 @@
+/*
+ * Device Tree overlay for setting up a dummy framebuffer 160x128 pixels 
+ *
+ * compile:
+ * dtc -@ -I dts -O dtb -o dummyfb.dtbo dummyfb.dts
+ *
+ * armbian-add-overlay dummyfb.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "allwinner,sun4i-a10", "allwinner,sun7i-a20", "allwinner,sun8i-h3", "allwinner,sun50i-a64", "allwinner,sun50i-h5";
+
+	fragment@0 {
+        target-path = "/chosen";
+        __overlay__ {
+
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			framebuffer0: framebuffer@1817000 {
+				compatible = "simple-framebuffer";
+				reg = <0x1817000 (160 * 128 * 2)>;
+				width = <160>;
+				height = <128>;
+				stride = <(160 * 2)>;
+				format = "r5g6b5";
+				status = "okay";
+			};
+        };
+    };
+};

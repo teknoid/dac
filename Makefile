@@ -2,14 +2,18 @@ CFLAGS = -Wall
 
 LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
-SRCS = $(wildcard *.c)
-OBJS = $(SRCS:.c=.o)
+SRCS := $(shell find . -name '*.c')
+OBJS := $(patsubst %.c, %.o, $(SRCS))
 
-COBJS-ANUS 		= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-anus.o display.o
-COBJS-PIWOLF 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-piwolf.o devinput-infrared.o lirc.o
-COBJS-SABRE18 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9018.o devinput-infrared.o
-COBJS-SABRE28 	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o dac-es9028.o i2c.o display.o display-menu.o devinput-infrared.o devinput-rotary.o
- 
+COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o 
+COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o display.o
+COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o lirc.o
+COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o
+COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o i2c.o display.o display-menu.o devinput-infrared.o devinput-rotary.o st7735r/gpio.o st7735r/spi.o st7735r/st7735.o st7735r/fbmap.c
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@ 
+
 all: $(OBJS)
 	@echo "To create executables specify target: anus | piwolf | sabre18 | sabre28"
  
@@ -31,13 +35,11 @@ display: display.o display-menu.o utils.o i2c.o dac-es9028.o
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
 
-.c.o:
-	$(CC) -c $(CFLAGS) $< 
-
 .PHONY: clean install install-local install-service keytable
 
 clean:
-	rm -f *.o mcp display rotary2uinput test
+	find . -type f -name '*.o' -delete
+	rm -f mcp display rotary2uinput test
 
 install:
 	@echo "[Installing and starting mcp]"
