@@ -118,7 +118,7 @@ static void load_playlist(struct plist *playlist) {
 		create_playlist(playlist);
 	}
 	mpd_run_play_pos(conn, playlist->pos);
-	xlog("[%d] loaded playlist", playlist->key);
+	xlog("loaded playlist %s", playlist->name);
 }
 
 // update database for list 0, load list 0 and start playing from beginning
@@ -142,7 +142,7 @@ static void load_incoming() {
 	xlog("[0] updated %s", playlist->path);
 	mpd_run_add(conn, playlist->path);
 	mpd_run_play_pos(conn, 0);
-	xlog("[0] loaded playlist");
+	xlog("loaded playlist %s", playlist->name);
 }
 
 static void toggle_pause() {
@@ -225,6 +225,12 @@ void mpdclient_handle(int key) {
 
 	if (key == KEY_0) {
 		load_incoming();
+		current_song = -1;
+		sleep(1);
+		struct mpd_song *song = mpd_run_current_song(conn);
+		if (song) {
+			process_song(song, 0);
+		}
 		return;
 	}
 
@@ -232,6 +238,12 @@ void mpdclient_handle(int key) {
 		playlist = &playlists[key - 1];
 		load_playlist(playlist);
 		playlist_mode = 1;
+		current_song = -1;
+		sleep(1);
+		struct mpd_song *song = mpd_run_current_song(conn);
+		if (song) {
+			process_song(song, playlist->pos);
+		}
 		return;
 	}
 
