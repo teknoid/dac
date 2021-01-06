@@ -235,6 +235,8 @@ static void paint() {
 		} else {
 			return; // still in menu mode
 		}
+	} else {
+		countdown_menu = 0;
 	}
 
 	clear();

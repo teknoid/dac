@@ -344,5 +344,7 @@ void menu_handle(int c) {
 	}
 
 	// update screen
-	menu_paint();
+	if (mcp->menu) {
+		menu_paint();
+	}
 }
