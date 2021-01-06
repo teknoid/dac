@@ -39,7 +39,7 @@
 				compatible = "rotary-encoder";
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_rotary>;
-				gpios = <&pio 6 8 1>, <&pio 6 9 1>; /* PG8 PG9 GPIO_ACTIVE_LOW */
+				gpios = <&pio 6 9 1>, <&pio 6 8 1>; /* PG8 PG9 GPIO_ACTIVE_LOW */
 				linux,axis = <1>; /* REL_Y */
 				rotary-encoder,relative-axis;
 				rotary-encoder,half-period;

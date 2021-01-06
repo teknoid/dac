@@ -48,7 +48,7 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&st7735r_pins>;
 
-				spi-max-frequency = <4000000>;
+				spi-max-frequency = <16000000>;
 				rotation = <270>;
 				bgr = <0>;
 				bpp = <1>;

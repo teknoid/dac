@@ -9,7 +9,7 @@ COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o
 COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o display.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o lirc.o
 COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o
-COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o i2c.o display.o display-menu.o devinput-infrared.o devinput-rotary.o st7735r/gpio.o st7735r/spi.o st7735r/st7735.o st7735r/fbmap.c
+COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o i2c.o display.o display-menu.o devinput-infrared.o devinput-rotary.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
