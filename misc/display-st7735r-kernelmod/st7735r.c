@@ -143,7 +143,7 @@ static const struct st7735r_cfg jd_t18003_t01_cfg = {
 	.mode		= { DRM_SIMPLE_MODE(128, 160, 28, 35) },
 	/* Cannot read from Adafruit 1.8" display via SPI */
 	.write_only	= true,
-	.rgb		= false,
+	.rgb		= true,
 };
 
 static const struct st7735r_cfg rh128128t_cfg = {

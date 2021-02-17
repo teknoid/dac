@@ -13,7 +13,8 @@ clean:
 
 install:
 	install -m 0644 st7735r.ko /lib/modules/$(shell uname -r)/kernel/drivers/gpu/drm/tiny/
-	depmod -a
+	rmmod st7735r || true
+	modprobe st7735r
 	
 .PHONY: modules modules_install install clean
 
