@@ -1,0 +1,10 @@
+/*.o
+/*.o.*
+/*.ko
+/*.ko.*
+/*.mod
+/*.mod.*
+/*.modules.order.*
+/.Module.*
+/Module.*
+/modules.order
