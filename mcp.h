@@ -1,7 +1,7 @@
 // #define ANUS
-// #define PIWOLF
+#define PIWOLF
 // #define SABRE18
-#define SABRE28
+// #define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
@@ -11,24 +11,22 @@
 
 #ifdef PIWOLF
 #define WIRINGPI
-#define LIRC_DEV 		"/run/lirc/lircd"
-#define LIRC_REMOTE 	"audiophonics-wolfson"
+#define DEVINPUT_IR		"/dev/input/infrared"
 #define LOGFILE			"/var/log/mcp.log"
-#define MUSIC 			"/public/music/"
+#define MUSIC 			"/var/lib/mpd/music/"
 #endif
 
 #ifdef SABRE18
 #define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
-#define MUSIC 			"/public/music/"
-//#define MUSIC 			"/music/"
+#define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE28
 #define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
-#define MUSIC 			"/public/music/"
+#define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
 #define DEVINPUT_RA		"/dev/input/rotary_axis"
 #define DEVINPUT_RB		"/dev/input/rotary_button"
@@ -103,10 +101,6 @@ void ir_close(void);
 
 int rotary_init(void);
 void rotary_close(void);
-
-int lirc_init(void);
-void lirc_close(void);
-void lirc_send(const char *, const char *);
 
 int mpdclient_init(void);
 void mpdclient_close(void);

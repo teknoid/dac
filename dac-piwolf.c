@@ -1,31 +1,118 @@
-#include <linux/input-event-codes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <errno.h>
+#include <sched.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <linux/input-event-codes.h>
+
 #include <wiringPi.h>
 
 #include "mcp.h"
 #include "utils.h"
 
 #define GPIO_POWER		0
+#define GPIO_LIRC_TX	3
 
-#define msleep(x) usleep(x*1000)
+#define TH1				9020
+#define	TH2				4460
+
+#define T1				580
+#define T01				1660
+#define T00				550
+
+#define KEY_VUP			0x00FD20DF
+#define KEY_VDOWN		0x00FD10EF
+#define KEY_CUP			0x00FD609F
+#define KEY_CDOWN		0x00FD50AF
+
+static volatile unsigned long *systReg = 0;
+
+static int init_micros() {
+	// based on pigpio source; simplified and re-arranged
+	int fdMem = open("/dev/mem", O_RDWR | O_SYNC);
+	if (fdMem < 0) {
+		perror("Cannot map memory (need sudo?)\n");
+		return -1;
+	}
+	// figure out the address
+	FILE *f = fopen("/proc/cpuinfo", "r");
+	char buf[1024];
+	fgets(buf, sizeof(buf), f); // skip first line
+	fgets(buf, sizeof(buf), f); // model name
+	unsigned long phys = 0;
+	if (strstr(buf, "ARMv6")) {
+		phys = 0x20000000;
+	} else if (strstr(buf, "ARMv7")) {
+		phys = 0x3F000000;
+	} else if (strstr(buf, "ARMv8")) {
+		phys = 0x3F000000;
+	} else {
+		perror("Unknown CPU type\n");
+		return -1;
+	}
+	fclose(f);
+	systReg = (unsigned long*) mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fdMem, phys + 0x3000);
+	return 0;
+}
+
+static void delay_micros(unsigned int us) {
+	// usleep() on its own gives latencies 20-40 us; this combination gives < 25 us.
+	unsigned long start = systReg[1];
+	if (us >= 100)
+		usleep(us - 50);
+	while ((systReg[1] - start) < us)
+		;
+}
+
+static void lirc_send(unsigned long m) {
+	unsigned long mask = 1 << 31;
+
+	// sync
+	digitalWrite(GPIO_LIRC_TX, 0);
+	delay_micros(TH1);
+	digitalWrite(GPIO_LIRC_TX, 1);
+	delay_micros(TH2);
+
+	while (mask) {
+		digitalWrite(GPIO_LIRC_TX, 0);
+		delay_micros(T1);
+		digitalWrite(GPIO_LIRC_TX, 1);
+
+		if (m & mask)
+			delay_micros(T01); // 1
+		else
+			delay_micros(T00); // 0
+
+		mask = mask >> 1;
+	}
+	digitalWrite(GPIO_LIRC_TX, 0);
+	delay_micros(T1);
+	digitalWrite(GPIO_LIRC_TX, 1);
+
+	usleep(100000);
+}
 
 // WM8741 workaround: switch through all channels
 static void workaround_channel() {
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
+	lirc_send(KEY_CUP);
+	lirc_send(KEY_CUP);
+	lirc_send(KEY_CUP);
+	lirc_send(KEY_CUP);
+	lirc_send(KEY_VDOWN);
+	lirc_send(KEY_VUP);
 	xlog("WM8741 workaround channel");
 }
 
 // WM8741 workaround: touch volume
 static void workaround_volume() {
 	dac_volume_down();
-	msleep(100);
 	dac_volume_up();
-	msleep(100);
 	xlog("WM8741 workaround volume");
 }
 
@@ -54,13 +141,13 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEUP");
 	xlog("VOL++");
+	lirc_send(KEY_VUP);
 }
 
 void dac_volume_down() {
-	lirc_send(LIRC_REMOTE, "KEY_VOLUMEDOWN");
 	xlog("VOL--");
+	lirc_send(KEY_VDOWN);
 }
 
 void dac_mute() {
@@ -80,7 +167,12 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 int dac_init() {
+	init_micros();
+
 	pinMode(GPIO_POWER, OUTPUT);
+
+	pinMode(GPIO_LIRC_TX, OUTPUT);
+	digitalWrite(GPIO_LIRC_TX, 1);
 
 	mcp->dac_power = digitalRead(GPIO_POWER);
 	if (mcp->dac_power) {
@@ -112,7 +204,7 @@ void dac_handle(int c) {
 		workaround_channel();
 		break;
 	case KEY_SELECT:
-		lirc_send(LIRC_REMOTE, "KEY_CHANNELUP");
+		lirc_send(KEY_CUP);
 		xlog("CHANNELUP");
 		break;
 	case KEY_POWER:

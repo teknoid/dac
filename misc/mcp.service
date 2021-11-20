@@ -6,6 +6,7 @@ After=mpd.service
 Type=simple
 User=root
 ExecStart=/usr/local/bin/mcp
+ExecStartPre=/usr/bin/ir-keytable -c -w /etc/rc_keymaps/universum
 
 [Install]
 WantedBy=multi-user.target

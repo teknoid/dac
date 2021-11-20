@@ -25,6 +25,7 @@ mcp_state_t *mcp;
 mcp_config_t *cfg;
 
 int mcp_status_get(const void *p1, const void *p2) {
+#if defined(SABRE18) || defined(SABRE28)
 	// const menuconfig_t *config = p1;
 	const menuitem_t *item = p2;
 	xlog("mcp_status_get %i", item->index);
@@ -34,9 +35,13 @@ int mcp_status_get(const void *p1, const void *p2) {
 	default:
 		return 0;
 	}
+#else
+	return 0;
+#endif
 }
 
 void mcp_status_set(const void *p1, const void *p2, int value) {
+#if defined(SABRE18) || defined(SABRE28)
 	// const menuconfig_t *config = p1;
 	const menuitem_t *item = p2;
 	xlog("mcp_status_set %i", item->index);
@@ -45,6 +50,7 @@ void mcp_status_set(const void *p1, const void *p2, int value) {
 		mcp->ir_active = value;
 		return;
 	}
+#endif
 }
 
 void mcp_system_shutdown() {
@@ -141,12 +147,9 @@ static void daemonize() {
 	umask(0);
 	chdir("/");
 
-#ifndef LIRC_RECEIVE
-	// bei LIRC offen lassen !!! sonst spint lirc bei system()
 	close(STDIN_FILENO);
 	close(STDOUT_FILENO);
 	close(STDERR_FILENO);
-#endif
 
 	xlog("MCP forked into background");
 }
@@ -178,20 +181,10 @@ static void mcp_init() {
 	}
 #endif
 
-#ifdef LIRC_DEV
-	if (lirc_init() < 0) {
-		exit(EXIT_FAILURE);
-	}
-#endif
-
 	xlog("all modules successfully initialized");
 }
 
 static void mcp_close() {
-#ifdef LIRC_DEV
-	lirc_close();
-#endif
-
 #ifdef DEVINPUT_IR
 	ir_close();
 #endif
