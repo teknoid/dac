@@ -1,14 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
-#include <errno.h>
-#include <sched.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
 #include <linux/input-event-codes.h>
 
 #include <wiringPi.h>
@@ -30,45 +23,6 @@
 #define KEY_VDOWN		0x00FD10EF
 #define KEY_CUP			0x00FD609F
 #define KEY_CDOWN		0x00FD50AF
-
-static volatile unsigned long *systReg = 0;
-
-static int init_micros() {
-	// based on pigpio source; simplified and re-arranged
-	int fdMem = open("/dev/mem", O_RDWR | O_SYNC);
-	if (fdMem < 0) {
-		perror("Cannot map memory (need sudo?)\n");
-		return -1;
-	}
-	// figure out the address
-	FILE *f = fopen("/proc/cpuinfo", "r");
-	char buf[1024];
-	fgets(buf, sizeof(buf), f); // skip first line
-	fgets(buf, sizeof(buf), f); // model name
-	unsigned long phys = 0;
-	if (strstr(buf, "ARMv6")) {
-		phys = 0x20000000;
-	} else if (strstr(buf, "ARMv7")) {
-		phys = 0x3F000000;
-	} else if (strstr(buf, "ARMv8")) {
-		phys = 0x3F000000;
-	} else {
-		perror("Unknown CPU type\n");
-		return -1;
-	}
-	fclose(f);
-	systReg = (unsigned long*) mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fdMem, phys + 0x3000);
-	return 0;
-}
-
-static void delay_micros(unsigned int us) {
-	// usleep() on its own gives latencies 20-40 us; this combination gives < 25 us.
-	unsigned long start = systReg[1];
-	if (us >= 100)
-		usleep(us - 50);
-	while ((systReg[1] - start) < us)
-		;
-}
 
 static void lirc_send(unsigned long m) {
 	unsigned long mask = 1 << 31;
@@ -167,6 +121,7 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 int dac_init() {
+	elevate_realtime(3);
 	init_micros();
 
 	pinMode(GPIO_POWER, OUTPUT);
