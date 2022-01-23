@@ -1,3 +1,12 @@
+/*
+ * Device Tree overlay for ALPS rotary input 
+ *
+ * compile:
+ * dtc -@ -I dts -O dtb -o gpio-rotary.dtbo gpio-rotary.dts
+ *
+ * armbian-add-overlay gpio-rotary.dts
+ */
+
 /dts-v1/;
 /plugin/;
 
