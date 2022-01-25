@@ -4,30 +4,20 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <wiringPi.h>
 
 #include "display.h"
 #include "display-menu.h"
+
 #include "i2c.h"
 #include "utils.h"
 #include "dac-es9028.h"
 
+#include "gpio.h"
+
 #define msleep(x) usleep(x*1000)
 
 static pthread_t thread_dac;
-static void *dac(void *arg);
-
-static void gpio_toggle(int gpio) {
-	int state = digitalRead(gpio);
-	if (state == 0) {
-		digitalWrite(gpio, 1); // on
-		return;
-	}
-	if (state == 1) {
-		digitalWrite(gpio, 0); // off
-		return;
-	}
-}
+static void* dac(void *arg);
 
 static dac_signal_t dac_get_signal() {
 	char value;
@@ -108,7 +98,7 @@ static void dac_on() {
 	char value;
 
 	// power on
-	digitalWrite(GPIO_DAC_POWER, 1);
+	gpio_set(GPIO_DAC_POWER, 1);
 	msleep(100);
 
 	// check status
@@ -144,7 +134,7 @@ static void dac_on() {
 	xlog("switched DAC on");
 
 	// power on Externals
-	digitalWrite(GPIO_EXT_POWER, 1);
+	gpio_set(GPIO_EXT_POWER, 1);
 	mcp->ext_power = 1;
 	xlog("switched EXT on");
 }
@@ -154,13 +144,13 @@ static void dac_off() {
 	display_fullscreen_string("---");
 
 	// power off Externals and wait to avoid speaker plop
-	digitalWrite(GPIO_EXT_POWER, 0);
+	gpio_set(GPIO_EXT_POWER, 0);
 	mcp->ext_power = 0;
 	xlog("switched EXT off");
 	sleep(10);
 
 	// power off DAC
-	digitalWrite(GPIO_DAC_POWER, 0);
+	gpio_set(GPIO_DAC_POWER, 0);
 	mcp->dac_power = 0;
 	xlog("switched DAC off");
 }
@@ -288,17 +278,25 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 int dac_init() {
-	if (i2c_init(I2C) < 0) {
+	if (i2c_init(I2C) < 0)
 		return -1;
-	}
 
-	pinMode(GPIO_EXT_POWER, OUTPUT);
-	pinMode(GPIO_DAC_POWER, OUTPUT);
-	pinMode(GPIO_LAMP, OUTPUT);
+	if (gpio_init() < 0)
+		return -1;
 
-	mcp->dac_power = digitalRead(GPIO_DAC_POWER);
+	mcp->switch2 = gpio_get(GPIO_SWITCH2);
+	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
+
+	mcp->switch3 = gpio_get(GPIO_SWITCH3);
+	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
+
+	mcp->switch4 = gpio_get(GPIO_SWITCH4);
+	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
+
+	mcp->dac_power = gpio_get(GPIO_DAC_POWER);
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
-	mcp->ext_power = digitalRead(GPIO_EXT_POWER);
+
+	mcp->ext_power = gpio_get(GPIO_EXT_POWER);
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	// start dac update thread
@@ -345,7 +343,8 @@ void dac_handle(int c) {
 		break;
 	case 182: // KEY_REDO is defined different in curses.h !!!
 	case KEY_TIME:
-		gpio_toggle(GPIO_LAMP);
+		gpio_toggle(GPIO_SWITCH4);
+		mcp->switch4 = gpio_get(GPIO_SWITCH4);
 		break;
 	case '\n':
 	case 0x0d:
@@ -362,10 +361,10 @@ void dac_handle(int c) {
 	}
 }
 
-void *dac(void *arg) {
+void* dac(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	char *s, s_mpd[] = "MPD", s_opt[] = "OPT", s_coax[] = "COAX";

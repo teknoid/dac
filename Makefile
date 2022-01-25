@@ -5,11 +5,11 @@ LIBS = -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 SRCS := $(shell find . -name '*.c')
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
-COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o 
+COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o
 COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o display.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o
-COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o
-COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o i2c.o display.o display-menu.o devinput-infrared.o devinput-rotary.o
+COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o gpio-sunxi.o
+COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o devinput-infrared.o gpio-sunxi.o i2c.o display.o display-menu.o devinput-rotary.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
@@ -24,16 +24,19 @@ piwolf: $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS) -lwiringPi
 
 sabre18: $(COBJS-SABRE18)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS) -lwiringPi -lncurses -lmenu
+	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS) -lncurses -lmenu
 
 sabre28: $(COBJS-SABRE28)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lwiringPi -lncurses -lmenu
+	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
 
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o
-	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o -lwiringPi -lncurses -lmenu
+	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o -lncurses -lmenu
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
+
+gpio-sunxi:
+	$(CC) $(CFLAGS) -DGPIO_MAIN -o gpio-sunxi gpio-sunxi.c
 
 .PHONY: clean install install-local install-service keytable
 

@@ -1,7 +1,7 @@
 // #define ANUS
-#define PIWOLF
+// #define PIWOLF
 // #define SABRE18
-// #define SABRE28
+#define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
@@ -17,14 +17,12 @@
 #endif
 
 #ifdef SABRE18
-#define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE28
-#define WIRINGPI
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
@@ -75,6 +73,10 @@ typedef struct mcp_state_t {
 	char extension[8];
 	int menu;
 	int ir_active;
+	int switch1;
+	int switch2;
+	int switch3;
+	int switch4;
 } mcp_state_t;
 extern mcp_state_t *mcp;
 
