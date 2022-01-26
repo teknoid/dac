@@ -39,6 +39,7 @@
 
 #define LE32TOH(X)				le32toh(*((uint32_t*)(X)))
 
+static size_t gpio_size;
 static volatile char *gpio;
 
 struct pio_status {
@@ -211,7 +212,8 @@ int gpio_init() {
 		return -1;
 	}
 
-	gpio = mmap(NULL, (0x800 + pagesize - 1) & ~(pagesize - 1), PROT_WRITE | PROT_READ, MAP_SHARED, fd, addr);
+	gpio_size = (0x800 + pagesize - 1) & ~(pagesize - 1);
+	gpio = mmap(NULL, gpio_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, addr);
 	if (!gpio) {
 		perror("mmap PIO");
 		return -2;
@@ -221,6 +223,10 @@ int gpio_init() {
 
 	gpio += offset;
 	return 0;
+}
+
+void gpio_close() {
+	munmap((void*) gpio, gpio_size);
 }
 
 #ifdef GPIO_MAIN
@@ -237,5 +243,7 @@ int main(int argc, char **argv) {
 		gpio_print("PA3");
 		sleep(1);
 	}
+
+	gpio_close();
 }
 #endif

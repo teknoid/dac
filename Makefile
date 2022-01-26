@@ -42,7 +42,7 @@ gpio-sunxi:
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display rotary2uinput test
+	rm -f mcp display rotary2uinput test gpio-sunxi
 
 install:
 	@echo "[Installing and starting mcp]"

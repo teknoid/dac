@@ -320,6 +320,7 @@ void dac_close() {
 		xlog("Error joining thread_display");
 	}
 	i2c_close();
+	gpio_close();
 }
 
 void dac_handle(int c) {

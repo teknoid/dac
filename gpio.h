@@ -9,3 +9,5 @@ void gpio_toggle(const char *name);
 int gpio_get(const char *name);
 
 int gpio_init(void);
+
+void gpio_close(void);

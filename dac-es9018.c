@@ -108,6 +108,7 @@ int dac_init() {
 }
 
 void dac_close() {
+	gpio_close();
 }
 
 void dac_handle(int c) {
