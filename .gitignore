@@ -1,4 +1,5 @@
 /*.o
 /mcp
 /display
+/gpio-sunxi
 /build/
