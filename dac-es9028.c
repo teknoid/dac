@@ -284,19 +284,19 @@ int dac_init() {
 	if (gpio_init() < 0)
 		return -1;
 
-	mcp->switch2 = gpio_get(GPIO_SWITCH2);
+	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
 	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
 
-	mcp->switch3 = gpio_get(GPIO_SWITCH3);
+	mcp->switch3 = gpio_configure(GPIO_SWITCH3, 1, 0, -1);
 	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
 
-	mcp->switch4 = gpio_get(GPIO_SWITCH4);
+	mcp->switch4 = gpio_configure(GPIO_SWITCH4, 1, 0, -1);
 	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
 
-	mcp->dac_power = gpio_get(GPIO_DAC_POWER);
+	mcp->dac_power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 
-	mcp->ext_power = gpio_get(GPIO_EXT_POWER);
+	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	// start dac update thread
@@ -344,8 +344,7 @@ void dac_handle(int c) {
 		break;
 	case 182: // KEY_REDO is defined different in curses.h !!!
 	case KEY_TIME:
-		gpio_toggle(GPIO_SWITCH4);
-		mcp->switch4 = gpio_get(GPIO_SWITCH4);
+		mcp->switch4 = gpio_toggle(GPIO_SWITCH4);
 		break;
 	case '\n':
 	case 0x0d:

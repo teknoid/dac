@@ -29,176 +29,175 @@
 #include <sys/types.h>
 
 #include "utils.h"
-
-#define PIO_REG_CFG(B, N, I)	((B) + (N)*0x24 + ((I)<<2) + 0x00)
-#define PIO_REG_DLEVEL(B, N, I)	((B) + (N)*0x24 + ((I)<<2) + 0x14)
-#define PIO_REG_PULL(B, N, I)	((B) + (N)*0x24 + ((I)<<2) + 0x1C)
-#define PIO_REG_DATA(B, N)		((B) + (N)*0x24 + 0x10)
+#include "gpio.h"
 
 #define PIO_NR_PORTS			9 /* A-I */
 
-#define LE32TOH(X)				le32toh(*((uint32_t*)(X)))
+#define PIO_REG_CFG(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x00)
+#define PIO_REG_DLEVEL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x14)
+#define PIO_REG_PULL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x1C)
+#define PIO_REG_DATA(B, N)		(uint32_t*)((B) + (N)*0x24 + 0x10)
 
-static size_t gpio_size;
-static volatile char *gpio;
-
-struct pio_status {
+typedef struct {
+	int port;
+	int pin;
 	int func;
 	int pull;
 	int trig;
 	int data;
-};
+} gpio_status_t;
 
-static int pio_get(uint32_t port, uint32_t pin, struct pio_status *pio) {
+static size_t gpio_size;
+static volatile char *gpio;
+
+static void mem_read(gpio_status_t *pio) {
 	uint32_t val;
 	uint32_t port_num_func, port_num_pull;
 	uint32_t offset_func, offset_pull;
 
-	port_num_func = pin >> 3;
-	offset_func = ((pin & 0x07) << 2);
+	port_num_func = pio->pin >> 3;
+	offset_func = ((pio->pin & 0x07) << 2);
 
-	port_num_pull = pin >> 4;
-	offset_pull = ((pin & 0x0f) << 1);
+	port_num_pull = pio->pin >> 4;
+	offset_pull = ((pio->pin & 0x0f) << 1);
 
 	/* function */
-	val = LE32TOH(PIO_REG_CFG(gpio, port, port_num_func));
+	val = le32toh(*PIO_REG_CFG(gpio, pio->port, port_num_func));
 	pio->func = (val >> offset_func) & 0x07;
 
 	/* pull */
-	val = LE32TOH(PIO_REG_PULL(gpio, port, port_num_pull));
+	val = le32toh(*PIO_REG_PULL(gpio, pio->port, port_num_pull));
 	pio->pull = (val >> offset_pull) & 0x03;
 
 	/* trigger */
-	val = LE32TOH(PIO_REG_DLEVEL(gpio, port, port_num_pull));
+	val = le32toh(*PIO_REG_DLEVEL(gpio, pio->port, port_num_pull));
 	pio->trig = (val >> offset_pull) & 0x03;
 
 	/* data */
-	val = LE32TOH(PIO_REG_DATA(gpio, port));
-	pio->data = (val >> pin) & 0x01;
-
-	return 1;
+	val = le32toh(*PIO_REG_DATA(gpio, pio->port));
+	pio->data = (val >> pio->pin) & 0x01;
 }
 
-static int pio_set(uint32_t port, uint32_t pin, struct pio_status *pio) {
+static void mem_write(gpio_status_t *pio) {
 	uint32_t *addr, val;
 	uint32_t port_num_func, port_num_pull;
 	uint32_t offset_func, offset_pull;
 
-	port_num_func = pin >> 3;
-	offset_func = ((pin & 0x07) << 2);
+	port_num_func = pio->pin >> 3;
+	offset_func = ((pio->pin & 0x07) << 2);
 
-	port_num_pull = pin >> 4;
-	offset_pull = ((pin & 0x0f) << 1);
+	port_num_pull = pio->pin >> 4;
+	offset_pull = ((pio->pin & 0x0f) << 1);
 
 	/* function */
-	if (pio->func >= 0) {
-		addr = (uint32_t*) PIO_REG_CFG(gpio, port, port_num_func);
-		val = le32toh(*addr);
-		val &= ~(0x07 << offset_func);
-		val |= (pio->func & 0x07) << offset_func;
-		*addr = htole32(val);
-	}
+	addr = PIO_REG_CFG(gpio, pio->port, port_num_func);
+	val = le32toh(*addr);
+	val &= ~(0x07 << offset_func);
+	val |= (pio->func & 0x07) << offset_func;
+	*addr = htole32(val);
 
 	/* pull */
-	if (pio->pull >= 0) {
-		addr = (uint32_t*) PIO_REG_PULL(gpio, port, port_num_pull);
-		val = le32toh(*addr);
-		val &= ~(0x03 << offset_pull);
-		val |= (pio->pull & 0x03) << offset_pull;
-		*addr = htole32(val);
-	}
+	addr = PIO_REG_PULL(gpio, pio->port, port_num_pull);
+	val = le32toh(*addr);
+	val &= ~(0x03 << offset_pull);
+	val |= (pio->pull & 0x03) << offset_pull;
+	*addr = htole32(val);
 
 	/* trigger */
-	if (pio->trig >= 0) {
-		addr = (uint32_t*) PIO_REG_DLEVEL(gpio, port, port_num_pull);
-		val = le32toh(*addr);
-		val &= ~(0x03 << offset_pull);
-		val |= (pio->trig & 0x03) << offset_pull;
-		*addr = htole32(val);
-	}
+	addr = PIO_REG_DLEVEL(gpio, pio->port, port_num_pull);
+	val = le32toh(*addr);
+	val &= ~(0x03 << offset_pull);
+	val |= (pio->trig & 0x03) << offset_pull;
+	*addr = htole32(val);
 
-	/* data */
-	if (pio->data >= 0) {
-		addr = (uint32_t*) PIO_REG_DATA(gpio, port);
-		val = le32toh(*addr);
-		if (pio->data)
-			val |= (0x01 << pin);
-		else
-			val &= ~(0x01 << pin);
+	/* initial value - only if 0/1 - otherwise leave unchanged */
+	addr = PIO_REG_DATA(gpio, pio->port);
+	val = le32toh(*addr);
+	if (pio->data == 0) {
+		val &= ~(0x01 << pio->pin);
 		*addr = htole32(val);
-	}
-
-	return 1;
+	} else if (pio->data == 1) {
+		val |= (0x01 << pio->pin);
+		*addr = htole32(val);
+	} else
+		pio->data = (int) ((val >> pio->pin) & 0x01);
 }
 
 void gpio_print(const char *name) {
 	if (*name == 'P')
 		name++;
-	int port = *name++ - 'A';
-	int pin = atoi(name);
 
-	struct pio_status pio;
-	pio_get(port, pin, &pio);
-	printf("P%c%d", 'A' + port, pin);
+	gpio_status_t pio;
+	pio.port = *name++ - 'A';
+	pio.pin = atoi(name);
+	mem_read(&pio);
+	printf("P%c%d", 'A' + pio.port, pio.pin);
 	printf("<%x>", pio.func);
 	printf("<%x>", pio.pull);
 	printf("<%x>", pio.trig);
-	if (pio.data >= 0)
-		printf("<%x>", pio.data);
-	fputc('\n', stdout);
+	printf("<%x>", pio.data);
+	printf("\n");
 }
 
-void gpio_func(const char *name, int function, int trigger) {
+int gpio_configure(const char *name, int function, int trigger, int initial) {
 	if (*name == 'P')
 		name++;
-	int port = *name++ - 'A';
-	int pin = atoi(name);
 
-	struct pio_status pio;
-	pio_get(port, pin, &pio);
+	gpio_status_t pio;
+	pio.port = *name++ - 'A';
+	pio.pin = atoi(name);
 	pio.func = function;
 	pio.trig = trigger;
-	pio_set(port, pin, &pio);
-}
-
-void gpio_set(const char *name, int value) {
-	if (*name == 'P')
-		name++;
-	int port = *name++ - 'A';
-	int pin = atoi(name);
-
-	struct pio_status pio;
-	pio_get(port, pin, &pio);
-	pio.func = 1;
-	pio.data = value;
-	pio_set(port, pin, &pio);
+	pio.data = initial;
+	mem_write(&pio);
+	return pio.data;
 }
 
 int gpio_get(const char *name) {
 	if (*name == 'P')
 		name++;
+
 	int port = *name++ - 'A';
 	int pin = atoi(name);
 
-	struct pio_status pio;
-	pio_get(port, pin, &pio);
-	return pio.data;
+	uint32_t val = le32toh(*PIO_REG_DATA(gpio, port));
+	return (int) ((val >> pin) & 0x01);
 }
 
-void gpio_toggle(const char *name) {
+void gpio_set(const char *name, int value) {
 	if (*name == 'P')
 		name++;
+
 	int port = *name++ - 'A';
 	int pin = atoi(name);
 
-	struct pio_status pio;
-	pio_get(port, pin, &pio);
-	pio.func = 1;
-	if (!pio.data)
-		pio.data = 1;
+	uint32_t *addr = PIO_REG_DATA(gpio, port);
+	uint32_t val = le32toh(*addr);
+	if (value)
+		val |= (0x01 << pin);
 	else
-		pio.data = 0;
-	pio_set(port, pin, &pio);
+		val &= ~(0x01 << pin);
+	*addr = htole32(val);
+}
+
+int gpio_toggle(const char *name) {
+	if (*name == 'P')
+		name++;
+
+	int port = *name++ - 'A';
+	int pin = atoi(name);
+
+	uint32_t *addr = PIO_REG_DATA(gpio, port);
+	uint32_t val = le32toh(*addr);
+	if ((1 << pin) & val) {
+		val &= ~(1 << pin);
+		*addr = htole32(val);
+		return 0;
+	} else {
+		val |= (1 << pin);
+		*addr = htole32(val);
+		return 1;
+	}
 }
 
 int gpio_init() {
@@ -231,18 +230,41 @@ void gpio_close() {
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
+	const char *pio = "PA3";
+
 	gpio_init();
 
-	gpio_print("PA3");
+	gpio_print(pio);
 
+	printf("configure with initial 0\n");
+	gpio_configure(pio, 1, 0, 0);
+	sleep(1);
+
+	printf("configure with initial 1\n");
+	gpio_configure(pio, 1, 0, 1);
+	sleep(1);
+
+	printf("configure with initial not set\n");
+	gpio_configure(pio, 1, 0, -1);
+	sleep(1);
+
+	printf("blink test\n");
 	for (int i = 0; i < 3; i++) {
-		gpio_set("PA3", 1);
-		gpio_print("PA3");
+		gpio_set(pio, 1);
+		gpio_print(pio);
 		sleep(1);
-		gpio_set("PA3", 0);
-		gpio_print("PA3");
+		gpio_set(pio, 0);
+		gpio_print(pio);
 		sleep(1);
 	}
+	sleep(1);
+
+	printf("toggle test\n");
+	gpio_toggle(pio);
+	gpio_print(pio);
+	sleep(1);
+	gpio_toggle(pio);
+	gpio_print(pio);
 
 	gpio_close();
 }
