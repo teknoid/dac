@@ -162,16 +162,6 @@ void dac_handle(int c) {
 		lirc_send(KEY_CUP);
 		xlog("CHANNELUP");
 		break;
-	case 182: // KEY_REDO is defined different in curses.h !!!
-	case KEY_TIME:
-		if (!mcp->dac_power) {
-			gpio_set(GPIO_POWER, 1);
-			mcp->dac_power = 1;
-		} else {
-			gpio_set(GPIO_POWER, 0);
-			mcp->dac_power = 0;
-		}
-		break;
 	case KEY_POWER:
 		dac_power();
 		break;
