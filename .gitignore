@@ -2,4 +2,5 @@
 /mcp
 /display
 /gpio-sunxi
+/gpio-bcm2835
 /build/

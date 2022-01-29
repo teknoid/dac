@@ -7,7 +7,7 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o
 COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o display.o
-COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o
+COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o devinput-infrared.o gpio-sunxi.o i2c.o display.o display-menu.o devinput-rotary.o
 
@@ -21,10 +21,10 @@ anus: $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses
 
 piwolf: $(COBJS-PIWOLF)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS) -lwiringPi
+	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
 
 sabre18: $(COBJS-SABRE18)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS) -lncurses -lmenu
+	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS)
 
 sabre28: $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
@@ -38,11 +38,14 @@ rotary2uinput: rotary2uinput.o
 gpio-sunxi:
 	$(CC) $(CFLAGS) -DGPIO_MAIN -o gpio-sunxi gpio-sunxi.c
 
+gpio-bcm2835:
+	$(CC) $(CFLAGS) -DGPIO_MAIN -o gpio-bcm2835 gpio-bcm2835.c
+
 .PHONY: clean install install-local install-service keytable
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display rotary2uinput test gpio-sunxi
+	rm -f mcp display rotary2uinput test gpio-sunxi gpio-bcm2835
 
 install:
 	@echo "[Installing and starting mcp]"

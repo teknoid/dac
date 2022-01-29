@@ -12,10 +12,6 @@
 #include "display.h"
 #include "utils.h"
 
-#ifdef WIRINGPI
-#include <wiringPi.h>
-#endif
-
 #if defined(SABRE18) || defined(SABRE28)
 #include "display.h"
 #include "display-menu.h"
@@ -241,14 +237,6 @@ int main(int argc, char **argv) {
 		xlog("can't catch SIGHUP");
 		exit(EXIT_FAILURE);
 	}
-
-	// setup wiringPi
-#ifdef WIRINGPI
-	if (wiringPiSetup() == -1) {
-		perror("Unable to start wiringPi");
-		exit(EXIT_FAILURE);
-	}
-#endif
 
 	// allocate global data exchange structure
 	mcp = malloc(sizeof(*mcp));

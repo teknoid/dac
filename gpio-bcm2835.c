@@ -1,11 +1,10 @@
 /*
  * simple mmapped gpio bit-banging
  *
- * based on pio.c from
- * https://github.com/linux-sunxi/sunxi-tools
+ * based on
+ * https://elinux.org/RPi_GPIO_Code_Samples
  *
  * (C) Copyright 2022 Heiko Jehmlich <hje@jecons.de>
- * (C) Copyright 2011 Henrik Nordstrom <henrik@henriknordstrom.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -33,172 +32,135 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-#include "utils.h"
-#include "gpio.h"
+// for the Pi 1
+// #define MEMBASE				0x20200000
+// for the Pi 2 & 3
+#define MEMBASE					0x3f200000
 
-#define PIO_NR_PORTS			9 /* A-I */
-
-#define PIO_REG_CFG(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x00)
-#define PIO_REG_DLEVEL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x14)
-#define PIO_REG_PULL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x1C)
-#define PIO_REG_DATA(B, N)		(uint32_t*)((B) + (N)*0x24 + 0x10)
+#define PIO_REG_CFG(B, G)		(uint32_t*)(B) + (G/10)
+#define PIO_REG_SET(B, G)		(uint32_t*)(B) + 0x1C/4
+#define PIO_REG_CLR(B, G)		(uint32_t*)(B) + 0x28/4
+#define PIO_REG_GET(B, G)		(uint32_t*)(B) + 0x34/4
 
 typedef struct {
-	int port;
 	int pin;
 	int func;
-	int pull;
-	int trig;
 	int data;
 } gpio_status_t;
 
-static size_t gpio_size;
 static volatile void *gpio;
 
 static void mem_read(gpio_status_t *pio) {
 	uint32_t val;
-	uint32_t port_num_func, port_num_pull;
-	uint32_t offset_func, offset_pull;
-
-	port_num_func = pio->pin >> 3;
-	offset_func = (pio->pin & 0x07) << 2;
-
-	port_num_pull = pio->pin >> 4;
-	offset_pull = (pio->pin & 0x0f) << 1;
+	int offset_func = (pio->pin % 10) * 3;
 
 	/* function */
-	val = *PIO_REG_CFG(gpio, pio->port, port_num_func);
+	val = *PIO_REG_CFG(gpio, pio->pin);
 	pio->func = (val >> offset_func) & 0x07;
 
-	/* pull */
-	val = *PIO_REG_PULL(gpio, pio->port, port_num_pull);
-	pio->pull = (val >> offset_pull) & 0x03;
-
-	/* trigger */
-	val = *PIO_REG_DLEVEL(gpio, pio->port, port_num_pull);
-	pio->trig = (val >> offset_pull) & 0x03;
-
 	/* data */
-	val = *PIO_REG_DATA(gpio, pio->port);
+	val = *PIO_REG_GET(gpio, pio->pin);
 	pio->data = (val >> pio->pin) & 0x01;
 }
 
 static void mem_write(gpio_status_t *pio) {
 	uint32_t *addr, val;
-	uint32_t port_num_func, port_num_pull;
-	uint32_t offset_func, offset_pull;
-
-	port_num_func = pio->pin >> 3;
-	offset_func = (pio->pin & 0x07) << 2;
-
-	port_num_pull = pio->pin >> 4;
-	offset_pull = (pio->pin & 0x0f) << 1;
+	int offset_func = (pio->pin % 10) * 3;
 
 	/* function */
-	addr = PIO_REG_CFG(gpio, pio->port, port_num_func);
+	addr = PIO_REG_CFG(gpio, pio->pin);
 	val = *addr;
 	val &= ~(0x07 << offset_func);
 	val |= (pio->func & 0x07) << offset_func;
 	*addr = val;
 
-	/* pull */
-	addr = PIO_REG_PULL(gpio, pio->port, port_num_pull);
-	val = *addr;
-	val &= ~(0x03 << offset_pull);
-	val |= (pio->pull & 0x03) << offset_pull;
-	*addr = val;
-
-	/* trigger */
-	addr = PIO_REG_DLEVEL(gpio, pio->port, port_num_pull);
-	val = *addr;
-	val &= ~(0x03 << offset_pull);
-	val |= (pio->trig & 0x03) << offset_pull;
-	*addr = val;
-
 	/* initial value - only if 0/1 - otherwise leave unchanged */
-	addr = PIO_REG_DATA(gpio, pio->port);
-	val = *addr;
 	if (pio->data == 0) {
-		val &= ~(0x01 << pio->pin);
+		addr = PIO_REG_CLR(gpio, pin);
+		val = *addr;
+		val |= (1 << pio->pin);
 		*addr = val;
 	} else if (pio->data == 1) {
-		val |= (0x01 << pio->pin);
+		addr = PIO_REG_SET(gpio, pin);
+		val = *addr;
+		val |= (1 << pio->pin);
 		*addr = val;
-	} else
+	} else {
+		addr = PIO_REG_GET(gpio, pio->pin);
+		val = *addr;
 		pio->data = (val >> pio->pin) & 0x01;
+	}
 }
 
 void gpio_print(const char *name) {
-	if (*name == 'P')
+	while (*name >= 'A')
 		name++;
 
 	gpio_status_t pio;
-	pio.port = *name++ - 'A';
 	pio.pin = atoi(name);
 	mem_read(&pio);
-	printf("P%c%d", 'A' + pio.port, pio.pin);
+	printf("GPIO%d", pio.pin);
 	printf("<%x>", pio.func);
-	printf("<%x>", pio.pull);
-	printf("<%x>", pio.trig);
 	printf("<%x>", pio.data);
 	printf("\n");
 }
 
 int gpio_configure(const char *name, int function, int trigger, int initial) {
-	if (*name == 'P')
+	while (*name >= 'A')
 		name++;
 
 	gpio_status_t pio;
-	pio.port = *name++ - 'A';
 	pio.pin = atoi(name);
 	pio.func = function;
-	pio.trig = trigger;
 	pio.data = initial;
 	mem_write(&pio);
 	return pio.data;
 }
 
 int gpio_get(const char *name) {
-	if (*name == 'P')
+	while (*name >= 'A')
 		name++;
 
-	int port = *name++ - 'A';
 	int pin = atoi(name);
-
-	uint32_t val = *PIO_REG_DATA(gpio, port);
+	uint32_t val = *PIO_REG_GET(gpio, pio->pin);
 	return (val >> pin) & 0x01;
 }
 
 void gpio_set(const char *name, int value) {
-	if (*name == 'P')
+	while (*name >= 'A')
 		name++;
 
-	int port = *name++ - 'A';
 	int pin = atoi(name);
-
-	uint32_t *addr = PIO_REG_DATA(gpio, port);
-	uint32_t val = *addr;
-	if (value)
-		val |= (0x01 << pin);
-	else
-		val &= ~(0x01 << pin);
-	*addr = val;
+	if (value) {
+		uint32_t *addr = PIO_REG_SET(gpio, pin);
+		uint32_t val = *addr;
+		val |= (1 << pin);
+		*addr = val;
+	} else {
+		uint32_t *addr = PIO_REG_CLR(gpio, pin);
+		uint32_t val = *addr;
+		val |= (1 << pin);
+		*addr = val;
+	}
 }
 
 int gpio_toggle(const char *name) {
-	if (*name == 'P')
+	while (*name >= 'A')
 		name++;
 
-	int port = *name++ - 'A';
 	int pin = atoi(name);
-
-	uint32_t *addr = PIO_REG_DATA(gpio, port);
+	uint32_t *addr = PIO_REG_GET(gpio, pin);
 	uint32_t val = *addr;
+	val = *addr;
 	if ((1 << pin) & val) {
-		val &= ~(1 << pin);
+		addr = PIO_REG_CLR(gpio, pin);
+		val = *addr;
+		val |= (1 << pin);
 		*addr = val;
 		return 0;
 	} else {
+		addr = PIO_REG_SET(gpio, pin);
+		val = *addr;
 		val |= (1 << pin);
 		*addr = val;
 		return 1;
@@ -206,43 +168,39 @@ int gpio_toggle(const char *name) {
 }
 
 int gpio_init() {
-	int pagesize = sysconf(_SC_PAGESIZE);
-	int addr = 0x01c20800 & ~(pagesize - 1);
-	int offset = 0x01c20800 & (pagesize - 1);
-
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
 	if (fd == -1) {
 		printf("/dev/mem failed: %s\n", strerror(errno));
 		return -1;
 	}
 
-	gpio_size = (0x800 + pagesize - 1) & ~(pagesize - 1);
-	gpio = mmap(NULL, gpio_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, addr);
+	gpio = mmap(NULL, 4 * 1024, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, 0x3f200000);
 	close(fd);
 
 	if (gpio == MAP_FAILED) {
 		printf("mmap failed: %s\n", strerror(errno));
 		return -2;
-	} else {
-		gpio += offset;
+	} else
 		return 0;
-	}
 }
 
 void gpio_close() {
-	munmap((void*) gpio, gpio_size);
+	munmap((void*) gpio, 4 * 1024);
 }
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
-	const char *pio = "PA3";
+	const char *pio = "GPIO17";
 
 	gpio_init();
+	printf("mmap OK\n");
 
 	gpio_print(pio);
+	printf("print OK\n");
 
 	printf("configure with initial 0\n");
 	gpio_configure(pio, 1, 0, 0);
+	printf("OK\n");
 	sleep(1);
 
 	printf("configure with initial 1\n");

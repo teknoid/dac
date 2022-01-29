@@ -1,7 +1,7 @@
 // #define ANUS
-// #define PIWOLF
+#define PIWOLF
 // #define SABRE18
-#define SABRE28
+// #define SABRE28
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"
@@ -10,7 +10,6 @@
 #endif
 
 #ifdef PIWOLF
-#define WIRINGPI
 #define DEVINPUT_IR		"/dev/input/infrared"
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
