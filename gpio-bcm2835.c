@@ -51,21 +51,22 @@ typedef struct {
 static volatile void *gpio;
 
 static void mem_read(gpio_status_t *pio) {
-	uint32_t val;
+	uint32_t *addr;
 	int offset_func = (pio->pin % 10) * 3;
 
 	/* function */
-	val = *PIO_REG_CFG(gpio, pio->pin);
-	pio->func = (val >> offset_func) & 0x07;
+	addr = PIO_REG_CFG(gpio, pio->pin);
+	pio->func = (*addr >> offset_func) & 0x07;
 
 	/* data */
-	val = *PIO_REG_GET(gpio, pio->pin);
-	pio->data = (val >> pio->pin) & 0x01;
+	addr = PIO_REG_GET(gpio, pio->pin);
+	pio->data = (*addr >> pio->pin) & 0x01;
 }
 
 static void mem_write(gpio_status_t *pio) {
 	uint32_t *addr, val;
 	int offset_func = (pio->pin % 10) * 3;
+	uint32_t bit = 1 << pio->pin;
 
 	/* function */
 	addr = PIO_REG_CFG(gpio, pio->pin);
@@ -78,12 +79,12 @@ static void mem_write(gpio_status_t *pio) {
 	if (pio->data == 0) {
 		addr = PIO_REG_CLR(gpio, pin);
 		val = *addr;
-		val |= (1 << pio->pin);
+		val |= bit;
 		*addr = val;
 	} else if (pio->data == 1) {
 		addr = PIO_REG_SET(gpio, pin);
 		val = *addr;
-		val |= (1 << pio->pin);
+		val |= bit;
 		*addr = val;
 	} else {
 		addr = PIO_REG_GET(gpio, pio->pin);
@@ -122,24 +123,25 @@ int gpio_get(const char *name) {
 		name++;
 
 	int pin = atoi(name);
-	uint32_t val = *PIO_REG_GET(gpio, pio->pin);
-	return (val >> pin) & 0x01;
+	uint32_t *addr = PIO_REG_GET(gpio, pio->pin);
+	return (*addr >> pin) & 0x01;
 }
 
 void gpio_set(const char *name, int value) {
 	while (*name >= 'A')
 		name++;
 
-	int pin = atoi(name);
+	uint32_t bit = 1 << atoi(name);
+	uint32_t *addr, val;
 	if (value) {
-		uint32_t *addr = PIO_REG_SET(gpio, pin);
-		uint32_t val = *addr;
-		val |= (1 << pin);
+		addr = PIO_REG_SET(gpio, pin);
+		val = *addr;
+		val |= bit;
 		*addr = val;
 	} else {
-		uint32_t *addr = PIO_REG_CLR(gpio, pin);
-		uint32_t val = *addr;
-		val |= (1 << pin);
+		addr = PIO_REG_CLR(gpio, pin);
+		val = *addr;
+		val |= bit;
 		*addr = val;
 	}
 }
@@ -148,20 +150,19 @@ int gpio_toggle(const char *name) {
 	while (*name >= 'A')
 		name++;
 
-	int pin = atoi(name);
-	uint32_t *addr = PIO_REG_GET(gpio, pin);
-	uint32_t val = *addr;
-	val = *addr;
-	if ((1 << pin) & val) {
+	uint32_t bit = 1 << atoi(name);
+	uint32_t *addr, val;
+	addr = PIO_REG_GET(gpio, pin);
+	if (*addr & bit) {
 		addr = PIO_REG_CLR(gpio, pin);
 		val = *addr;
-		val |= (1 << pin);
+		val |= bit;
 		*addr = val;
 		return 0;
 	} else {
 		addr = PIO_REG_SET(gpio, pin);
 		val = *addr;
-		val |= (1 << pin);
+		val |= bit;
 		*addr = val;
 		return 1;
 	}
