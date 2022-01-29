@@ -35,11 +35,13 @@ display: display.o display-menu.o utils.o i2c.o dac-es9028.o
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
 
-gpio-sunxi:
-	$(CC) $(CFLAGS) -DGPIO_MAIN -o gpio-sunxi gpio-sunxi.c
+gpio-sunxi: gpio-sunxi.o
+	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
+	$(CC) $(CFLAGS) -o gpio-sunxi gpio-sunxi.o
 
-gpio-bcm2835:
-	$(CC) $(CFLAGS) -DGPIO_MAIN -o gpio-bcm2835 gpio-bcm2835.c
+gpio-bcm2835: gpio-bcm2835.o
+	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
+	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o
 
 .PHONY: clean install install-local install-service keytable
 
