@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <linux/input-event-codes.h>
@@ -23,42 +24,14 @@
 #define KEY_CUP			0x00FD609F
 #define KEY_CDOWN		0x00FD50AF
 
-static void lirc_send(unsigned long m) {
-	unsigned long mask = 1 << 31;
-
-	// sync
-	gpio_set(GPIO_LIRC_TX, 0);
-	delay_micros(TH1);
-	gpio_set(GPIO_LIRC_TX, 1);
-	delay_micros(TH2);
-
-	while (mask) {
-		gpio_set(GPIO_LIRC_TX, 0);
-		delay_micros(T1);
-		gpio_set(GPIO_LIRC_TX, 1);
-
-		if (m & mask)
-			delay_micros(T01); // 1
-		else
-			delay_micros(T00); // 0
-
-		mask = mask >> 1;
-	}
-	gpio_set(GPIO_LIRC_TX, 0);
-	delay_micros(T1);
-	gpio_set(GPIO_LIRC_TX, 1);
-
-	usleep(100000);
-}
-
 // WM8741 workaround: switch through all channels
 static void workaround_channel() {
-	lirc_send(KEY_CUP);
-	lirc_send(KEY_CUP);
-	lirc_send(KEY_CUP);
-	lirc_send(KEY_CUP);
-	lirc_send(KEY_VDOWN);
-	lirc_send(KEY_VUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
+	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
 	xlog("WM8741 workaround channel");
 }
 
@@ -95,12 +68,12 @@ void dac_power() {
 
 void dac_volume_up() {
 	xlog("VOL++");
-	lirc_send(KEY_VUP);
+	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
 }
 
 void dac_volume_down() {
 	xlog("VOL--");
-	lirc_send(KEY_VDOWN);
+	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
 }
 
 void dac_mute() {
@@ -159,7 +132,7 @@ void dac_handle(int c) {
 		workaround_channel();
 		break;
 	case KEY_SELECT:
-		lirc_send(KEY_CUP);
+		gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
 		xlog("CHANNELUP");
 		break;
 	case KEY_POWER:

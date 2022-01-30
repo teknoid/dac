@@ -1,6 +1,10 @@
 /*
  * simple mmapped gpio bit-banging
  *
+ *   - implementation for BCM2835
+ *   - compatible with Raspberry 1 + 2 + 3
+ *   - tested on a RPi 2B, Linux piwolf 5.10.83-v7+ #1499
+ *
  * based on
  * https://elinux.org/RPi_GPIO_Code_Samples
  *
@@ -32,15 +36,14 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
-// for the Pi 1
-// #define MEMBASE				0x20200000
-// for the Pi 2 & 3
-#define MEMBASE					0x3f200000
+#include "gpio.h"
 
 #define PIO_REG_CFG(B, G)		(uint32_t*)(B) + (G/10)
-#define PIO_REG_SET(B, G)		(uint32_t*)(B) + 0x1C/4
-#define PIO_REG_CLR(B, G)		(uint32_t*)(B) + 0x28/4
-#define PIO_REG_GET(B, G)		(uint32_t*)(B) + 0x34/4
+#define PIO_REG_SET(B, G)		(uint32_t*)(B) + (0x1C/4)
+#define PIO_REG_CLR(B, G)		(uint32_t*)(B) + (0x28/4)
+#define PIO_REG_GET(B, G)		(uint32_t*)(B) + (0x34/4)
+
+#define PAGESIZE				4096
 
 typedef struct {
 	int pin;
@@ -49,6 +52,98 @@ typedef struct {
 } gpio_status_t;
 
 static volatile void *gpio;
+static volatile uint32_t *timer;
+
+#ifdef GPIO_MAIN
+static void test_lirc() {
+	const char *pio = "GPIO22";
+
+	gpio_configure(pio, 1, 0, 1);
+	gpio_print(pio);
+	printf("3x lirc VOLUP/VOLDOWN\n");
+	gpio_lirc(pio, 0x00FD20DF);
+	gpio_lirc(pio, 0x00FD20DF);
+	gpio_lirc(pio, 0x00FD20DF);
+	sleep(1);
+	gpio_lirc(pio, 0x00FD10EF);
+	gpio_lirc(pio, 0x00FD10EF);
+	gpio_lirc(pio, 0x00FD10EF);
+	gpio_print(pio);
+}
+
+static void test_flamingo() {
+	const char *pio = "GPIO17";
+
+	gpio_configure(pio, 1, 0, 0);
+	printf("flamingo v1 ON\n");
+	gpio_flamingo_v1(pio, 0x02796056, 28, 4, 330);
+	sleep(1);
+	printf("flamingo v2 OFF\n");
+	gpio_flamingo_v1(pio, 0x0253174e, 28, 4, 330);
+}
+
+static void test_blink() {
+	const char *pio = "GPIO17";
+
+	printf("configure with initial 0\n");
+	gpio_configure(pio, 1, 0, 0);
+	printf("OK\n");
+	sleep(1);
+
+	printf("configure with initial 1\n");
+	gpio_configure(pio, 1, 0, 1);
+	sleep(1);
+
+	printf("configure with initial not set\n");
+	gpio_configure(pio, 1, 0, -1);
+	sleep(1);
+
+	printf("blink test\n");
+	for (int i = 0; i < 3; i++) {
+		gpio_set(pio, 1);
+		gpio_print(pio);
+		sleep(1);
+		gpio_set(pio, 0);
+		gpio_print(pio);
+		sleep(1);
+	}
+	sleep(1);
+
+	printf("toggle test\n");
+	gpio_toggle(pio);
+	gpio_print(pio);
+	sleep(1);
+	gpio_toggle(pio);
+	gpio_print(pio);
+}
+
+static int gpio_main(int argc, char **argv) {
+	gpio_init();
+	printf("mmap OK\n");
+
+	printf("timer = 0x%08x%08x\n", timer[0], timer[1]);
+	sleep(1);
+	printf("timer = 0x%08x%08x\n", timer[0], timer[1]);
+	sleep(1);
+	printf("timer = 0x%08x%08x\n", timer[0], timer[1]);
+	sleep(1);
+
+	test_lirc();
+	test_flamingo();
+	test_blink();
+
+	gpio_close();
+	return 0;
+}
+#endif
+
+static void delay_micros(unsigned int us) {
+	// usleep() on its own gives latencies 20-40 us; this combination gives < 25 us.
+	unsigned long start = timer[1];
+	if (us >= 100)
+		usleep(us - 50);
+	while ((timer[1] - start) < us);
+}
 
 static void mem_read(gpio_status_t *pio) {
 	uint32_t *addr;
@@ -168,68 +263,184 @@ int gpio_toggle(const char *name) {
 	}
 }
 
+void gpio_flamingo_v1(const char *name, uint32_t message, int bits, int repeat, int pulse) {
+	while (*name >= 'A')
+		name++;
+
+	int pin = atoi(name);
+	uint32_t bit = 1 << pin;
+	uint32_t *set = PIO_REG_SET(gpio, pin);
+	uint32_t *clr = PIO_REG_CLR(gpio, pin);
+	while (repeat--) {
+		uint32_t mask = 1 << --bits;
+
+		// sync
+		*set |= bit;
+		delay_micros(pulse);
+		*clr |= bit;
+		delay_micros(pulse * 15);
+
+		while (mask) {
+			if (message & mask) {
+				// 1
+				*set |= bit;
+				delay_micros(pulse * 3);
+				*clr |= bit;
+				delay_micros(pulse);
+			} else {
+				// 0
+				*set |= bit;
+				delay_micros(pulse);
+				*clr |= bit;
+				delay_micros(pulse * 3);
+			}
+			mask = mask >> 1;
+		}
+	}
+	usleep(pulse * 50);
+}
+
+void gpio_flamingo_v2(const char *name, uint32_t message, int bits, int repeat, int phi, int plo) {
+	while (*name >= 'A')
+		name++;
+
+	int px = (phi + plo) * 2 + plo;
+	int sync = px * 2;
+	int pin = atoi(name);
+
+	uint32_t bit = 1 << pin;
+	uint32_t *set = PIO_REG_SET(gpio, pin);
+	uint32_t *clr = PIO_REG_CLR(gpio, pin);
+	while (repeat--) {
+		uint32_t mask = 1 << --bits;
+
+		// sync
+		*set |= bit;
+		delay_micros(phi);
+		*clr |= bit;
+		delay_micros(sync);
+
+		while (mask) {
+			if (message & mask) {
+				// 1
+				*set |= bit;
+				delay_micros(phi);
+				*clr |= bit;
+				delay_micros(px);
+				*set |= bit;
+				delay_micros(phi);
+				*clr |= bit;
+				delay_micros(plo);
+			} else {
+				// 0
+				*set |= bit;
+				delay_micros(phi);
+				*clr |= bit;
+				delay_micros(plo);
+				*set |= bit;
+				delay_micros(phi);
+				*clr |= bit;
+				delay_micros(px);
+			}
+
+			mask = mask >> 1;
+		}
+
+		// a clock or parity (?) bit terminates the message
+		*set |= bit;
+		delay_micros(phi);
+		*clr |= bit;
+		delay_micros(plo);
+
+		// wait before sending next sync
+		delay_micros(sync * 4);
+	}
+	usleep(sync * 50);
+}
+
+void gpio_lirc(const char *name, uint32_t message) {
+	while (*name >= 'A')
+		name++;
+
+	int pin = atoi(name);
+	uint32_t bit = 1 << pin;
+	uint32_t *set = PIO_REG_SET(gpio, pin);
+	uint32_t *clr = PIO_REG_CLR(gpio, pin);
+	uint32_t mask = 1 << 31;
+
+	// sync
+	*clr |= bit;
+	delay_micros(9020);
+	*set |= bit;
+	delay_micros(4460);
+
+	while (mask) {
+		*clr |= bit;
+		delay_micros(580);
+		*set |= bit;
+		if (message & mask)
+			delay_micros(1660); // 1
+		else
+			delay_micros(550); // 0
+		mask = mask >> 1;
+	}
+	*clr |= bit;
+	delay_micros(580);
+	*set |= bit;
+	usleep(150 * 1000);
+}
+
 int gpio_init() {
+	// figure out the IO Base Address
+	FILE *f = fopen("/proc/cpuinfo", "r");
+	char buf[1024];
+	fgets(buf, sizeof(buf), f); // skip first line
+	fgets(buf, sizeof(buf), f); // model name
+	uint32_t base = 0;
+	if (strstr(buf, "ARMv6"))
+		base = 0x20000000;
+	else if (strstr(buf, "ARMv7"))
+		base = 0x3f000000;
+	else if (strstr(buf, "ARMv8"))
+		base = 0x3f000000;
+	else {
+		printf("Unknown CPU type\n");
+		return -1;
+	}
+	fclose(f);
+
+	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
 	if (fd == -1) {
 		printf("/dev/mem failed: %s\n", strerror(errno));
-		return -1;
+		return -2;
 	}
 
-	gpio = mmap(NULL, 4 * 1024, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, 0x3f200000);
-	close(fd);
+	// mmap timer
+	timer = (uint32_t*) mmap(NULL, PAGESIZE, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fd, base + 0x3000);
+	if (timer == MAP_FAILED) {
+		printf("mmap timer failed: %s\n", strerror(errno));
+		return -3;
+	}
 
+	// mmap gpio
+	gpio = mmap(NULL, PAGESIZE, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, base + 0x200000);
 	if (gpio == MAP_FAILED) {
-		printf("mmap failed: %s\n", strerror(errno));
-		return -2;
-	} else
-		return 0;
+		printf("mmap gpio failed: %s\n", strerror(errno));
+		return -4;
+	}
+
+	close(fd);
+	return 0;
 }
 
 void gpio_close() {
-	munmap((void*) gpio, 4 * 1024);
+	munmap((void*) gpio, PAGESIZE);
+	munmap((void*) timer, PAGESIZE);
 }
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
-	const char *pio = "GPIO17";
-
-	gpio_init();
-	printf("mmap OK\n");
-
-	gpio_print(pio);
-	printf("print OK\n");
-
-	printf("configure with initial 0\n");
-	gpio_configure(pio, 1, 0, 0);
-	printf("OK\n");
-	sleep(1);
-
-	printf("configure with initial 1\n");
-	gpio_configure(pio, 1, 0, 1);
-	sleep(1);
-
-	printf("configure with initial not set\n");
-	gpio_configure(pio, 1, 0, -1);
-	sleep(1);
-
-	printf("blink test\n");
-	for (int i = 0; i < 3; i++) {
-		gpio_set(pio, 1);
-		gpio_print(pio);
-		sleep(1);
-		gpio_set(pio, 0);
-		gpio_print(pio);
-		sleep(1);
-	}
-	sleep(1);
-
-	printf("toggle test\n");
-	gpio_toggle(pio);
-	gpio_print(pio);
-	sleep(1);
-	gpio_toggle(pio);
-	gpio_print(pio);
-
-	gpio_close();
+	return gpio_main(argc, argv);
 }
 #endif

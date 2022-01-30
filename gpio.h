@@ -19,16 +19,16 @@
  * MA 02111-1307 USA
  */
 
-int gpio_configure(const char *name, int function, int trigger, int initial);
-
-int gpio_get(const char *name);
-
-int gpio_toggle(const char *name);
-
-void gpio_set(const char *name, int value);
-
-void gpio_print(const char *name);
-
+// generic GPIO functions
 int gpio_init(void);
-
+int gpio_configure(const char *name, int function, int trigger, int initial);
+int gpio_get(const char *name);
+int gpio_toggle(const char *name);
+void gpio_set(const char *name, int value);
+void gpio_print(const char *name);
 void gpio_close(void);
+
+// application-specific functions
+void gpio_flamingo_v1(const char *name, uint32_t message, int bits, int repeat, int pulse);
+void gpio_flamingo_v2(const char *name, uint32_t message, int bits, int repeat, int phi, int plo);
+void gpio_lirc(const char *name, uint32_t message);
