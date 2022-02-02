@@ -134,7 +134,7 @@ int i2c_clear_bit(uint8_t addr, uint8_t reg, int n) {
 void i2c_dump_reg(uint8_t addr, uint8_t reg) {
 	char value;
 	i2c_read(addr, reg, &value);
-	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printBits(value));
+	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value, SPACEMASK));
 }
 
 int i2c_init(char *device) {

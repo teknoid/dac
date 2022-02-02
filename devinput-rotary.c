@@ -1,11 +1,12 @@
+#include <stdint.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/input.h>
-#include <linux/input-event-codes.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <linux/input.h>
+#include <linux/input-event-codes.h>
 
 #include "mcp.h"
 #include "utils.h"

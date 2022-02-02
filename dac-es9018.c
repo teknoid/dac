@@ -1,5 +1,6 @@
-#include <linux/input-event-codes.h>
+#include <stdint.h>
 #include <unistd.h>
+#include <linux/input-event-codes.h>
 
 #include "utils.h"
 #include "dac-es9018.h"

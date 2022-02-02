@@ -1,9 +1,5 @@
 #include <linux/input-event-codes.h>
 
-#ifdef WIRINGPI
-#include <wiringPi.h>
-#endif
-
 #include "mcp.h"
 #include "utils.h"
 
@@ -11,7 +7,7 @@ int current_value;
 
 static void dac_on() {
 #ifdef GPIO_POWER
-	digitalWrite(GPIO_POWER, 1);
+	gpio_set(GPIO_POWER, 1);
 #endif
 	mcp->dac_power = 1;
 	xlog("switched DAC on");
@@ -19,7 +15,7 @@ static void dac_on() {
 
 static void dac_off() {
 #ifdef GPIO_POWER
-	digitalWrite(GPIO_POWER, 0);
+	gpio_set(GPIO_POWER, 0);
 #endif
 	xlog("switched DAC off");
 	mcp->dac_power = 0;
@@ -69,8 +65,7 @@ void dac_config_set(const void *ptr, int value) {
 
 int dac_init() {
 #ifdef GPIO_POWER
-	pinMode(GPIO_POWER, OUTPUT);
-	mcp->dac_power = digitalRead(GPIO_POWER);
+	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
 	if (mcp->dac_power) {
 		xlog("DAC  power is ON");
 	} else {

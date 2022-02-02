@@ -93,11 +93,12 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 int dac_init() {
-	elevate_realtime(3);
-	init_micros();
-
 	if (gpio_init() < 0)
 		return -1;
+
+	// elevate realtime priority for lirc sending
+	if (elevate_realtime(3) < 0)
+		return -2;
 
 	// LIRC TX is low_active
 	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);

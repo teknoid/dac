@@ -36,12 +36,22 @@
 #include "utils.h"
 #include "gpio.h"
 
+#define	MEM_BASE				0x01c20000
+
 #define PIO_NR_PORTS			9 /* A-I */
 
-#define PIO_REG_CFG(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x00)
-#define PIO_REG_DLEVEL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x14)
-#define PIO_REG_PULL(B, N, I)	(uint32_t*)((B) + (N)*0x24 + ((I)<<2) + 0x1C)
-#define PIO_REG_DATA(B, N)		(uint32_t*)((B) + (N)*0x24 + 0x10)
+#define PIO_OFFSET				0x0800
+#define PIO_REG_CFG(B, N, I)	(uint32_t*)(B + PIO_OFFSET + N*0x24 + (I<<2) + 0x00)
+#define PIO_REG_DLEVEL(B, N, I)	(uint32_t*)(B + PIO_OFFSET + N*0x24 + (I<<2) + 0x14)
+#define PIO_REG_PULL(B, N, I)	(uint32_t*)(B + PIO_OFFSET + N*0x24 + (I<<2) + 0x1C)
+#define PIO_REG_DATA(B, N)		(uint32_t*)(B + PIO_OFFSET + N*0x24 + 0x10)
+
+#define TMR_OFFSET				0x0C00
+#define TMR_AVSCLK(B)			(uint32_t*)(B + 0x0144)
+#define TMR_AVSCTRL(B)			(uint32_t*)(B + TMR_OFFSET + 0x80)
+#define TMR_AVS0(B) 			(uint32_t*)(B + TMR_OFFSET + 0x84)
+#define TMR_AVS1(B) 			(uint32_t*)(B + TMR_OFFSET + 0x88)
+#define TMR_AVSDIV(B)			(uint32_t*)(B + TMR_OFFSET + 0x8c)
 
 typedef struct {
 	int port;
@@ -52,8 +62,83 @@ typedef struct {
 	int data;
 } gpio_status_t;
 
-static size_t gpio_size;
-static volatile void *gpio;
+static volatile void *mem;
+
+#ifdef GPIO_MAIN
+static void test_blink() {
+	const char *pio = "PA3";
+
+	printf("configure with initial 0\n");
+	gpio_configure(pio, 1, 0, 0);
+	sleep(1);
+
+	printf("configure with initial 1\n");
+	gpio_configure(pio, 1, 0, 1);
+	sleep(1);
+
+	printf("configure with initial not set\n");
+	gpio_configure(pio, 1, 0, -1);
+	sleep(1);
+
+	printf("blink test\n");
+	for (int i = 0; i < 3; i++) {
+		gpio_set(pio, 1);
+		gpio_print(pio);
+		sleep(1);
+		gpio_set(pio, 0);
+		gpio_print(pio);
+		sleep(1);
+	}
+	sleep(1);
+
+	printf("toggle test\n");
+	gpio_toggle(pio);
+	gpio_print(pio);
+	sleep(1);
+	gpio_toggle(pio);
+	gpio_print(pio);
+}
+
+static void test_timers() {
+	uint32_t *avs0 = TMR_AVS0(mem);
+	uint32_t *avs1 = TMR_AVS1(mem);
+	*avs1 = *avs0 = 0;
+	usleep(1000);
+	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+	usleep(1000);
+	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+	usleep(1000);
+	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+
+	gpio_delay_micros(330);
+	printf("AVS1 330 %08u\n", *avs1);
+	gpio_delay_micros(188);
+	printf("AVS1 188 %08u\n", *avs1);
+	gpio_delay_micros(88);
+	printf("AVS1 088 %08u\n", *avs1);
+	gpio_delay_micros(22);
+	printf("AVS1 022 %08u\n", *avs1);
+
+	printf("AVS0 %08u\n", *avs0);
+	uint32_t delay = 1813594;
+	uint32_t begin = gpio_micros();
+	usleep(delay);
+	uint32_t elapsed = gpio_micros_since(begin);
+	printf("AVS0 %08u\n", *avs0);
+	printf("usleep %u AVS0 elapsed = %u\n", delay, elapsed);
+}
+
+static int gpio_main(int argc, char **argv) {
+	gpio_init();
+	printf("mmap OK\n");
+
+	test_timers();
+	test_blink();
+
+	gpio_close();
+	return 0;
+}
+#endif
 
 static void mem_read(gpio_status_t *pio) {
 	uint32_t val;
@@ -67,19 +152,19 @@ static void mem_read(gpio_status_t *pio) {
 	offset_pull = (pio->pin & 0x0f) << 1;
 
 	/* function */
-	val = *PIO_REG_CFG(gpio, pio->port, port_num_func);
+	val = *PIO_REG_CFG(mem, pio->port, port_num_func);
 	pio->func = (val >> offset_func) & 0x07;
 
 	/* pull */
-	val = *PIO_REG_PULL(gpio, pio->port, port_num_pull);
+	val = *PIO_REG_PULL(mem, pio->port, port_num_pull);
 	pio->pull = (val >> offset_pull) & 0x03;
 
 	/* trigger */
-	val = *PIO_REG_DLEVEL(gpio, pio->port, port_num_pull);
+	val = *PIO_REG_DLEVEL(mem, pio->port, port_num_pull);
 	pio->trig = (val >> offset_pull) & 0x03;
 
 	/* data */
-	val = *PIO_REG_DATA(gpio, pio->port);
+	val = *PIO_REG_DATA(mem, pio->port);
 	pio->data = (val >> pio->pin) & 0x01;
 }
 
@@ -95,28 +180,28 @@ static void mem_write(gpio_status_t *pio) {
 	offset_pull = (pio->pin & 0x0f) << 1;
 
 	/* function */
-	addr = PIO_REG_CFG(gpio, pio->port, port_num_func);
+	addr = PIO_REG_CFG(mem, pio->port, port_num_func);
 	val = *addr;
 	val &= ~(0x07 << offset_func);
 	val |= (pio->func & 0x07) << offset_func;
 	*addr = val;
 
 	/* pull */
-	addr = PIO_REG_PULL(gpio, pio->port, port_num_pull);
+	addr = PIO_REG_PULL(mem, pio->port, port_num_pull);
 	val = *addr;
 	val &= ~(0x03 << offset_pull);
 	val |= (pio->pull & 0x03) << offset_pull;
 	*addr = val;
 
 	/* trigger */
-	addr = PIO_REG_DLEVEL(gpio, pio->port, port_num_pull);
+	addr = PIO_REG_DLEVEL(mem, pio->port, port_num_pull);
 	val = *addr;
 	val &= ~(0x03 << offset_pull);
 	val |= (pio->trig & 0x03) << offset_pull;
 	*addr = val;
 
 	/* initial value - only if 0/1 - otherwise leave unchanged */
-	addr = PIO_REG_DATA(gpio, pio->port);
+	addr = PIO_REG_DATA(mem, pio->port);
 	val = *addr;
 	if (pio->data == 0) {
 		val &= ~(0x01 << pio->pin);
@@ -165,7 +250,7 @@ int gpio_get(const char *name) {
 	int port = *name++ - 'A';
 	int pin = atoi(name);
 
-	uint32_t val = *PIO_REG_DATA(gpio, port);
+	uint32_t val = *PIO_REG_DATA(mem, port);
 	return (val >> pin) & 0x01;
 }
 
@@ -176,12 +261,12 @@ void gpio_set(const char *name, int value) {
 	int port = *name++ - 'A';
 	int pin = atoi(name);
 
-	uint32_t *addr = PIO_REG_DATA(gpio, port);
+	uint32_t *addr = PIO_REG_DATA(mem, port);
 	uint32_t val = *addr;
 	if (value)
-		val |= (0x01 << pin);
+		val |= (1 << pin);
 	else
-		val &= ~(0x01 << pin);
+		val &= ~(1 << pin);
 	*addr = val;
 }
 
@@ -192,7 +277,7 @@ int gpio_toggle(const char *name) {
 	int port = *name++ - 'A';
 	int pin = atoi(name);
 
-	uint32_t *addr = PIO_REG_DATA(gpio, port);
+	uint32_t *addr = PIO_REG_DATA(mem, port);
 	uint32_t val = *addr;
 	if ((1 << pin) & val) {
 		val &= ~(1 << pin);
@@ -205,72 +290,76 @@ int gpio_toggle(const char *name) {
 	}
 }
 
+// usleep() on its own gives latencies 20-40 us; this combination gives < 25 us.
+void gpio_delay_micros(uint32_t us) {
+	// we use AVS1 Timer
+	uint32_t *ctrl = TMR_AVSCTRL(mem);
+	uint32_t *avs1 = TMR_AVS1(mem);
+	*ctrl &= ~0b10; // stop
+	*avs1 = 0; // clear
+	*ctrl |= 0b10; // run
+	if (us > 100)
+		usleep(us - 90);
+	while (*avs1 < us);
+}
+
+uint32_t gpio_micros() {
+	uint32_t *avs0 = TMR_AVS0(mem);
+	return *avs0;
+}
+
+uint32_t gpio_micros_since(uint32_t when) {
+	uint32_t *avs0 = TMR_AVS0(mem);
+	uint32_t now = *avs0;
+	if (now > when)
+		return now - when;
+	else
+		return 0xffffffff - when + now;
+}
+
 int gpio_init() {
 	int pagesize = sysconf(_SC_PAGESIZE);
-	int addr = 0x01c20800 & ~(pagesize - 1);
-	int offset = 0x01c20800 & (pagesize - 1);
 
+	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
 	if (fd == -1) {
 		printf("/dev/mem failed: %s\n", strerror(errno));
-		return -1;
-	}
-
-	gpio_size = (0x800 + pagesize - 1) & ~(pagesize - 1);
-	gpio = mmap(NULL, gpio_size, PROT_WRITE | PROT_READ, MAP_SHARED, fd, addr);
-	close(fd);
-
-	if (gpio == MAP_FAILED) {
-		printf("mmap failed: %s\n", strerror(errno));
 		return -2;
-	} else {
-		gpio += offset;
-		return 0;
 	}
+
+	mem = mmap(NULL, pagesize, PROT_WRITE | PROT_READ, MAP_SHARED, fd, MEM_BASE);
+	if (mem == MAP_FAILED) {
+		printf("mmap gpio failed: %s\n", strerror(errno));
+		return -4;
+	}
+
+	// enable AVS timers clock, set divisor to 12 --> gives 1us
+	uint32_t *avsclk = TMR_AVSCLK(mem);
+	uint32_t *avsdiv = TMR_AVSDIV(mem);
+	uint32_t *ctrl = TMR_AVSCTRL(mem);
+	uint32_t *avs0 = TMR_AVS0(mem);
+	uint32_t *avs1 = TMR_AVS1(mem);
+	*ctrl &= ~0b11; // stop
+	*avs1 = *avs0 = 0;
+	*avsdiv = 0x000C000C;
+	*avsclk |= 1 << 31;
+	*ctrl |= 0b11; // run Forest, run...
+
+	close(fd);
+	return 0;
 }
 
 void gpio_close() {
-	munmap((void*) gpio, gpio_size);
+	int pagesize = sysconf(_SC_PAGESIZE);
+
+	uint32_t *ctrl = TMR_AVSCTRL(mem);
+	*ctrl &= ~0b11; // stop AVS timers
+
+	munmap((void*) mem, pagesize);
 }
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
-	const char *pio = "PA3";
-
-	gpio_init();
-
-	gpio_print(pio);
-
-	printf("configure with initial 0\n");
-	gpio_configure(pio, 1, 0, 0);
-	sleep(1);
-
-	printf("configure with initial 1\n");
-	gpio_configure(pio, 1, 0, 1);
-	sleep(1);
-
-	printf("configure with initial not set\n");
-	gpio_configure(pio, 1, 0, -1);
-	sleep(1);
-
-	printf("blink test\n");
-	for (int i = 0; i < 3; i++) {
-		gpio_set(pio, 1);
-		gpio_print(pio);
-		sleep(1);
-		gpio_set(pio, 0);
-		gpio_print(pio);
-		sleep(1);
-	}
-	sleep(1);
-
-	printf("toggle test\n");
-	gpio_toggle(pio);
-	gpio_print(pio);
-	sleep(1);
-	gpio_toggle(pio);
-	gpio_print(pio);
-
-	gpio_close();
+	return gpio_main(argc, argv);
 }
 #endif

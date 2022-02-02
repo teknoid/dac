@@ -1,9 +1,9 @@
-#include <linux/input-event-codes.h>
+#include <stdint.h>
+#include <unistd.h>
 #include <math.h>
 #include <pthread.h>
 #include <stddef.h>
-#include <stdint.h>
-#include <unistd.h>
+#include <linux/input-event-codes.h>
 
 #include "display.h"
 #include "display-menu.h"
@@ -266,14 +266,14 @@ int dac_status_get(const void *p1, const void *p2) {
 	// const menuitem_t *item = p2;
 	char value;
 	i2c_read_bits(ADDR, config->reg, &value, config->mask);
-	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), value);
+	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
 	return value;
 }
 
 void dac_status_set(const void *p1, const void *p2, int value) {
 	const menuconfig_t *config = p1;
 	// const menuitem_t *item = p2;
-	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printBits(config->mask), value);
+	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
 	i2c_write_bits(ADDR, config->reg, value, config->mask);
 }
 

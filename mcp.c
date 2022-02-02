@@ -1,9 +1,10 @@
 #include "mcp.h"
 
-#include <getopt.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <getopt.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <termios.h>
@@ -200,6 +201,7 @@ static void mcp_close() {
 }
 
 int main(int argc, char **argv) {
+	xlog_init(XLOG_SYSLOG, NULL);
 	xlog("MCP initializing");
 
 	cfg = malloc(sizeof(*cfg));

@@ -1,27 +1,25 @@
 #define _GNU_SOURCE
 
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <stdarg.h>
 #include <string.h>
-#include <time.h>
 #include <errno.h>
 #include <sched.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <syslog.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#include "utils.h"
 #include "keytable.h"
-#include "mcp.h"
-
-static FILE *flog;
-
 #include "utils.h"
 
-static volatile unsigned long *systReg = 0;
+static int xlog_output = 0;
+static FILE *xlog_file;
 
 //
 // The RT scheduler problem
@@ -30,47 +28,6 @@ static volatile unsigned long *systReg = 0;
 // https://www.codeblueprint.co.uk/2019/10/08/isolcpus-is-deprecated-kinda.html
 // https://www.iot-programmer.com/index.php/books/22-raspberry-pi-and-the-iot-in-c/chapters-raspberry-pi-and-the-iot-in-c/33-raspberry-pi-iot-in-c-almost-realtime-linux
 //
-
-int init_micros() {
-	// based on pigpio source; simplified and re-arranged
-	int fdMem = open("/dev/mem", O_RDWR | O_SYNC);
-	if (fdMem < 0) {
-		perror("Cannot map memory (need sudo?)\n");
-		return -1;
-	}
-	// figure out the address
-	FILE *f = fopen("/proc/cpuinfo", "r");
-	char buf[1024];
-	fgets(buf, sizeof(buf), f); // skip first line
-	fgets(buf, sizeof(buf), f); // model name
-	unsigned long phys = 0;
-	if (strstr(buf, "ARMv6")) {
-		phys = 0x20000000;
-	} else if (strstr(buf, "ARMv7")) {
-		phys = 0x3F000000;
-	} else if (strstr(buf, "ARMv8")) {
-		phys = 0x3F000000;
-	} else {
-		perror("Unknown CPU type\n");
-		return -1;
-	}
-	fclose(f);
-	systReg = (unsigned long *) mmap(0, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fdMem, phys + 0x3000);
-	return 0;
-}
-
-unsigned long _micros() {
-	return systReg[1];
-}
-
-void delay_micros(unsigned int us) {
-	// usleep() on its own gives latencies 20-40 us; this combination gives < 25 us.
-	unsigned long start = systReg[1];
-	if (us >= 100)
-		usleep(us - 50);
-	while ((systReg[1] - start) < us)
-		;
-}
 
 int elevate_realtime(int cpu) {
 	// Set our thread to MAX priority
@@ -100,60 +57,115 @@ int elevate_realtime(int cpu) {
 	return 0;
 }
 
-void xlog(char *format, ...) {
-	va_list vargs;
-	time_t timer;
-	char buffer[26];
-	struct tm* tm_info;
+void xlog_init(int output, const char *filename) {
+	xlog_output = output;
 
-	if (flog == 0) {
-		flog = fopen(LOGFILE, "a");
-		if (flog == 0) {
-			perror("error opening logfile " LOGFILE);
-			exit(EXIT_FAILURE);
+	// print to stdout
+	if (output == XLOG_STDOUT)
+		return;
+
+	// write to syslog
+	if (output == XLOG_SYSLOG)
+		return;
+
+	// write to a logfile
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
 		}
+		return;
+	}
+}
+
+void xlog(const char *format, ...) {
+	char BUFFER[256];
+	va_list vargs;
+
+	if (xlog_output == XLOG_STDOUT) {
+		va_start(vargs, format);
+		vsprintf(BUFFER, format, vargs);
+		va_end(vargs);
+		printf(BUFFER);
+		printf("\n");
+		return;
 	}
 
-	time(&timer);
-	tm_info = localtime(&timer);
-	strftime(buffer, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+	if (xlog_output == XLOG_SYSLOG) {
+		va_start(vargs, format);
+		vsprintf(BUFFER, format, vargs);
+		va_end(vargs);
+		syslog(LOG_NOTICE, BUFFER);
+		return;
+	}
 
-	fprintf(flog, "%s: ", buffer);
-	va_start(vargs, format);
-	vfprintf(flog, format, vargs);
-	va_end(vargs);
-	fprintf(flog, "\r\n");
-	fflush(flog);
+	if (xlog_output == XLOG_FILE) {
+		time_t timer;
+		struct tm *tm_info;
+
+		time(&timer);
+		tm_info = localtime(&timer);
+		strftime(BUFFER, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+
+		fprintf(xlog_file, "%s: ", BUFFER);
+		va_start(vargs, format);
+		vfprintf(xlog_file, format, vargs);
+		va_end(vargs);
+		fprintf(xlog_file, "\n");
+		fflush(xlog_file);
+	}
 }
 
 void xlog_close() {
-	if (flog) {
-		fflush(flog);
-		fclose(flog);
+	if (xlog_file) {
+		fflush(xlog_file);
+		fclose(xlog_file);
 	}
 }
-
-int startsWith(const char *pre, const char *str) {
-	unsigned int lenpre = strlen(pre);
-	unsigned int lenstr = strlen(str);
-	return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
-}
-
-char *printBits(char value) {
-	char *out = malloc(sizeof(char) * 8) + 1;
+char* printbits64(uint64_t code, uint64_t spacemask) {
+	uint64_t mask = 0x8000000000000000;
+	uint16_t bits = 64;
+	char *out = malloc(bits * 2 + 1);
 	char *p = out;
-	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1) {
-		if (value & mask) {
+	while (mask) {
+		if (code & mask) {
 			*p++ = '1';
 		} else {
 			*p++ = '0';
 		}
+		if (mask & spacemask) {
+			*p++ = ' ';
+		}
+		mask >>= 1;
 	}
 	*p++ = '\0';
 	return out;
 }
 
-void hexDump(char *desc, void *addr, int len) {
+char* printbits(uint32_t code, uint32_t spacemask) {
+	uint32_t mask = 0x80000000;
+	uint16_t bits = 32;
+	char *out = malloc(bits * 2 + 1);
+	char *p = out;
+	while (mask) {
+		if (code & mask) {
+			*p++ = '1';
+		} else {
+			*p++ = '0';
+		}
+		if (mask & spacemask) {
+			*p++ = ' ';
+		}
+		mask >>= 1;
+	}
+	*p++ = '\0';
+	return out;
+}
+
+void hexdump(char *desc, void *addr, int len) {
 	int i;
 	unsigned char buff[17];
 	unsigned char *pc = (unsigned char*) addr;
@@ -205,7 +217,68 @@ void hexDump(char *desc, void *addr, int len) {
 	printf("  %s\n", buff);
 }
 
-char *devinput_keyname(unsigned int key) {
+int starts_with(const char *pre, const char *str) {
+	unsigned int lenpre = strlen(pre);
+	unsigned int lenstr = strlen(str);
+	return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
+}
+
+void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
+	const char *p;
+	struct stat st = { 0 };
+	char path[128], cp[10], *c;
+	int i;
+	FILE *fp;
+	va_list va;
+
+	// configured directory (remove trailing slash if necessary)
+	strcpy(path, dir);
+	if (path[strlen(path) - 1] == '/')
+		path[strlen(path) - 1] = '\0';
+	if (stat(path, &st) == -1)
+		if (mkdir(path, 0755))
+			perror(strerror(errno));
+
+	// paths from varargs with format string
+	va_start(va, fmt);
+	for (p = fmt; *p != '\0'; p++) {
+		if (*p != '%')
+			continue;
+		strcat(path, "/");
+		switch (*++p) {
+		case 'c':
+			i = va_arg(va, int);
+			sprintf(cp, "%c", i);
+			strcat(path, cp);
+			break;
+		case 'd':
+			i = va_arg(va, int);
+			sprintf(cp, "%d", i);
+			strcat(path, cp);
+			break;
+		case 's':
+			c = va_arg(va, char*);
+			strcat(path, c);
+			break;
+		}
+		if (stat(path, &st) == -1)
+			if (mkdir(path, 0755))
+				perror(strerror(errno));
+	}
+	va_end(va);
+
+	// file
+	strcat(path, "/");
+	strcat(path, fname);
+	if ((fp = fopen(path, "w")) == NULL)
+		perror(strerror(errno));
+	while (*fvalue)
+		fputc(*fvalue++, fp);
+	fputc('\n', fp);
+	fclose(fp);
+}
+
+char* devinput_keyname(unsigned int key) {
 	struct parse_event *p;
 	for (p = key_events; p->name != NULL; p++) {
 		if (key == p->value) {
