@@ -1,4 +1,5 @@
 /*.o
+/.settings/language.settings.xml
 /mcp
 /display
 /gpio-sunxi

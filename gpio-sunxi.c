@@ -123,7 +123,7 @@ static void test_timers() {
 	uint32_t delay = 1813594;
 	uint32_t begin = gpio_micros();
 	usleep(delay);
-	uint32_t elapsed = gpio_micros_since(begin);
+	uint32_t elapsed = gpio_micros_since(&begin);
 	printf("AVS0 %08u\n", *avs0);
 	printf("usleep %u AVS0 elapsed = %u\n", delay, elapsed);
 }
@@ -308,13 +308,16 @@ uint32_t gpio_micros() {
 	return *avs0;
 }
 
-uint32_t gpio_micros_since(uint32_t when) {
+uint32_t gpio_micros_since(uint32_t *when) {
 	uint32_t *avs0 = TMR_AVS0(mem);
 	uint32_t now = *avs0;
-	if (now > when)
-		return now - when;
+	uint32_t elapsed;
+	if (now > *when)
+		elapsed = now - *when;
 	else
-		return 0xffffffff - when + now;
+		elapsed = 0xffffffff - *when + now;
+	*when = now;
+	return elapsed;
 }
 
 int gpio_init() {

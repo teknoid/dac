@@ -30,7 +30,7 @@ void gpio_close(void);
 
 // generic timer functions
 uint32_t gpio_micros();
-uint32_t gpio_micros_since(uint32_t when);
+uint32_t gpio_micros_since(uint32_t *when);
 void gpio_delay_micros(uint32_t us);
 
 // application-specific functions
