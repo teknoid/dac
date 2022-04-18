@@ -45,9 +45,9 @@ static const menuitem_t mi_playlist[] = {
     { 5, 	"04 eurodance",		NULL, NULL, NULL, mpdclient_handle },
     { 6, 	"05 umz",			NULL, NULL, NULL, mpdclient_handle },
     { 7, 	"06 extended",		NULL, NULL, NULL, mpdclient_handle },
-    { 8, 	"07 classics",		NULL, NULL, NULL, mpdclient_handle },
+    { 8, 	"07 chill",			NULL, NULL, NULL, mpdclient_handle },
     { 9, 	"08 slow",			NULL, NULL, NULL, mpdclient_handle },
-    { 10, 	"09 movie",			NULL, NULL, NULL, mpdclient_handle },
+    { 10, 	"09 house",			NULL, NULL, NULL, mpdclient_handle },
 };
 static menu_t m_playlist = { "Playlist", "Load a MPD Playlist", NULL, NULL, mi_playlist, ARRAY_SIZE(mi_playlist), NULL, NULL };
 

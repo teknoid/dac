@@ -13,7 +13,7 @@ static struct plist playlists[] = {
 		{ 4, 0, "04_eurodance", 	"01 sortiert/04 eurodance" },
 		{ 5, 0, "05_umz", 			"01 sortiert/05 umz" },
 		{ 6, 0, "06_extended", 		"01 sortiert/06 extended" },
-		{ 7, 0, "07_classics", 		"01 sortiert/07 classics" },
+		{ 7, 0, "07_chill", 		"01 sortiert/07 chill" },
 		{ 8, 0, "08_slow", 			"01 sortiert/08 slow" },
-		{ 9, 0, "09_movie", 		"01 sortiert/09 movie" },
+		{ 9, 0, "09_house", 		"01 sortiert/09 house" },
 };
