@@ -42,12 +42,16 @@ gpio-sunxi: gpio-sunxi.o
 gpio-bcm2835: gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
 	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o
+	
+switch: switch.o gpio-sunxi.o utils.o
+	$(CC) $(CFLAGS) -c switch.c
+	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
 
 .PHONY: clean install install-local install-service keytable
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display rotary2uinput test gpio-sunxi gpio-bcm2835
+	rm -f mcp display rotary2uinput test gpio-sunxi gpio-bcm2835 switch
 
 install:
 	@echo "[Installing and starting mcp]"

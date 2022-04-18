@@ -4,4 +4,5 @@
 /display
 /gpio-sunxi
 /gpio-bcm2835
+/switch
 /build/
