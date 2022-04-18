@@ -53,6 +53,9 @@
 #define TMR_AVS1(B) 			(uint32_t*)(B + TMR_OFFSET + 0x88)
 #define TMR_AVSDIV(B)			(uint32_t*)(B + TMR_OFFSET + 0x8c)
 
+#define I2S0_OFFSET				0x2000
+#define I2S0_CLKDIV(B)			(uint32_t*)(B + I2S0_OFFSET + 0x24)
+
 typedef struct {
 	int port;
 	int pin;
@@ -213,6 +216,18 @@ static void mem_write(gpio_status_t *pio) {
 		pio->data = (val >> pio->pin) & 0x01;
 }
 
+void gpio_x() {
+//	uint32_t *addr, val;
+//
+//	addr = I2S0_CLKDIV(mem);
+//	val = *addr;
+//	printf("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
+//
+//	val |= 1 << 9;
+//	val = *addr;
+//	printf("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
+}
+
 void gpio_print(const char *name) {
 	if (*name == 'P')
 		name++;
@@ -321,7 +336,7 @@ uint32_t gpio_micros_since(uint32_t *when) {
 }
 
 int gpio_init() {
-	int pagesize = sysconf(_SC_PAGESIZE);
+	int pagesize = sysconf(_SC_PAGESIZE) * 4;
 
 	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -353,7 +368,7 @@ int gpio_init() {
 }
 
 void gpio_close() {
-	int pagesize = sysconf(_SC_PAGESIZE);
+	int pagesize = sysconf(_SC_PAGESIZE) * 4;
 
 	uint32_t *ctrl = TMR_AVSCTRL(mem);
 	*ctrl &= ~0b11; // stop AVS timers
