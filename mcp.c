@@ -12,9 +12,9 @@
 
 #include "display.h"
 #include "utils.h"
+#include "button.h"
 
 #if defined(SABRE18) || defined(SABRE28)
-#include "display.h"
 #include "display-menu.h"
 #endif
 
@@ -52,17 +52,15 @@ void mcp_status_set(const void *p1, const void *p2, int value) {
 
 void mcp_system_shutdown() {
 	xlog("shutting down system now!");
-	if (mcp->dac_power) {
+	if (mcp->dac_power)
 		dac_power();
-	}
 	system("shutdown -h now");
 }
 
 void mcp_system_reboot() {
 	xlog("rebooting system now!");
-	if (mcp->dac_power) {
+	if (mcp->dac_power)
 		dac_power();
-	}
 	system("shutdown -r now");
 }
 
@@ -96,12 +94,11 @@ static void interactive() {
 		int c = getchar();
 		// xlog("console 0x%20x", c);
 
-		if (c == 'q') {
+		if (c == 'q')
 			break;
-		}
-		if (c == 0x1b || c == 0x5b) {
+
+		if (c == 0x1b || c == 0x5b)
 			continue; // ignore
-		}
 
 		xlog("CONSOLE: distributing key 0x%02x", c);
 		dac_handle(c);
@@ -117,15 +114,14 @@ static void daemonize() {
 
 	/* Fork off the parent process */
 	pid = fork();
-	if (pid < 0) {
+	if (pid < 0)
 		exit(EXIT_FAILURE);
-	}
-	if (pid > 0) {
+
+	if (pid > 0)
 		exit(EXIT_SUCCESS);
-	}
-	if (setsid() < 0) {
+
+	if (setsid() < 0)
 		exit(EXIT_FAILURE);
-	}
 
 	/* Catch, ignore and handle signals */
 	signal(SIGCHLD, SIG_IGN);
@@ -133,12 +129,11 @@ static void daemonize() {
 
 	/* Fork off for the second time*/
 	pid = fork();
-	if (pid < 0) {
+	if (pid < 0)
 		exit(EXIT_FAILURE);
-	}
-	if (pid > 0) {
+
+	if (pid > 0)
 		exit(EXIT_SUCCESS);
-	}
 
 	/* Set new file permissions, set new root, close standard file descriptors */
 	umask(0);
@@ -153,35 +148,39 @@ static void daemonize() {
 
 static void mcp_init() {
 #ifdef DISPLAY
-	if (display_init() < 0) {
+	if (display_init() < 0)
 		exit(EXIT_FAILURE);
-	}
 #endif
 
-	if (dac_init() < 0) {
+	if (dac_init() < 0)
 		exit(EXIT_FAILURE);
-	}
 
-	if (mpdclient_init() < 0) {
+	if (mpdclient_init() < 0)
 		exit(EXIT_FAILURE);
-	}
 
 #ifdef DEVINPUT_IR
-	if (ir_init() < 0) {
+	if (ir_init() < 0)
 		exit(EXIT_FAILURE);
-	}
 #endif
 
 #if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-	if (rotary_init() < 0) {
+	if (rotary_init() < 0)
 		exit(EXIT_FAILURE);
-	}
+#endif
+
+#ifdef BUTTON
+	if (button_init() < 0)
+		exit(EXIT_FAILURE);
 #endif
 
 	xlog("all modules successfully initialized");
 }
 
 static void mcp_close() {
+#ifdef BUTTON
+	button_close();
+#endif
+
 #ifdef DEVINPUT_IR
 	ir_close();
 #endif
@@ -222,9 +221,8 @@ int main(int argc, char **argv) {
 
 	// fork into background
 	// not necessary anymore, see http://jdebp.eu/FGA/unix-daemon-design-mistakes-to-avoid.html
-	if (cfg->daemonize) {
+	if (cfg->daemonize)
 		daemonize();
-	}
 
 	// install signal handler
 	if (signal(SIGINT, sig_handler) == SIG_ERR) {

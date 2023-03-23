@@ -1,7 +1,16 @@
+#define TRON
 // #define ANUS
 // #define PIWOLF
 // #define SABRE18
-#define SABRE28
+// #define SABRE28
+
+#ifdef TRON
+#define LOGFILE			"/var/log/mcp.log"
+#define MUSIC 			"/music/"
+#define DISPLAY			"/dev/tty"
+#define I2C				"/dev/i2c-11"
+#define BUTTON
+#endif
 
 #ifdef ANUS
 #define LOGFILE			"/var/log/mcp.log"

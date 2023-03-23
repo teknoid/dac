@@ -12,13 +12,14 @@ static int fd_i2c;
 
 static int _get_shift(uint8_t mask) {
 	uint8_t shift = 0;
-	if (!mask) {
+	if (!mask)
 		return 0;
-	}
+
 	while (!(mask & 0b00000001)) {
 		mask >>= 1;
 		shift++;
-	};
+	}
+
 	return shift;
 }
 
