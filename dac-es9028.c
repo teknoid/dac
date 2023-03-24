@@ -3,27 +3,29 @@
 #include <math.h>
 #include <pthread.h>
 #include <stddef.h>
+#include <fcntl.h>
+
 #include <linux/input-event-codes.h>
 
 #include "display.h"
 #include "display-menu.h"
 
 #include "i2c.h"
+#include "gpio.h"
 #include "utils.h"
 #include "dac-es9028.h"
 
-#include "gpio.h"
-
 #define msleep(x) usleep(x*1000)
 
+static int i2c;
 static pthread_t thread_dac;
 static void* dac(void *arg);
 
 static dac_signal_t dac_get_signal() {
-	char value;
-	i2c_read(ADDR, REG_STATUS, &value);
+	uint8_t value;
+	i2c_read(i2c, ADDR, REG_STATUS, &value);
 	if (value & 0x01) { // DPLL locked?
-		i2c_read(ADDR, REG_SIGNAL, &value);
+		i2c_read(i2c, ADDR, REG_SIGNAL, &value);
 		switch (value & 0x0f) {
 		case 0x01:
 			return dsd;
@@ -39,8 +41,8 @@ static dac_signal_t dac_get_signal() {
 }
 
 static dac_source_t dac_get_source() {
-	char value;
-	i2c_read(ADDR, REG_SOURCE, &value);
+	uint8_t value;
+	i2c_read(i2c, ADDR, REG_SOURCE, &value);
 	switch (value) {
 	case 0x70:
 		return opt;
@@ -54,20 +56,20 @@ static dac_source_t dac_get_source() {
 static int dac_get_fsr() {
 	double dvalue;
 	int rate;
-	char v0;
-	char v1;
-	char v2;
-	char v3;
+	uint8_t v0;
+	uint8_t v1;
+	uint8_t v2;
+	uint8_t v3;
 	uint32_t dpll;
 	uint64_t value;
 
 	// Datasheet:
 	// This value is latched on reading the LSB, so	register 66 must be read first to acquire the latest DPLL value.
 	// The value is latched on LSB because the DPLL number can be changing as the I2C transactions are performed.
-	i2c_read(ADDR, 0x42, &v0);
-	i2c_read(ADDR, 0x43, &v1);
-	i2c_read(ADDR, 0x44, &v2);
-	i2c_read(ADDR, 0x45, &v3);
+	i2c_read(i2c, ADDR, 0x42, &v0);
+	i2c_read(i2c, ADDR, 0x43, &v1);
+	i2c_read(i2c, ADDR, 0x44, &v2);
+	i2c_read(i2c, ADDR, 0x45, &v3);
 
 	dpll = v3 << 8;
 	dpll = dpll << 8 | v2;
@@ -86,16 +88,16 @@ static int dac_get_fsr() {
 }
 
 static int dac_get_vol() {
-	char value;
+	uint8_t value;
 	int db;
 
-	i2c_read(ADDR, REG_VOLUME, &value);
+	i2c_read(i2c, ADDR, REG_VOLUME, &value);
 	db = (value / 2) * -1;
 	return db;
 }
 
 static void dac_on() {
-	char value;
+	uint8_t value;
 
 	// power on
 	gpio_set(GPIO_DAC_POWER, 1);
@@ -103,7 +105,7 @@ static void dac_on() {
 
 	// check status
 	int timeout = 10;
-	while (i2c_read(ADDR, REG_STATUS, &value) < 0) {
+	while (i2c_read(i2c, ADDR, REG_STATUS, &value) < 0) {
 		msleep(100);
 		if (--timeout == 0) {
 			xlog("no answer, aborting.");
@@ -112,22 +114,21 @@ static void dac_on() {
 		xlog("waiting for DAC status %d", timeout);
 	}
 	value >>= 2;
-	if (value == 0b101010) {
+	if (value == 0b101010)
 		xlog("Found DAC ES9038Pro");
-	} else if (value == 0b011100) {
+	else if (value == 0b011100)
 		xlog("Found DAC ES9038Q2M");
-	} else if (value == 0b101001 || value == 0b101000) {
+	else if (value == 0b101001 || value == 0b101000)
 		xlog("Found DAC ES9028Pro");
-	}
 
 	// initialize registers
 	dac_mute();
-	if (i2c_write(ADDR, REG_CONFIG, 0x07) < 0) {
+	if (i2c_write(i2c, ADDR, REG_CONFIG, 0x07) < 0)
 		return;
-	}
-	if (i2c_write(ADDR, REG_VOLUME, DEFAULT_VOLUME) < 0) {
+
+	if (i2c_write(i2c, ADDR, REG_VOLUME, DEFAULT_VOLUME) < 0)
 		return;
-	}
+
 	dac_unmute();
 
 	mcp->dac_power = 1;
@@ -166,17 +167,16 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
-	char value;
-	i2c_read(ADDR, REG_VOLUME, &value);
+	uint8_t value;
+	i2c_read(i2c, ADDR, REG_VOLUME, &value);
 	if (value != 0x00)
 		value--;
 	if (value != 0x00)
 		value--;
-	i2c_write(ADDR, REG_VOLUME, value);
+	i2c_write(i2c, ADDR, REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
@@ -184,17 +184,16 @@ void dac_volume_up() {
 }
 
 void dac_volume_down() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
-	char value;
-	i2c_read(ADDR, REG_VOLUME, &value);
+	uint8_t value;
+	i2c_read(i2c, ADDR, REG_VOLUME, &value);
 	if (value != 0xf0)
 		value++;
 	if (value != 0xf0)
 		value++;
-	i2c_write(ADDR, REG_VOLUME, value);
+	i2c_write(i2c, ADDR, REG_VOLUME, value);
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
@@ -202,21 +201,19 @@ void dac_volume_down() {
 }
 
 void dac_mute() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
-	i2c_set_bit(ADDR, REG_MUTE, 0);
+	i2c_set_bit(i2c, ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
 
 void dac_unmute() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
-	i2c_clear_bit(ADDR, REG_MUTE, 0);
+	i2c_clear_bit(i2c, ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
@@ -233,26 +230,25 @@ void dac_source_next() {
 }
 
 void dac_source(int source) {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
 	switch (source) {
 	case mpd:
-		i2c_write(ADDR, REG_INPUT, 0x04); // auto detect DSD/PCM
-		i2c_write(ADDR, REG_SOURCE, 0x00); // DATA_CLK
+		i2c_write(i2c, ADDR, REG_INPUT, 0x04); // auto detect DSD/PCM
+		i2c_write(i2c, ADDR, REG_SOURCE, 0x00); // DATA_CLK
 		dac_unmute();
 		display_fullscreen_string("MPD");
 		break;
 	case opt:
-		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
-		i2c_write(ADDR, REG_SOURCE, 0x70); // DATA7
+		i2c_write(i2c, ADDR, REG_INPUT, 0x01); // SPDIF
+		i2c_write(i2c, ADDR, REG_SOURCE, 0x70); // DATA7
 		dac_unmute();
 		display_fullscreen_string("OPT");
 		break;
 	case coax:
-		i2c_write(ADDR, REG_INPUT, 0x01); // SPDIF
-		i2c_write(ADDR, REG_SOURCE, 0x80); // DATA8
+		i2c_write(i2c, ADDR, REG_INPUT, 0x01); // SPDIF
+		i2c_write(i2c, ADDR, REG_SOURCE, 0x80); // DATA8
 		dac_unmute();
 		display_fullscreen_string("COX");
 		break;
@@ -264,8 +260,8 @@ void dac_source(int source) {
 int dac_status_get(const void *p1, const void *p2) {
 	const menuconfig_t *config = p1;
 	// const menuitem_t *item = p2;
-	char value;
-	i2c_read_bits(ADDR, config->reg, &value, config->mask);
+	uint8_t value;
+	i2c_read_bits(i2c, ADDR, config->reg, &value, config->mask);
 	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
 	return value;
 }
@@ -274,12 +270,12 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 	const menuconfig_t *config = p1;
 	// const menuitem_t *item = p2;
 	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
-	i2c_write_bits(ADDR, config->reg, value, config->mask);
+	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
 }
 
 int dac_init() {
-	if (i2c_init(I2C) < 0)
-		return -1;
+	if ((i2c = open(I2C, O_RDWR)) < 0)
+		return xerr("I2C BUS error");
 
 	if (gpio_init() < 0)
 		return -1;
@@ -300,10 +296,8 @@ int dac_init() {
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	// start dac update thread
-	if (pthread_create(&thread_dac, NULL, &dac, NULL)) {
-		xlog("Error creating thread_dac");
-		return -1;
-	}
+	if (pthread_create(&thread_dac, NULL, &dac, NULL))
+		return xerr("Error creating thread_dac");
 
 	// prepare the menus
 	es9028_prepare_menus();
@@ -313,13 +307,15 @@ int dac_init() {
 }
 
 void dac_close() {
-	if (pthread_cancel(thread_dac)) {
+	if (pthread_cancel(thread_dac))
 		xlog("Error canceling thread_display");
-	}
-	if (pthread_join(thread_dac, NULL)) {
+
+	if (pthread_join(thread_dac, NULL))
 		xlog("Error joining thread_display");
-	}
-	i2c_close();
+
+	if (i2c > 0)
+		close(i2c);
+
 	gpio_close();
 }
 

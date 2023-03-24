@@ -42,7 +42,7 @@ uint8_t i2c_get(int fd, uint8_t addr) {
 	return value;
 }
 
-int i2c_read(int fd, uint8_t addr, uint8_t reg, char *val) {
+int i2c_read(int fd, uint8_t addr, uint8_t reg, uint8_t *val) {
 	__u8 inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
@@ -79,7 +79,7 @@ int i2c_read(int fd, uint8_t addr, uint8_t reg, char *val) {
 	return 0;
 }
 
-int i2c_write(int fd, uint8_t addr, uint8_t reg, char value) {
+int i2c_write(int fd, uint8_t addr, uint8_t reg, uint8_t value) {
 	__u8 outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
@@ -113,7 +113,7 @@ int i2c_write(int fd, uint8_t addr, uint8_t reg, char value) {
 	return 0;
 }
 
-int i2c_read_bits(int fd, uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
+int i2c_read_bits(int fd, uint8_t addr, uint8_t reg, uint8_t *val, uint8_t mask) {
 	// read current
 	if (i2c_read(fd, addr, reg, val) < 0)
 		return -1;
@@ -124,9 +124,9 @@ int i2c_read_bits(int fd, uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
 	return 0;
 }
 
-int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, char value, uint8_t mask) {
+int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, uint8_t value, uint8_t mask) {
 	// read current
-	char current;
+	uint8_t current;
 	if (i2c_read(fd, addr, reg, &current) < 0)
 		return -1;
 
@@ -140,7 +140,7 @@ int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, char value, uint8_t mask) 
 }
 
 int i2c_set_bit(int fd, uint8_t addr, uint8_t reg, int n) {
-	char value;
+	uint8_t value;
 	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
 
@@ -150,7 +150,7 @@ int i2c_set_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 }
 
 int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
-	char value;
+	uint8_t value;
 	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
 
@@ -160,7 +160,7 @@ int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 }
 
 void i2c_dump_reg(int fd, uint8_t addr, uint8_t reg) {
-	char value;
+	uint8_t value;
 	i2c_read(fd, addr, reg, &value);
 	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value, SPACEMASK));
 }
