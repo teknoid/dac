@@ -117,6 +117,11 @@ void xlog(const char *format, ...) {
 	}
 }
 
+int xerr(const char *format, ...) {
+	xlog(format);
+	return -1;
+}
+
 void xlog_close() {
 	if (xlog_file) {
 		fflush(xlog_file);

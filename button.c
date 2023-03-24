@@ -12,48 +12,39 @@
 #include <linux/input-event-codes.h>
 
 #include "utils.h"
+#include "i2c.h"
 #include "mcp.h"
 
 #define ADDR	0x20
 
-static int i2cfd;
+static int i2c;
 static pthread_t thread;
 static void* button(void *arg);
 
 int button_init() {
-	// TODO config
-	i2cfd = open(I2C, O_RDWR);
-	if (i2cfd < 0)
-		xlog("I2C BUS error");
+	if ((i2c = open(I2C, O_RDWR)) < 0)
+		return xerr("I2C BUS error");
 
-	if (ioctl(i2cfd, I2C_SLAVE, ADDR) < 0) {
-		xlog("Error addressing device 0x%02x", ADDR);
-		return -1;
-	}
-
-	if (pthread_create(&thread, NULL, &button, NULL)) {
-		xlog("Error creating button thread");
-		return -1;
-	}
+	if (pthread_create(&thread, NULL, &button, NULL))
+		return xerr("Error creating button thread");
 
 	xlog("BUTTON initialized");
 	return 0;
 }
 
 void button_close() {
-	if (pthread_cancel(thread)) {
+	if (pthread_cancel(thread))
 		xlog("Error canceling thread_rb");
-	}
-	if (pthread_join(thread, NULL)) {
-		xlog("Error joining thread_rb");
-	}
 
-	if (i2cfd > 0)
-		close(i2cfd);
+	if (pthread_join(thread, NULL))
+		xlog("Error joining thread_rb");
+
+	if (i2c > 0)
+		close(i2c);
 }
 
 void handle_button(unsigned char c) {
-	xlog("handle button %d", c);
+	xlog("BUTTON handle %d", c);
 
 	switch (c) {
 	case 1:
@@ -76,14 +67,11 @@ static void* button(void *arg) {
 		return (void*) 0;
 	}
 
-	if (read(i2cfd, &c_old, 1) != 1)
-		xlog("Error reading from device");
+	c_old = i2c_get(i2c, ADDR);
 
 	while (1) {
 		msleep(100);
-
-		if (read(i2cfd, &c, 1) != 1)
-			xlog("Error reading from device");
+		c = i2c_get(i2c, ADDR);
 
 		if (c == 0xff)
 			hold = 0;

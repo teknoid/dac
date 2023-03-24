@@ -1,14 +1,14 @@
-#include "i2c.h"
-
+#include <pthread.h>
 #include <fcntl.h>
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include "i2c.h"
 #include "utils.h"
 
-static int fd_i2c;
+static pthread_mutex_t lock;
 
 static int _get_shift(uint8_t mask) {
 	uint8_t shift = 0;
@@ -23,7 +23,26 @@ static int _get_shift(uint8_t mask) {
 	return shift;
 }
 
-int i2c_read(uint8_t addr, uint8_t reg, char *val) {
+uint8_t i2c_get(int fd, uint8_t addr) {
+	uint8_t value;
+
+	pthread_mutex_lock(&lock);
+
+	if (ioctl(fd, I2C_SLAVE, addr) < 0) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error addressing device 0x%02x", addr);
+	}
+
+	if (read(fd, &value, 1) != 1) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error reading from device");
+	}
+
+	pthread_mutex_unlock(&lock);
+	return value;
+}
+
+int i2c_read(int fd, uint8_t addr, uint8_t reg, char *val) {
 	__u8 inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[2];
@@ -48,15 +67,19 @@ int i2c_read(uint8_t addr, uint8_t reg, char *val) {
 	/* Send the request to the kernel and get the result back */
 	packets.msgs = messages;
 	packets.nmsgs = 2;
-	if (ioctl(fd_i2c, I2C_RDWR, &packets) < 0) {
-		xlog("Error reading data from register 0x%02x", reg);
-		return -1;
+
+	pthread_mutex_lock(&lock);
+	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error reading data from register 0x%02x", reg);
 	}
+	pthread_mutex_unlock(&lock);
+
 	*val = inbuf;
 	return 0;
 }
 
-int i2c_write(uint8_t addr, uint8_t reg, char value) {
+int i2c_write(int fd, uint8_t addr, uint8_t reg, char value) {
 	__u8 outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;
 	struct i2c_msg messages[1];
@@ -79,76 +102,65 @@ int i2c_write(uint8_t addr, uint8_t reg, char value) {
 	/* Transfer the i2c packets to the kernel and verify it worked */
 	packets.msgs = messages;
 	packets.nmsgs = 1;
-	if (ioctl(fd_i2c, I2C_RDWR, &packets) < 0) {
-		xlog("Error writing data into register 0x%02x", reg);
-		return -1;
+
+	pthread_mutex_lock(&lock);
+	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error writing data into register 0x%02x", reg);
 	}
+	pthread_mutex_unlock(&lock);
+
 	return 0;
 }
 
-int i2c_read_bits(uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
+int i2c_read_bits(int fd, uint8_t addr, uint8_t reg, char *val, uint8_t mask) {
 	// read current
-	if (i2c_read(addr, reg, val) < 0) {
+	if (i2c_read(fd, addr, reg, val) < 0)
 		return -1;
-	}
+
 	// derive shift right from mask
 	uint8_t shift = _get_shift(mask);
 	*val = (*val & mask) >> shift; // mask and shift bits
 	return 0;
 }
 
-int i2c_write_bits(uint8_t addr, uint8_t reg, char value, uint8_t mask) {
+int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, char value, uint8_t mask) {
 	// read current
 	char current;
-	if (i2c_read(addr, reg, &current) < 0) {
+	if (i2c_read(fd, addr, reg, &current) < 0)
 		return -1;
-	}
+
 	// derive shift left from mask
 	uint8_t shift = _get_shift(mask);
 	current &= ~mask; // clear bits
 	current |= (value << shift) & mask; // set bits
 	// write
-	i2c_write(addr, reg, current);
+	i2c_write(fd, addr, reg, current);
 	return 0;
 }
 
-int i2c_set_bit(uint8_t addr, uint8_t reg, int n) {
+int i2c_set_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 	char value;
-	if (i2c_read(addr, reg, &value) < 0) {
+	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
-	}
+
 	value |= 1 << n;
-	i2c_write(addr, reg, value);
+	i2c_write(fd, addr, reg, value);
 	return 0;
 }
 
-int i2c_clear_bit(uint8_t addr, uint8_t reg, int n) {
+int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 	char value;
-	if (i2c_read(addr, reg, &value) < 0) {
+	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
-	}
+
 	value &= ~(1 << n);
-	i2c_write(addr, reg, value);
+	i2c_write(fd, addr, reg, value);
 	return 0;
 }
 
-void i2c_dump_reg(uint8_t addr, uint8_t reg) {
+void i2c_dump_reg(int fd, uint8_t addr, uint8_t reg) {
 	char value;
-	i2c_read(addr, reg, &value);
+	i2c_read(fd, addr, reg, &value);
 	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value, SPACEMASK));
-}
-
-int i2c_init(char *device) {
-	if ((fd_i2c = open(device, O_RDWR)) < 0) {
-		xlog("Failed to open the i2c bus");
-		return -1;
-	}
-
-	return 0;
-}
-
-void i2c_close() {
-	if (fd_i2c) {
-		close(fd_i2c);
-	}
 }

@@ -15,8 +15,9 @@
 int elevate_realtime(int cpu);
 
 void xlog_init(int, const char *filename);
-void xlog(const char *format, ...);
 void xlog_close(void);
+void xlog(const char *format, ...);
+int xerr(const char *format, ...);
 
 char* printbits64(uint64_t code, uint64_t spacemask);
 
