@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <unistd.h>
 
 #define XLOG_STDOUT					0
 #define XLOG_SYSLOG					1

@@ -13,6 +13,7 @@
 #include "display.h"
 #include "utils.h"
 #include "button.h"
+#include "lcd.h"
 
 #if defined(SABRE18) || defined(SABRE28)
 #include "display-menu.h"
@@ -152,6 +153,11 @@ static void mcp_init() {
 		exit(EXIT_FAILURE);
 #endif
 
+#ifdef LCD
+	if (lcd_init() < 0)
+		exit(EXIT_FAILURE);
+#endif
+
 	if (dac_init() < 0)
 		exit(EXIT_FAILURE);
 
@@ -191,6 +197,10 @@ static void mcp_close() {
 
 	mpdclient_close();
 	dac_close();
+
+#ifdef LCD
+	lcd_close();
+#endif
 
 #ifdef DISPLAY
 	display_close();

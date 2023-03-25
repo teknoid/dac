@@ -8,6 +8,7 @@
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/music/"
 #define I2C				"/dev/i2c-11"
+#define LCD
 #define BUTTON
 #endif
 

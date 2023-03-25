@@ -23,6 +23,23 @@ static int _get_shift(uint8_t mask) {
 	return shift;
 }
 
+uint8_t i2c_put(int fd, uint8_t addr, uint8_t value) {
+	pthread_mutex_lock(&lock);
+
+	if (ioctl(fd, I2C_SLAVE, addr) < 0) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error addressing device 0x%02x", addr);
+	}
+
+	if (write(fd, &value, 1) != 1) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error writing to device");
+	}
+
+	pthread_mutex_unlock(&lock);
+	return value;
+}
+
 uint8_t i2c_get(int fd, uint8_t addr) {
 	uint8_t value;
 
