@@ -6,6 +6,7 @@
 
  Copyright (C) 2006 Nico Eichelmann and Thomas Eichelmann
  2014 clean up by Falk Brunner
+ 2023 adapted for dac project Copyright (C) Heiko Jehmlich (hje @ jecons.de)
 
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
@@ -32,90 +33,23 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include <mqtt.h>
-#include <posix_sockets.h>
-
-#include "frozen.h"
 #include "utils.h"
 #include "i2c.h"
 #include "lcd.h"
 #include "mcp.h"
 
 static int i2cfd;
+
 static int backlight;
-static int backlight_timer;
 static pthread_t thread;
 static void* lcd(void *arg);
-
-static int mqttfd;
-static struct mqtt_client client;
-static uint8_t sendbuf[2048];
-static uint8_t recvbuf[1024];
-
-// TODO config
-static const char *client_id = "tron-mcp";
-static const char *addr = "tron";
-static const char *port = "1883";
-static const char *topic = "notification";
-
-static void publish_callback(void **unused, struct mqtt_response_publish *published) {
-	/* note that published->topic_name is NOT null-terminated (here we'll change it to a c-string) */
-	char *topic_name = (char*) malloc(published->topic_name_size + 1);
-	memcpy(topic_name, published->topic_name, published->topic_name_size);
-	topic_name[published->topic_name_size] = '\0';
-	xlog("Received publish('%s'): %s\n", topic_name, (const char*) published->application_message);
-
-	char *title = NULL, *text = NULL;
-	json_scanf(published->application_message, strlen(published->application_message), "{title: %Q, text: %Q}", &title, &text);
-	lcd_command(LCD_CLEAR);
-	msleep(2);
-	lcd_printlc(1, 1, title);
-	lcd_printlc(2, 1, text);
-	lcd_light(1);
-
-	free(title);
-	free(text);
-	free(topic_name);
-}
-
-static int init_mqtt() {
-	/* open the non-blocking TCP socket (connecting to the broker) */
-	mqttfd = open_nb_socket(addr, port);
-	if (mqttfd == -1) {
-		perror("Failed to open socket: ");
-//		exit_example(EXIT_FAILURE, mqttfd, NULL);
-	}
-
-	/* setup a client */
-	mqtt_init(&client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
-	/* Create an anonymous session */
-
-	/* Ensure we have a clean session */
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-	/* Send connection request to the broker. */
-	mqtt_connect(&client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400);
-
-	/* check that we don't have any errors */
-	if (client.error != MQTT_OK) {
-		fprintf(stderr, "error: %s\n", mqtt_error_str(client.error));
-//		exit_example(EXIT_FAILURE, mqttfd, NULL);
-	}
-
-	/* subscribe */
-	mqtt_subscribe(&client, topic, 0);
-	return 0;
-}
 
 int lcd_init() {
 	if ((i2cfd = open(I2C, O_RDWR)) < 0)
 		return xerr("I2C BUS error");
 
-	if (init_mqtt() < 0)
-		return -1;
-
-	msleep(15);		        //-	Wait for more than 15ms after VDD rises to 4.5V
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	msleep(5);			    //-	Wait for more than 4.1ms
+	msleep(5);					//-	Wait for more than 4.1ms
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
 	msleep(0.1);		        //-	Wait for more than 100us
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
@@ -128,10 +62,10 @@ int lcd_init() {
 	msleep(2);
 	lcd_command(LCD_INCREASE | LCD_DISPLAYSHIFTOFF);
 
-	lcd_light(1);
+	lcd_backlight_on();
 	lcd_printlc(1, 1, "LCD initialized");
 	msleep(1000);
-	lcd_light(0);
+	lcd_backlight_off();
 
 	if (pthread_create(&thread, NULL, &lcd, NULL))
 		return xerr("Error creating lcd thread");
@@ -141,12 +75,20 @@ int lcd_init() {
 }
 
 void lcd_close() {
+	lcd_backlight_off();
+	lcd_command(LCD_CLEAR);
+
+	if (pthread_cancel(thread))
+		xlog("Error canceling lcd thread");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining lcd thread");
+
 	if (i2cfd > 0)
 		close(i2cfd);
 }
 
 //-	Write nibble to display with pulse of enable bit
-// map pinout between PCF8574 and LCD
 void lcd_write(uint8_t value) {
 	uint8_t data_out = value << 4 & 0xf0;
 
@@ -154,7 +96,7 @@ void lcd_write(uint8_t value) {
 		data_out |= LCD_RS;
 	if (value & CMD_RW)
 		data_out |= LCD_RW;
-	if (!backlight)
+	if (backlight)
 		data_out |= LCD_LIGHT_N;
 
 	i2c_put(i2cfd, LCD_I2C_DEVICE, data_out | LCD_E);		//-	Set new data and enable to high
@@ -170,7 +112,7 @@ uint8_t lcd_read(int mode) {
 	else
 		lcddata = (LCD_E | LCD_RW | LCD_D4 | LCD_D5 | LCD_D6 | LCD_D7);
 
-	if (!backlight)
+	if (backlight)
 		lcddata |= LCD_LIGHT_N;
 
 	i2c_put(i2cfd, LCD_I2C_DEVICE, lcddata);
@@ -188,7 +130,7 @@ uint8_t lcd_read(int mode) {
 		data |= CMD_D3;
 
 	lcddata = 0;
-	if (!backlight)
+	if (backlight)
 		lcddata |= LCD_LIGHT_N;
 	i2c_put(i2cfd, LCD_I2C_DEVICE, lcddata);
 
@@ -329,16 +271,16 @@ int lcd_getlc(uint8_t *line, uint8_t *col) {
 	return 0;
 }
 
-// turn light on/off
-void lcd_light(int light) {
-	if (!light) {
-		i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_ON);
-		backlight = 1;
-		backlight_timer = LCD_BACKLIGHT_TIMER;
-	} else {
-		i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_OFF);
-		backlight = 0;
-	}
+//- turn backlight on
+void lcd_backlight_on() {
+	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_ON);
+	backlight = LCD_BACKLIGHT_TIMER;
+}
+
+//- turn backlight off
+void lcd_backlight_off() {
+	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_OFF);
+	backlight = 0;
 }
 
 //-	Check if busy
@@ -355,12 +297,11 @@ static void* lcd(void *arg) {
 
 	while (1) {
 		msleep(250);
-		mqtt_sync(&client);
 
-		if (backlight_timer > 0)
-			backlight_timer--;
-		else if (backlight_timer == 0)
-			lcd_light(0);
+		if (backlight > 0)
+			backlight--;
+
+		if (backlight == 1)
+			lcd_backlight_off();
 	}
 }
-

@@ -258,8 +258,8 @@
 #define LCD_5X10		LCD_CONFIGURATION | 0x04	/**<	5 X 10 dots */
 #define LCD_5X7			LCD_CONFIGURATION | 0x00	/**<	5 X 7 dots */
 
-#define LCD_LIGHT_OFF		LCD_LIGHT_N				// low active
-#define LCD_LIGHT_ON		0x00
+#define LCD_LIGHT_ON	LCD_LIGHT_N
+#define LCD_LIGHT_OFF	0x00
 /*@}*/
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -426,7 +426,8 @@ int lcd_busy(void);
  \param light false to turn light OFF
  \return none
  */
-void lcd_light(int light);
+void lcd_backlight_on();
+void lcd_backlight_off();
 
 //-------------------------------------------------------------------------------------------------------------------
 /*@}*/

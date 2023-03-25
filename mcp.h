@@ -10,6 +10,7 @@
 #define I2C				"/dev/i2c-11"
 #define LCD
 #define BUTTON
+#define MQTT
 #endif
 
 #ifdef ANUS
