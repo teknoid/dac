@@ -23,66 +23,9 @@
 
 static int fd_ra;
 static pthread_t thread_ra;
-static void* rotary_axis(void *arg);
 
 static int fd_rb;
 static pthread_t thread_rb;
-static void* rotary_button(void *arg);
-
-static int init() {
-	char name[256] = "";
-
-	// Open Devices
-	if ((fd_ra = open(DEVINPUT_RA, O_RDONLY)) == -1) {
-		xlog("unable to open %s", DEVINPUT_RA);
-		return -1;
-	}
-	if ((fd_rb = open(DEVINPUT_RB, O_RDONLY)) == -1) {
-		xlog("unable to open %s", DEVINPUT_RB);
-		return -1;
-	}
-
-	// Print Device Name
-	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
-	xlog("ROTARY AXIS: reading from %s (%s)", DEVINPUT_RA, name);
-	ioctl(fd_rb, EVIOCGNAME(sizeof(name)), name);
-	xlog("ROTARY BUTTON: reading from %s (%s)", DEVINPUT_RB, name);
-
-	// start listener
-	if (pthread_create(&thread_ra, NULL, &rotary_axis, NULL)) {
-		xlog("Error creating thread_ra");
-		return -1;
-	}
-	if (pthread_create(&thread_rb, NULL, &rotary_button, NULL)) {
-		xlog("Error creating thread_rb");
-		return -1;
-	}
-
-	xlog("ROTARY initialized");
-	return 0;
-}
-
-static void destroy() {
-	if (pthread_cancel(thread_ra)) {
-		xlog("Error canceling thread_ra");
-	}
-	if (pthread_join(thread_ra, NULL)) {
-		xlog("Error joining thread_ra");
-	}
-	if (fd_ra) {
-		close(fd_ra);
-	}
-
-	if (pthread_cancel(thread_rb)) {
-		xlog("Error canceling thread_rb");
-	}
-	if (pthread_join(thread_rb, NULL)) {
-		xlog("Error joining thread_rb");
-	}
-	if (fd_rb) {
-		close(fd_rb);
-	}
-}
 
 static void* rotary_axis(void *arg) {
 	struct input_event ev;
@@ -106,9 +49,8 @@ static void* rotary_axis(void *arg) {
 		}
 		// xlog("axis type 0x%0x code 0x%0x value 0x%0x", ev.type, ev.code, ev.value);
 
-		if (ev.type != EV_REL) {
+		if (ev.type != EV_REL)
 			continue; // ignore others
-		}
 
 		xlog("ROTARY: distributing axis %s (0x%0x)", devinput_keyname(ev.code), ev.code);
 		switch (ev.value) {
@@ -151,9 +93,8 @@ static void* rotary_button(void *arg) {
 		}
 		// xlog("button type 0x%0x code 0x%0x value 0x%0x", ev.type, ev.code, ev.value);
 
-		if (ev.type != EV_KEY) {
+		if (ev.type != EV_KEY)
 			continue; // ignore others
-		}
 
 		xlog("ROTARY: distributing button %s (0x%0x) %d", devinput_keyname(ev.code), ev.code, ev.value);
 		if (ev.value == 1) {
@@ -167,14 +108,61 @@ static void* rotary_button(void *arg) {
 	return (void*) 0;
 }
 
+static int init() {
+	char name[256] = "";
+
+	// Open Devices
+	if ((fd_ra = open(DEVINPUT_RA, O_RDONLY)) == -1)
+		return xerr("unable to open %s", DEVINPUT_RA);
+
+	if ((fd_rb = open(DEVINPUT_RB, O_RDONLY)) == -1)
+		return xerr("unable to open %s", DEVINPUT_RB);
+
+	// Print Device Name
+	ioctl(fd_ra, EVIOCGNAME(sizeof(name)), name);
+	xlog("ROTARY AXIS: reading from %s (%s)", DEVINPUT_RA, name);
+	ioctl(fd_rb, EVIOCGNAME(sizeof(name)), name);
+	xlog("ROTARY BUTTON: reading from %s (%s)", DEVINPUT_RB, name);
+
+	// start listener
+	if (pthread_create(&thread_ra, NULL, &rotary_axis, NULL))
+		return xerr("Error creating thread_ra");
+
+	if (pthread_create(&thread_rb, NULL, &rotary_button, NULL))
+		return xerr("Error creating thread_rb");
+
+	xlog("ROTARY initialized");
+	return 0;
+}
+
+static void destroy() {
+	if (pthread_cancel(thread_ra))
+		xlog("Error canceling thread_ra");
+
+	if (pthread_join(thread_ra, NULL))
+		xlog("Error joining thread_ra");
+
+	if (fd_ra)
+		close(fd_ra);
+
+	if (pthread_cancel(thread_rb))
+		xlog("Error canceling thread_rb");
+
+	if (pthread_join(thread_rb, NULL))
+		xlog("Error joining thread_rb");
+
+	if (fd_rb)
+		close(fd_rb);
+}
+
 MCP_REGISTER(rotary, 3, &init, &destroy);
 
 #ifdef LOCALMAIN
 
 int main(void) {
-	rotary_init();
+	init();
 	int c = getchar();
-	rotary_close();
+	destroy();
 }
 
 #endif

@@ -20,15 +20,12 @@
 #include "playlists.h"
 #include "utils.h"
 
-#define msleep(x) usleep(x*1000)
-
 static int current_song = -1;
 static int playlist_mode = 1;
 
 static struct mpd_connection *conn;
 
 static pthread_t thread_mpdclient;
-static void* mpdclient(void *arg);
 
 static struct mpd_connection* mpdclient_get_connection() {
 	// wait for mpd connect success
@@ -303,37 +300,6 @@ void mpdclient_handle(int key) {
 	}
 }
 
-static int init() {
-
-	// get connection for sending events
-	conn = mpdclient_get_connection();
-	if (!conn) {
-		return -1;
-	}
-
-	// listen for mpd state changes
-	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL)) {
-		xlog("Error creating thread_mpdclient");
-		return -1;
-	}
-
-	xlog("MPDCLIENT initialized");
-	return 0;
-}
-
-static void destroy() {
-	if (pthread_cancel(thread_mpdclient)) {
-		xlog("Error canceling thread_mpdclient");
-	}
-	if (pthread_join(thread_mpdclient, NULL)) {
-		xlog("Error joining thread_mpdclient");
-	}
-
-	if (conn) {
-		mpd_connection_free(conn);
-	}
-}
-
 static void* mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -404,6 +370,32 @@ static void* mpdclient(void *arg) {
 
 	mpd_connection_free(conn_status);
 	return (void*) 0;
+}
+
+static int init() {
+
+	// get connection for sending events
+	conn = mpdclient_get_connection();
+	if (!conn)
+		return -1;
+
+	// listen for mpd state changes
+	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL))
+		return xerr("Error creating thread_mpdclient");
+
+	xlog("MPDCLIENT initialized");
+	return 0;
+}
+
+static void destroy() {
+	if (pthread_cancel(thread_mpdclient))
+		xlog("Error canceling thread_mpdclient");
+
+	if (pthread_join(thread_mpdclient, NULL))
+		xlog("Error joining thread_mpdclient");
+
+	if (conn)
+		mpd_connection_free(conn);
 }
 
 MCP_REGISTER(mpdclient, 3, &init, &destroy);

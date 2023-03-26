@@ -35,6 +35,7 @@
 
 #include "utils.h"
 #include "gpio.h"
+#include "mcp.h"
 
 #define	MEM_BASE				0x01c20000
 
@@ -315,7 +316,8 @@ void gpio_delay_micros(uint32_t us) {
 	*ctrl |= 0b10; // run
 	if (us > 100)
 		usleep(us - 90);
-	while (*avs1 < us);
+	while (*avs1 < us)
+		;
 }
 
 uint32_t gpio_micros() {
@@ -335,7 +337,7 @@ uint32_t gpio_micros_since(uint32_t *when) {
 	return elapsed;
 }
 
-int gpio_init() {
+static int init() {
 	int pagesize = sysconf(_SC_PAGESIZE) * 4;
 
 	// access memory
@@ -367,7 +369,7 @@ int gpio_init() {
 	return 0;
 }
 
-void gpio_close() {
+static void destroy() {
 	int pagesize = sysconf(_SC_PAGESIZE) * 4;
 
 	uint32_t *ctrl = TMR_AVSCTRL(mem);
@@ -375,6 +377,8 @@ void gpio_close() {
 
 	munmap((void*) mem, pagesize);
 }
+
+MCP_REGISTER(gpio, 1, &init, &destroy);
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {

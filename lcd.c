@@ -42,51 +42,6 @@ static int i2cfd;
 
 static int backlight;
 static pthread_t thread;
-static void* lcd(void *arg);
-
-static int init() {
-	if ((i2cfd = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
-
-	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	msleep(5);					//-	Wait for more than 4.1ms
-	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	msleep(0.1);		        //-	Wait for more than 100us
-	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	lcd_write(CMD_D1);		    //-	Set interface to 4-bit
-
-	//- From now on in 4-bit-Mode
-	lcd_command(LCD_LINE_MODE | LCD_5X7);
-	lcd_command(LCD_DISPLAYON | LCD_BLINKINGOFF);
-	lcd_command(LCD_CLEAR);
-	msleep(2);
-	lcd_command(LCD_INCREASE | LCD_DISPLAYSHIFTOFF);
-
-	lcd_backlight_on();
-	lcd_printlc(1, 1, "LCD initialized");
-	msleep(1000);
-	lcd_backlight_off();
-
-	if (pthread_create(&thread, NULL, &lcd, NULL))
-		return xerr("Error creating lcd thread");
-
-	xlog("LCD initialized");
-	return 0;
-}
-
-static void destroy() {
-	lcd_backlight_off();
-	lcd_command(LCD_CLEAR);
-
-	if (pthread_cancel(thread))
-		xlog("Error canceling lcd thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining lcd thread");
-
-	if (i2cfd > 0)
-		close(i2cfd);
-}
 
 //-	Write nibble to display with pulse of enable bit
 void lcd_write(uint8_t value) {
@@ -304,6 +259,50 @@ static void* lcd(void *arg) {
 		if (backlight == 1)
 			lcd_backlight_off();
 	}
+}
+
+static int init() {
+	if ((i2cfd = open(I2C, O_RDWR)) < 0)
+		return xerr("I2C BUS error");
+
+	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
+	msleep(5);					//-	Wait for more than 4.1ms
+	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
+	msleep(0.1);		        //-	Wait for more than 100us
+	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
+	lcd_write(CMD_D1);		    //-	Set interface to 4-bit
+
+	//- From now on in 4-bit-Mode
+	lcd_command(LCD_LINE_MODE | LCD_5X7);
+	lcd_command(LCD_DISPLAYON | LCD_BLINKINGOFF);
+	lcd_command(LCD_CLEAR);
+	msleep(2);
+	lcd_command(LCD_INCREASE | LCD_DISPLAYSHIFTOFF);
+
+	lcd_backlight_on();
+	lcd_printlc(1, 1, "LCD initialized");
+	msleep(1000);
+	lcd_backlight_off();
+
+	if (pthread_create(&thread, NULL, &lcd, NULL))
+		return xerr("Error creating lcd thread");
+
+	xlog("LCD initialized");
+	return 0;
+}
+
+static void destroy() {
+	lcd_backlight_off();
+	lcd_command(LCD_CLEAR);
+
+	if (pthread_cancel(thread))
+		xlog("Error canceling lcd thread");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining lcd thread");
+
+	if (i2cfd > 0)
+		close(i2cfd);
 }
 
 MCP_REGISTER(lcd, 1, &init, &destroy);

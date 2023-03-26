@@ -35,7 +35,8 @@ struct encoder {
 	volatile int button;
 };
 
-struct encoder *encoder;
+static pthread_t thread;
+static struct encoder *encoder;
 
 #ifdef WIRINGPI
 static void updateEncoders() {
@@ -79,7 +80,7 @@ static struct encoder* setupencoder(int pin_a, int pin_b, int pin_s) {
 	return encoder;
 }
 
-void* rotary(void *arg) {
+static void* rotary(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -107,12 +108,21 @@ void* rotary(void *arg) {
 	}
 }
 
-int init() {
+static int init() {
 	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
+
+	if (pthread_create(&thread, NULL, &rotary, NULL))
+		return xerr("Error creating thread_rotary");
+
 	return 0;
 }
 
-void destroy() {
+static void destroy() {
+	if (pthread_cancel(thread))
+		xlog("Error canceling thread_rotary");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining thread_rotary");
 }
 
 MCP_REGISTER(rotary, 1, &init, &destroy);

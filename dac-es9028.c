@@ -10,16 +10,14 @@
 #include "display.h"
 #include "display-menu.h"
 
+#include "mcp.h"
 #include "i2c.h"
 #include "gpio.h"
 #include "utils.h"
 #include "dac-es9028.h"
 
-#define msleep(x) usleep(x*1000)
-
 static int i2c;
-static pthread_t thread_dac;
-static void* dac(void *arg);
+static pthread_t thread;
 
 static dac_signal_t dac_get_signal() {
 	uint8_t value;
@@ -311,7 +309,7 @@ void dac_handle(int c) {
 	}
 }
 
-void* dac(void *arg) {
+static void* dac(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -373,9 +371,6 @@ static int init() {
 	if ((i2c = open(I2C, O_RDWR)) < 0)
 		return xerr("I2C BUS error");
 
-	if (gpio_init() < 0)
-		return -1;
-
 	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
 	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
 
@@ -392,7 +387,7 @@ static int init() {
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	// start dac update thread
-	if (pthread_create(&thread_dac, NULL, &dac, NULL))
+	if (pthread_create(&thread, NULL, &dac, NULL))
 		return xerr("Error creating thread_dac");
 
 	// prepare the menus
@@ -403,16 +398,14 @@ static int init() {
 }
 
 static void destroy() {
-	if (pthread_cancel(thread_dac))
+	if (pthread_cancel(thread))
 		xlog("Error canceling thread_display");
 
-	if (pthread_join(thread_dac, NULL))
+	if (pthread_join(thread, NULL))
 		xlog("Error joining thread_display");
 
 	if (i2c > 0)
 		close(i2c);
-
-	gpio_close();
 }
 
 MCP_REGISTER(dac_es9028, 3, &init, &destroy);

@@ -37,6 +37,7 @@
 #include <sys/types.h>
 
 #include "gpio.h"
+#include "mcp.h"
 
 #define PIO_REG_CFG(B, G)		(uint32_t*)(B) + (G/10)
 #define PIO_REG_SET(B, G)		(uint32_t*)(B) + (0x1C/4)
@@ -430,7 +431,8 @@ void gpio_delay_micros(uint32_t us) {
 	uint32_t start = timer[1];
 	if (us >= 100)
 		usleep(us - 80);
-	while ((timer[1] - start) < us);
+	while ((timer[1] - start) < us)
+		;
 }
 
 uint32_t gpio_micros() {
@@ -448,7 +450,7 @@ uint32_t gpio_micros_since(uint32_t *when) {
 	return elapsed;
 }
 
-int gpio_init() {
+static int init() {
 	int pagesize = sysconf(_SC_PAGESIZE);
 
 	if (timer != 0 && gpio != 0)
@@ -497,11 +499,13 @@ int gpio_init() {
 	return 0;
 }
 
-void gpio_close() {
+static void destroy() {
 	int pagesize = sysconf(_SC_PAGESIZE);
 	munmap((void*) gpio, pagesize);
 	munmap((void*) timer, pagesize);
 }
+
+MCP_REGISTER(gpio, 1, &init, &destroy);
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {

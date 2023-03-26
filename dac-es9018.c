@@ -2,12 +2,10 @@
 #include <unistd.h>
 #include <linux/input-event-codes.h>
 
+#include "mcp.h"
+#include "gpio.h"
 #include "utils.h"
 #include "dac-es9018.h"
-
-#include "gpio.h"
-
-#define msleep(x) usleep(x*1000)
 
 static void dac_on() {
 	gpio_set(GPIO_DAC_POWER, 1);
@@ -106,9 +104,6 @@ void dac_handle(int c) {
 }
 
 static int init() {
-	if (gpio_init() < 0)
-		return -1;
-
 	gpio_configure(GPIO_VOL_UP, 1, 0, 0);
 	gpio_configure(GPIO_VOL_DOWN, 1, 0, 0);
 
@@ -132,7 +127,6 @@ static int init() {
 }
 
 static void destroy() {
-	gpio_close();
 }
 
 MCP_REGISTER(dac_es9018, 3, &init, &destroy);

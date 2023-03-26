@@ -63,7 +63,11 @@ void dac_config_set(const void *ptr, int value) {
 	current_value = value;
 }
 
-int dac_init() {
+void dac_handle(int c) {
+	mpdclient_handle(c);
+}
+
+static int init() {
 #ifdef GPIO_POWER
 	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
 	if (mcp->dac_power) {
@@ -76,9 +80,7 @@ int dac_init() {
 	return 0;
 }
 
-void dac_close() {
+static void destroy() {
 }
 
-void dac_handle(int c) {
-	mpdclient_handle(c);
-}
+MCP_REGISTER(dac, 3, &init, &destroy);

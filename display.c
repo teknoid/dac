@@ -13,8 +13,6 @@
 #include "display-menu.h"
 #include "utils.h"
 
-#define msleep(x) usleep(x*1000)
-
 // #define LOCALMAIN
 
 #ifdef LOCALMAIN
@@ -33,15 +31,13 @@ static int countdown_menu;
 static int scroller_artist = 0;
 static int scroller_title = 0;
 
-static pthread_t thread_display;
-static void* display(void*);
+static pthread_t thread;
 
 static void check_nightmode() {
-	if (mcp->nightmode) {
+	if (mcp->nightmode)
 		attroff(A_BOLD);
-	} else {
+	else
 		attron(A_BOLD);
-	}
 }
 
 static void center_line(int line, char *text) {
@@ -53,6 +49,7 @@ static void scroll_line(int line, int *scrollptr, char *text) {
 	char scrolltxt[WIDTH + 1];
 	unsigned int l = strlen(text);
 	unsigned int pos;
+
 	int x = *scrollptr - SCROLLDELAY;
 	if (x < 0) {
 		pos = 0; // wait 5s before start scrolling
@@ -62,9 +59,9 @@ static void scroll_line(int line, int *scrollptr, char *text) {
 			*scrollptr = 0; // reset
 			pos = 0;
 		}
-	} else {
+	} else
 		pos = x;
-	}
+
 	strncpy(scrolltxt, text + pos, WIDTH);
 	scrolltxt[WIDTH] = 0x00;
 	// xlog("%d : %d : %s", *scroller, pos, scrolltxt);
@@ -86,11 +83,11 @@ static void dotchar(unsigned int startx, unsigned int starty, char c) {
 }
 
 static void audioinfo(int line) {
-	if (mcp->dac_mute) {
+	if (mcp->dac_mute)
 		mvprintw(line, 0, "---");
-	} else {
+	else
 		mvprintw(line, 0, "%2ddB", mcp->dac_volume);
-	}
+
 	if (mcp->dac_signal == nlock) {
 		mvaddstr(line, 8, "NLOCK");
 		mvaddstr(line, 15, "--/--");
@@ -112,19 +109,19 @@ static void audioinfo(int line) {
 		return;
 	}
 	if (mcp->dac_signal == dsd) {
-		if (mcp->dac_rate == 44) {
+		if (mcp->dac_rate == 44)
 			mvaddstr(line, 9, "DSD64");
-		} else if (mcp->dac_rate == 88) {
+		else if (mcp->dac_rate == 88)
 			mvaddstr(line, 8, "DSD128");
-		} else if (mcp->dac_rate == 176) {
+		else if (mcp->dac_rate == 176)
 			mvaddstr(line, 8, "DSD256");
-		} else if (mcp->dac_rate == 384) {
+		else if (mcp->dac_rate == 384)
 			mvaddstr(line, 8, "DSD512");
-		} else if (mcp->dac_rate == 768) {
+		else if (mcp->dac_rate == 768)
 			mvaddstr(line, 7, "DSD1024");
-		} else {
+		else
 			mvaddstr(line, 9, "DSD?");
-		}
+
 		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
 		return;
 	}
@@ -138,24 +135,24 @@ static void audioinfo(int line) {
 
 static void songinfo(int line) {
 	int x;
-	if (mcp->plist_pos < 10) {
+
+	if (mcp->plist_pos < 10)
 		x = 8;
-	} else if (mcp->plist_pos > 100) {
+	else if (mcp->plist_pos > 100)
 		x = 7;
-	} else {
+	else
 		x = 7;
-	}
+
 	mvprintw(line, x, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
-	if (strlen(mcp->artist) <= WIDTH) {
+	if (strlen(mcp->artist) <= WIDTH)
 		center_line(line + 1, mcp->artist);
-	} else {
+	else
 		scroll_line(line + 1, &scroller_artist, mcp->artist);
-	}
-	if (strlen(mcp->title) <= WIDTH) {
+
+	if (strlen(mcp->title) <= WIDTH)
 		center_line(line + 2, mcp->title);
-	} else {
+	else
 		scroll_line(line + 2, &scroller_title, mcp->title);
-	}
 }
 
 static void systeminfo(int line) {
@@ -227,9 +224,9 @@ static void paint_fullscreen() {
 }
 
 static void paint() {
-	if (--countdown_fullscreen > 0) {
+	if (--countdown_fullscreen > 0)
 		return; // still in fullscreen mode
-	}
+
 	if (mcp->menu) {
 		if (--countdown_menu == 0) {
 			mcp->menu = 0; // no input -> close
@@ -237,32 +234,31 @@ static void paint() {
 		} else {
 			return; // still in menu mode
 		}
-	} else {
+	} else
 		countdown_menu = 0;
-	}
 
 	clear();
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		paint_stdby();
-	} else if (mcp->dac_source != mpd) {
+	else if (mcp->dac_source != mpd)
 		paint_source_ext();
-	} else if (mcp->mpd_state == MPD_STATE_PLAY) {
+	else if (mcp->mpd_state == MPD_STATE_PLAY)
 		paint_play();
-	} else {
+	else
 		paint_stop();
-	}
+
 	refresh();
 }
 
 static void clear_clocktick() {
-	if (countdown_fullscreen || mcp->menu) {
+	if (countdown_fullscreen || mcp->menu)
 		return;
-	}
-	if (!mcp->dac_power) {
+
+	if (!mcp->dac_power)
 		mvaddch(CENTER, mcp->clock_h < 10 ? 1 : 2, ' ');
-	} else {
+	else
 		mvaddch(FOOTER, mcp->clock_h < 10 ? 1 : 2, ' ');
-	}
+
 	refresh();
 }
 
@@ -273,16 +269,15 @@ static void get_system_status() {
 	struct tm *tm_info = localtime(&timer);
 	mcp->clock_h = tm_info->tm_hour;
 	mcp->clock_m = tm_info->tm_min;
-	if (mcp->clock_h >= 8 && mcp->clock_h < 22) {
+
+	if (mcp->clock_h >= 8 && mcp->clock_h < 22)
 		mcp->nightmode = 0;
-	} else {
+	else
 		mcp->nightmode = 1;
-	}
 
 	double load[3];
-	if (getloadavg(load, 3) != -1) {
+	if (getloadavg(load, 3) != -1)
 		mcp->load = load[0];
-	}
 
 	unsigned long temp = 0;
 	FILE *fp = fopen("/sys/devices/virtual/thermal/thermal_zone0/temp", "r");
@@ -308,6 +303,39 @@ void display_fullscreen_string(char *value) {
 	sprintf(fullscreen, "%s", value);
 	paint_fullscreen();
 	refresh();
+}
+
+void display_menu_mode() {
+	xlog("menu mode");
+	mcp->menu = 1;
+	countdown_menu = 30;
+}
+
+static void* display(void *arg) {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return (void*) 0;
+	}
+
+	while (1) {
+		get_system_status();
+		paint();
+
+		if (!mcp->dac_power) {
+//			msleep(500);
+//			clear_clocktick();
+			msleep(500 * 10);
+		} else {
+			msleep(250);
+			paint();
+			msleep(250);
+			paint();
+//			clear_clocktick();
+			msleep(250);
+			paint();
+			msleep(250);
+		}
+	}
 }
 
 static int init() {
@@ -342,56 +370,21 @@ static int init() {
 	keypad(stdscr, TRUE); /* enable keypad */
 
 	// start painter thread
-	if (pthread_create(&thread_display, NULL, &display, NULL)) {
-		xlog("Error creating thread_display");
-		return -1;
-	}
+	if (pthread_create(&thread, NULL, &display, NULL))
+		return xerr("Error creating thread_display");
 
 	xlog("DISPLAY initialized");
 	return 0;
 }
 
 static void destroy() {
-	if (pthread_cancel(thread_display)) {
+	if (pthread_cancel(thread))
 		xlog("Error canceling thread_display");
-	}
-	if (pthread_join(thread_display, NULL)) {
+
+	if (pthread_join(thread, NULL))
 		xlog("Error joining thread_display");
-	}
+
 	endwin();
-}
-
-void display_menu_mode() {
-	xlog("menu mode");
-	mcp->menu = 1;
-	countdown_menu = 30;
-}
-
-void* display(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
-	}
-
-	while (1) {
-		get_system_status();
-		paint();
-
-		if (!mcp->dac_power) {
-//			msleep(500);
-//			clear_clocktick();
-			msleep(500 * 10);
-		} else {
-			msleep(250);
-			paint();
-			msleep(250);
-			paint();
-//			clear_clocktick();
-			msleep(250);
-			paint();
-			msleep(250);
-		}
-	}
 }
 
 MCP_REGISTER(display, 3, &init, &destroy);
@@ -421,7 +414,7 @@ int main(void) {
 	strcpy(mcp->album, "");
 	mcp->dac_power = 1;
 	mcp->mpd_state = MPD_STATE_PLAY;
-	display_init();
+	init();
 	es9028_prepare_menus();
 
 	int z = -23;
@@ -452,7 +445,7 @@ int main(void) {
 		}
 	}
 
-	display_close();
+	destroy();
 	return EXIT_SUCCESS;
 }
 #endif

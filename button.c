@@ -18,31 +18,8 @@
 
 static int i2c;
 static pthread_t thread;
-static void* button(void *arg);
 
-static int init() {
-	if ((i2c = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
-
-	if (pthread_create(&thread, NULL, &button, NULL))
-		return xerr("Error creating button thread");
-
-	xlog("BUTTON initialized");
-	return 0;
-}
-
-static void destroy() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_rb");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_rb");
-
-	if (i2c > 0)
-		close(i2c);
-}
-
-void handle_button(unsigned char c) {
+static void handle_button(unsigned char c) {
 	xlog("BUTTON handle %d", c);
 
 	switch (c) {
@@ -82,6 +59,28 @@ static void* button(void *arg) {
 
 		c_old = c;
 	}
+}
+
+static int init() {
+	if ((i2c = open(I2C, O_RDWR)) < 0)
+		return xerr("I2C BUS error");
+
+	if (pthread_create(&thread, NULL, &button, NULL))
+		return xerr("Error creating button thread");
+
+	xlog("BUTTON initialized");
+	return 0;
+}
+
+static void destroy() {
+	if (pthread_cancel(thread))
+		xlog("Error canceling thread_rb");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining thread_rb");
+
+	if (i2c > 0)
+		close(i2c);
 }
 
 MCP_REGISTER(button, 2, &init, &destroy);

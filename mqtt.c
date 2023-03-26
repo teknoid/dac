@@ -23,7 +23,6 @@
 
 static int mqttfd;
 static pthread_t thread;
-static void* mqtt(void *arg);
 
 static struct mqtt_client client;
 static uint8_t sendbuf[2048];
@@ -47,6 +46,18 @@ static void publish_callback(void **unused, struct mqtt_response_publish *publis
 	free(title);
 	free(text);
 	free(topic_name);
+}
+
+static void* mqtt(void *arg) {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return (void*) 0;
+	}
+
+	while (1) {
+		msleep(100);
+		mqtt_sync(&client);
+	}
 }
 
 static int init() {
@@ -87,18 +98,6 @@ static void destroy() {
 
 	if (mqttfd > 0)
 		close(mqttfd);
-}
-
-static void* mqtt(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
-	}
-
-	while (1) {
-		msleep(100);
-		mqtt_sync(&client);
-	}
 }
 
 MCP_REGISTER(mqtt, 2, &init, &destroy);

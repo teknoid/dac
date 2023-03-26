@@ -121,8 +121,6 @@ void dac_handle(int c) {
 }
 
 static int init() {
-	if (gpio_init() < 0)
-		return -1;
 
 	// elevate realtime priority for lirc sending
 	if (elevate_realtime(3) < 0)

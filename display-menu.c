@@ -17,16 +17,16 @@ static menu_t *menu;
 static int current;
 static int xpos;
 
-static char *printbits8(char value) {
+static char* printbits8(char value) {
 	char *out = malloc(sizeof(char) * 8) + 1;
 	char *p = out;
-	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1) {
-		if (value & mask) {
+
+	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1)
+		if (value & mask)
 			*p++ = '1';
-		} else {
+		else
 			*p++ = '0';
-		}
-	}
+
 	*p++ = '\0';
 	return out;
 }
@@ -34,11 +34,10 @@ static char *printbits8(char value) {
 // toggle bit on current position
 static void current_bit_toogle() {
 	int mask = 1 << xpos;
-	if (current & mask) {
+	if (current & mask)
 		current &= ~mask; // clear
-	} else {
+	else
 		current |= mask; // set
-	}
 }
 
 static void menu_get_selected() {
@@ -135,9 +134,8 @@ static void menu_select() {
 	}
 
 	// item has sub menu -> open sub menu
-	if (item->submenu) {
+	if (item->submenu)
 		return menu_open(item->submenu);
-	}
 
 	// determine action depending on menuconfig's style
 	if (menu->config) {
@@ -172,11 +170,11 @@ static void menu_select() {
 		case onoff:
 			// toggle value, write with config's setter function and read back
 			menu_get_selected();
-			if (current) {
+			if (current)
 				current = 0;
-			} else {
+			else
 				current = 1;
-			}
+
 			menu_set_selected();
 			return;
 
@@ -209,10 +207,9 @@ static void menu_paint() {
 			// bitwise input > print current value as bits
 			mvwprintw(menu->cwindow, 3, XPOS_BITS, "%s", printbits8(current));
 			wmove(menu->cwindow, YPOS_BITS, XPOS_BITS + 7 - xpos);
-			if (xpos >= 0 && xpos <= 7) {
+			if (xpos >= 0 && xpos <= 7)
 				// highlight position if cursor is inside
 				wchgat(menu->cwindow, 1, A_REVERSE | A_BOLD, 0, NULL);
-			}
 			break;
 
 		case value:
@@ -226,11 +223,10 @@ static void menu_paint() {
 			// we have items and configuration -> mark current as not selectable
 			for (ITEM **citem = menu->cmenu->items; *citem; citem++) {
 				const menuitem_t *item = item_userptr(*citem);
-				if (item && item->index == current) {
+				if (item && item->index == current)
 					item_opts_off(*citem, O_SELECTABLE);
-				} else {
+				else
 					item_opts_on(*citem, O_SELECTABLE);
-				}
 			}
 			break;
 
@@ -291,11 +287,11 @@ void menu_create(menu_t *menu, menu_t *parent) {
 	}
 
 	// back item with empty item_userptr
-	if (!parent) {
+	if (!parent)
 		citems[length] = new_item("Exit", NULL);
-	} else {
+	else
 		citems[length] = new_item("Back", NULL);
-	}
+
 	set_item_userptr(citems[length], NULL);
 
 	// NULL terminated list
@@ -358,7 +354,6 @@ void menu_handle(int c) {
 	}
 
 	// update screen
-	if (mcp->menu) {
+	if (mcp->menu)
 		menu_paint();
-	}
 }

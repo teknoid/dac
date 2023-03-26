@@ -13,9 +13,6 @@ int main(int argc, char **argv) {
 	xlog_init(XLOG_SYSLOG, NULL);
 	xlog("MCP initializing");
 
-	if (gpio_init() < 0)
-		return -1;
-
 	int power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
 	xlog("DAC power is %s", power ? "ON" : "OFF");
 

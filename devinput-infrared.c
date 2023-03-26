@@ -18,52 +18,7 @@
 // #define LOCALMAIN
 
 static int fd_ir;
-static pthread_t thread_ir;
-static void* ir(void *arg);
-
-static int init() {
-	char name[256] = "";
-	unsigned int repeat[2];
-
-	// Open Device
-	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1) {
-		xlog("unable to open %s", DEVINPUT_IR);
-		return -1;
-	}
-
-	// Print Device Name
-	ioctl(fd_ir, EVIOCGNAME(sizeof(name)), name);
-	xlog("INFRARED: reading from %s (%s)", DEVINPUT_IR, name);
-
-	// set repeat rate
-	ioctl(fd_ir, EVIOCGREP, repeat);
-	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
-	repeat[REP_DELAY] = 400;
-	repeat[REP_PERIOD] = 200;
-	ioctl(fd_ir, EVIOCSREP, repeat);
-	ioctl(fd_ir, EVIOCGREP, repeat);
-	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
-
-	// start listener
-	if (pthread_create(&thread_ir, NULL, &ir, NULL)) {
-		xlog("Error creating thread_ir");
-		return -1;
-	}
-
-	xlog("INFARRED initialized");
-	return 0;
-}
-
-static void destroy() {
-	if (pthread_cancel(thread_ir))
-		xlog("Error canceling thread_ir");
-
-	if (pthread_join(thread_ir, NULL))
-		xlog("Error joining thread_ir");
-
-	if (fd_ir)
-		close(fd_ir);
-}
+static pthread_t thread;
 
 static void* ir(void *arg) {
 	struct input_event ev;
@@ -118,14 +73,58 @@ static void* ir(void *arg) {
 	return (void*) 0;
 }
 
+static int init() {
+	char name[256] = "";
+	unsigned int repeat[2];
+
+	// Open Device
+	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1) {
+		xlog("unable to open %s", DEVINPUT_IR);
+		return -1;
+	}
+
+	// Print Device Name
+	ioctl(fd_ir, EVIOCGNAME(sizeof(name)), name);
+	xlog("INFRARED: reading from %s (%s)", DEVINPUT_IR, name);
+
+	// set repeat rate
+	ioctl(fd_ir, EVIOCGREP, repeat);
+	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+	repeat[REP_DELAY] = 400;
+	repeat[REP_PERIOD] = 200;
+	ioctl(fd_ir, EVIOCSREP, repeat);
+	ioctl(fd_ir, EVIOCGREP, repeat);
+	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
+
+	// start listener
+	if (pthread_create(&thread, NULL, &ir, NULL)) {
+		xlog("Error creating thread_ir");
+		return -1;
+	}
+
+	xlog("INFARRED initialized");
+	return 0;
+}
+
+static void destroy() {
+	if (pthread_cancel(thread))
+		xlog("Error canceling thread_ir");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining thread_ir");
+
+	if (fd_ir)
+		close(fd_ir);
+}
+
 MCP_REGISTER(ir, 3, &init, &destroy);
 
 #ifdef LOCALMAIN
 
 int main(void) {
-	ir_init();
+	init();
 	int c = getchar();
-	ir_close();
+	destroy();
 }
 
 #endif
