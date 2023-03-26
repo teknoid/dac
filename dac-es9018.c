@@ -2,6 +2,8 @@
 
 #include <linux/input-event-codes.h>
 
+#include "dac.h"
+#include "mpd.h"
 #include "mcp.h"
 #include "gpio.h"
 #include "utils.h"

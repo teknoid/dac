@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "mqtt.h"
 #include "lcd.h"
+#include "dac.h"
 #include "mcp.h"
 
 #if defined(SABRE18) || defined(SABRE28)

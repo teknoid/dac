@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "dac.h"
 #include "mcp.h"
 #include "utils.h"
 

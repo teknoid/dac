@@ -8,7 +8,9 @@
 #include <linux/input-event-codes.h>
 
 #include "utils.h"
+#include "dac.h"
 #include "i2c.h"
+#include "mpd.h"
 #include "mcp.h"
 
 #define ADDR	0x20

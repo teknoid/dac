@@ -7,6 +7,7 @@
 #include <FLAC/format.h>
 #include <FLAC/metadata.h>
 
+#include "dac.h"
 #include "mcp.h"
 #include "utils.h"
 #include "mp3gain.h"

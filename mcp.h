@@ -41,15 +41,13 @@
 #endif
 
 #define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
-#define MPD_HOST		"localhost"
-#define MPD_PORT		6600
 
 #define BUFSIZE			256
 
 // register a module in the MCP's execution context
-#define MCP_REGISTER(name, prio, init, destroy)\
-	void __attribute__((constructor(101 + prio)))\
-	register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
+#define MCP_REGISTER(name, prio, init, destroy) \
+  void __attribute__((constructor(101 + prio))) \
+  register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
 
 typedef enum {
 	nlock, dsd, pcm, spdif, dop
@@ -105,20 +103,6 @@ typedef struct mcp_config_t {
 	int interactive;
 } mcp_config_t;
 extern mcp_config_t *cfg;
-
-void dac_power(void);
-void dac_mute(void);
-void dac_unmute(void);
-void dac_volume_up(void);
-void dac_volume_down(void);
-void dac_source(int);
-void dac_handle(int);
-int dac_status_get(const void*, const void*);
-void dac_status_set(const void*, const void*, int);
-
-void mpdclient_handle(int);
-
-void replaygain(const char*);
 
 int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);

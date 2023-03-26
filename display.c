@@ -14,6 +14,8 @@
 #include "display-sysfont.h"
 #include "display-menu.h"
 #include "utils.h"
+#include "dac.h"
+#include "mpd.h"
 
 // #define LOCALMAIN
 

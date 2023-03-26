@@ -10,6 +10,7 @@
 #include <linux/input.h>
 #include <linux/input-event-codes.h>
 
+#include "dac.h"
 #include "mcp.h"
 #include "utils.h"
 

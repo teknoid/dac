@@ -7,7 +7,7 @@ LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm -lmqttc
 SRCS := $(shell find . -maxdepth 1 -name '*.c')
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
-COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o
+COBJS-COMMON	= mcp.o mpd.o replaygain.o mp3gain.o utils.o
 COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o
 COBJS-TRON 		= $(COBJS-COMMON) dac-tron.o button.o lcd.o i2c.o mqtt.o frozen.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o

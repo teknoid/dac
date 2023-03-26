@@ -11,6 +11,8 @@
 #include "display.h"
 #include "display-menu.h"
 
+#include "dac.h"
+#include "mpd.h"
 #include "mcp.h"
 #include "i2c.h"
 #include "gpio.h"

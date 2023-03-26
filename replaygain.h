@@ -1,0 +1,1 @@
+void replaygain(const char*);

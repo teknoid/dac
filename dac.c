@@ -1,5 +1,6 @@
 #include <linux/input-event-codes.h>
 
+#include "mpd.h"
 #include "mcp.h"
 #include "utils.h"
 

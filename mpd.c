@@ -18,8 +18,11 @@
 
 #include <linux/input-event-codes.h>
 
+#include "replaygain.h"
 #include "playlists.h"
 #include "utils.h"
+#include "dac.h"
+#include "mpd.h"
 #include "mcp.h"
 
 static int current_song = -1;
