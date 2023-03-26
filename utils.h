@@ -1,5 +1,3 @@
-#include <stdint.h>
-
 #define XLOG_STDOUT					0
 #define XLOG_SYSLOG					1
 #define XLOG_FILE					2

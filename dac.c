@@ -1,5 +1,8 @@
+#include <stdint.h>
+
 #include <linux/input-event-codes.h>
 
+#include "dac.h"
 #include "mpd.h"
 #include "mcp.h"
 #include "utils.h"
