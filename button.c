@@ -7,13 +7,12 @@
 
 #include <linux/input-event-codes.h>
 
+#include "button.h"
 #include "utils.h"
 #include "dac.h"
 #include "i2c.h"
 #include "mpd.h"
 #include "mcp.h"
-
-#define ADDR	0x20
 
 static int i2c;
 static pthread_t thread;
