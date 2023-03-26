@@ -16,7 +16,7 @@
 #include "keytable.h"
 #include "utils.h"
 
-static int xlog_output = 0;
+static int xlog_output = XLOG_STDOUT;
 static FILE *xlog_file;
 
 //

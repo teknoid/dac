@@ -85,7 +85,27 @@ int dac_status_get(const void *p1, const void *p2) {
 void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
-int dac_init() {
+void dac_handle(int c) {
+	switch (c) {
+	case KEY_VOLUMEUP:
+		dac_volume_up();
+		break;
+	case KEY_VOLUMEDOWN:
+		dac_volume_down();
+		break;
+	case KEY_POWER:
+		dac_power();
+		break;
+	case KEY_REDO:
+	case KEY_TIME:
+		mcp->switch4 = gpio_toggle(GPIO_SWITCH4);
+		break;
+	default:
+		mpdclient_handle(c);
+	}
+}
+
+static int init() {
 	if (gpio_init() < 0)
 		return -1;
 
@@ -111,26 +131,8 @@ int dac_init() {
 	return 0;
 }
 
-void dac_close() {
+static void destroy() {
 	gpio_close();
 }
 
-void dac_handle(int c) {
-	switch (c) {
-	case KEY_VOLUMEUP:
-		dac_volume_up();
-		break;
-	case KEY_VOLUMEDOWN:
-		dac_volume_down();
-		break;
-	case KEY_POWER:
-		dac_power();
-		break;
-	case KEY_REDO:
-	case KEY_TIME:
-		mcp->switch4 = gpio_toggle(GPIO_SWITCH4);
-		break;
-	default:
-		mpdclient_handle(c);
-	}
-}
+MCP_REGISTER(dac_es9018, 3, &init, &destroy);

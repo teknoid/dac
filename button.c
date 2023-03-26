@@ -20,7 +20,7 @@ static int i2c;
 static pthread_t thread;
 static void* button(void *arg);
 
-int button_init() {
+static int init() {
 	if ((i2c = open(I2C, O_RDWR)) < 0)
 		return xerr("I2C BUS error");
 
@@ -31,7 +31,7 @@ int button_init() {
 	return 0;
 }
 
-void button_close() {
+static void destroy() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling thread_rb");
 
@@ -83,3 +83,5 @@ static void* button(void *arg) {
 		c_old = c;
 	}
 }
+
+MCP_REGISTER(button, 2, &init, &destroy);

@@ -49,7 +49,7 @@ static void publish_callback(void **unused, struct mqtt_response_publish *publis
 	free(topic_name);
 }
 
-int mqtt__init() {
+static int init() {
 	/* open the non-blocking TCP socket (connecting to the broker) */
 	mqttfd = open_nb_socket(HOST, PORT);
 	if (mqttfd == -1)
@@ -78,7 +78,7 @@ int mqtt__init() {
 	return 0;
 }
 
-void mqtt__close() {
+static void destroy() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling mqtt thread");
 
@@ -100,3 +100,5 @@ static void* mqtt(void *arg) {
 		mqtt_sync(&client);
 	}
 }
+
+MCP_REGISTER(mqtt, 2, &init, &destroy);

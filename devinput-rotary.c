@@ -23,13 +23,13 @@
 
 static int fd_ra;
 static pthread_t thread_ra;
-static void *rotary_axis(void *arg);
+static void* rotary_axis(void *arg);
 
 static int fd_rb;
 static pthread_t thread_rb;
-static void *rotary_button(void *arg);
+static void* rotary_button(void *arg);
 
-int rotary_init() {
+static int init() {
 	char name[256] = "";
 
 	// Open Devices
@@ -62,7 +62,7 @@ int rotary_init() {
 	return 0;
 }
 
-void rotary_close() {
+static void destroy() {
 	if (pthread_cancel(thread_ra)) {
 		xlog("Error canceling thread_ra");
 	}
@@ -84,20 +84,20 @@ void rotary_close() {
 	}
 }
 
-static void *rotary_axis(void *arg) {
+static void* rotary_axis(void *arg) {
 	struct input_event ev;
 	int n;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	while (1) {
 		n = read(fd_ra, &ev, sizeof(ev));
 		if (n == -1) {
 			if (errno == EINTR)
-				return (void *) 0;
+				return (void*) 0;
 			else
 				break;
 		} else if (n != sizeof(ev)) {
@@ -126,23 +126,23 @@ static void *rotary_axis(void *arg) {
 	}
 
 	xlog("ROTARY axis error %s", strerror(errno));
-	return (void *) 0;
+	return (void*) 0;
 }
 
-static void *rotary_button(void *arg) {
+static void* rotary_button(void *arg) {
 	struct input_event ev;
 	int n;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	while (1) {
 		n = read(fd_rb, &ev, sizeof ev);
 		if (n == -1) {
 			if (errno == EINTR)
-				return (void *) 0;
+				return (void*) 0;
 			else
 				break;
 		} else if (n != sizeof ev) {
@@ -164,8 +164,10 @@ static void *rotary_button(void *arg) {
 	}
 
 	xlog("ROTARY button error %s", strerror(errno));
-	return (void *) 0;
+	return (void*) 0;
 }
+
+MCP_REGISTER(rotary, 3, &init, &destroy);
 
 #ifdef LOCALMAIN
 

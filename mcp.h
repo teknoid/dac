@@ -8,9 +8,6 @@
 #define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/music/"
 #define I2C				"/dev/i2c-11"
-#define LCD
-#define BUTTON
-#define MQTT
 #endif
 
 #ifdef ANUS
@@ -47,6 +44,10 @@
 
 #define BUFSIZE			256
 
+#define MODULES			16
+
+#define MCP_REGISTER(name, prio, init, destroy) void __attribute__((constructor(101 + prio))) register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
+
 #include <mpd/status.h>
 
 typedef enum {
@@ -56,6 +57,14 @@ typedef enum {
 typedef enum {
 	mpd, opt, coax
 } dac_source_t;
+
+typedef int (*init_t)();
+typedef void (*destroy_t)();
+typedef struct mcp_modules_t {
+	const char *name;
+	init_t init;
+	destroy_t destroy;
+} mcp_modules_t;
 
 typedef struct mcp_state_t {
 	dac_signal_t dac_signal;
@@ -95,8 +104,6 @@ typedef struct mcp_config_t {
 } mcp_config_t;
 extern mcp_config_t *cfg;
 
-int dac_init(void);
-void dac_close(void);
 void dac_power(void);
 void dac_mute(void);
 void dac_unmute(void);
@@ -104,22 +111,15 @@ void dac_volume_up(void);
 void dac_volume_down(void);
 void dac_source(int);
 void dac_handle(int);
-int dac_status_get(const void *, const void *);
-void dac_status_set(const void *, const void *, int);
+int dac_status_get(const void*, const void*);
+void dac_status_set(const void*, const void*, int);
 
-int ir_init(void);
-void ir_close(void);
-
-int rotary_init(void);
-void rotary_close(void);
-
-int mpdclient_init(void);
-void mpdclient_close(void);
 void mpdclient_handle(int);
 
-void replaygain(const char *);
+void replaygain(const char*);
 
-int mcp_status_get(const void *, const void *);
-void mcp_status_set(const void *, const void *, int);
+int mcp_status_get(const void*, const void*);
+void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);
 void mcp_system_reboot(void);
+void mcp_register(const char*, const void*, const void*);

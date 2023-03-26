@@ -311,13 +311,6 @@ uint8_t lcd_getbyte(int mode);
 /*@{*/
 
 /**
- \brief Display initialization sequence
- \return none
- */
-int lcd_init();
-void lcd_close();
-
-/**
  \brief Issue a command to the display
  \param command use the defined commands above
  \return none

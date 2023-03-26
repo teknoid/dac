@@ -19,10 +19,12 @@
 
 #ifdef LOCALMAIN
 #include "dac-es9028.h"
-#undef DISPLAY
-#define DISPLAY			"/dev/tty"
 #else
 #include "mcp.h"
+#endif
+
+#ifndef DISPLAY
+#define DISPLAY			"/dev/tty"
 #endif
 
 static char fullscreen[4]; // xxx\0
@@ -32,7 +34,7 @@ static int scroller_artist = 0;
 static int scroller_title = 0;
 
 static pthread_t thread_display;
-static void *display(void *);
+static void* display(void*);
 
 static void check_nightmode() {
 	if (mcp->nightmode) {
@@ -268,7 +270,7 @@ static void get_system_status() {
 	time_t timer;
 	time(&timer);
 
-	struct tm* tm_info = localtime(&timer);
+	struct tm *tm_info = localtime(&timer);
 	mcp->clock_h = tm_info->tm_hour;
 	mcp->clock_m = tm_info->tm_min;
 	if (mcp->clock_h >= 8 && mcp->clock_h < 22) {
@@ -308,7 +310,7 @@ void display_fullscreen_string(char *value) {
 	refresh();
 }
 
-int display_init() {
+static int init() {
 	FILE *i, *o;
 	i = fopen(DISPLAY, "r");
 	o = fopen(DISPLAY, "w");
@@ -349,7 +351,7 @@ int display_init() {
 	return 0;
 }
 
-void display_close() {
+static void destroy() {
 	if (pthread_cancel(thread_display)) {
 		xlog("Error canceling thread_display");
 	}
@@ -365,10 +367,10 @@ void display_menu_mode() {
 	countdown_menu = 30;
 }
 
-void *display(void *arg) {
+void* display(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	while (1) {
@@ -391,6 +393,8 @@ void *display(void *arg) {
 		}
 	}
 }
+
+MCP_REGISTER(display, 3, &init, &destroy);
 
 #ifdef LOCALMAIN
 

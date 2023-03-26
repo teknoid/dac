@@ -32,12 +32,14 @@ int dac_status_get(const void *p1, const void *p2) {
 void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
-int dac_init() {
+void dac_handle(int c) {
+}
+
+static int init() {
 	return 0;
 }
 
-void dac_close() {
+static void destroy() {
 }
 
-void dac_handle(int c) {
-}
+MCP_REGISTER(dac_anus, 3, &init, &destroy);

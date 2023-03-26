@@ -92,30 +92,6 @@ int dac_status_get(const void *p1, const void *p2) {
 void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
-int dac_init() {
-	if (gpio_init() < 0)
-		return -1;
-
-	// elevate realtime priority for lirc sending
-	if (elevate_realtime(3) < 0)
-		return -2;
-
-	// LIRC TX is low_active
-	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);
-
-	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
-	if (mcp->dac_power) {
-		xlog("DAC  power is ON");
-	} else {
-		xlog("DAC  power is OFF");
-	}
-
-	return 0;
-}
-
-void dac_close() {
-}
-
 void dac_handle(int c) {
 	switch (c) {
 	case KEY_VOLUMEUP:
@@ -143,3 +119,29 @@ void dac_handle(int c) {
 		mpdclient_handle(c);
 	}
 }
+
+static int init() {
+	if (gpio_init() < 0)
+		return -1;
+
+	// elevate realtime priority for lirc sending
+	if (elevate_realtime(3) < 0)
+		return -2;
+
+	// LIRC TX is low_active
+	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);
+
+	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
+	if (mcp->dac_power) {
+		xlog("DAC  power is ON");
+	} else {
+		xlog("DAC  power is OFF");
+	}
+
+	return 0;
+}
+
+static void destroy() {
+}
+
+MCP_REGISTER(dac_piwolf, 3, &init, &destroy);

@@ -273,52 +273,6 @@ void dac_status_set(const void *p1, const void *p2, int value) {
 	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
 }
 
-int dac_init() {
-	if ((i2c = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
-
-	if (gpio_init() < 0)
-		return -1;
-
-	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
-	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
-
-	mcp->switch3 = gpio_configure(GPIO_SWITCH3, 1, 0, -1);
-	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
-
-	mcp->switch4 = gpio_configure(GPIO_SWITCH4, 1, 0, -1);
-	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
-
-	mcp->dac_power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
-	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
-
-	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
-	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
-
-	// start dac update thread
-	if (pthread_create(&thread_dac, NULL, &dac, NULL))
-		return xerr("Error creating thread_dac");
-
-	// prepare the menus
-	es9028_prepare_menus();
-
-	xlog("ES9028 initialized");
-	return 0;
-}
-
-void dac_close() {
-	if (pthread_cancel(thread_dac))
-		xlog("Error canceling thread_display");
-
-	if (pthread_join(thread_dac, NULL))
-		xlog("Error joining thread_display");
-
-	if (i2c > 0)
-		close(i2c);
-
-	gpio_close();
-}
-
 void dac_handle(int c) {
 	if (mcp->menu) {
 		display_menu_mode();
@@ -414,3 +368,51 @@ void* dac(void *arg) {
 		}
 	}
 }
+
+static int init() {
+	if ((i2c = open(I2C, O_RDWR)) < 0)
+		return xerr("I2C BUS error");
+
+	if (gpio_init() < 0)
+		return -1;
+
+	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
+	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
+
+	mcp->switch3 = gpio_configure(GPIO_SWITCH3, 1, 0, -1);
+	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
+
+	mcp->switch4 = gpio_configure(GPIO_SWITCH4, 1, 0, -1);
+	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
+
+	mcp->dac_power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
+	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
+
+	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
+	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
+
+	// start dac update thread
+	if (pthread_create(&thread_dac, NULL, &dac, NULL))
+		return xerr("Error creating thread_dac");
+
+	// prepare the menus
+	es9028_prepare_menus();
+
+	xlog("ES9028 initialized");
+	return 0;
+}
+
+static void destroy() {
+	if (pthread_cancel(thread_dac))
+		xlog("Error canceling thread_display");
+
+	if (pthread_join(thread_dac, NULL))
+		xlog("Error joining thread_display");
+
+	if (i2c > 0)
+		close(i2c);
+
+	gpio_close();
+}
+
+MCP_REGISTER(dac_es9028, 3, &init, &destroy);

@@ -44,7 +44,7 @@ static int backlight;
 static pthread_t thread;
 static void* lcd(void *arg);
 
-int lcd_init() {
+static int init() {
 	if ((i2cfd = open(I2C, O_RDWR)) < 0)
 		return xerr("I2C BUS error");
 
@@ -74,7 +74,7 @@ int lcd_init() {
 	return 0;
 }
 
-void lcd_close() {
+static void destroy() {
 	lcd_backlight_off();
 	lcd_command(LCD_CLEAR);
 
@@ -305,3 +305,6 @@ static void* lcd(void *arg) {
 			lcd_backlight_off();
 	}
 }
+
+MCP_REGISTER(lcd, 1, &init, &destroy);
+

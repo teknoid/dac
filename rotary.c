@@ -4,7 +4,10 @@
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+
+#ifdef WIRINGPI
 #include <wiringPi.h>
+#endif
 
 #include <linux/input.h>
 
@@ -34,6 +37,7 @@ struct encoder {
 
 struct encoder *encoder;
 
+#ifdef WIRINGPI
 static void updateEncoders() {
 	int MSB = digitalRead(encoder->pin_a);
 	int LSB = digitalRead(encoder->pin_b);
@@ -48,8 +52,9 @@ static void updateEncoders() {
 	encoder->lastEncoded = encoded;
 	encoder->button = digitalRead(encoder->pin_s);
 }
+#endif
 
-static struct encoder *setupencoder(int pin_a, int pin_b, int pin_s) {
+static struct encoder* setupencoder(int pin_a, int pin_b, int pin_s) {
 	encoder = malloc(sizeof(*encoder));
 
 	encoder->pin_a = pin_a;
@@ -59,6 +64,7 @@ static struct encoder *setupencoder(int pin_a, int pin_b, int pin_s) {
 	encoder->lastEncoded = 0;
 	encoder->button = 1;
 
+#ifdef WIRINGPI
 	pinMode(pin_a, INPUT);
 	pinMode(pin_b, INPUT);
 	pinMode(pin_s, INPUT);
@@ -68,22 +74,15 @@ static struct encoder *setupencoder(int pin_a, int pin_b, int pin_s) {
 	wiringPiISR(pin_a, INT_EDGE_BOTH, updateEncoders);
 	wiringPiISR(pin_b, INT_EDGE_BOTH, updateEncoders);
 	wiringPiISR(pin_s, INT_EDGE_BOTH, updateEncoders);
+#endif
 
 	return encoder;
 }
 
-int rotary_init() {
-	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
-	return 0;
-}
-
-void rotary_close() {
-}
-
-void *rotary(void *arg) {
+void* rotary(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	long old = 0;
@@ -107,3 +106,14 @@ void *rotary(void *arg) {
 		usleep(100 * 1000);
 	}
 }
+
+int init() {
+	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
+	return 0;
+}
+
+void destroy() {
+}
+
+MCP_REGISTER(rotary, 1, &init, &destroy);
+

@@ -28,9 +28,9 @@ static int playlist_mode = 1;
 static struct mpd_connection *conn;
 
 static pthread_t thread_mpdclient;
-static void *mpdclient(void *arg);
+static void* mpdclient(void *arg);
 
-static struct mpd_connection *mpdclient_get_connection() {
+static struct mpd_connection* mpdclient_get_connection() {
 	// wait for mpd connect success
 	int timeout = 10;
 	while (1) {
@@ -40,7 +40,7 @@ static struct mpd_connection *mpdclient_get_connection() {
 			return NULL;
 		}
 		if (mpd_connection_get_error(connection) == MPD_ERROR_SUCCESS) {
-			const unsigned int* v = mpd_connection_get_server_version(connection);
+			const unsigned int *v = mpd_connection_get_server_version(connection);
 			xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
 			return connection;
 		}
@@ -62,7 +62,7 @@ static void upper(char *s) {
 	}
 }
 
-static const char *get_filename_ext(const char *filename) {
+static const char* get_filename_ext(const char *filename) {
 	const char *dot = strrchr(filename, '.');
 	if (!dot || dot == filename)
 		return "";
@@ -79,10 +79,10 @@ static void external(char *key) {
 }
 
 // find active playlist by path of current song
-static struct plist * find_current_playlist() {
+static struct plist* find_current_playlist() {
 	struct mpd_song *song = mpd_run_current_song(conn);
 	if (song) {
-		const char* path = mpd_song_get_uri(song);
+		const char *path = mpd_song_get_uri(song);
 		for (int i = 0; i <= 9; i++) {
 			struct plist *playlist = &playlists[i];
 			if (starts_with(playlist->path, path)) {
@@ -303,7 +303,7 @@ void mpdclient_handle(int key) {
 	}
 }
 
-int mpdclient_init() {
+static int init() {
 
 	// get connection for sending events
 	conn = mpdclient_get_connection();
@@ -321,7 +321,7 @@ int mpdclient_init() {
 	return 0;
 }
 
-void mpdclient_close() {
+static void destroy() {
 	if (pthread_cancel(thread_mpdclient)) {
 		xlog("Error canceling thread_mpdclient");
 	}
@@ -334,10 +334,10 @@ void mpdclient_close() {
 	}
 }
 
-static void *mpdclient(void *arg) {
+static void* mpdclient(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	struct mpd_connection *conn_status = NULL;
@@ -348,7 +348,7 @@ static void *mpdclient(void *arg) {
 			conn_status = mpdclient_get_connection();
 			if (!conn_status) {
 				xlog("!conn_status");
-				return (void *) 0;
+				return (void*) 0;
 			}
 		}
 
@@ -360,7 +360,7 @@ static void *mpdclient(void *arg) {
 		}
 
 		if (idle == MPD_IDLE_PLAYER || idle == MPD_IDLE_QUEUE) {
-			struct mpd_status* status = mpd_run_status(conn_status);
+			struct mpd_status *status = mpd_run_status(conn_status);
 			if (!status) {
 				xlog("!status");
 				conn_status = NULL;
@@ -403,5 +403,7 @@ static void *mpdclient(void *arg) {
 	}
 
 	mpd_connection_free(conn_status);
-	return (void *) 0;
+	return (void*) 0;
 }
+
+MCP_REGISTER(mpdclient, 3, &init, &destroy);

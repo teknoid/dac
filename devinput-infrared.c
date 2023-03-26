@@ -19,9 +19,9 @@
 
 static int fd_ir;
 static pthread_t thread_ir;
-static void *ir(void *arg);
+static void* ir(void *arg);
 
-int ir_init() {
+static int init() {
 	char name[256] = "";
 	unsigned int repeat[2];
 
@@ -54,32 +54,31 @@ int ir_init() {
 	return 0;
 }
 
-void ir_close() {
-	if (pthread_cancel(thread_ir)) {
+static void destroy() {
+	if (pthread_cancel(thread_ir))
 		xlog("Error canceling thread_ir");
-	}
-	if (pthread_join(thread_ir, NULL)) {
+
+	if (pthread_join(thread_ir, NULL))
 		xlog("Error joining thread_ir");
-	}
-	if (fd_ir) {
+
+	if (fd_ir)
 		close(fd_ir);
-	}
 }
 
-static void *ir(void *arg) {
+static void* ir(void *arg) {
 	struct input_event ev;
 	int n, seq;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void *) 0;
+		return (void*) 0;
 	}
 
 	while (1) {
 		n = read(fd_ir, &ev, sizeof(ev));
 		if (n == -1) {
 			if (errno == EINTR)
-				return (void *) 0;
+				return (void*) 0;
 			else
 				break;
 		} else if (n != sizeof(ev)) {
@@ -116,8 +115,10 @@ static void *ir(void *arg) {
 	}
 
 	xlog("INFRARED error %s", strerror(errno));
-	return (void *) 0;
+	return (void*) 0;
 }
+
+MCP_REGISTER(ir, 3, &init, &destroy);
 
 #ifdef LOCALMAIN
 

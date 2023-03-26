@@ -20,8 +20,31 @@
 #include "display-menu.h"
 #endif
 
-mcp_state_t *mcp;
-mcp_config_t *cfg;
+mcp_state_t *mcp = NULL;
+mcp_config_t *cfg = NULL;
+mcp_modules_t *modules = NULL;
+
+void mcp_register(const char *name, const void *init, const void *destroy) {
+	if (modules == NULL) {
+		xlog("initializing modules structure");
+		modules = malloc(sizeof(*modules) * MODULES);
+		memset(modules, 0, sizeof(*cfg) * MODULES);
+	}
+
+	mcp_modules_t *module = modules;
+	for (int i = 0; i < MODULES; i++) {
+		if (module->name == NULL) {
+			module->name = name;
+			module->init = init;
+			module->destroy = destroy;
+			xlog("registering [%d] %s", i, name);
+			return;
+		}
+		module++;
+	}
+
+	xlog("no space for new module, please increase #define MODULES xx");
+}
 
 int mcp_status_get(const void *p1, const void *p2) {
 #if defined(SABRE18) || defined(SABRE28)
@@ -148,75 +171,34 @@ static void daemonize() {
 	xlog("MCP forked into background");
 }
 
-static void mcp_init() {
-#ifdef DISPLAY
-	if (display_init() < 0)
-		exit(EXIT_FAILURE);
-#endif
+static void init() {
+	mcp_modules_t *module = modules;
+	for (int i = 0; i < MODULES; i++) {
+		if (module->init == NULL)
+			break;
 
-#ifdef LCD
-	if (lcd_init() < 0)
-		exit(EXIT_FAILURE);
-#endif
+		// call it's init() function
+		if ((module->init)() < 0)
+			exit(EXIT_FAILURE);
 
-#ifdef MQTT
-	if (mqtt__init() < 0)
-		exit(EXIT_FAILURE);
-#endif
+		module++;
+	}
 
-	if (dac_init() < 0)
-		exit(EXIT_FAILURE);
-
-	if (mpdclient_init() < 0)
-		exit(EXIT_FAILURE);
-
-#ifdef DEVINPUT_IR
-	if (ir_init() < 0)
-		exit(EXIT_FAILURE);
-#endif
-
-#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-	if (rotary_init() < 0)
-		exit(EXIT_FAILURE);
-#endif
-
-#ifdef BUTTON
-	if (button_init() < 0)
-		exit(EXIT_FAILURE);
-#endif
-
-	xlog("all modules successfully initialized");
+	xlog("all modules initialized");
 }
 
-static void mcp_close() {
-#ifdef BUTTON
-	button_close();
-#endif
+static void destroy() {
+	mcp_modules_t *module = modules;
+	for (int i = 0; i < MODULES; i++) {
+		if (module->destroy == NULL)
+			break;
 
-#ifdef DEVINPUT_IR
-	ir_close();
-#endif
+		// call it's destroy() function
+		(module->destroy)();
+		module++;
+	}
 
-#if defined(DEVINPUT_RA) || defined(DEVINPUT_RB)
-	rotary_close();
-#endif
-
-	mpdclient_close();
-	dac_close();
-
-#ifdef MQTT
-	mqtt__close();
-#endif
-
-#ifdef LCD
-	lcd_close();
-#endif
-
-#ifdef DISPLAY
-	display_close();
-#endif
-
-	xlog("all modules successfully closed");
+	xlog("all modules destroyed");
 }
 
 int main(int argc, char **argv) {
@@ -262,9 +244,9 @@ int main(int argc, char **argv) {
 	mcp = malloc(sizeof(*mcp));
 	memset(mcp, 0, sizeof(*mcp));
 
-	// initialize modules
+	// initialize all registered modules
 	mcp->ir_active = 1;
-	mcp_init();
+	init();
 
 	if (cfg->interactive) {
 		xlog("MCP online, waiting for input");
@@ -274,8 +256,8 @@ int main(int argc, char **argv) {
 		pause();
 	}
 
-	// close modules
-	mcp_close();
+	// destroy all registered modules
+	destroy();
 
 	xlog("MCP terminated");
 	xlog_close();

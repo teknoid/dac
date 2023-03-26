@@ -4,7 +4,7 @@ LIB = ./lib
 CFLAGS = -I$(INCLUDE) -Wall
 LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm -lmqttc
 
-SRCS := $(shell find . -name '*.c')
+SRCS := $(shell find . -maxdepth 1 -name '*.c')
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o mpdclient.o replaygain.o mp3gain.o utils.o
@@ -18,7 +18,7 @@ COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o devinput-infrared.o gpio-sunxi.o i
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 all: $(OBJS)
-	@echo "To create executables specify target: anus | piwolf | sabre18 | sabre28"
+	@echo "To create executables specify target: \"make (tron|anus|piwolf|sabre18|sabre28)\""
  
 anus: $(COBJS-ANUS) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses
