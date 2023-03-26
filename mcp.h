@@ -44,8 +44,6 @@
 
 #define BUFSIZE			256
 
-#define MODULES			16
-
 #define MCP_REGISTER(name, prio, init, destroy) void __attribute__((constructor(101 + prio))) register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
 
 #include <mpd/status.h>
@@ -64,6 +62,7 @@ typedef struct mcp_modules_t {
 	const char *name;
 	init_t init;
 	destroy_t destroy;
+	void *next;
 } mcp_modules_t;
 
 typedef struct mcp_state_t {

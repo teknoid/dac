@@ -24,26 +24,28 @@ mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_modules_t *modules = NULL;
 
+// register a new module in the module chain, will be called from macro MCP_REGISTER(...)
 void mcp_register(const char *name, const void *init, const void *destroy) {
-	if (modules == NULL) {
-		xlog("initializing modules structure");
-		modules = malloc(sizeof(*modules) * MODULES);
-		memset(modules, 0, sizeof(*cfg) * MODULES);
+	mcp_modules_t *new_mod = malloc(sizeof(mcp_modules_t));
+	memset(new_mod, 0, sizeof(mcp_modules_t));
+
+	new_mod->name = name;
+	new_mod->init = init;
+	new_mod->destroy = destroy;
+	new_mod->next = NULL;
+
+	if (modules == NULL)
+		// this is the head
+		modules = new_mod;
+	else {
+		// append to last in chain
+		mcp_modules_t *mod = modules;
+		while (mod->next != NULL)
+			mod = mod->next;
+		mod->next = new_mod;
 	}
 
-	mcp_modules_t *module = modules;
-	for (int i = 0; i < MODULES; i++) {
-		if (module->name == NULL) {
-			module->name = name;
-			module->init = init;
-			module->destroy = destroy;
-			xlog("registering [%d] %s", i, name);
-			return;
-		}
-		module++;
-	}
-
-	xlog("no space for new module, please increase #define MODULES xx");
+	xlog("MCP registered module %s", name);
 }
 
 int mcp_status_get(const void *p1, const void *p2) {
@@ -171,33 +173,32 @@ static void daemonize() {
 	xlog("MCP forked into background");
 }
 
+// loop over module chain and call each module's init() function
 static void init() {
 	mcp_modules_t *module = modules;
-	for (int i = 0; i < MODULES; i++) {
-		if (module->init == NULL)
-			break;
-
-		// call it's init() function
+	while (1) {
 		if ((module->init)() < 0)
 			exit(EXIT_FAILURE);
 
-		module++;
+		if (module->next == NULL)
+			break;
+		else
+			module = module->next;
 	}
-
 	xlog("all modules initialized");
 }
 
+// loop over module chain and call each module's destroy() function
 static void destroy() {
 	mcp_modules_t *module = modules;
-	for (int i = 0; i < MODULES; i++) {
-		if (module->destroy == NULL)
-			break;
-
-		// call it's destroy() function
+	while (1) {
 		(module->destroy)();
-		module++;
-	}
 
+		if (module->next == NULL)
+			break;
+		else
+			module = module->next;
+	};
 	xlog("all modules destroyed");
 }
 
