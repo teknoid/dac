@@ -39,7 +39,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy(int c) {
+static void destroy() {
 }
 
 MCP_REGISTER(dac_tron, 3, &init, &destroy);
