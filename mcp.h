@@ -46,7 +46,10 @@
 
 #define BUFSIZE			256
 
-#define MCP_REGISTER(name, prio, init, destroy) void __attribute__((constructor(101 + prio))) register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
+// register a module in the MCP's execution context
+#define MCP_REGISTER(name, prio, init, destroy)\
+	void __attribute__((constructor(101 + prio)))\
+	register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
 
 typedef enum {
 	nlock, dsd, pcm, spdif, dop

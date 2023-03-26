@@ -24,7 +24,8 @@ mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_modules_t *modules = NULL;
 
-// register a new module in the module chain, will be called from macro MCP_REGISTER(...)
+// register a new module in the module chain
+// called in each module via macro MCP_REGISTER(...) before main()
 void mcp_register(const char *name, const void *init, const void *destroy) {
 	mcp_modules_t *new_mod = malloc(sizeof(mcp_modules_t));
 	memset(new_mod, 0, sizeof(mcp_modules_t));

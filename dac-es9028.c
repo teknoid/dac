@@ -370,7 +370,7 @@ static void* dac(void *arg) {
 
 static int init() {
 	if ((i2c = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
+		return xerr("error opening  %s", I2C);
 
 	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
 	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");

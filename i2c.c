@@ -1,7 +1,27 @@
+/*
+ * low-level i2c operations on standard /dev/i2c-x devices
+ *
+ * (C) Copyright 2023 Heiko Jehmlich <hje@jecons.de>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ */
+
 #include <stdint.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <fcntl.h>
 
 #include <sys/ioctl.h>
 
@@ -26,21 +46,16 @@ static int _get_shift(uint8_t mask) {
 	return shift;
 }
 
-uint8_t i2c_put(int fd, uint8_t addr, uint8_t value) {
+void i2c_put(int fd, uint8_t addr, uint8_t value) {
 	pthread_mutex_lock(&lock);
 
-	if (ioctl(fd, I2C_SLAVE, addr) < 0) {
-		pthread_mutex_unlock(&lock);
-		return xerr("Error addressing device 0x%02x", addr);
-	}
+	if (ioctl(fd, I2C_SLAVE, addr) < 0)
+		xerr("Error addressing device 0x%02x", addr);
 
-	if (write(fd, &value, 1) != 1) {
-		pthread_mutex_unlock(&lock);
-		return xerr("Error writing to device");
-	}
+	if (write(fd, &value, 1) != 1)
+		xerr("Error writing to device");
 
 	pthread_mutex_unlock(&lock);
-	return value;
 }
 
 uint8_t i2c_get(int fd, uint8_t addr) {

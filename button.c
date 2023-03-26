@@ -60,7 +60,7 @@ static void* button(void *arg) {
 
 static int init() {
 	if ((i2c = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
+		return xerr("error opening  %s", I2C);
 
 	if (pthread_create(&thread, NULL, &button, NULL))
 		return xerr("Error creating button thread");

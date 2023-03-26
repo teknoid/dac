@@ -17,8 +17,11 @@ static void* template(void *arg) {
 	}
 
 	while (1) {
-		msleep(100);
+		msleep(1000);
+
 		// do some fancy stuff in a loop
+
+		xlog("template loop");
 	}
 }
 

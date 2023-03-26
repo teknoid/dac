@@ -263,7 +263,7 @@ static void* lcd(void *arg) {
 
 static int init() {
 	if ((i2cfd = open(I2C, O_RDWR)) < 0)
-		return xerr("I2C BUS error");
+		return xerr("error opening  %s", I2C);
 
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
 	msleep(5);					//-	Wait for more than 4.1ms
