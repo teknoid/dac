@@ -1,20 +1,20 @@
-#include "mcp.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <getopt.h>
 #include <signal.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+
+#include <sys/stat.h>
 
 #include "display.h"
 #include "button.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "lcd.h"
+#include "mcp.h"
 
 #if defined(SABRE18) || defined(SABRE28)
 #include "display-menu.h"

@@ -27,11 +27,11 @@ void gpio_set(const char *name, int value);
 void gpio_print(const char *name);
 
 // generic timer functions
-uint32_t gpio_micros();
-uint32_t gpio_micros_since(uint32_t *when);
-void gpio_delay_micros(uint32_t us);
+unsigned int gpio_micros();
+unsigned int gpio_micros_since(unsigned int *when);
+void gpio_delay_micros(unsigned int us);
 
 // application-specific functions
-void gpio_flamingo_v1(const char *name, uint32_t message, int bits, int repeat, int pulse);
-void gpio_flamingo_v2(const char *name, uint32_t message, int bits, int repeat, int phi, int plo);
-void gpio_lirc(const char *name, uint32_t message);
+void gpio_flamingo_v1(const char *name, unsigned int message, int bits, int repeat, int pulse);
+void gpio_flamingo_v2(const char *name, unsigned int message, int bits, int repeat, int phi, int plo);
+void gpio_lirc(const char *name, unsigned int message);

@@ -1,8 +1,7 @@
-#include "display-menu.h"
-
 #include <stdlib.h>
 #include <string.h>
 
+#include "display-menu.h"
 #include "display.h"
 #include "mcp.h"
 #include "utils.h"

@@ -1,13 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <pthread.h>
-#include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
-#include <sys/ioctl.h>
 #include <linux/input-event-codes.h>
 
 #include "utils.h"

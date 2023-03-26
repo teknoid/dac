@@ -1,9 +1,12 @@
+#include <stdint.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <fcntl.h>
+
+#include <sys/ioctl.h>
+
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
 
 #include "i2c.h"
 #include "utils.h"

@@ -12,8 +12,8 @@
 #include <unistd.h>
 #include <pthread.h>
 
-#include <mqtt.h>
 #include <posix_sockets.h>
+#include <mqtt.h>
 
 #include "frozen.h"
 #include "utils.h"

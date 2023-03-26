@@ -1,14 +1,15 @@
-#include <FLAC/format.h>
-#include <FLAC/metadata.h>
-#include <magic.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <magic.h>
+#include <math.h>
+
+#include <FLAC/format.h>
+#include <FLAC/metadata.h>
 
 #include "mcp.h"
-#include "mp3gain.h"
 #include "utils.h"
+#include "mp3gain.h"
 
 static double current_replaygain = 0;
 
@@ -19,7 +20,7 @@ static const char* flac_get_tag_utf8(const FLAC__StreamMetadata *tags, const cha
 	if (i < 0)
 		return 0;
 
-	const char *entry = (const char *) tags->data.vorbis_comment.comments[i].entry;
+	const char *entry = (const char*) tags->data.vorbis_comment.comments[i].entry;
 	const char *value = strchr(entry, '=') + 1;
 	return value;
 }

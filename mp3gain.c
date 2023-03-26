@@ -50,6 +50,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+
 #include "mp3gain.h"
 
 #define M3G_ERR_CANT_MODIFY_FILE -1

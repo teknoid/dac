@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+
 #include <linux/input-event-codes.h>
 
 #include "mcp.h"

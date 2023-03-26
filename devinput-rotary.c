@@ -1,10 +1,12 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <pthread.h>
-#include <string.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <errno.h>
+#include <string.h>
+
 #include <linux/input.h>
 #include <linux/input-event-codes.h>
 

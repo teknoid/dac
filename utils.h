@@ -1,6 +1,3 @@
-#include <stdint.h>
-#include <unistd.h>
-
 #define XLOG_STDOUT					0
 #define XLOG_SYSLOG					1
 #define XLOG_FILE					2
@@ -20,9 +17,9 @@ void xlog_close(void);
 void xlog(const char *format, ...);
 int xerr(const char *format, ...);
 
-char* printbits64(uint64_t code, uint64_t spacemask);
+char* printbits64(unsigned long int code, unsigned long int spacemask);
 
-char* printbits(uint32_t code, uint32_t spacemask);
+char* printbits(unsigned int code, unsigned int spacemask);
 
 void hexdump(char *desc, void *addr, int len);
 

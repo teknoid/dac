@@ -1,11 +1,12 @@
-#include <errno.h>
-#include <fcntl.h>
-#include <linux/input.h>
-#include <linux/uinput.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+
+#include <linux/input.h>
+#include <linux/uinput.h>
 
 #define DEVINPUT_ROTARY			"/dev/input/by-path/platform-rotary_axis-event"
 #define DEVINPUT_UINPUT			"/dev/uinput"

@@ -1,14 +1,16 @@
-#include "display.h"
-
-#include <curses.h>
-#include <mpd/status.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+#include <curses.h>
 
+#include <mpd/status.h>
+
+#include "display.h"
 #include "display-sysfont.h"
 #include "display-menu.h"
 #include "utils.h"

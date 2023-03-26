@@ -1,9 +1,10 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
-#include <unistd.h>
-#include <math.h>
-#include <pthread.h>
-#include <stddef.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <math.h>
 
 #include <linux/input-event-codes.h>
 

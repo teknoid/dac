@@ -1,5 +1,3 @@
-#include <stdint.h>
-
 uint8_t i2c_put(int, uint8_t, uint8_t);
 uint8_t i2c_get(int, uint8_t);
 int i2c_read(int, uint8_t, uint8_t, uint8_t*);

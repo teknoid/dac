@@ -1,5 +1,9 @@
 #include <ctype.h>
-#include <linux/input-event-codes.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
 #include <mpd/audio_format.h>
 #include <mpd/connection.h>
 #include <mpd/database.h>
@@ -11,14 +15,12 @@
 #include <mpd/song.h>
 #include <mpd/status.h>
 #include <mpd/tag.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
-#include "mcp.h"
+#include <linux/input-event-codes.h>
+
 #include "playlists.h"
 #include "utils.h"
+#include "mcp.h"
 
 static int current_song = -1;
 static int playlist_mode = 1;

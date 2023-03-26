@@ -1,5 +1,3 @@
-#include <stddef.h>
-
 #define GPIO_EXT_POWER		"PA0"
 #define GPIO_DAC_POWER		"PG11"
 
