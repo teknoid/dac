@@ -118,7 +118,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling thread_rotary");
 
@@ -126,5 +126,5 @@ static void destroy() {
 		xlog("Error joining thread_rotary");
 }
 
-MCP_REGISTER(rotary, 1, &init, &destroy);
+MCP_REGISTER(rotary, 1, &init, &stop);
 

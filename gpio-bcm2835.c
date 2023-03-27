@@ -500,13 +500,13 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	int pagesize = sysconf(_SC_PAGESIZE);
 	munmap((void*) gpio, pagesize);
 	munmap((void*) timer, pagesize);
 }
 
-MCP_REGISTER(gpio, 1, &init, &destroy);
+MCP_REGISTER(gpio, 1, &init, &stop);
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {

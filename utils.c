@@ -17,8 +17,12 @@
 
 #include "keytable.h"
 #include "utils.h"
+#include "mcp.h"
 
-static int xlog_output = XLOG_STDOUT;
+// static int output = XLOG_STDOUT;
+static int output = XLOG_SYSLOG;
+
+static const char *filename = "/var/log/mcp.log";
 static FILE *xlog_file;
 
 //
@@ -57,35 +61,11 @@ int elevate_realtime(int cpu) {
 	return 0;
 }
 
-void xlog_init(int output, const char *filename) {
-	xlog_output = output;
-
-	// print to stdout
-	if (output == XLOG_STDOUT)
-		return;
-
-	// write to syslog
-	if (output == XLOG_SYSLOG)
-		return;
-
-	// write to a logfile
-	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-		}
-		return;
-	}
-}
-
 void xlog(const char *format, ...) {
 	char BUFFER[256];
 	va_list vargs;
 
-	if (xlog_output == XLOG_STDOUT) {
+	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
 		vsprintf(BUFFER, format, vargs);
 		va_end(vargs);
@@ -94,7 +74,7 @@ void xlog(const char *format, ...) {
 		return;
 	}
 
-	if (xlog_output == XLOG_SYSLOG) {
+	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
 		vsprintf(BUFFER, format, vargs);
 		va_end(vargs);
@@ -102,7 +82,7 @@ void xlog(const char *format, ...) {
 		return;
 	}
 
-	if (xlog_output == XLOG_FILE) {
+	if (output == XLOG_FILE) {
 		time_t timer;
 		struct tm *tm_info;
 
@@ -124,12 +104,6 @@ int xerr(const char *format, ...) {
 	return -1;
 }
 
-void xlog_close() {
-	if (xlog_file) {
-		fflush(xlog_file);
-		fclose(xlog_file);
-	}
-}
 char* printbits64(uint64_t code, uint64_t spacemask) {
 	uint64_t mask = 0x8000000000000000;
 	uint16_t bits = 64;
@@ -302,3 +276,37 @@ int devinput_find_key(const char *name) {
 	}
 	return 0;
 }
+
+static void init() {
+
+	// print to stdout
+	if (output == XLOG_STDOUT)
+		return;
+
+	// write to syslog
+	if (output == XLOG_SYSLOG)
+		return;
+
+	// write to a logfile
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
+		}
+		return;
+	}
+}
+
+static void stop() {
+	if (xlog_file) {
+		fflush(xlog_file);
+		fclose(xlog_file);
+	}
+
+	output = XLOG_STDOUT; // switch back to stdout
+}
+
+MCP_REGISTER(utils, 0, &init, &stop);

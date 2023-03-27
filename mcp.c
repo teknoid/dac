@@ -23,28 +23,28 @@
 
 mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
-mcp_modules_t *modules = NULL;
+mcp_module_t *module = NULL;
 
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
-void mcp_register(const char *name, const void *init, const void *destroy) {
-	mcp_modules_t *new_mod = malloc(sizeof(mcp_modules_t));
-	memset(new_mod, 0, sizeof(mcp_modules_t));
+void mcp_register(const char *name, const void *init, const void *stop) {
+	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
+	memset(new_module, 0, sizeof(mcp_module_t));
 
-	new_mod->name = name;
-	new_mod->init = init;
-	new_mod->destroy = destroy;
-	new_mod->next = NULL;
+	new_module->name = name;
+	new_module->init = init;
+	new_module->stop = stop;
+	new_module->next = NULL;
 
-	if (modules == NULL)
+	if (module == NULL)
 		// this is the head
-		modules = new_mod;
+		module = new_module;
 	else {
 		// append to last in chain
-		mcp_modules_t *mod = modules;
-		while (mod->next != NULL)
-			mod = mod->next;
-		mod->next = new_mod;
+		mcp_module_t *m = module;
+		while (m->next != NULL)
+			m = m->next;
+		m->next = new_module;
 	}
 
 	xlog("MCP registered module %s", name);
@@ -175,37 +175,24 @@ static void daemonize() {
 	xlog("MCP forked into background");
 }
 
-// loop over module chain and call each module's init() function
-static void init() {
-	mcp_modules_t *module = modules;
-	while (1) {
-		if ((module->init)() < 0)
-			exit(EXIT_FAILURE);
+// loop recursively over module chain and call each module's init() function
+static void module_init(mcp_module_t *m) {
+	if ((m->init)() < 0)
+		exit(EXIT_FAILURE);
 
-		if (module->next == NULL)
-			break;
-		else
-			module = module->next;
-	}
-	xlog("all modules initialized");
+	if (m->next != NULL)
+		module_init(m->next);
 }
 
-// loop over module chain and call each module's destroy() function
-static void destroy() {
-	mcp_modules_t *module = modules;
-	while (1) {
-		(module->destroy)();
+// loop recursively (inverted) over module chain and call each module's stop() function
+static void module_stop(mcp_module_t *m) {
+	if (m->next != NULL)
+		module_stop(m->next);
 
-		if (module->next == NULL)
-			break;
-		else
-			module = module->next;
-	};
-	xlog("all modules destroyed");
+	(m->stop)();
 }
 
 int main(int argc, char **argv) {
-	xlog_init(XLOG_SYSLOG, NULL);
 	xlog("MCP initializing");
 
 	cfg = malloc(sizeof(*cfg));
@@ -246,10 +233,11 @@ int main(int argc, char **argv) {
 	// allocate global data exchange structure
 	mcp = malloc(sizeof(*mcp));
 	memset(mcp, 0, sizeof(*mcp));
+	mcp->ir_active = 1;
 
 	// initialize all registered modules
-	mcp->ir_active = 1;
-	init();
+	module_init(module);
+	xlog("all modules initialized");
 
 	if (cfg->interactive) {
 		xlog("MCP online, waiting for input");
@@ -259,10 +247,10 @@ int main(int argc, char **argv) {
 		pause();
 	}
 
-	// destroy all registered modules
-	destroy();
+	// stop all registered modules
+	module_stop(module);
+	xlog("all modules stoped");
 
 	xlog("MCP terminated");
-	xlog_close();
 	return EXIT_SUCCESS;
 }

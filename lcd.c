@@ -291,7 +291,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	lcd_backlight_off();
 	lcd_command(LCD_CLEAR);
 
@@ -305,5 +305,5 @@ static void destroy() {
 		close(i2cfd);
 }
 
-MCP_REGISTER(lcd, 1, &init, &destroy);
+MCP_REGISTER(lcd, 1, &init, &stop);
 

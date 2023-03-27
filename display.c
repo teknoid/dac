@@ -381,7 +381,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling thread_display");
 
@@ -391,7 +391,7 @@ static void destroy() {
 	endwin();
 }
 
-MCP_REGISTER(display, 3, &init, &destroy);
+MCP_REGISTER(display, 3, &init, &stop);
 
 #ifdef LOCALMAIN
 
@@ -449,7 +449,7 @@ int main(void) {
 		}
 	}
 
-	destroy();
+	stop();
 	return EXIT_SUCCESS;
 }
 #endif

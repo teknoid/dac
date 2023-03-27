@@ -36,14 +36,14 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling template thread");
 
 	if (pthread_join(thread, NULL))
 		xlog("Error joining template thread");
 
-	// destroy this module
+	// stop and destroy this module
 }
 
-MCP_REGISTER(template, 99, &init, &destroy);
+MCP_REGISTER(template, 99, &init, &stop);

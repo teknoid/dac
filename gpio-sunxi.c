@@ -370,7 +370,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	int pagesize = sysconf(_SC_PAGESIZE) * 4;
 
 	uint32_t *ctrl = TMR_AVSCTRL(mem);
@@ -379,7 +379,7 @@ static void destroy() {
 	munmap((void*) mem, pagesize);
 }
 
-MCP_REGISTER(gpio, 1, &init, &destroy);
+MCP_REGISTER(gpio, 1, &init, &stop);
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {

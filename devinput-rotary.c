@@ -138,7 +138,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread_ra))
 		xlog("Error canceling thread_ra");
 
@@ -158,14 +158,14 @@ static void destroy() {
 		close(fd_rb);
 }
 
-MCP_REGISTER(rotary, 3, &init, &destroy);
+MCP_REGISTER(rotary, 3, &init, &stop);
 
 #ifdef LOCALMAIN
 
 int main(void) {
 	init();
 	int c = getchar();
-	destroy();
+	stop();
 }
 
 #endif

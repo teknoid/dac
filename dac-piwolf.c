@@ -142,7 +142,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 }
 
-MCP_REGISTER(dac_piwolf, 3, &init, &destroy);
+MCP_REGISTER(dac_piwolf, 3, &init, &stop);

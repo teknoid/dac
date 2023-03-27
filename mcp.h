@@ -45,9 +45,9 @@
 #define BUFSIZE			256
 
 // register a module in the MCP's execution context
-#define MCP_REGISTER(name, prio, init, destroy) \
+#define MCP_REGISTER(name, prio, init, stop) \
   void __attribute__((constructor(101 + prio))) \
-  register_##name(void) { mcp_register("\""#name"\"", init, destroy); };
+  register_##name(void) { mcp_register("\""#name"\"", init, stop); };
 
 typedef enum {
 	nlock, dsd, pcm, spdif, dop
@@ -58,13 +58,13 @@ typedef enum {
 } dac_source_t;
 
 typedef int (*init_t)();
-typedef void (*destroy_t)();
-typedef struct mcp_modules_t {
+typedef void (*stop_t)();
+typedef struct mcp_module_t {
 	const char *name;
 	init_t init;
-	destroy_t destroy;
+	stop_t stop;
 	void *next;
-} mcp_modules_t;
+} mcp_module_t;
 
 typedef struct mcp_state_t {
 	dac_signal_t dac_signal;

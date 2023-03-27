@@ -12,8 +12,6 @@
 
 int elevate_realtime(int cpu);
 
-void xlog_init(int, const char *filename);
-void xlog_close(void);
 void xlog(const char *format, ...);
 int xerr(const char *format, ...);
 

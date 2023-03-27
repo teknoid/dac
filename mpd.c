@@ -392,7 +392,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread_mpdclient))
 		xlog("Error canceling thread_mpdclient");
 
@@ -403,4 +403,4 @@ static void destroy() {
 		mpd_connection_free(conn);
 }
 
-MCP_REGISTER(mpdclient, 3, &init, &destroy);
+MCP_REGISTER(mpdclient, 3, &init, &stop);

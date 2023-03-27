@@ -70,7 +70,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling thread_rb");
 
@@ -81,4 +81,4 @@ static void destroy() {
 		close(i2c);
 }
 
-MCP_REGISTER(button, 2, &init, &destroy);
+MCP_REGISTER(button, 2, &init, &stop);

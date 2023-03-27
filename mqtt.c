@@ -89,7 +89,7 @@ static int init() {
 	return 0;
 }
 
-static void destroy() {
+static void stop() {
 	if (pthread_cancel(thread))
 		xlog("Error canceling mqtt thread");
 
@@ -100,4 +100,4 @@ static void destroy() {
 		close(mqttfd);
 }
 
-MCP_REGISTER(mqtt, 2, &init, &destroy);
+MCP_REGISTER(mqtt, 2, &init, &stop);
