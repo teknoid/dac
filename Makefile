@@ -2,7 +2,7 @@ INCLUDE = ./include
 LIB = ./lib
 
 CFLAGS = -I$(INCLUDE) -Wall
-LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm -lmqttc
+LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
 SRCS := $(shell find . -maxdepth 1 -name '*.c')
 OBJS := $(patsubst %.c, %.o, $(SRCS))
@@ -21,10 +21,10 @@ all: $(OBJS)
 	@echo "To create executables specify target: \"make (tron|anus|piwolf|sabre18|sabre28)\""
  
 anus: $(COBJS-ANUS) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses
+	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
 
 tron: $(COBJS-TRON) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses
+	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc
 
 piwolf: $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)

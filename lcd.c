@@ -38,6 +38,10 @@
 #include "lcd.h"
 #include "mcp.h"
 
+#ifndef I2C
+#define I2C				"/dev/i2c-11"
+#endif
+
 static int i2cfd;
 
 static int backlight;

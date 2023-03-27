@@ -19,6 +19,10 @@
 #include "utils.h"
 #include "dac-es9028.h"
 
+#ifndef I2C
+#define I2C				"/dev/i2c-0"
+#endif
+
 static int i2c;
 static pthread_t thread;
 
