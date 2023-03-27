@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <limits.h>
 #include <pthread.h>
 
 #include <posix_sockets.h>
@@ -24,26 +25,26 @@
 static int mqttfd;
 static pthread_t thread;
 
-static struct mqtt_client *client = NULL;
+static struct mqtt_client *client;
 static uint8_t sendbuf[2048];
 static uint8_t recvbuf[2048];
+static int ready = 0;
 
 sensors_t *sensors;
 
 int publish(const char *topic, const char *message) {
-	if (client == NULL)
-		return xerr("MQTT client is NULL, please check module registration priority!");
+	if (!ready)
+		return xerr("MQTT publish(): client not ready yet, check module registration priority");
 
 	/* check that we don't have any errors */
 	if (client->error != MQTT_OK)
 		return xerr("MQTT error: %s\n", mqtt_error_str(client->error));
 
 	mqtt_publish(client, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
-
 	return 0;
 }
 
-static void notification(const char *message) {
+static int notification(const char *message) {
 	char *title = NULL, *text = NULL;
 	json_scanf(message, strlen(message), "{title: %Q, text: %Q}", &title, &text);
 
@@ -57,37 +58,60 @@ static void notification(const char *message) {
 
 	free(title);
 	free(text);
+	return 0;
 }
 
-static void sensor(const char *message) {
+static int sensor(const char *message) {
 	char *title = NULL, *text = NULL;
 	json_scanf(message, strlen(message), "{title: %Q, text: %Q}", &title, &text);
 
 	free(title);
 	free(text);
+	return 0;
 }
 
-static void publish_callback(void **unused, struct mqtt_response_publish *published) {
-	// xlog("MQTT topic('%s'): %s\n", published->topic_name, published->application_message);
+static int dispatch(struct mqtt_response_publish *published) {
+	const char *topic = published->topic_name;
+	const int tsize = published->topic_name_size;
 
-	xlog("MQTT callback");
+	const char *message = published->application_message;
+	const int msize = published->application_message_size;
 
-	if (starts_with(NOTIFICATION, published->topic_name))
-		notification(published->application_message);
+	if (starts_with(NOTIFICATION, topic))
+		return notification(message);
 
-	if (starts_with(SENSOR, published->topic_name))
-		sensor(published->application_message);
+	if (starts_with(SENSOR, topic))
+		return sensor(message);
+
+	// create null-terminated strings
+	char *t = (char*) malloc(tsize + 1);
+	memcpy(t, topic, tsize);
+	t[tsize] = '\0';
+
+	char *m = (char*) malloc(msize + 1);
+	memcpy(m, message, msize);
+	m[msize] = '\0';
+
+	xlog("MQTT no dispatcher for topic('%s'): %s\n", t, m);
+
+	free(m);
+	free(t);
+	return 0;
+}
+
+static void callback(void **unused, struct mqtt_response_publish *published) {
+	dispatch(published);
 }
 
 static void* mqtt(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
+		xlog("MQTT Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
 
 	while (1) {
-		msleep(100);
 		mqtt_sync(client);
+		msleep(100);
 	}
 }
 
@@ -99,11 +123,11 @@ static int init() {
 	memset(sensors, 0, sizeof(*sensors));
 
 	// initialize sensor data
-	sensors->bh1750_lux = -1;
-	sensors->bmp085_temp = -1;
-	sensors->bmp085_baro = -1;
-	sensors->bmp280_temp = -1;
-	sensors->bmp280_baro = -1;
+	sensors->bh1750_lux = INT_MAX;
+	sensors->bmp085_temp = INT_MAX;
+	sensors->bmp085_baro = INT_MAX;
+	sensors->bmp280_temp = INT_MAX;
+	sensors->bmp280_baro = INT_MAX;
 
 	/* open the non-blocking TCP socket (connecting to the broker) */
 	mqttfd = open_nb_socket(HOST, PORT);
@@ -111,7 +135,7 @@ static int init() {
 		return xerr("MQTT Failed to open socket: ");
 
 	/* setup a client */
-	mqtt_init(client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
+	mqtt_init(client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback);
 
 	/* Create an anonymous and clean session */
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
@@ -130,6 +154,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &mqtt, NULL))
 		return xerr("MQTT Error creating thread");
 
+	ready = 1;
 	xlog("MQTT initialized");
 	return 0;
 }

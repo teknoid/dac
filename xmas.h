@@ -1,12 +1,3 @@
-typedef struct timing_t {
-	int active;								// enabled / disabled
-	int wday;								// weekday
-	int on_h;								// soonest switch on hour
-	int on_m;								// soonest switch on minute
-	int off_h;								// latest switch off hour
-	int off_m;								// latest switch off minute
-} timing_t;
-
 // light on: ↑earlier, ↓later
 #define XMAS_SUNDOWN	100
 
@@ -17,6 +8,16 @@ typedef struct timing_t {
 #define OFF				"OFF"
 
 #define PLUG1			"810F43"
+#define PLUG2			"123456"
+
+typedef struct timing_t {
+	int active;								// enabled / disabled
+	int wday;								// weekday
+	int on_h;								// soonest switch on hour
+	int on_m;								// soonest switch on minute
+	int off_h;								// latest switch off hour
+	int off_m;								// latest switch off minute
+} timing_t;
 
 static const timing_t timings[] = {
 	{ 1, 1, 15, 00, 22, 00 }, // Monday

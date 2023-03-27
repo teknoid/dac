@@ -3,31 +3,62 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
+#include <limits.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "utils.h"
 #include "xmas.h"
 #include "mqtt.h"
 #include "mcp.h"
 
+static const char *SHELLIES[] = { PLUG1, PLUG2 };
+
 static pthread_t thread;
 static int power = -1;
 
-static void on(const timing_t *timing) {
+static void on() {
 	char subtopic[64];
-	snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", PLUG1);
-	publish(subtopic, ON);
+
+	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++) {
+		snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", SHELLIES[i]);
+		publish(subtopic, ON);
+		xlog("XMAS switched %s ON", SHELLIES[i]);
+	}
+
 	power = 1;
-	xlog("XMAS switched ON");
 }
 
-static void off(const timing_t *timing) {
+static void off() {
 	char subtopic[64];
-	snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", PLUG1);
-	publish(subtopic, OFF);
+
+	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++) {
+		snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", SHELLIES[i]);
+		publish(subtopic, OFF);
+		xlog("XMAS switched %s OFF", SHELLIES[i]);
+	}
+
 	power = 0;
-	xlog("XMAS switched OFF");
+}
+
+static void on_sundown() {
+	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux);
+	on();
+}
+
+static void on_morning() {
+	xlog("XMAS reached ON time frame");
+	on();
+}
+
+static void off_sunrise() {
+	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux);
+	off();
+}
+
+static void off_evening() {
+	xlog("XMAS reached OFF time frame");
+	off();
 }
 
 static int process(struct tm *now, const timing_t *timing) {
@@ -37,7 +68,7 @@ static int process(struct tm *now, const timing_t *timing) {
 	int from = timing->on_h * 60 + timing->on_m;
 	int to = timing->off_h * 60 + timing->off_m;
 
-	if (lumi < 0)
+	if (lumi == INT_MAX)
 		return xerr("XMAS no sensor data");
 
 	if (from <= curr && curr <= to) {
@@ -50,13 +81,13 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
 			if (lumi < XMAS_SUNDOWN)
-				on(timing);
+				on_sundown();
 			else
 				// logger.info("in ON time, waiting for XMAS_SUNDOWN: " + lumi);
 				return 0;
 		} else
 			// morning: switch on
-			on(timing);
+			on_morning();
 
 	} else {
 		// OFF time frame
@@ -68,13 +99,13 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
 			if (lumi > XMAS_SUNRISE)
-				off(timing);
+				off_sunrise();
 			else
 				// logger.info("in OFF time, waiting for XMAS_SUNRISE: " + lumi);
 				return 0;
 		else
 			// evening: switch off
-			off(timing);
+			off_evening();
 	}
 
 	return 0;
@@ -82,7 +113,7 @@ static int process(struct tm *now, const timing_t *timing) {
 
 static void* xmas(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
+		xlog("XMAS Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
 
@@ -109,17 +140,17 @@ static void* xmas(void *arg) {
 
 static int init() {
 	if (pthread_create(&thread, NULL, &xmas, NULL))
-		xlog("Error creating thread");
+		xlog("XMAS Error creating thread");
 
 	return 0;
 }
 
 static void stop() {
 	if (pthread_cancel(thread))
-		xlog("Error canceling thread");
+		xlog("XMAS Error canceling thread");
 
 	if (pthread_join(thread, NULL))
-		xlog("Error joining thread");
+		xlog("XMAS Error joining thread");
 }
 
 MCP_REGISTER(xmas, 6, &init, &stop);
