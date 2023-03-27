@@ -40,7 +40,7 @@ extern "C" {
 #define MQTTC_STR(x) MQTTC_STR2(x)
 #include MQTTC_STR(MQTTC_PAL_FILE)
 #else
-#include <mqtt_pal.h>
+#include <mqttc_pal.h>
 #endif /* MQTT_PAL_FILE */
 
 /**
