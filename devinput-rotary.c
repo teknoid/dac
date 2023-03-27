@@ -158,7 +158,7 @@ static void stop() {
 		close(fd_rb);
 }
 
-MCP_REGISTER(rotary, 3, &init, &stop);
+MCP_REGISTER(rotary, 5, &init, &stop);
 
 #ifdef LOCALMAIN
 

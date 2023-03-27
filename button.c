@@ -81,4 +81,4 @@ static void stop() {
 		close(i2c);
 }
 
-MCP_REGISTER(button, 2, &init, &stop);
+MCP_REGISTER(button, 5, &init, &stop);

@@ -126,5 +126,5 @@ static void stop() {
 		xlog("Error joining thread_rotary");
 }
 
-MCP_REGISTER(rotary, 1, &init, &stop);
+MCP_REGISTER(rotary, 5, &init, &stop);
 

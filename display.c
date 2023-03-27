@@ -391,7 +391,7 @@ static void stop() {
 	endwin();
 }
 
-MCP_REGISTER(display, 3, &init, &stop);
+MCP_REGISTER(display, 2, &init, &stop);
 
 #ifdef LOCALMAIN
 

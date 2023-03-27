@@ -122,7 +122,7 @@ static void stop() {
 		close(fd_ir);
 }
 
-MCP_REGISTER(ir, 3, &init, &stop);
+MCP_REGISTER(ir, 5, &init, &stop);
 
 #ifdef LOCALMAIN
 

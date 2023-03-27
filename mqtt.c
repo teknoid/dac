@@ -100,4 +100,4 @@ static void stop() {
 		close(mqttfd);
 }
 
-MCP_REGISTER(mqtt, 2, &init, &stop);
+MCP_REGISTER(mqtt, 6, &init, &stop);

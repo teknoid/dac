@@ -403,4 +403,4 @@ static void stop() {
 		mpd_connection_free(conn);
 }
 
-MCP_REGISTER(mpdclient, 3, &init, &stop);
+MCP_REGISTER(mpdclient, 4, &init, &stop);
