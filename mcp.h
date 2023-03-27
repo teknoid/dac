@@ -7,31 +7,26 @@
 // #define SABRE28
 
 #ifdef TRON
-#define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/music/"
 #define I2C				"/dev/i2c-11"
 #endif
 
 #ifdef ANUS
-#define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/opt/music/"
 #define DISPLAY			"/dev/tty"
 #endif
 
 #ifdef PIWOLF
-#define DEVINPUT_IR		"/dev/input/infrared"
-#define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
+#define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE18
-#define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE28
-#define LOGFILE			"/var/log/mcp.log"
 #define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
 #define DEVINPUT_RA		"/dev/input/rotary_axis"
