@@ -21,6 +21,6 @@ typedef struct sensors_t {
 
 extern sensors_t *sensors;
 
-void shelly(const unsigned int, const char*);
+void shelly(unsigned int, const char*);
 
 int publish(const char*, const char*);

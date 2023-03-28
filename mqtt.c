@@ -32,7 +32,7 @@ static int ready = 0;
 
 sensors_t *sensors;
 
-void shelly(const unsigned int shelly, const char *cmd) {
+void shelly(unsigned int shelly, const char *cmd) {
 	char *t = (char*) malloc(32);
 	snprintf(t, 32, "shelly/%6X/cmnd/POWER", shelly);
 	publish(t, cmd);
@@ -51,7 +51,7 @@ int publish(const char *topic, const char *message) {
 	return 0;
 }
 
-static int notification(const char *message, const int msize) {
+static int notification(const char *message, size_t msize) {
 	char *title = NULL, *text = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
 
@@ -73,7 +73,7 @@ static int notification(const char *message, const int msize) {
 	return 0;
 }
 
-static int sensor(const char *message, const int msize) {
+static int sensor(const char *message, size_t msize) {
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
 
@@ -95,10 +95,10 @@ static int sensor(const char *message, const int msize) {
 
 static int dispatch(struct mqtt_response_publish *published) {
 	const char *topic = published->topic_name;
-	const int tsize = published->topic_name_size;
+	uint16_t tsize = published->topic_name_size;
 
 	const char *message = published->application_message;
-	const int msize = published->application_message_size;
+	size_t msize = published->application_message_size;
 
 	if (starts_with(NOTIFICATION, topic))
 		return notification(message, msize);
