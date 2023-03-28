@@ -38,35 +38,55 @@ int publish(const char *topic, const char *message) {
 
 	/* check that we don't have any errors */
 	if (client->error != MQTT_OK)
-		return xerr("MQTT error: %s\n", mqtt_error_str(client->error));
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	mqtt_publish(client, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
 	return 0;
 }
 
-static int notification(const char *message) {
+static int notification(const char *message, const int msize) {
 	char *title = NULL, *text = NULL;
-	json_scanf(message, strlen(message), "{title: %Q, text: %Q}", &title, &text);
+	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
 
-#ifdef LCD
+	// show on LCD display
 	lcd_command(LCD_CLEAR);
 	msleep(2);
 	lcd_printlc(1, 1, title);
 	lcd_printlc(2, 1, text);
 	lcd_backlight_on();
-#endif
+
+	// show desktop notification
+	size_t size = strlen(title) + strlen(text) + 256;
+	char *command = (char*) malloc(size);
+	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFYSEND, title, text);
+	system(command);
+	xlog("system: %s", command);
+
+	// play sound
+	system("/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav");
 
 	free(title);
 	free(text);
 	return 0;
 }
 
-static int sensor(const char *message) {
-	char *title = NULL, *text = NULL;
-	json_scanf(message, strlen(message), "{title: %Q, text: %Q}", &title, &text);
+static int sensor(const char *message, const int msize) {
+	char *bh1750 = NULL;
+	char *bmp280 = NULL;
 
-	free(title);
-	free(text);
+	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q}", &bh1750, &bmp280);
+
+	if (bh1750 != NULL)
+		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
+
+	if (bmp280 != NULL)
+		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
+
+	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
+	xlog("MQTT BMP280 %.1f °C, %.1f hPA", sensors->bmp280_temp, sensors->bmp280_baro);
+
+	free(bh1750);
+	free(bmp280);
 	return 0;
 }
 
@@ -78,10 +98,10 @@ static int dispatch(struct mqtt_response_publish *published) {
 	const int msize = published->application_message_size;
 
 	if (starts_with(NOTIFICATION, topic))
-		return notification(message);
+		return notification(message, msize);
 
 	if (starts_with(SENSOR, topic))
-		return sensor(message);
+		return sensor(message, msize);
 
 	// create null-terminated strings
 	char *t = (char*) malloc(tsize + 1);
@@ -92,7 +112,7 @@ static int dispatch(struct mqtt_response_publish *published) {
 	memcpy(m, message, msize);
 	m[msize] = '\0';
 
-	xlog("MQTT no dispatcher for topic('%s'): %s\n", t, m);
+	xlog("MQTT no dispatcher for topic('%s'): %s", t, m);
 
 	free(m);
 	free(t);
@@ -135,21 +155,26 @@ static int init() {
 		return xerr("MQTT Failed to open socket: ");
 
 	/* setup a client */
-	mqtt_init(client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback);
+	if (mqtt_init(client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	/* Create an anonymous and clean session */
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
 	/* Send connection request to the broker. */
-	mqtt_connect(client, CLIENT_ID, NULL, NULL, 0, NULL, NULL, connect_flags, 400);
+	if (mqtt_connect(client, CLIENT_ID, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	/* check that we don't have any errors */
 	if (client->error != MQTT_OK)
-		return xerr("MQTT error: %s\n", mqtt_error_str(client->error));
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	/* subscribe to topics */
-	mqtt_subscribe(client, NOTIFICATION, 0);
-	mqtt_subscribe(client, SENSOR, 0);
+	if (mqtt_subscribe(client, NOTIFICATION, 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))
 		return xerr("MQTT Error creating thread");

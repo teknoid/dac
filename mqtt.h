@@ -2,9 +2,11 @@
 #define	HOST			"mqtt"
 #define PORT			"1883"
 
-#define NOTIFICATION	"notification"
+#define DBUS			"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+#define NOTIFYSEND		"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
 
-#define SENSOR			"sensors/7A1F60"
+#define NOTIFICATION	"notification"
+#define SENSOR			"sensor"
 
 typedef struct sensors_t {
 	unsigned int bh1750_lux;
