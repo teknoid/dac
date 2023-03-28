@@ -8,6 +8,9 @@
 #define NOTIFICATION	"notification"
 #define SENSOR			"sensor"
 
+#define PLUG1			0x810F43
+#define PLUG2			0x123456
+
 typedef struct sensors_t {
 	unsigned int bh1750_lux;
 	float bmp085_temp;
@@ -18,4 +21,6 @@ typedef struct sensors_t {
 
 extern sensors_t *sensors;
 
-int publish(const char *topic, const char *message);
+void shelly(const unsigned int, const char*);
+
+int publish(const char*, const char*);

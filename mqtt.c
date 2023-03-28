@@ -32,6 +32,13 @@ static int ready = 0;
 
 sensors_t *sensors;
 
+void shelly(const unsigned int shelly, const char *cmd) {
+	char *t = (char*) malloc(32);
+	snprintf(t, 32, "shelly/%6X/cmnd/POWER", shelly);
+	publish(t, cmd);
+	xlog("MQTT switched shelly %6X %s", shelly, cmd);
+}
+
 int publish(const char *topic, const char *message) {
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
@@ -83,7 +90,7 @@ static int sensor(const char *message, const int msize) {
 		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
 
 	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
-	xlog("MQTT BMP280 %.1f °C, %.1f hPA", sensors->bmp280_temp, sensors->bmp280_baro);
+	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
 
 	free(bh1750);
 	free(bmp280);

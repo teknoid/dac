@@ -12,32 +12,21 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-static const char *SHELLIES[] = { PLUG1, PLUG2 };
+// these shellies will be in XMAS mode
+static const unsigned int SHELLIES[] = { PLUG1, PLUG2 };
 
 static pthread_t thread;
 static int power = -1;
 
 static void on() {
-	char subtopic[64];
-
-	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++) {
-		snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", SHELLIES[i]);
-		publish(subtopic, ON);
-		xlog("XMAS switched %s ON", SHELLIES[i]);
-	}
-
+	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
+		shelly(SHELLIES[i], ON);
 	power = 1;
 }
 
 static void off() {
-	char subtopic[64];
-
-	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++) {
-		snprintf(subtopic, sizeof(subtopic), "shelly/%s/cmnd/POWER", SHELLIES[i]);
-		publish(subtopic, OFF);
-		xlog("XMAS switched %s OFF", SHELLIES[i]);
-	}
-
+	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
+		shelly(SHELLIES[i], OFF);
 	power = 0;
 }
 
@@ -83,7 +72,7 @@ static int process(struct tm *now, const timing_t *timing) {
 			if (lumi < XMAS_SUNDOWN)
 				on_sundown();
 			else
-				// logger.info("in ON time, waiting for XMAS_SUNDOWN: " + lumi);
+				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
 				return 0;
 		} else
 			// morning: switch on
@@ -101,7 +90,7 @@ static int process(struct tm *now, const timing_t *timing) {
 			if (lumi > XMAS_SUNRISE)
 				off_sunrise();
 			else
-				// logger.info("in OFF time, waiting for XMAS_SUNRISE: " + lumi);
+				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
 				return 0;
 		else
 			// evening: switch off
@@ -116,6 +105,15 @@ static void* xmas(void *arg) {
 		xlog("XMAS Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
+
+//	on();
+//	sleep(1);
+//	off();
+//	sleep(1);
+//	on();
+//	sleep(1);
+//	off();
+//	sleep(1);
 
 	while (1) {
 		time_t now_ts = time(NULL);

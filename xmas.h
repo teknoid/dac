@@ -7,9 +7,6 @@
 #define ON				"ON"
 #define OFF				"OFF"
 
-#define PLUG1			"810F43"
-#define PLUG2			"123456"
-
 typedef struct timing_t {
 	int active;								// enabled / disabled
 	int wday;								// weekday
