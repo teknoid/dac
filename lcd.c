@@ -52,7 +52,7 @@ static int i2cfd;
 static int backlight;
 static pthread_t thread;
 
-char *line1, *line2;
+char *text1, *text2;
 int scroll1, scroll2;
 
 //-	Read data from display over i2c (lower nibble contains LCD data)
@@ -149,13 +149,13 @@ static void lcd_putchar(char lcddata) {
 }
 
 //-	Go to position (line, column)
-static int lcd_gotolc(uint8_t line, uint8_t col) {
+static int lcd_gotolc(uint8_t row, uint8_t col) {
 	uint8_t lcddata = 0;
 
-	if ((line > LCD_LINES) || (col > LCD_COLS) || ((line == 0) || (col == 0)))
+	if ((row > LCD_LINES) || (col > LCD_COLS) || ((row == 0) || (col == 0)))
 		return 0;
 
-	switch (line) {
+	switch (row) {
 	case 1:
 		lcddata = LCD_LINE1;
 		break;
@@ -175,14 +175,21 @@ static int lcd_gotolc(uint8_t line, uint8_t col) {
 	return 1;
 }
 
-static void lcd_printl(int line, const char *text) {
+static void lcd_printlxy(const char *text, int row, int x, int y) {
+	lcd_gotolc(row, 1);
+	for (int i = x; i < y && ((y - x) <= LCD_COLS); i++)
+		if (text[i])
+			lcd_putchar(text[i]);
+}
+
+static void lcd_printl(const char *text, int row) {
 	int col = 1;
-	lcd_gotolc(line, col);
+	lcd_gotolc(row, col);
 	while (*text && col++ <= LCD_COLS)
 		lcd_putchar(*text++);
 }
 
-static void lcd_scroll(int line, const char *text, int *scrollptr) {
+static void lcd_scroll(int row, const char *text, int *scrollptr) {
 	if (text == NULL)
 		return;
 
@@ -197,24 +204,26 @@ static void lcd_scroll(int line, const char *text, int *scrollptr) {
 		*scrollptr = -3;
 
 	if ((*scrollptr + LCD_COLS) <= length)
-		lcd_printl(line, text + *scrollptr);
+		lcd_printl(text + *scrollptr, row);
 }
 
-static void lcd_alternate() {
-	if (scroll1 == -3) {
-		lcd_clear();
-		lcd_printl(1, line1);
-		lcd_printl(2, line1 + LCD_COLS);
+static int lcd_find_line_break(const char *text) {
+	for (int i = 0; i < strlen(text); i++) {
+		if (i <= (LCD_COLS / 2))
+			continue;
+		if (text[i] == 0x20)
+			return i - 1;
+		if (i == LCD_COLS)
+			return LCD_COLS;
 	}
+	return LCD_COLS;
+}
 
-	if (scroll1 == 0) {
-		lcd_clear();
-		lcd_printl(1, line2);
-		lcd_printl(2, line2 + LCD_COLS);
-	}
-
-	if (scroll1++ >= 3)
-		scroll1 = -3;
+static void lcd_print_break(const char *text) {
+	int x = lcd_find_line_break(text);
+	lcd_clear();
+	lcd_printlxy(text, 1, 0, x);
+	lcd_printlxy(text, 2, x, strlen(text));
 }
 
 static void lcd_update() {
@@ -222,29 +231,34 @@ static void lcd_update() {
 		return;
 
 	if (overflow_mode == LCD_OFLOW_SCROLL) {
-		lcd_scroll(1, line1, &scroll1);
-		lcd_scroll(2, line2, &scroll2);
+		lcd_scroll(1, text1, &scroll1);
+		lcd_scroll(2, text2, &scroll2);
 	} else if (overflow_mode == LCD_OFLOW_ALTERN) {
-		lcd_alternate();
+		if (scroll1 == -3)
+			lcd_print_break(text1);
+		if (scroll1 == 0)
+			lcd_print_break(text2);
+		if (scroll1++ >= 3)
+			scroll1 = -3;
 	}
 }
 
 void lcd_print(const char *l1, const char *l2) {
-	if (line1 != NULL)
-		free(line1);
-	line1 = strdup(l1);
+	if (text1 != NULL)
+		free(text1);
+	text1 = strdup(l1);
 
-	if (line2 != NULL)
-		free(line2);
-	line2 = strdup(l2);
+	if (text2 != NULL)
+		free(text2);
+	text2 = strdup(l2);
 
 	lcd_clear();
 	lcd_backlight_on();
 
 	overflow = strlen(l1) > LCD_COLS || strlen(l2) > LCD_COLS;
 	if (!overflow) {
-		lcd_printl(1, line1);
-		lcd_printl(2, line2);
+		lcd_printl(text1, 1);
+		lcd_printl(text2, 2);
 	} else {
 		scroll1 = -3;
 		scroll2 = -3;
@@ -291,7 +305,7 @@ static int init() {
 	lcd_command(LCD_INCREASE | LCD_DISPLAYSHIFTOFF);
 
 	lcd_backlight_on();
-	lcd_printl(1, "LCD initialized");
+	lcd_printl("LCD initialized", 1);
 	sleep(1);
 	lcd_backlight_off();
 
