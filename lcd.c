@@ -47,23 +47,8 @@ static int i2cfd;
 static int backlight;
 static pthread_t thread;
 
-//-	Write nibble to display with pulse of enable bit
-void lcd_write(uint8_t value) {
-	uint8_t data_out = value << 4 & 0xf0;
-
-	if (value & CMD_RS)
-		data_out |= LCD_RS;
-	if (value & CMD_RW)
-		data_out |= LCD_RW;
-	if (backlight)
-		data_out |= LCD_LIGHT_N;
-
-	i2c_put(i2cfd, LCD_I2C_DEVICE, data_out | LCD_E);		//-	Set new data and enable to high
-	i2c_put(i2cfd, LCD_I2C_DEVICE, data_out);	            //-	Set enable to low
-}
-
 //-	Read data from display over i2c (lower nibble contains LCD data)
-uint8_t lcd_read(int mode) {
+static uint8_t lcd_read(int mode) {
 	uint8_t lcddata, data;
 
 	if (mode == LCD_DATA)
@@ -96,77 +81,67 @@ uint8_t lcd_read(int mode) {
 	return data;
 }
 
+//-	Write nibble to display with pulse of enable bit
+static void lcd_write(uint8_t value) {
+	uint8_t data_out = value << 4 & 0xf0;
+
+	if (value & CMD_RS)
+		data_out |= LCD_RS;
+	if (value & CMD_RW)
+		data_out |= LCD_RW;
+	if (backlight)
+		data_out |= LCD_LIGHT_N;
+
+	i2c_put(i2cfd, LCD_I2C_DEVICE, data_out | LCD_E);		//-	Set new data and enable to high
+	i2c_put(i2cfd, LCD_I2C_DEVICE, data_out);	            //-	Set enable to low
+}
+
+//-	Issue a command to the display (use the defined commands above)
+static void lcd_command(uint8_t command) {
+	lcd_write((command >> 4));
+	lcd_write((command & 0x0F));
+}
+
 //-	Read one complete byte via i2c from display
-uint8_t lcd_getbyte(int mode) {
+static uint8_t lcd_getbyte(int mode) {
 	uint8_t hi = lcd_read(mode);
 	uint8_t lo = lcd_read(mode);
 	return (hi << 4) + (lo & 0x0F);
 }
 
-//-	Issue a command to the display (use the defined commands above)
-void lcd_command(uint8_t command) {
-	lcd_write((command >> 4));
-	lcd_write((command & 0x0F));
+//-	Check if busy
+static int lcd_busy() {
+	uint8_t state = lcd_getbyte(LCD_ADDRESS);
+	return (state & (1 << 7));
 }
 
-//-	Print string to cursor position
-void lcd_print(char *string) {
-	while (*string)
-		lcd_putchar(*string++);
+//- turn backlight on
+static void lcd_backlight_on() {
+	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_ON);
+	backlight = LCD_BACKLIGHT_TIMER;
+}
+
+//- turn backlight off
+static void lcd_backlight_off() {
+	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_OFF);
+	backlight = 0;
+}
+
+// clear all lines
+static void lcd_clear() {
+	lcd_command(LCD_CLEAR);
+	while (lcd_busy())
+		msleep(1);
 }
 
 //-	Put char to atctual cursor position
-void lcd_putchar(char lcddata) {
+static void lcd_putchar(char lcddata) {
 	lcd_write((lcddata >> 4) | CMD_RS);
 	lcd_write((lcddata & 0x0F) | CMD_RS);
 }
 
-//-	Put char to position
-int lcd_putcharlc(uint8_t line, uint8_t col, char value) {
-	if (!lcd_gotolc(line, col))
-		return 0;
-	lcd_putchar(value);
-	return 1;
-}
-
-//-	Print string to position (If string is longer than LCD_COLS overwrite first chars)(line, row, string)
-int lcd_printlc(uint8_t line, uint8_t col, char *string) {
-	if (!lcd_gotolc(line, col))
-		return 0;
-
-	while (*string) {
-		lcd_putchar(*string++);
-		col++;
-		if (col > LCD_COLS) {
-			col = 1;
-			lcd_gotolc(line, col);
-		}
-	}
-	return 1;
-}
-
-//-	Print string to position (If string is longer than LCD_COLS continue in next line)
-int lcd_printlcc(uint8_t line, uint8_t col, char *string) {
-	if (!lcd_gotolc(line, col))
-		return 0;
-
-	while (*string) {
-		lcd_putchar(*string++);
-		col++;
-		if (col > LCD_COLS) {
-			line++;
-			col = 1;
-			if (line > LCD_LINES) {
-				line = 1;
-			}
-			lcd_gotolc(line, col);
-		}
-	}
-	return 1;
-}
-
 //-	Go to position (line, column)
-int lcd_gotolc(uint8_t line, uint8_t col) {
+static int lcd_gotolc(uint8_t line, uint8_t col) {
 	uint8_t lcddata = 0;
 
 	if ((line > LCD_LINES) || (col > LCD_COLS) || ((line == 0) || (col == 0)))
@@ -192,60 +167,27 @@ int lcd_gotolc(uint8_t line, uint8_t col) {
 	return 1;
 }
 
-//-	Go to nextline (if next line > (LCD_LINES-1) return 0)
-int lcd_nextline(void) {
-	uint8_t line, col;
-
-	lcd_getlc(&line, &col);
-	if (!lcd_gotolc(line + 1, 1))
+//-	Print string to position (If string is longer than LCD_COLS overwrite first chars)(line, row, string)
+static int lcd_printlc(uint8_t line, uint8_t col, const char *string) {
+	if (!lcd_gotolc(line, col))
 		return 0;
-	else
-		return 1;
-}
 
-//-	Get line and row (target byte for line, target byte for row)
-int lcd_getlc(uint8_t *line, uint8_t *col) {
-	uint8_t lcddata = lcd_getbyte(LCD_ADDRESS);
-	if (lcddata & (1 << 7))
-		return 0;       // LCD busy
-
-	if (lcddata >= LCD_LINE1 && lcddata < (LCD_LINE1 + LCD_COLS)) {
-		*line = 1;
-		*col = lcddata - LCD_LINE1 + 1;
-		return 1;
-	} else if (lcddata >= LCD_LINE2 && lcddata < (LCD_LINE2 + LCD_COLS)) {
-		*line = 2;
-		*col = lcddata - LCD_LINE2 + 1;
-		return 1;
-	} else if (lcddata >= LCD_LINE3 && lcddata < (LCD_LINE3 + LCD_COLS)) {
-		*line = 3;
-		*col = lcddata - LCD_LINE3 + 1;
-		return 1;
-	} else if (lcddata >= LCD_LINE4 && lcddata < (LCD_LINE4 + LCD_COLS)) {
-		*line = 4;
-		*col = lcddata - LCD_LINE4 + 1;
-		return 1;
+	while (*string) {
+		lcd_putchar(*string++);
+		col++;
+		if (col > LCD_COLS) {
+			col = 1;
+			lcd_gotolc(line, col);
+		}
 	}
-
-	return 0;
+	return 1;
 }
 
-//- turn backlight on
-void lcd_backlight_on() {
-	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_ON);
-	backlight = LCD_BACKLIGHT_TIMER;
-}
-
-//- turn backlight off
-void lcd_backlight_off() {
-	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_OFF);
-	backlight = 0;
-}
-
-//-	Check if busy
-int lcd_busy() {
-	uint8_t state = lcd_getbyte(LCD_ADDRESS);
-	return (state & (1 << 7));
+void lcd_print(const char *line1, const char *line2) {
+	lcd_clear();
+	lcd_printlc(1, 1, line1);
+	lcd_printlc(2, 1, line2);
+	lcd_backlight_on();
 }
 
 static void* lcd(void *arg) {
@@ -285,7 +227,7 @@ static int init() {
 
 	lcd_backlight_on();
 	lcd_printlc(1, 1, "LCD initialized");
-	msleep(1000);
+	sleep(1);
 	lcd_backlight_off();
 
 	if (pthread_create(&thread, NULL, &lcd, NULL))

@@ -55,12 +55,8 @@ static int notification(const char *message, const int msize) {
 	char *title = NULL, *text = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
 
-	// show on LCD display
-	lcd_command(LCD_CLEAR);
-	msleep(2);
-	lcd_printlc(1, 1, title);
-	lcd_printlc(2, 1, text);
-	lcd_backlight_on();
+	// show on LCD display line 1 and 2
+	lcd_print(title, text);
 
 	// show desktop notification
 	size_t size = strlen(title) + strlen(text) + 256;
