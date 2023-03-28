@@ -250,17 +250,20 @@
 /** @name DISPLAY_CONFIGURATION */
 /*@{*/
 #define LCD_CONFIGURATION	0x20					/**< Set function */
-#define LCD_8BIT		LCD_CONFIGURATION | 0x10	/**<	8 bits interface */
-#define LCD_4BIT		LCD_CONFIGURATION | 0x00	/**<	4 bits interface */
+#define LCD_8BIT			LCD_CONFIGURATION | 0x10	/**<	8 bits interface */
+#define LCD_4BIT			LCD_CONFIGURATION | 0x00	/**<	4 bits interface */
 #define LCD_4LINE						    0x09	/**<	4 line display */
-#define LCD_2LINE		LCD_CONFIGURATION | 0x08	/**<	2 line display */
-#define LCD_1LINE		LCD_CONFIGURATION | 0x00	/**<	1 line display */
-#define LCD_5X10		LCD_CONFIGURATION | 0x04	/**<	5 X 10 dots */
-#define LCD_5X7			LCD_CONFIGURATION | 0x00	/**<	5 X 7 dots */
+#define LCD_2LINE			LCD_CONFIGURATION | 0x08	/**<	2 line display */
+#define LCD_1LINE			LCD_CONFIGURATION | 0x00	/**<	1 line display */
+#define LCD_5X10			LCD_CONFIGURATION | 0x04	/**<	5 X 10 dots */
+#define LCD_5X7				LCD_CONFIGURATION | 0x00	/**<	5 X 7 dots */
 
-#define LCD_LIGHT_ON	LCD_LIGHT_N
-#define LCD_LIGHT_OFF	0x00
+#define LCD_LIGHT_ON		LCD_LIGHT_N
+#define LCD_LIGHT_OFF		0x00
 /*@}*/
+
+#define LCD_OFLOW_SCROLL	1
+#define LCD_OFLOW_ALTERN	2
 
 void lcd_print(const char*, const char*);
 

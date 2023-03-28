@@ -31,6 +31,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 #include <pthread.h>
 
 #include "utils.h"
@@ -42,10 +43,17 @@
 #define I2C				"/dev/i2c-11"
 #endif
 
+//static const int overflow_mode = LCD_OFLOW_SCROLL;
+static const int overflow_mode = LCD_OFLOW_ALTERN;
+static int overflow;
+
 static int i2cfd;
 
 static int backlight;
 static pthread_t thread;
+
+char *line1, *line2;
+int scroll1, scroll2;
 
 //-	Read data from display over i2c (lower nibble contains LCD data)
 static uint8_t lcd_read(int mode) {
@@ -167,27 +175,81 @@ static int lcd_gotolc(uint8_t line, uint8_t col) {
 	return 1;
 }
 
-//-	Print string to position (If string is longer than LCD_COLS overwrite first chars)(line, row, string)
-static int lcd_printlc(uint8_t line, uint8_t col, const char *string) {
-	if (!lcd_gotolc(line, col))
-		return 0;
-
-	while (*string) {
-		lcd_putchar(*string++);
-		col++;
-		if (col > LCD_COLS) {
-			col = 1;
-			lcd_gotolc(line, col);
-		}
-	}
-	return 1;
+static void lcd_printl(int line, const char *text) {
+	int col = 1;
+	lcd_gotolc(line, col);
+	while (*text && col++ <= LCD_COLS)
+		lcd_putchar(*text++);
 }
 
-void lcd_print(const char *line1, const char *line2) {
+static void lcd_scroll(int line, const char *text, int *scrollptr) {
+	if (text == NULL)
+		return;
+
+	int length = strlen(text);
+	if (length < LCD_COLS)
+		return;
+
+	int to = length - *scrollptr + 3;
+	if (to > LCD_COLS)
+		*scrollptr += 1;
+	else
+		*scrollptr = -3;
+
+	if ((*scrollptr + LCD_COLS) <= length)
+		lcd_printl(line, text + *scrollptr);
+}
+
+static void lcd_alternate() {
+	if (scroll1 == -3) {
+		lcd_clear();
+		lcd_printl(1, line1);
+		lcd_printl(2, line1 + LCD_COLS);
+	}
+
+	if (scroll1 == 0) {
+		lcd_clear();
+		lcd_printl(1, line2);
+		lcd_printl(2, line2 + LCD_COLS);
+	}
+
+	if (scroll1++ >= 3)
+		scroll1 = -3;
+}
+
+static void lcd_update() {
+	if (!overflow)
+		return;
+
+	if (overflow_mode == LCD_OFLOW_SCROLL) {
+		lcd_scroll(1, line1, &scroll1);
+		lcd_scroll(2, line2, &scroll2);
+	} else if (overflow_mode == LCD_OFLOW_ALTERN) {
+		lcd_alternate();
+	}
+}
+
+void lcd_print(const char *l1, const char *l2) {
+	if (line1 != NULL)
+		free(line1);
+	line1 = strdup(l1);
+
+	if (line2 != NULL)
+		free(line2);
+	line2 = strdup(l2);
+
 	lcd_clear();
-	lcd_printlc(1, 1, line1);
-	lcd_printlc(2, 1, line2);
 	lcd_backlight_on();
+
+	overflow = strlen(l1) > LCD_COLS || strlen(l2) > LCD_COLS;
+	if (!overflow) {
+		lcd_printl(1, line1);
+		lcd_printl(2, line2);
+	} else {
+		scroll1 = -3;
+		scroll2 = -3;
+		lcd_update();
+	}
 }
 
 static void* lcd(void *arg) {
@@ -197,7 +259,10 @@ static void* lcd(void *arg) {
 	}
 
 	while (1) {
-		msleep(250);
+		sleep(1);
+
+		// update the LCD Display - it is very slow so set sleep() to 1 second
+		lcd_update();
 
 		if (backlight > 0)
 			backlight--;
@@ -226,7 +291,7 @@ static int init() {
 	lcd_command(LCD_INCREASE | LCD_DISPLAYSHIFTOFF);
 
 	lcd_backlight_on();
-	lcd_printlc(1, 1, "LCD initialized");
+	lcd_printl(1, "LCD initialized");
 	sleep(1);
 	lcd_backlight_off();
 
