@@ -117,10 +117,13 @@ static uint8_t lcd_getbyte(int mode) {
 	return (hi << 4) + (lo & 0x0F);
 }
 
-//-	Check if busy
-static int lcd_busy() {
+//-	wait if busy
+static void lcd_busy() {
 	uint8_t state = lcd_getbyte(LCD_ADDRESS);
-	return (state & (1 << 7));
+	while (state & (1 << 7)) {
+		usleep(100);
+		state = lcd_getbyte(LCD_ADDRESS);
+	}
 }
 
 //- turn backlight on
@@ -133,13 +136,6 @@ static void lcd_backlight_on() {
 static void lcd_backlight_off() {
 	i2c_put(i2cfd, LCD_I2C_DEVICE, LCD_LIGHT_OFF);
 	backlight = 0;
-}
-
-// clear all lines
-static void lcd_clear() {
-	lcd_command(LCD_CLEAR);
-	while (lcd_busy())
-		msleep(1);
 }
 
 //-	Put char to atctual cursor position
@@ -177,9 +173,11 @@ static int lcd_gotolc(uint8_t row, uint8_t col) {
 
 static void lcd_printlxy(const char *text, int row, int x, int y) {
 	lcd_gotolc(row, 1);
-	for (int i = x; i < y && ((y - x) <= LCD_COLS); i++)
-		if (text[i])
-			lcd_putchar(text[i]);
+	for (int i = 0; ((i < LCD_COLS) && i < (y - x)); i++) {
+		if (!text[x + i])
+			break;
+		lcd_putchar(text[x + i]);
+	}
 }
 
 static void lcd_printl(const char *text, int row) {
@@ -212,7 +210,7 @@ static int lcd_find_line_break(const char *text) {
 		if (i <= (LCD_COLS / 2))
 			continue;
 		if (text[i] == 0x20)
-			return i - 1;
+			return i;
 		if (i == LCD_COLS)
 			return LCD_COLS;
 	}
@@ -221,9 +219,10 @@ static int lcd_find_line_break(const char *text) {
 
 static void lcd_print_break(const char *text) {
 	int x = lcd_find_line_break(text);
-	lcd_clear();
+	lcd_command(LCD_CLEAR);
+	lcd_busy();
 	lcd_printlxy(text, 1, 0, x);
-	lcd_printlxy(text, 2, x, strlen(text));
+	lcd_printlxy(text, 2, x + 1, strlen(text));
 }
 
 static void lcd_update() {
@@ -243,19 +242,21 @@ static void lcd_update() {
 	}
 }
 
-void lcd_print(const char *l1, const char *l2) {
+void lcd_print(const char *t1, const char *t2) {
 	if (text1 != NULL)
 		free(text1);
-	text1 = strdup(l1);
+	text1 = strdup(t1);
 
 	if (text2 != NULL)
 		free(text2);
-	text2 = strdup(l2);
+	text2 = strdup(t2);
 
-	lcd_clear();
+	xlog("LCD prining   '%s'   '%s'", text1, text2);
+	lcd_command(LCD_CLEAR);
+	lcd_busy();
 	lcd_backlight_on();
 
-	overflow = strlen(l1) > LCD_COLS || strlen(l2) > LCD_COLS;
+	overflow = strlen(text1) > LCD_COLS || strlen(text2) > LCD_COLS;
 	if (!overflow) {
 		lcd_printl(text1, 1);
 		lcd_printl(text2, 2);

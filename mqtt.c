@@ -93,32 +93,44 @@ static int sensor(const char *message, size_t msize) {
 	return 0;
 }
 
-static int dispatch(struct mqtt_response_publish *published) {
+// create null-terminated topic
+static char* topic_string(struct mqtt_response_publish *published) {
 	const char *topic = published->topic_name;
 	uint16_t tsize = published->topic_name_size;
 
-	const char *message = published->application_message;
-	size_t msize = published->application_message_size;
-
-	if (starts_with(NOTIFICATION, topic))
-		return notification(message, msize);
-
-	if (starts_with(SENSOR, topic))
-		return sensor(message, msize);
-
-	// create null-terminated strings
 	char *t = (char*) malloc(tsize + 1);
 	memcpy(t, topic, tsize);
 	t[tsize] = '\0';
+	return t;
+}
+
+// create null-terminated message
+static char* message_string(struct mqtt_response_publish *published) {
+	const char *message = published->application_message;
+	size_t msize = published->application_message_size;
 
 	char *m = (char*) malloc(msize + 1);
 	memcpy(m, message, msize);
 	m[msize] = '\0';
+	return m;
+}
 
+static int dispatch(struct mqtt_response_publish *published) {
+	const char *message = published->application_message;
+	size_t msize = published->application_message_size;
+
+	if (starts_with(NOTIFICATION, published->topic_name))
+		return notification(message, msize);
+
+	if (starts_with(SENSOR, published->topic_name))
+		return sensor(message, msize);
+
+	char *t = topic_string(published);
+	char *m = message_string(published);
 	xlog("MQTT no dispatcher for topic('%s'): %s", t, m);
-
-	free(m);
 	free(t);
+	free(m);
+
 	return 0;
 }
 

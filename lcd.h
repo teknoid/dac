@@ -135,7 +135,7 @@
 #define LCD_LINE2			0x40	    /**< Change this to the address for line 2 on your display */
 #define LCD_LINE3			0x40	    /**< Change this to the address for line 3 on your display */
 #define LCD_LINE4			0x60	    /**< Change this to the address for line 4 on your display */
-#define LCD_BACKLIGHT_TIMER	120	    	/**< 120 * 250ms = 30 seconds */
+#define LCD_BACKLIGHT_TIMER	30	    	/**< 30 seconds */
 /*@}*/
 
 #if LCD_LINES > 4
