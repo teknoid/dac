@@ -52,7 +52,7 @@ static int i2cfd;
 static int backlight;
 static pthread_t thread;
 
-volatile char *text1, *text2;
+char *text1, *text2;
 int scroll1, scroll2;
 
 //-	Write nibble to display with pulse of enable bit
