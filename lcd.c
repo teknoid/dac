@@ -43,7 +43,7 @@
 #define I2C				"/dev/i2c-11"
 #endif
 
-//static const int overflow_mode = LCD_OFLOW_SCROLL;
+// static const int overflow_mode = LCD_OFLOW_SCROLL;
 static const int overflow_mode = LCD_OFLOW_ALTERN;
 static int overflow;
 
@@ -52,42 +52,8 @@ static int i2cfd;
 static int backlight;
 static pthread_t thread;
 
-char *text1, *text2;
+volatile char *text1, *text2;
 int scroll1, scroll2;
-
-//-	Read data from display over i2c (lower nibble contains LCD data)
-static uint8_t lcd_read(int mode) {
-	uint8_t lcddata, data;
-
-	if (mode == LCD_DATA)
-		lcddata = (LCD_E | LCD_RS | LCD_RW | LCD_D4 | LCD_D5 | LCD_D6 | LCD_D7);
-	else
-		lcddata = (LCD_E | LCD_RW | LCD_D4 | LCD_D5 | LCD_D6 | LCD_D7);
-
-	if (backlight)
-		lcddata |= LCD_LIGHT_N;
-
-	i2c_put(i2cfd, LCD_I2C_DEVICE, lcddata);
-	lcddata = i2c_get(i2cfd, LCD_I2C_DEVICE);
-
-	data = 0;
-	// map data from LCD pinout to internal positions
-	if (lcddata & LCD_D4)
-		data |= CMD_D0;
-	if (lcddata & LCD_D5)
-		data |= CMD_D1;
-	if (lcddata & LCD_D6)
-		data |= CMD_D2;
-	if (lcddata & LCD_D7)
-		data |= CMD_D3;
-
-	lcddata = 0;
-	if (backlight)
-		lcddata |= LCD_LIGHT_N;
-	i2c_put(i2cfd, LCD_I2C_DEVICE, lcddata);
-
-	return data;
-}
 
 //-	Write nibble to display with pulse of enable bit
 static void lcd_write(uint8_t value) {
@@ -108,22 +74,6 @@ static void lcd_write(uint8_t value) {
 static void lcd_command(uint8_t command) {
 	lcd_write((command >> 4));
 	lcd_write((command & 0x0F));
-}
-
-//-	Read one complete byte via i2c from display
-static uint8_t lcd_getbyte(int mode) {
-	uint8_t hi = lcd_read(mode);
-	uint8_t lo = lcd_read(mode);
-	return (hi << 4) + (lo & 0x0F);
-}
-
-//-	wait if busy
-static void lcd_busy() {
-	uint8_t state = lcd_getbyte(LCD_ADDRESS);
-	while (state & (1 << 7)) {
-		usleep(100);
-		state = lcd_getbyte(LCD_ADDRESS);
-	}
 }
 
 //- turn backlight on
@@ -220,7 +170,7 @@ static int lcd_find_line_break(const char *text) {
 static void lcd_print_break(const char *text) {
 	int x = lcd_find_line_break(text);
 	lcd_command(LCD_CLEAR);
-	lcd_busy();
+	msleep(200);
 	lcd_printlxy(text, 1, 0, x);
 	lcd_printlxy(text, 2, x + 1, strlen(text));
 }
@@ -243,17 +193,11 @@ static void lcd_update() {
 }
 
 void lcd_print(const char *t1, const char *t2) {
-	if (text1 != NULL)
-		free(text1);
 	text1 = strdup(t1);
-
-	if (text2 != NULL)
-		free(text2);
 	text2 = strdup(t2);
 
-	xlog("LCD prining   '%s'   '%s'", text1, text2);
 	lcd_command(LCD_CLEAR);
-	lcd_busy();
+	msleep(200);
 	lcd_backlight_on();
 
 	overflow = strlen(text1) > LCD_COLS || strlen(text2) > LCD_COLS;
