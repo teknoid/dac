@@ -4,9 +4,6 @@
 // light off: ↑later ↓earlier
 #define XMAS_SUNRISE	200
 
-#define ON				"ON"
-#define OFF				"OFF"
-
 typedef struct timing_t {
 	int active;								// enabled / disabled
 	int wday;								// weekday

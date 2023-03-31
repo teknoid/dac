@@ -17,6 +17,7 @@
 #include <mqttc.h>
 
 #include "frozen.h"
+#include "shelly.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "lcd.h"
@@ -32,64 +33,19 @@ static int ready = 0;
 
 sensors_t *sensors;
 
-void shelly(unsigned int shelly, const char *cmd) {
-	char *t = (char*) malloc(32);
-	snprintf(t, 32, "shelly/%6X/cmnd/POWER", shelly);
-	publish(t, cmd);
-	xlog("MQTT switched shelly %6X %s", shelly, cmd);
-}
-
 int publish(const char *topic, const char *message) {
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
+
+	xlog("topic :: %s || message :: %s", topic, message);
 
 	/* check that we don't have any errors */
 	if (client->error != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
-	mqtt_publish(client, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
-	return 0;
-}
+	if (mqtt_publish(client, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
-static int notification(const char *message, size_t msize) {
-	char *title = NULL, *text = NULL;
-	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
-
-	// show on LCD display line 1 and 2
-	lcd_print(title, text);
-
-	// show desktop notification
-	size_t size = strlen(title) + strlen(text) + 256;
-	char *command = (char*) malloc(size);
-	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFYSEND, title, text);
-	system(command);
-	xlog("system: %s", command);
-
-	// play sound
-	system("/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav");
-
-	free(title);
-	free(text);
-	return 0;
-}
-
-static int sensor(const char *message, size_t msize) {
-	char *bh1750 = NULL;
-	char *bmp280 = NULL;
-
-	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q}", &bh1750, &bmp280);
-
-	if (bh1750 != NULL)
-		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
-
-	if (bmp280 != NULL)
-		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
-
-	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
-	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
-
-	free(bh1750);
-	free(bmp280);
 	return 0;
 }
 
@@ -115,15 +71,63 @@ static char* message_string(struct mqtt_response_publish *published) {
 	return m;
 }
 
+static int dispatch_notification(const char *message, size_t msize) {
+	char *title = NULL, *text = NULL;
+	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
+
+	// show on LCD display line 1 and 2
+	lcd_print(title, text);
+
+	// show desktop notification
+	size_t size = strlen(title) + strlen(text) + 256;
+	char *command = (char*) malloc(size);
+	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFYSEND, title, text);
+	system(command);
+	xlog("system: %s", command);
+
+	// play sound
+	system("/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav");
+
+	free(title);
+	free(text);
+	return 0;
+}
+
+static int dispatch_sensor(const char *message, size_t msize) {
+	char *bh1750 = NULL;
+	char *bmp280 = NULL;
+
+	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q}", &bh1750, &bmp280);
+
+	if (bh1750 != NULL)
+		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
+
+	if (bmp280 != NULL)
+		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
+
+	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
+	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+
+	free(bh1750);
+	free(bmp280);
+	return 0;
+}
+
 static int dispatch(struct mqtt_response_publish *published) {
+	const char *topic = published->topic_name;
+	uint16_t tsize = published->topic_name_size;
+
 	const char *message = published->application_message;
 	size_t msize = published->application_message_size;
 
 	if (starts_with(NOTIFICATION, published->topic_name))
-		return notification(message, msize);
+		return dispatch_notification(message, msize);
 
 	if (starts_with(SENSOR, published->topic_name))
-		return sensor(message, msize);
+		return dispatch_sensor(message, msize);
+
+	if (starts_with(SHELLY, published->topic_name))
+		return shelly_dispatch(topic, tsize, message, msize);
 
 	char *t = topic_string(published);
 	char *m = message_string(published);
@@ -189,6 +193,9 @@ static int init() {
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	if (mqtt_subscribe(client, SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, SHELLY"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))

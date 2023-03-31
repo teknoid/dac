@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <time.h>
 
+#include "shelly.h"
 #include "utils.h"
 #include "xmas.h"
 #include "mqtt.h"
@@ -20,13 +21,13 @@ static int power = -1;
 
 static void on() {
 	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly(SHELLIES[i], ON);
+		shelly_command(SHELLIES[i], 1);
 	power = 1;
 }
 
 static void off() {
 	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly(SHELLIES[i], OFF);
+		shelly_command(SHELLIES[i], 0);
 	power = 0;
 }
 
@@ -105,15 +106,6 @@ static void* xmas(void *arg) {
 		xlog("XMAS Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
-
-//	on();
-//	sleep(1);
-//	off();
-//	sleep(1);
-//	on();
-//	sleep(1);
-//	off();
-//	sleep(1);
 
 	while (1) {
 		time_t now_ts = time(NULL);

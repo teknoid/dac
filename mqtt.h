@@ -7,9 +7,7 @@
 
 #define NOTIFICATION	"notification"
 #define SENSOR			"sensor"
-
-#define PLUG1			0x810F43
-#define PLUG2			0x123456
+#define SHELLY			"shelly"
 
 typedef struct sensors_t {
 	unsigned int bh1750_lux;
@@ -20,7 +18,5 @@ typedef struct sensors_t {
 } sensors_t;
 
 extern sensors_t *sensors;
-
-void shelly(unsigned int, const char*);
 
 int publish(const char*, const char*);

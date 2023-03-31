@@ -17,7 +17,7 @@ static void* template(void *arg) {
 	}
 
 	while (1) {
-		msleep(1000);
+		sleep(1);
 
 		// do some fancy stuff in a loop
 
