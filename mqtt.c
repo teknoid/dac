@@ -114,8 +114,8 @@ static int dispatch_sensor(const char *message, size_t msize) {
 	if (bmp280 != NULL)
 		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
 
-	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
-	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+	// xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
+	// xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
 
 	free(bh1750);
 	free(bmp280);
