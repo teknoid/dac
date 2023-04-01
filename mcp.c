@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 
 	// stop all registered modules
 	module_stop(module);
-	xlog("all modules stoped");
+	xlog("all modules stopped");
 
 	xlog("MCP terminated");
 	return EXIT_SUCCESS;

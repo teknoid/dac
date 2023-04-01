@@ -14,6 +14,8 @@
 
 static pthread_t thread;
 
+static shelly_state_t *shelly_state = NULL;
+
 // shelly/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
 //        ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
@@ -32,48 +34,88 @@ static unsigned int get_id(const char *topic, size_t size) {
 		memcpy(id, &topic[slash1 + 1], 6);
 		id[6] = '\0';
 		long l = strtol(id, NULL, 16);
-		// xlog("ID %s => 0x%2x", id, l);
 		return (unsigned int) l;
 	}
 
 	return 0;
 }
 
-static shelly_t* get_shelly(unsigned int id, int relay) {
-	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-		shelly_t sc = shelly_config[i];
-		if (sc.id == id && sc.relay == relay)
-			return &shelly_config[i];
+static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
+	shelly_state_t *ss = shelly_state;
+	while (ss != NULL) {
+		if (ss->id == id && ss->relay == relay)
+			return ss;
+		ss = ss->next;
 	}
 	return NULL;
 }
 
-static void update(unsigned int id, int relay, int state) {
-	shelly_t *sc = get_shelly(id, relay);
-	if (sc == NULL)
-		return;
+static shelly_state_t* append(unsigned int id, int relay) {
+	shelly_state_t *ss_new = malloc(sizeof(shelly_state_t));
+	memset(ss_new, 0, sizeof(shelly_state_t));
+	ss_new->id = id;
+	ss_new->relay = relay;
 
-	sc->state = state;
-	xlog("SHELLY updated %6X relay %d power state to %d", sc->id, sc->relay, sc->state);
+	if (shelly_state == NULL)
+		// this is the head
+		shelly_state = ss_new;
+	else {
+		// append to last in chain
+		shelly_state_t *ss = shelly_state;
+		while (ss->next != NULL)
+			ss = ss->next;
+		ss->next = ss_new;
+	}
+	xlog("SHELLY created new state for %06X %d", ss_new->id, ss_new->relay);
+	return ss_new;
+}
+
+static void update(unsigned int id, int relay, int state) {
+	shelly_state_t *ss = get_shelly_state(id, relay);
+	if (ss == NULL)
+		ss = append(id, relay);
+	ss->state = state;
+	xlog("SHELLY updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
 }
 
 static void trigger(unsigned int id, int button, int action) {
+	if (!action)
+		return; // we do not track button 'release', only button 'press'
+
 	xlog("SHELLY trigger %6X %d %d", id, button, action);
-
 	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-		shelly_t sc = shelly_config[i];
+		shelly_config_t sc = shelly_config[i];
+		shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
+		if (ss == NULL)
+			ss = append(sc.id, sc.relay);
 
-		if (sc.t1 == id && sc.t1b == button)
-			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+		if (sc.t1 == id && sc.t1b == button) {
+			if (ss->state == 0)
+				shelly_command(sc.id, sc.relay, 1);
+			else
+				shelly_command(sc.id, sc.relay, 0);
+		}
 
-		if (sc.t2 == id && sc.t2b == button)
-			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+		if (sc.t2 == id && sc.t2b == button) {
+			if (ss->state == 0)
+				shelly_command(sc.id, sc.relay, 1);
+			else
+				shelly_command(sc.id, sc.relay, 0);
+		}
 
-		if (sc.t3 == id && sc.t3b == button)
-			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+		if (sc.t3 == id && sc.t3b == button) {
+			if (ss->state == 0)
+				shelly_command(sc.id, sc.relay, 1);
+			else
+				shelly_command(sc.id, sc.relay, 0);
+		}
 
-		if (sc.t4 == id && sc.t4b == button)
-			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+		if (sc.t4 == id && sc.t4b == button) {
+			if (ss->state == 0)
+				shelly_command(sc.id, sc.relay, 1);
+			else
+				shelly_command(sc.id, sc.relay, 0);
+		}
 	}
 }
 
@@ -81,22 +123,25 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	char fmt[32], s[32], a[5];
 
 	unsigned int id = get_id(topic, tsize);
+	if (!id)
+		return 0;
+
 	// xlog("SHELLY dispatch %6X %s", id, message);
 
 	// search for button action commands
 	for (int i = 0; i < 8; i++) {
 		snprintf(fmt, 32, "{Switch%d:%%s}", i);
 		if (json_scanf(message, msize, fmt, &s)) {
-			if (json_scanf(s, strlen(s), "{Action:%s}", &a)) {
-				if (!strcmp(a, ON))
-					trigger(id, i, 1);
-				else if (!strcmp(a, OFF))
-					trigger(id, i, 0);
-			}
+			if (!strcmp(s, ON))
+				trigger(id, i, 1); // Shelly1+2
+			else if (!strcmp(a, OFF))
+				trigger(id, i, 0); // Shelly1+2
+			else if (json_scanf(s, strlen(s), "{Action:%s}", &a))
+				trigger(id, i, !strcmp(a, ON) ? 1 : 0); // Shelly4
 		}
 	}
 
-	// search for power state results
+	// search for relay power state results
 	if (json_scanf(message, msize, "{POWER:%s}", &a))
 		update(id, 0, !strcmp(a, ON) ? 1 : 0);
 	if (json_scanf(message, msize, "{POWER1:%s}", &a))
@@ -107,22 +152,32 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	return 0;
 }
 
-void shelly_command(unsigned int id, int cmd) {
+void shelly_command(unsigned int id, int relay, int cmd) {
 	char *t = (char*) malloc(32);
-	snprintf(t, 32, "shelly/%6X/cmnd/POWER", id);
+
+	if (relay)
+		snprintf(t, 32, "shelly/%6X/cmnd/POWER%d", id, relay);
+	else
+		snprintf(t, 32, "shelly/%6X/cmnd/POWER", id);
+
 	if (cmd) {
-		xlog("SHELLY switching %6X %s", id, ON);
+		xlog("SHELLY switching %6X %d %s", id, relay, ON);
 		publish(t, ON);
 
 		// start timer if configured
 		for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-			shelly_t sc = shelly_config[i];
-			if (sc.id == id)
-				if (sc.timer_start)
-					sc.timer = sc.timer_start;
+			shelly_config_t sc = shelly_config[i];
+			if (sc.id == id && sc.relay == relay)
+				if (sc.timer) {
+					shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
+					if (ss == NULL)
+						ss = append(sc.id, sc.relay);
+					ss->timer = sc.timer;
+					xlog("SHELLY started timer for %06X %d %d", ss->id, ss->relay, ss->timer);
+				}
 		}
 	} else {
-		xlog("SHELLY switching %6X %s", id, OFF);
+		xlog("SHELLY switching %6X %d %s", id, relay, OFF);
 		publish(t, OFF);
 	}
 	free(t);
@@ -138,11 +193,15 @@ static void* loop(void *arg) {
 		sleep(1);
 
 		// decrease timers and switch off if timer reached 0
-		for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-			shelly_t sc = shelly_config[i];
-			if (sc.timer_start && sc.timer)
-				if (sc.timer--)
-					shelly_command(sc.id, 0);
+		shelly_state_t *ss = shelly_state;
+		while (ss != NULL) {
+			// xlog("SHELLY state %06X %d %d %d ", ss->id, ss->relay, ss->state, ss->timer);
+			if (ss->timer) {
+				ss->timer--;
+				if (ss->timer == 0)
+					shelly_command(ss->id, ss->relay, 0);
+			}
+			ss = ss->next;
 		}
 	}
 }

@@ -21,13 +21,13 @@ static int power = -1;
 
 static void on() {
 	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly_command(SHELLIES[i], 1);
+		shelly_command(SHELLIES[i], 0, 1);
 	power = 1;
 }
 
 static void off() {
 	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly_command(SHELLIES[i], 0);
+		shelly_command(SHELLIES[i], 0, 0);
 	power = 0;
 }
 
