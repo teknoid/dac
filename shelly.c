@@ -39,20 +39,51 @@ static unsigned int get_id(const char *topic, size_t size) {
 	return 0;
 }
 
+static shelly_t* get_shelly(unsigned int id, int relay) {
+	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
+		shelly_t sc = shelly_config[i];
+		if (sc.id == id && sc.relay == relay)
+			return &shelly_config[i];
+	}
+	return NULL;
+}
+
+static void update(unsigned int id, int relay, int state) {
+	shelly_t *sc = get_shelly(id, relay);
+	if (sc == NULL)
+		return;
+
+	sc->state = state;
+	xlog("SHELLY updated %6X relay %d power state to %d", sc->id, sc->relay, sc->state);
+}
+
 static void trigger(unsigned int id, int button, int action) {
 	xlog("SHELLY trigger %6X %d %d", id, button, action);
 
-	// TODO Race condition - as long as we are in callback sending is not possible
-	// find a mechanism to enqueue this message for sending later after leaving the callback
+	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
+		shelly_t sc = shelly_config[i];
 
-//	if (id == VIER_KUECHE && button == 1)
-//		shelly_command(PLUG1, 0);
+		if (sc.t1 == id && sc.t1b == button)
+			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+
+		if (sc.t2 == id && sc.t2b == button)
+			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+
+		if (sc.t3 == id && sc.t3b == button)
+			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+
+		if (sc.t4 == id && sc.t4b == button)
+			shelly_command(sc.id, sc.state == 0 ? 1 : 0);
+	}
 }
 
 int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char fmt[32], s[32], a[5];
 
 	unsigned int id = get_id(topic, tsize);
+	// xlog("SHELLY dispatch %6X %s", id, message);
+
+	// search for button action commands
 	for (int i = 0; i < 8; i++) {
 		snprintf(fmt, 32, "{Switch%d:%%s}", i);
 		if (json_scanf(message, msize, fmt, &s)) {
@@ -64,6 +95,14 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 			}
 		}
 	}
+
+	// search for power state results
+	if (json_scanf(message, msize, "{POWER:%s}", &a))
+		update(id, 0, !strcmp(a, ON) ? 1 : 0);
+	if (json_scanf(message, msize, "{POWER1:%s}", &a))
+		update(id, 1, !strcmp(a, ON) ? 1 : 0);
+	if (json_scanf(message, msize, "{POWER2:%s}", &a))
+		update(id, 2, !strcmp(a, ON) ? 1 : 0);
 
 	return 0;
 }

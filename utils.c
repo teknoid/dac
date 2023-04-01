@@ -19,8 +19,8 @@
 #include "utils.h"
 #include "mcp.h"
 
- static int output = XLOG_STDOUT;
-//static int output = XLOG_SYSLOG;
+// static int output = XLOG_STDOUT;
+static int output = XLOG_SYSLOG;
 
 static const char *filename = "/var/log/mcp.log";
 static FILE *xlog_file;
