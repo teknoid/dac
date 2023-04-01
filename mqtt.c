@@ -23,12 +23,21 @@
 #include "lcd.h"
 #include "mcp.h"
 
-static int mqttfd;
 static pthread_t thread;
 
-static struct mqtt_client *client;
-static uint8_t sendbuf[2048];
-static uint8_t recvbuf[2048];
+//
+// MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
+//
+static int mqttfd_tx;
+static struct mqtt_client *client_tx;
+static uint8_t sendbuf_tx[1024];
+static uint8_t recvbuf_tx[1024];
+
+static int mqttfd_rx;
+static struct mqtt_client *client_rx;
+static uint8_t sendbuf_rx[4096];
+static uint8_t recvbuf_rx[1024];
+
 static int ready = 0;
 
 sensors_t *sensors;
@@ -40,11 +49,11 @@ int publish(const char *topic, const char *message) {
 	xlog("topic :: %s || message :: %s", topic, message);
 
 	/* check that we don't have any errors */
-	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (client_tx->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	if (mqtt_publish(client, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
 	return 0;
 }
@@ -149,54 +158,66 @@ static void* mqtt(void *arg) {
 	}
 
 	while (1) {
-		mqtt_sync(client);
+		mqtt_sync(client_tx);
+		mqtt_sync(client_rx);
 		msleep(100);
 	}
 }
 
 static int init() {
-	client = malloc(sizeof(*client));
-	memset(client, 0, sizeof(*client));
-
-	sensors = malloc(sizeof(*sensors));
-	memset(sensors, 0, sizeof(*sensors));
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
 	// initialize sensor data
+	sensors = malloc(sizeof(*sensors));
+	memset(sensors, 0, sizeof(*sensors));
 	sensors->bh1750_lux = INT_MAX;
 	sensors->bmp085_temp = INT_MAX;
 	sensors->bmp085_baro = INT_MAX;
 	sensors->bmp280_temp = INT_MAX;
 	sensors->bmp280_baro = INT_MAX;
 
-	/* open the non-blocking TCP socket (connecting to the broker) */
-	mqttfd = open_nb_socket(HOST, PORT);
-	if (mqttfd == -1)
+	// publisher client
+	client_tx = malloc(sizeof(*client_tx));
+	memset(client_tx, 0, sizeof(*client_tx));
+
+	mqttfd_tx = open_nb_socket(HOST, PORT);
+	if (mqttfd_tx == -1)
 		return xerr("MQTT Failed to open socket: ");
 
-	/* setup a client */
-	if (mqtt_init(client, mqttfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (mqtt_init(client_tx, mqttfd_tx, sendbuf_tx, sizeof(sendbuf_tx), recvbuf_tx, sizeof(recvbuf_tx), NULL) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	/* Create an anonymous and clean session */
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+	if (mqtt_connect(client_tx, CLIENT_ID"-tx", NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	/* Send connection request to the broker. */
-	if (mqtt_connect(client, CLIENT_ID, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (client_tx->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	/* check that we don't have any errors */
-	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	// subscriber client
+	client_rx = malloc(sizeof(*client_rx));
+	memset(client_rx, 0, sizeof(*client_rx));
 
-	/* subscribe to topics */
-	if (mqtt_subscribe(client, NOTIFICATION, 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	mqttfd_rx = open_nb_socket(HOST, PORT);
+	if (mqttfd_rx == -1)
+		return xerr("MQTT Failed to open socket: ");
 
-	if (mqtt_subscribe(client, SENSOR"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (mqtt_init(client_rx, mqttfd_rx, sendbuf_rx, sizeof(sendbuf_rx), recvbuf_rx, sizeof(recvbuf_rx), callback) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client, SHELLY"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	if (mqtt_connect(client_rx, CLIENT_ID"-rx", NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (client_rx->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, NOTIFICATION, 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, SHELLY"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))
 		return xerr("MQTT Error creating thread");
@@ -213,8 +234,11 @@ static void stop() {
 	if (pthread_join(thread, NULL))
 		xlog("MQTT Error joining thread");
 
-	if (mqttfd > 0)
-		close(mqttfd);
+	if (mqttfd_tx > 0)
+		close(mqttfd_tx);
+
+	if (mqttfd_rx > 0)
+		close(mqttfd_rx);
 }
 
 MCP_REGISTER(mqtt, 5, &init, &stop);
