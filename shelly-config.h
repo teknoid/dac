@@ -6,6 +6,6 @@
 static const shelly_config_t shelly_config[] = {
 	{ PLUG1, 0, KUECHE, 1, 0, 0, 0, 0, 0, 0, 0 },
 
-	// relay 1 of HOFLICHT is triggered by HOFLICHT buttons 1 & 2, and has a timer of 120 seconds
+	// relay 0 of HOFLICHT is triggered by HOFLICHT buttons 1 & 2, and has a timer of 120 seconds
 	{ HOFLICHT, 0, HOFLICHT, 1, HOFLICHT, 2, 0, 0, 0, 0, 120 },
 };
