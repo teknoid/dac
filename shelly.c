@@ -47,10 +47,7 @@ static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
 			return ss;
 		ss = ss->next;
 	}
-	return NULL;
-}
 
-static shelly_state_t* append(unsigned int id, int relay) {
 	shelly_state_t *ss_new = malloc(sizeof(shelly_state_t));
 	memset(ss_new, 0, sizeof(shelly_state_t));
 	ss_new->id = id;
@@ -61,19 +58,18 @@ static shelly_state_t* append(unsigned int id, int relay) {
 		shelly_state = ss_new;
 	else {
 		// append to last in chain
-		shelly_state_t *ss = shelly_state;
+		ss = shelly_state;
 		while (ss->next != NULL)
 			ss = ss->next;
 		ss->next = ss_new;
 	}
+
 	xlog("SHELLY created new state for %06X %d", ss_new->id, ss_new->relay);
 	return ss_new;
 }
 
 static void update(unsigned int id, int relay, int state) {
 	shelly_state_t *ss = get_shelly_state(id, relay);
-	if (ss == NULL)
-		ss = append(id, relay);
 	ss->state = state;
 	xlog("SHELLY updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
 }
@@ -86,8 +82,6 @@ static void trigger(unsigned int id, int button, int action) {
 	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
 		shelly_config_t sc = shelly_config[i];
 		shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
-		if (ss == NULL)
-			ss = append(sc.id, sc.relay);
 
 		if (sc.t1 == id && sc.t1b == button) {
 			if (ss->state == 0)
@@ -170,8 +164,6 @@ void shelly_command(unsigned int id, int relay, int cmd) {
 			if (sc.id == id && sc.relay == relay)
 				if (sc.timer) {
 					shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
-					if (ss == NULL)
-						ss = append(sc.id, sc.relay);
 					ss->timer = sc.timer;
 					xlog("SHELLY started timer for %06X %d %d", ss->id, ss->relay, ss->timer);
 				}
