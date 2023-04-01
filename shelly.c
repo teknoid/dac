@@ -40,6 +40,7 @@ static unsigned int get_id(const char *topic, size_t size) {
 	return 0;
 }
 
+// find existing shelly state or create a new one
 static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
 	shelly_state_t *ss = shelly_state;
 	while (ss != NULL) {
@@ -68,12 +69,14 @@ static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
 	return ss_new;
 }
 
+// update shelly state
 static void update(unsigned int id, int relay, int state) {
 	shelly_state_t *ss = get_shelly_state(id, relay);
 	ss->state = state;
 	xlog("SHELLY updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
 }
 
+// trigger a button press event
 static void trigger(unsigned int id, int button, int action) {
 	if (!action)
 		return; // we do not track button 'release', only button 'press'
@@ -113,6 +116,7 @@ static void trigger(unsigned int id, int button, int action) {
 	}
 }
 
+// handle a subscribed mqtt message
 int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char fmt[32], s[32], a[5];
 
@@ -146,6 +150,7 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	return 0;
 }
 
+// execute a shelly command via mqtt publish
 void shelly_command(unsigned int id, int relay, int cmd) {
 	char *t = (char*) malloc(32);
 
