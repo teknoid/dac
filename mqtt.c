@@ -1,6 +1,6 @@
 /*****************************************************************************
 
- based on simple_subscriber.c
+ based on simple_publisher.c simple_subscriber.c
  https://github.com/LiamBindle/MQTT-C
 
  *****************************************************************************/
@@ -58,6 +58,25 @@ int publish(const char *topic, const char *message) {
 	return 0;
 }
 
+// shelly/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
+//        ^^^^^^
+static void get_mac(const char *topic, size_t size, char *mac) {
+	int slash1 = 0, slash2 = 0;
+	for (int i = 0; i < size; i++) {
+		if (topic[i] == '/') {
+			if (!slash1)
+				slash1 = i;
+			else if (!slash2)
+				slash2 = i;
+		}
+	}
+
+	if (slash1 && slash2 && ((slash2 - slash1) == 18)) {
+		memcpy(mac, &topic[slash1 + 1], 17);
+		mac[17] = '\0';
+	}
+}
+
 // create null-terminated topic
 static char* topic_string(struct mqtt_response_publish *published) {
 	const char *topic = published->topic_name;
@@ -93,6 +112,7 @@ static int dispatch_notification(const char *message, size_t msize) {
 	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFYSEND, title, text);
 	system(command);
 	xlog("system: %s", command);
+	free(command);
 
 	// play sound
 	system("/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav");
@@ -122,6 +142,13 @@ static int dispatch_sensor(const char *message, size_t msize) {
 	return 0;
 }
 
+static int dispatch_dnsmasq(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char mac[18];
+	get_mac(topic, tsize, mac);
+	xlog("MQTT dnsmasq %s", mac);
+	return 0;
+}
+
 static int dispatch(struct mqtt_response_publish *published) {
 	const char *topic = published->topic_name;
 	uint16_t tsize = published->topic_name_size;
@@ -134,6 +161,9 @@ static int dispatch(struct mqtt_response_publish *published) {
 
 	if (starts_with(SENSOR, published->topic_name))
 		return dispatch_sensor(message, msize);
+
+	if (starts_with(DNSMASQ, published->topic_name))
+		return dispatch_dnsmasq(topic, tsize, message, msize);
 
 	if (starts_with(SHELLY, published->topic_name))
 		return shelly_dispatch(topic, tsize, message, msize);

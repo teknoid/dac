@@ -8,6 +8,7 @@
 #define NOTIFICATION	"notification"
 #define SENSOR			"sensor"
 #define SHELLY			"shelly"
+#define DNSMASQ			"dnsmasq"
 
 typedef struct sensors_t {
 	unsigned int bh1750_lux;

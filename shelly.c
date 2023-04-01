@@ -152,16 +152,16 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 
 // execute a shelly command via mqtt publish
 void shelly_command(unsigned int id, int relay, int cmd) {
-	char *t = (char*) malloc(32);
+	char *topic = (char*) malloc(32);
 
 	if (relay)
-		snprintf(t, 32, "shelly/%6X/cmnd/POWER%d", id, relay);
+		snprintf(topic, 32, "shelly/%6X/cmnd/POWER%d", id, relay);
 	else
-		snprintf(t, 32, "shelly/%6X/cmnd/POWER", id);
+		snprintf(topic, 32, "shelly/%6X/cmnd/POWER", id);
 
 	if (cmd) {
 		xlog("SHELLY switching %6X %d %s", id, relay, ON);
-		publish(t, ON);
+		publish(topic, ON);
 
 		// start timer if configured
 		for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
@@ -175,9 +175,9 @@ void shelly_command(unsigned int id, int relay, int cmd) {
 		}
 	} else {
 		xlog("SHELLY switching %6X %d %s", id, relay, OFF);
-		publish(t, OFF);
+		publish(topic, OFF);
 	}
-	free(t);
+	free(topic);
 }
 
 static void* loop(void *arg) {
