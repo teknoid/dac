@@ -8,7 +8,7 @@ SRCS := $(shell find . -maxdepth 1 -name '*.c')
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o mpd.o replaygain.o mp3gain.o frozen.o utils.o
-COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o mqtt.o xmas.o
+COBJS-ANUS 		= $(COBJS-COMMON) dac-anus.o
 COBJS-TRON 		= $(COBJS-COMMON) dac-tron.o button.o lcd.o i2c.o mqtt.o xmas.o shelly.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o gpio-sunxi.o

@@ -3,7 +3,8 @@
 #define PORT			"1883"
 
 #define DBUS			"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
-#define NOTIFYSEND		"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
+#define NOTIFY_SEND		"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
+#define PLAY_MAU		"/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav"
 
 #define NOTIFICATION	"notification"
 #define SENSOR			"sensor"

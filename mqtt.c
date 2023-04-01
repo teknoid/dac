@@ -109,16 +109,16 @@ static int dispatch_notification(const char *message, size_t msize) {
 	// show desktop notification
 	size_t size = strlen(title) + strlen(text) + 256;
 	char *command = (char*) malloc(size);
-	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFYSEND, title, text);
+	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
 	system(command);
 	xlog("system: %s", command);
-	free(command);
 
 	// play sound
-	system("/usr/bin/aplay -q -D hw:CARD=Device_1 /home/hje/mau.wav");
+	system(PLAY_MAU);
 
 	free(title);
 	free(text);
+	free(command);
 	return 0;
 }
 
