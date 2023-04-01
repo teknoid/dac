@@ -50,7 +50,7 @@ static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
 	}
 
 	shelly_state_t *ss_new = malloc(sizeof(shelly_state_t));
-	memset(ss_new, 0, sizeof(shelly_state_t));
+	ZERO(ss_new);
 	ss_new->id = id;
 	ss_new->relay = relay;
 

@@ -169,7 +169,7 @@ static int init() {
 
 	// initialize sensor data
 	sensors = malloc(sizeof(*sensors));
-	memset(sensors, 0, sizeof(*sensors));
+	ZERO(sensors);
 	sensors->bh1750_lux = INT_MAX;
 	sensors->bmp085_temp = INT_MAX;
 	sensors->bmp085_baro = INT_MAX;
@@ -178,7 +178,7 @@ static int init() {
 
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));
-	memset(client_tx, 0, sizeof(*client_tx));
+	ZERO(client_tx);
 
 	mqttfd_tx = open_nb_socket(HOST, PORT);
 	if (mqttfd_tx == -1)
@@ -195,7 +195,7 @@ static int init() {
 
 	// subscriber client
 	client_rx = malloc(sizeof(*client_rx));
-	memset(client_rx, 0, sizeof(*client_rx));
+	ZERO(client_rx);
 
 	mqttfd_rx = open_nb_socket(HOST, PORT);
 	if (mqttfd_rx == -1)

@@ -29,7 +29,7 @@ mcp_module_t *module = NULL;
 // called in each module via macro MCP_REGISTER(...) before main()
 void mcp_register(const char *name, const void *init, const void *stop) {
 	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
-	memset(new_module, 0, sizeof(mcp_module_t));
+	ZERO(new_module);
 
 	new_module->name = name;
 	new_module->init = init;
@@ -196,7 +196,7 @@ int main(int argc, char **argv) {
 	xlog("MCP initializing");
 
 	cfg = malloc(sizeof(*cfg));
-	memset(cfg, 0, sizeof(*cfg));
+	ZERO(cfg);
 
 	// parse command line arguments
 	int c;
@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
 
 	// allocate global data exchange structure
 	mcp = malloc(sizeof(*mcp));
-	memset(mcp, 0, sizeof(*mcp));
+	ZERO(mcp);
 	mcp->ir_active = 1;
 
 	// initialize all registered modules

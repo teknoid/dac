@@ -36,7 +36,7 @@ static FILE *xlog_file;
 int elevate_realtime(int cpu) {
 	// Set our thread to MAX priority
 	struct sched_param sp;
-	memset(&sp, 0, sizeof(sp));
+	ZERO(&sp);
 	sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	if (sched_setscheduler(0, SCHED_FIFO, &sp))
 		return -1;
