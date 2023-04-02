@@ -19,8 +19,8 @@
 #include "utils.h"
 #include "mcp.h"
 
-// static int output = XLOG_STDOUT;
-static int output = XLOG_SYSLOG;
+static int output = XLOG_STDOUT;
+//static int output = XLOG_SYSLOG;
 
 static const char *filename = "/var/log/mcp.log";
 static FILE *xlog_file;
@@ -275,6 +275,20 @@ int devinput_find_key(const char *name) {
 		}
 	}
 	return 0;
+}
+
+uint64_t mac2uint64(char *mac) {
+	unsigned int u[6];
+
+	int c = sscanf(mac, "%x:%x:%x:%x:%x:%x", u, u + 1, u + 2, u + 3, u + 4, u + 5);
+	if (c != 6)
+		return 0;
+
+	uint64_t x = 0;
+	for (int i = 0; i < 6; i++)
+		x = (x << 8) | (u[i] & 0xff);
+
+	return x;
 }
 
 static void init() {

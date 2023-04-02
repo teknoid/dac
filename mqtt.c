@@ -58,29 +58,41 @@ int publish(const char *topic, const char *message) {
 	return 0;
 }
 
-// shelly/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
-//        ^^^^^^
-static void get_mac(const char *topic, size_t size, char *mac) {
+// network/dhcp/fc:53:9e:a9:3a:c5 old 192.168.25.83 2023-04-02 13:16:40 (gigaset-hje)
+//              ^^^^^^^^^^^^^^^^^
+static uint64_t get_mac(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
-	for (int i = 0; i < size; i++) {
+	unsigned int a, b;
+
+	for (int i = 0; i < size; i++)
 		if (topic[i] == '/') {
 			if (!slash1)
 				slash1 = i;
 			else if (!slash2)
 				slash2 = i;
 		}
+
+	if (slash1 && slash2 && ((size - slash2) == 18)) {
+		const char *c = topic + slash2 + 1;
+		uint64_t x = 0;
+		for (int i = 0; i < 6; i++) {
+			a = (*c <= '9') ? *c - '0' : (*c & 0x7) + 9;
+			c++; // 'f'
+			b = (*c <= '9') ? *c - '0' : (*c & 0x7) + 9;
+			c++; // 'c'
+			x = (x << 8) | (a << 4) | b;
+			c++; // ':'
+		}
+		return x;
 	}
 
-	if (slash1 && slash2 && ((slash2 - slash1) == 18)) {
-		memcpy(mac, &topic[slash1 + 1], 17);
-		mac[17] = '\0';
-	}
+	return 0;
 }
 
 // create null-terminated topic
-static char* topic_string(struct mqtt_response_publish *published) {
-	const char *topic = published->topic_name;
-	uint16_t tsize = published->topic_name_size;
+static char* topic_string(struct mqtt_response_publish *p) {
+	const char *topic = p->topic_name;
+	uint16_t tsize = p->topic_name_size;
 
 	char *t = (char*) malloc(tsize + 1);
 	memcpy(t, topic, tsize);
@@ -89,9 +101,9 @@ static char* topic_string(struct mqtt_response_publish *published) {
 }
 
 // create null-terminated message
-static char* message_string(struct mqtt_response_publish *published) {
-	const char *message = published->application_message;
-	size_t msize = published->application_message_size;
+static char* message_string(struct mqtt_response_publish *p) {
+	const char *message = p->application_message;
+	size_t msize = p->application_message_size;
 
 	char *m = (char*) malloc(msize + 1);
 	memcpy(m, message, msize);
@@ -99,7 +111,10 @@ static char* message_string(struct mqtt_response_publish *published) {
 	return m;
 }
 
-static int dispatch_notification(const char *message, size_t msize) {
+static int dispatch_notification(struct mqtt_response_publish *p) {
+	const char *message = p->application_message;
+	size_t msize = p->application_message_size;
+
 	char *title = NULL, *text = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
 
@@ -122,7 +137,10 @@ static int dispatch_notification(const char *message, size_t msize) {
 	return 0;
 }
 
-static int dispatch_sensor(const char *message, size_t msize) {
+static int dispatch_sensor(struct mqtt_response_publish *p) {
+	const char *message = p->application_message;
+	size_t msize = p->application_message_size;
+
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
 
@@ -142,34 +160,43 @@ static int dispatch_sensor(const char *message, size_t msize) {
 	return 0;
 }
 
-static int dispatch_dnsmasq(const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char mac[18];
-	get_mac(topic, tsize, mac);
-	xlog("MQTT dnsmasq %s", mac);
+static int dispatch_network(struct mqtt_response_publish *p) {
+	const char *topic = p->topic_name;
+	uint16_t tsize = p->topic_name_size;
+
+	uint64_t mac = get_mac(topic, tsize);
+	char *message = message_string(p);
+	xlog("MQTT network 0x%lx %s", mac, message);
+	free(message);
+
+	// switch HOFLICHT on if darkness and handy logs into wlan
+	if (mac == MAC_HANDY)
+		if (sensors->bh1750_lux < DARKNESS)
+			shelly_command(HOFLICHT, 0, 1);
+
 	return 0;
 }
 
-static int dispatch(struct mqtt_response_publish *published) {
-	const char *topic = published->topic_name;
-	uint16_t tsize = published->topic_name_size;
+static int dispatch(struct mqtt_response_publish *p) {
 
-	const char *message = published->application_message;
-	size_t msize = published->application_message_size;
+	// notifications
+	if (starts_with(NOTIFICATION, p->topic_name))
+		return dispatch_notification(p);
 
-	if (starts_with(NOTIFICATION, published->topic_name))
-		return dispatch_notification(message, msize);
+	// sensors
+	if (starts_with(SENSOR, p->topic_name))
+		return dispatch_sensor(p);
 
-	if (starts_with(SENSOR, published->topic_name))
-		return dispatch_sensor(message, msize);
+	// network
+	if (starts_with(NETWORK, p->topic_name))
+		return dispatch_network(p);
 
-	if (starts_with(DNSMASQ, published->topic_name))
-		return dispatch_dnsmasq(topic, tsize, message, msize);
+	// shellies
+	if (starts_with(SHELLY, p->topic_name))
+		return shelly_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
 
-	if (starts_with(SHELLY, published->topic_name))
-		return shelly_dispatch(topic, tsize, message, msize);
-
-	char *t = topic_string(published);
-	char *m = message_string(published);
+	char *t = topic_string(p);
+	char *m = message_string(p);
 	xlog("MQTT no dispatcher for topic('%s'): %s", t, m);
 	free(t);
 	free(m);
@@ -177,8 +204,8 @@ static int dispatch(struct mqtt_response_publish *published) {
 	return 0;
 }
 
-static void callback(void **unused, struct mqtt_response_publish *published) {
-	dispatch(published);
+static void callback(void **unused, struct mqtt_response_publish *p) {
+	dispatch(p);
 }
 
 static void* mqtt(void *arg) {
@@ -188,8 +215,8 @@ static void* mqtt(void *arg) {
 	}
 
 	while (1) {
-		mqtt_sync(client_tx);
 		mqtt_sync(client_rx);
+		mqtt_sync(client_tx);
 		msleep(100);
 	}
 }
@@ -244,6 +271,9 @@ static int init() {
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_subscribe(client_rx, SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, NETWORK"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_subscribe(client_rx, SHELLY"/#", 0) != MQTT_OK)

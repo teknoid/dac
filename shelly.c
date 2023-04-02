@@ -20,14 +20,14 @@ static shelly_state_t *shelly_state = NULL;
 //        ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
-	for (int i = 0; i < size; i++) {
+
+	for (int i = 0; i < size; i++)
 		if (topic[i] == '/') {
 			if (!slash1)
 				slash1 = i;
 			else if (!slash2)
 				slash2 = i;
 		}
-	}
 
 	if (slash1 && slash2 && ((slash2 - slash1) == 7)) {
 		char id[7];
