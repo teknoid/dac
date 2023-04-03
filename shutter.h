@@ -1,0 +1,20 @@
+// summer mode
+#define SUMMER_MONTHS	6, 7, 8
+#define SUMMER_SUNRISE	10000
+#define SUMMER_SUNDOWN	10000
+#define SUMMER_TEMP		25
+#define SUMMER_DEVICES	ROLLO_OMA, ROLLO_O, ROLLO_SO, ROLLO_SW, ROLLO_W
+
+// winter mode
+#define WINTER_MONTHS	11, 12, 1, 2, 3, 4
+#define WINTER_SUNRISE	50
+#define WINTER_SUNDOWN	10
+#define WINTER_TEMP		-1
+#define WINTER_DEVICES	ROLLO_KUECHE, ROLLO_OMA, ROLLO_O, ROLLO_SO, ROLLO_SW, ROLLO_W
+
+#define OPEN			1
+#define CLOSED			-1
+
+#define SHUTTERCLOSE	"ShutterClose"
+#define SHUTTEROPEN		"ShutterOpen"
+#define SHUTTERSTOP		"ShutterStop"

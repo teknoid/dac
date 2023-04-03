@@ -9,6 +9,14 @@
 // Switches
 #define KUECHE			0xB20670
 
+// Shutters
+#define ROLLO_KUECHE	0xA2950C
+#define ROLLO_OMA		0xA0F584
+#define ROLLO_O			0x111111
+#define ROLLO_SO		0x222222
+#define ROLLO_SW		0x333333
+#define ROLLO_W			0x444444
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
@@ -31,6 +39,8 @@ typedef struct tasmota_state_t {
 	void *next;
 } tasmota_state_t;
 
-void tasmota_command(unsigned int, int, int);
+void tasmota_power(unsigned int, int, int);
+
+void tasmota_backlog(unsigned int, const char*);
 
 int tasmota_dispatch(const char*, uint16_t, const char*, size_t);

@@ -172,7 +172,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	// switch HOFLICHT on if darkness and handy logs into wlan
 	if (mac == MAC_HANDY)
 		if (sensors->bh1750_lux < DARKNESS)
-			tasmota_command(HOFLICHT, 0, 1);
+			tasmota_power(HOFLICHT, 0, 1);
 
 	return 0;
 }

@@ -1,8 +1,11 @@
 // light on: ↑earlier, ↓later
-#define XMAS_SUNDOWN	100
+#define SUNDOWN			100
 
 // light off: ↑later ↓earlier
-#define XMAS_SUNRISE	200
+#define SUNRISE			200
+
+// these tasmota devices will be in XMAS mode
+#define DEVICES			PLUG1, PLUG2
 
 typedef struct timing_t {
 	int active;								// enabled / disabled

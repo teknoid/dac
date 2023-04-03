@@ -13,21 +13,23 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-// these tasmotas will be in XMAS mode
-static const unsigned int TASMOTAS[] = { PLUG1, PLUG2 };
+// these tasmota devices will be in XMAS mode
+static const unsigned int device[] = { DEVICES };
 
 static pthread_t thread;
 static int power = -1;
 
 static void on() {
-	for (int i = 0; i < ARRAY_SIZE(TASMOTAS); i++)
-		tasmota_command(TASMOTAS[i], 0, 1);
+	for (int i = 0; i < ARRAY_SIZE(device); i++)
+		tasmota_power(device[i], 0, 1);
+
 	power = 1;
 }
 
 static void off() {
-	for (int i = 0; i < ARRAY_SIZE(TASMOTAS); i++)
-		tasmota_command(TASMOTAS[i], 0, 0);
+	for (int i = 0; i < ARRAY_SIZE(device); i++)
+		tasmota_power(device[i], 0, 0);
+
 	power = 0;
 }
 
@@ -70,7 +72,7 @@ static int process(struct tm *now, const timing_t *timing) {
 
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
-			if (lumi < XMAS_SUNDOWN)
+			if (lumi < SUNDOWN)
 				on_sundown();
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
@@ -88,7 +90,7 @@ static int process(struct tm *now, const timing_t *timing) {
 
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
-			if (lumi > XMAS_SUNRISE)
+			if (lumi > SUNRISE)
 				off_sunrise();
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);

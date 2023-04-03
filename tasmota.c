@@ -17,7 +17,7 @@ static pthread_t thread;
 static tasmota_state_t *tasmota_state = NULL;
 
 // tasmota/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
-//        ^^^^^^
+//         ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
 
@@ -88,30 +88,30 @@ static void trigger(unsigned int id, int button, int action) {
 
 		if (sc.t1 == id && sc.t1b == button) {
 			if (ss->state == 0)
-				tasmota_command(sc.id, sc.relay, 1);
+				tasmota_power(sc.id, sc.relay, 1);
 			else
-				tasmota_command(sc.id, sc.relay, 0);
+				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t2 == id && sc.t2b == button) {
 			if (ss->state == 0)
-				tasmota_command(sc.id, sc.relay, 1);
+				tasmota_power(sc.id, sc.relay, 1);
 			else
-				tasmota_command(sc.id, sc.relay, 0);
+				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t3 == id && sc.t3b == button) {
 			if (ss->state == 0)
-				tasmota_command(sc.id, sc.relay, 1);
+				tasmota_power(sc.id, sc.relay, 1);
 			else
-				tasmota_command(sc.id, sc.relay, 0);
+				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t4 == id && sc.t4b == button) {
 			if (ss->state == 0)
-				tasmota_command(sc.id, sc.relay, 1);
+				tasmota_power(sc.id, sc.relay, 1);
 			else
-				tasmota_command(sc.id, sc.relay, 0);
+				tasmota_power(sc.id, sc.relay, 0);
 		}
 	}
 }
@@ -150,8 +150,8 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	return 0;
 }
 
-// execute a tasmota command via mqtt publish
-void tasmota_command(unsigned int id, int relay, int cmd) {
+// execute tasmota POWER command via mqtt publish
+void tasmota_power(unsigned int id, int relay, int cmd) {
 	char *topic = (char*) malloc(32);
 
 	if (relay)
@@ -180,6 +180,16 @@ void tasmota_command(unsigned int id, int relay, int cmd) {
 	free(topic);
 }
 
+// execute tasmota BACKLOG command via mqtt publish
+void tasmota_backlog(unsigned int id, const char *cmd) {
+	char *topic = (char*) malloc(32);
+	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
+
+	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
+	publish(topic, cmd);
+	free(topic);
+}
+
 static void* loop(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -196,7 +206,7 @@ static void* loop(void *arg) {
 			if (ss->timer) {
 				ss->timer--;
 				if (ss->timer == 0)
-					tasmota_command(ss->id, ss->relay, 0);
+					tasmota_power(ss->id, ss->relay, 0);
 			}
 			ss = ss->next;
 		}
