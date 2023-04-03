@@ -9,7 +9,7 @@
 // Switches
 #define KUECHE			0xB20670
 
-typedef struct shelly_config_t {
+typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
 	const unsigned int t1;
@@ -21,16 +21,16 @@ typedef struct shelly_config_t {
 	const unsigned int t4;
 	const unsigned int t4b;
 	const unsigned int timer;
-} shelly_config_t;
+} tasmota_config_t;
 
-typedef struct shelly_state_t {
+typedef struct tasmota_state_t {
 	unsigned int id;
 	unsigned int relay;
 	unsigned int state;
 	unsigned int timer;
 	void *next;
-} shelly_state_t;
+} tasmota_state_t;
 
-void shelly_command(unsigned int, int, int);
+void tasmota_command(unsigned int, int, int);
 
-int shelly_dispatch(const char*, uint16_t, const char*, size_t);
+int tasmota_dispatch(const char*, uint16_t, const char*, size_t);

@@ -10,7 +10,7 @@
 
 #define NOTIFICATION	"notification"
 #define SENSOR			"sensor"
-#define SHELLY			"shelly"
+#define TASMOTA			"tasmota"
 #define NETWORK			"network"
 
 typedef struct sensors_t {

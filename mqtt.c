@@ -17,7 +17,7 @@
 #include <mqttc.h>
 
 #include "frozen.h"
-#include "shelly.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "lcd.h"
@@ -172,7 +172,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	// switch HOFLICHT on if darkness and handy logs into wlan
 	if (mac == MAC_HANDY)
 		if (sensors->bh1750_lux < DARKNESS)
-			shelly_command(HOFLICHT, 0, 1);
+			tasmota_command(HOFLICHT, 0, 1);
 
 	return 0;
 }
@@ -191,9 +191,9 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(NETWORK, p->topic_name))
 		return dispatch_network(p);
 
-	// shellies
-	if (starts_with(SHELLY, p->topic_name))
-		return shelly_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
+	// tasmotas
+	if (starts_with(TASMOTA, p->topic_name))
+		return tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
 
 	char *t = topic_string(p);
 	char *m = message_string(p);
@@ -276,7 +276,7 @@ static int init() {
 	if (mqtt_subscribe(client_rx, NETWORK"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, SHELLY"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TASMOTA"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))

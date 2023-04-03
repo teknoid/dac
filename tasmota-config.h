@@ -1,9 +1,9 @@
-#include "shelly.h"
+#include "tasmota.h"
 
 //   1   2      3   4    5   6    7   8    9   10   11
 // { id, relay, t1, t1b, t2, t2b, t3, t3b, t4, t4b, timer }
 
-static const shelly_config_t shelly_config[] = {
+static const tasmota_config_t tasmota_config[] = {
 	{ PLUG1, 0, KUECHE, 1, 0, 0, 0, 0, 0, 0, 0 },
 
 	// relay 0 of HOFLICHT is triggered by HOFLICHT buttons 1 & 2, and has a timer of 120 seconds

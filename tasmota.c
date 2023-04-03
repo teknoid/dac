@@ -10,13 +10,13 @@
 #include "mqtt.h"
 #include "utils.h"
 #include "frozen.h"
-#include "shelly-config.h"
+#include "tasmota-config.h"
 
 static pthread_t thread;
 
-static shelly_state_t *shelly_state = NULL;
+static tasmota_state_t *tasmota_state = NULL;
 
-// shelly/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
+// tasmota/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
 //        ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
@@ -40,40 +40,40 @@ static unsigned int get_id(const char *topic, size_t size) {
 	return 0;
 }
 
-// find existing shelly state or create a new one
-static shelly_state_t* get_shelly_state(unsigned int id, int relay) {
-	shelly_state_t *ss = shelly_state;
+// find existing tasmota state or create a new one
+static tasmota_state_t* get_tasmota_state(unsigned int id, int relay) {
+	tasmota_state_t *ss = tasmota_state;
 	while (ss != NULL) {
 		if (ss->id == id && ss->relay == relay)
 			return ss;
 		ss = ss->next;
 	}
 
-	shelly_state_t *ss_new = malloc(sizeof(shelly_state_t));
+	tasmota_state_t *ss_new = malloc(sizeof(tasmota_state_t));
 	ZERO(ss_new);
 	ss_new->id = id;
 	ss_new->relay = relay;
 
-	if (shelly_state == NULL)
+	if (tasmota_state == NULL)
 		// this is the head
-		shelly_state = ss_new;
+		tasmota_state = ss_new;
 	else {
 		// append to last in chain
-		ss = shelly_state;
+		ss = tasmota_state;
 		while (ss->next != NULL)
 			ss = ss->next;
 		ss->next = ss_new;
 	}
 
-	xlog("SHELLY created new state for %06X %d", ss_new->id, ss_new->relay);
+	xlog("TASMOTA created new state for %06X %d", ss_new->id, ss_new->relay);
 	return ss_new;
 }
 
-// update shelly state
+// update tasmota state
 static void update(unsigned int id, int relay, int state) {
-	shelly_state_t *ss = get_shelly_state(id, relay);
+	tasmota_state_t *ss = get_tasmota_state(id, relay);
 	ss->state = state;
-	xlog("SHELLY updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
+	xlog("TASMOTA updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
 }
 
 // trigger a button press event
@@ -81,50 +81,50 @@ static void trigger(unsigned int id, int button, int action) {
 	if (!action)
 		return; // we do not track button 'release', only button 'press'
 
-	xlog("SHELLY trigger %6X %d %d", id, button, action);
-	for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-		shelly_config_t sc = shelly_config[i];
-		shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
+	xlog("TASMOTA trigger %6X %d %d", id, button, action);
+	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
+		tasmota_config_t sc = tasmota_config[i];
+		tasmota_state_t *ss = get_tasmota_state(sc.id, sc.relay);
 
 		if (sc.t1 == id && sc.t1b == button) {
 			if (ss->state == 0)
-				shelly_command(sc.id, sc.relay, 1);
+				tasmota_command(sc.id, sc.relay, 1);
 			else
-				shelly_command(sc.id, sc.relay, 0);
+				tasmota_command(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t2 == id && sc.t2b == button) {
 			if (ss->state == 0)
-				shelly_command(sc.id, sc.relay, 1);
+				tasmota_command(sc.id, sc.relay, 1);
 			else
-				shelly_command(sc.id, sc.relay, 0);
+				tasmota_command(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t3 == id && sc.t3b == button) {
 			if (ss->state == 0)
-				shelly_command(sc.id, sc.relay, 1);
+				tasmota_command(sc.id, sc.relay, 1);
 			else
-				shelly_command(sc.id, sc.relay, 0);
+				tasmota_command(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t4 == id && sc.t4b == button) {
 			if (ss->state == 0)
-				shelly_command(sc.id, sc.relay, 1);
+				tasmota_command(sc.id, sc.relay, 1);
 			else
-				shelly_command(sc.id, sc.relay, 0);
+				tasmota_command(sc.id, sc.relay, 0);
 		}
 	}
 }
 
 // handle a subscribed mqtt message
-int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char fmt[32], s[32], a[5];
 
 	unsigned int id = get_id(topic, tsize);
 	if (!id)
 		return 0;
 
-	// xlog("SHELLY dispatch %6X %s", id, message);
+	// xlog("TASMOTA dispatch %6X %s", id, message);
 
 	// search for button action commands
 	for (int i = 0; i < 8; i++) {
@@ -150,31 +150,31 @@ int shelly_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	return 0;
 }
 
-// execute a shelly command via mqtt publish
-void shelly_command(unsigned int id, int relay, int cmd) {
+// execute a tasmota command via mqtt publish
+void tasmota_command(unsigned int id, int relay, int cmd) {
 	char *topic = (char*) malloc(32);
 
 	if (relay)
-		snprintf(topic, 32, "shelly/%6X/cmnd/POWER%d", id, relay);
+		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER%d", id, relay);
 	else
-		snprintf(topic, 32, "shelly/%6X/cmnd/POWER", id);
+		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER", id);
 
 	if (cmd) {
-		xlog("SHELLY switching %6X %d %s", id, relay, ON);
+		xlog("TASMOTA switching %6X %d %s", id, relay, ON);
 		publish(topic, ON);
 
 		// start timer if configured
-		for (int i = 0; i < ARRAY_SIZE(shelly_config); i++) {
-			shelly_config_t sc = shelly_config[i];
+		for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
+			tasmota_config_t sc = tasmota_config[i];
 			if (sc.id == id && sc.relay == relay)
 				if (sc.timer) {
-					shelly_state_t *ss = get_shelly_state(sc.id, sc.relay);
+					tasmota_state_t *ss = get_tasmota_state(sc.id, sc.relay);
 					ss->timer = sc.timer;
-					xlog("SHELLY started timer for %06X %d %d", ss->id, ss->relay, ss->timer);
+					xlog("TASMOTA started timer for %06X %d %d", ss->id, ss->relay, ss->timer);
 				}
 		}
 	} else {
-		xlog("SHELLY switching %6X %d %s", id, relay, OFF);
+		xlog("TASMOTA switching %6X %d %s", id, relay, OFF);
 		publish(topic, OFF);
 	}
 	free(topic);
@@ -190,13 +190,13 @@ static void* loop(void *arg) {
 		sleep(1);
 
 		// decrease timers and switch off if timer reached 0
-		shelly_state_t *ss = shelly_state;
+		tasmota_state_t *ss = tasmota_state;
 		while (ss != NULL) {
-			// xlog("SHELLY state %06X %d %d %d ", ss->id, ss->relay, ss->state, ss->timer);
+			// xlog("TASMOTA state %06X %d %d %d ", ss->id, ss->relay, ss->state, ss->timer);
 			if (ss->timer) {
 				ss->timer--;
 				if (ss->timer == 0)
-					shelly_command(ss->id, ss->relay, 0);
+					tasmota_command(ss->id, ss->relay, 0);
 			}
 			ss = ss->next;
 		}
@@ -205,19 +205,19 @@ static void* loop(void *arg) {
 
 static int init() {
 	if (pthread_create(&thread, NULL, &loop, NULL))
-		return xerr("Error creating shelly thread");
+		return xerr("Error creating tasmota thread");
 
-	xlog("SHELLY initialized");
+	xlog("TASMOTA initialized");
 	return 0;
 }
 
 static void stop() {
 	if (pthread_cancel(thread))
-		xlog("Error canceling shelly thread");
+		xlog("Error canceling tasmota thread");
 
 	if (pthread_join(thread, NULL))
-		xlog("Error joining shelly thread");
+		xlog("Error joining tasmota thread");
 }
 
-MCP_REGISTER(shelly, 3, &init, &stop);
+MCP_REGISTER(tasmota, 3, &init, &stop);
 

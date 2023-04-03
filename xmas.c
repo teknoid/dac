@@ -7,27 +7,27 @@
 #include <pthread.h>
 #include <time.h>
 
-#include "shelly.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "xmas.h"
 #include "mqtt.h"
 #include "mcp.h"
 
-// these shellies will be in XMAS mode
-static const unsigned int SHELLIES[] = { PLUG1, PLUG2 };
+// these tasmotas will be in XMAS mode
+static const unsigned int TASMOTAS[] = { PLUG1, PLUG2 };
 
 static pthread_t thread;
 static int power = -1;
 
 static void on() {
-	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly_command(SHELLIES[i], 0, 1);
+	for (int i = 0; i < ARRAY_SIZE(TASMOTAS); i++)
+		tasmota_command(TASMOTAS[i], 0, 1);
 	power = 1;
 }
 
 static void off() {
-	for (int i = 0; i < ARRAY_SIZE(SHELLIES); i++)
-		shelly_command(SHELLIES[i], 0, 0);
+	for (int i = 0; i < ARRAY_SIZE(TASMOTAS); i++)
+		tasmota_command(TASMOTAS[i], 0, 0);
 	power = 0;
 }
 
