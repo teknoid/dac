@@ -152,7 +152,7 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 
 // execute tasmota POWER command via mqtt publish
 void tasmota_power(unsigned int id, int relay, int cmd) {
-	char *topic = (char*) malloc(32);
+	char topic[32];
 
 	if (relay)
 		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER%d", id, relay);
@@ -177,17 +177,14 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 		xlog("TASMOTA switching %6X %d %s", id, relay, OFF);
 		publish(topic, OFF);
 	}
-	free(topic);
 }
 
 // execute tasmota BACKLOG command via mqtt publish
 void tasmota_backlog(unsigned int id, const char *cmd) {
-	char *topic = (char*) malloc(32);
+	char topic[32];
 	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
-
 	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
 	publish(topic, cmd);
-	free(topic);
 }
 
 static void* loop(void *arg) {

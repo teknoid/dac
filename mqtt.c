@@ -118,6 +118,9 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	char *title = NULL, *text = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
 
+	// play sound
+	system(PLAY_MAU);
+
 	// show on LCD display line 1 and 2
 	lcd_print(title, text);
 
@@ -128,12 +131,11 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	system(command);
 	xlog("system: %s", command);
 
-	// play sound
-	system(PLAY_MAU);
-
+	// release memory
+	free(command);
 	free(title);
 	free(text);
-	free(command);
+
 	return 0;
 }
 
