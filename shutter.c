@@ -38,12 +38,12 @@ static void down_summer() {
 
 static void up_winter() {
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
-		tasmota_shutter(summer_device[i], SHUTTER_UP);
+		tasmota_shutter(winter_device[i], SHUTTER_UP);
 }
 
 static void down_winter() {
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
-		tasmota_shutter(summer_device[i], SHUTTER_DOWN);
+		tasmota_shutter(winter_device[i], SHUTTER_DOWN);
 }
 
 static int summer(struct tm *now) {
