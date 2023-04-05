@@ -104,8 +104,9 @@ static void update_shutter(unsigned int id, unsigned int position) {
 static void trigger(unsigned int id, int button, int action) {
 	xlog("TASMOTA trigger %6X %d %d", id, button, action);
 
+	// we do not track button 'release', only button 'press'
 	if (!action)
-		return; // we do not track button 'release', only button 'press'
+		return;
 
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
@@ -247,7 +248,6 @@ static void* loop(void *arg) {
 		// decrease timers and switch off if timer reached 0
 		tasmota_state_t *ss = tasmota_state;
 		while (ss != NULL) {
-			// xlog("TASMOTA state %06X %d %d %d ", ss->id, ss->relay, ss->state, ss->timer);
 			if (ss->timer) {
 				ss->timer--;
 				if (ss->timer == 0) {
