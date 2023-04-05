@@ -47,8 +47,6 @@ static void down_winter() {
 }
 
 static int summer(struct tm *now) {
-	// xlog("SHUTTER summer mode");
-
 	int lumi = sensors->bh1750_lux;
 	int temp = sensors->bmp280_temp;
 	int morning = now->tm_hour < 12 ? 1 : 0;
@@ -81,8 +79,6 @@ static int summer(struct tm *now) {
 }
 
 static int winter(struct tm *now) {
-	// xlog("SHUTTER winter mode");
-
 	int lumi = sensors->bh1750_lux;
 	int temp = sensors->bmp280_temp;
 	int afternoon = now->tm_hour < 12 ? 0 : 1;
