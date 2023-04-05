@@ -17,6 +17,10 @@
 #define ROLLO_SW		0x333333
 #define ROLLO_W			0x444444
 
+#define SHUTTER_UP		0
+#define SHUTTER_HALF	50
+#define SHUTTER_DOWN	100
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
@@ -33,14 +37,15 @@ typedef struct tasmota_config_t {
 
 typedef struct tasmota_state_t {
 	unsigned int id;
-	unsigned int relay;
-	unsigned int state;
+	int relay1;
+	int relay2;
+	int position;
 	unsigned int timer;
 	void *next;
 } tasmota_state_t;
 
 void tasmota_power(unsigned int, int, int);
 
-void tasmota_backlog(unsigned int, const char*);
+void tasmota_shutter(unsigned int, unsigned int);
 
-int tasmota_dispatch(const char*, uint16_t, const char*, size_t);
+void tasmota_dispatch(const char*, uint16_t, const char*, size_t);

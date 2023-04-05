@@ -87,7 +87,7 @@ static struct plist* find_current_playlist() {
 		const char *path = mpd_song_get_uri(song);
 		for (int i = 0; i <= 9; i++) {
 			struct plist *playlist = &playlists[i];
-			if (starts_with(playlist->path, path)) {
+			if (starts_with(playlist->path, path, strlen(path))) {
 				return playlist;
 			}
 		}
@@ -173,7 +173,7 @@ static void process_song(struct mpd_song *song, int pos) {
 	if (playlist_mode) {
 		for (int i = 0; i <= 9; i++) {
 			struct plist *playlist = &playlists[i];
-			if (starts_with(playlist->path, path)) {
+			if (starts_with(playlist->path, path, strlen(path))) {
 				plist_key = playlist->key;
 				playlist->pos = pos;
 			}

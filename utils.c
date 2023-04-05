@@ -62,23 +62,21 @@ int elevate_realtime(int cpu) {
 }
 
 void xlog(const char *format, ...) {
-	char BUFFER[256];
+	char timestamp[256];
 	va_list vargs;
 
 	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
-		vsprintf(BUFFER, format, vargs);
+		vprintf(format, vargs);
 		va_end(vargs);
-		printf(BUFFER);
 		printf("\n");
 		return;
 	}
 
 	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
-		vsprintf(BUFFER, format, vargs);
+		vsyslog(LOG_NOTICE, format, vargs);
 		va_end(vargs);
-		syslog(LOG_NOTICE, BUFFER);
 		return;
 	}
 
@@ -88,9 +86,9 @@ void xlog(const char *format, ...) {
 
 		time(&timer);
 		tm_info = localtime(&timer);
-		strftime(BUFFER, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		fprintf(xlog_file, "%s: ", timestamp);
 
-		fprintf(xlog_file, "%s: ", BUFFER);
 		va_start(vargs, format);
 		vfprintf(xlog_file, format, vargs);
 		va_end(vargs);
@@ -196,10 +194,14 @@ void hexdump(char *desc, void *addr, int len) {
 	printf("  %s\n", buff);
 }
 
-int starts_with(const char *pre, const char *str) {
-	unsigned int lenpre = strlen(pre);
-	unsigned int lenstr = strlen(str);
-	return lenstr < lenpre ? 0 : strncmp(pre, str, lenpre) == 0;
+int starts_with(const char *pre, const char *str, unsigned int strsize) {
+	unsigned int presize = strlen(pre);
+	return strsize < presize ? 0 : strncmp(pre, str, presize) == 0;
+}
+
+int ends_with(const char *post, const char *str, unsigned int strsize) {
+	unsigned int postsize = strlen(post);
+	return strsize < postsize ? 0 : strncmp(post, str + (strsize - postsize), postsize) == 0;
 }
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {

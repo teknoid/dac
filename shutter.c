@@ -21,41 +21,29 @@ static const unsigned int summer_device[] = { SUMMER_DEVICES };
 static const unsigned int winter_months[] = { WINTER_MONTHS };
 static const unsigned int winter_device[] = { WINTER_DEVICES };
 
+static int lock_morning = 0;
+static int lock_afternoon = 0;
+
 static pthread_t thread;
-static int position = 0;
 
 static void up_summer() {
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
-		tasmota_backlog(summer_device[i], SHUTTEROPEN);
-
-	position = OPEN;
+		tasmota_shutter(summer_device[i], SHUTTER_UP);
 }
 
 static void down_summer() {
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
-		tasmota_backlog(summer_device[i], SHUTTERCLOSE);
-
-	sleep(15);
-
-	// we want only 50% closed
-	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
-		tasmota_backlog(summer_device[i], SHUTTERSTOP);
-
-	position = CLOSED;
+		tasmota_shutter(summer_device[i], SHUTTER_HALF);
 }
 
 static void up_winter() {
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
-		tasmota_backlog(winter_device[i], SHUTTEROPEN);
-
-	position = OPEN;
+		tasmota_shutter(summer_device[i], SHUTTER_UP);
 }
 
 static void down_winter() {
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
-		tasmota_backlog(winter_device[i], SHUTTERCLOSE);
-
-	position = CLOSED;
+		tasmota_shutter(summer_device[i], SHUTTER_DOWN);
 }
 
 static int summer(struct tm *now) {
@@ -70,18 +58,22 @@ static int summer(struct tm *now) {
 
 	if (morning) {
 
-		// morning: check if 1. big light, 2. temp is above
-		if (lumi > SUMMER_SUNRISE)
-			if (temp > SUMMER_TEMP)
-				if (position != CLOSED)
+		// morning: check if 1. not locked, 2. big light, 3. temp is above
+		if (!lock_morning)
+			if (lumi > SUMMER_SUNRISE)
+				if (temp > SUMMER_TEMP) {
 					down_summer();
+					lock_morning = 1; // no further actions today
+				}
 
 	} else {
 
+		// release the morning lock
+		lock_morning = 0;
+
 		// evening: check if sundown is reached
 		if (lumi < SUMMER_SUNDOWN)
-			if (position != OPEN)
-				up_summer();
+			up_summer();
 
 	}
 
@@ -100,17 +92,23 @@ static int winter(struct tm *now) {
 
 	if (afternoon) {
 
-		// evening: check if 1. sundown is reached, 2. temp is below
-		if (lumi < WINTER_SUNDOWN)
-			if (temp < WINTER_TEMP)
-				if (position != CLOSED)
+		// evening: check if 1. not locked, 2. sundown is reached, 3. temp is below
+		if (!lock_afternoon)
+			if (lumi < WINTER_SUNDOWN)
+				if (temp < WINTER_TEMP) {
 					down_winter();
+					lock_afternoon = 1; // no further actions today
+				}
+
 	} else {
+
+		// release the afternoon lock
+		lock_afternoon = 0;
 
 		// morning: check if sunrise is reached
 		if (lumi > WINTER_SUNRISE)
-			if (position != OPEN)
-				up_winter();
+			up_winter();
+
 	}
 
 	return 0;

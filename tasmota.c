@@ -41,18 +41,21 @@ static unsigned int get_id(const char *topic, size_t size) {
 }
 
 // find existing tasmota state or create a new one
-static tasmota_state_t* get_tasmota_state(unsigned int id, int relay) {
+static tasmota_state_t* get_state(unsigned int id) {
 	tasmota_state_t *ss = tasmota_state;
 	while (ss != NULL) {
-		if (ss->id == id && ss->relay == relay)
+		if (ss->id == id)
 			return ss;
 		ss = ss->next;
 	}
 
 	tasmota_state_t *ss_new = malloc(sizeof(tasmota_state_t));
-	ZERO(ss_new);
 	ss_new->id = id;
-	ss_new->relay = relay;
+	ss_new->relay1 = -1;
+	ss_new->relay2 = -1;
+	ss_new->position = -1;
+	ss_new->timer = 0;
+	ss_new->next = NULL;
 
 	if (tasmota_state == NULL)
 		// this is the head
@@ -65,50 +68,73 @@ static tasmota_state_t* get_tasmota_state(unsigned int id, int relay) {
 		ss->next = ss_new;
 	}
 
-	xlog("TASMOTA created new state for %06X %d", ss_new->id, ss_new->relay);
+	xlog("TASMOTA created new state for %06X", ss_new->id);
 	return ss_new;
 }
 
-// update tasmota state
-static void update(unsigned int id, int relay, int state) {
-	tasmota_state_t *ss = get_tasmota_state(id, relay);
-	ss->state = state;
-	xlog("TASMOTA updated %6X relay %d state to %d", ss->id, ss->relay, ss->state);
+// execute tasmota BACKLOG command via mqtt publish
+static void backlog(unsigned int id, const char *cmd) {
+	char topic[32];
+	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
+	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
+	publish(topic, cmd);
+}
+
+// update tasmota relay power state
+static void update_relay(unsigned int id, int relay, int power) {
+	tasmota_state_t *ss = get_state(id);
+	if (relay == 0 || relay == 1) {
+		ss->relay1 = power;
+		xlog("TASMOTA updated %6X relay1 state to %d", ss->id, power);
+	} else if (relay == 2) {
+		ss->relay2 = power;
+		xlog("TASMOTA updated %6X relay2 state to %d", ss->id, power);
+	} else
+		xlog("TASMOTA no relay%d at %6X", ss->id, relay);
+}
+
+// update tasmota shutter position
+static void update_shutter(unsigned int id, unsigned int position) {
+	tasmota_state_t *ss = get_state(id);
+	ss->position = position;
+	xlog("TASMOTA updated %6X shutter position to %d", ss->id, position);
 }
 
 // trigger a button press event
 static void trigger(unsigned int id, int button, int action) {
+	xlog("TASMOTA trigger %6X %d %d", id, button, action);
+
 	if (!action)
 		return; // we do not track button 'release', only button 'press'
 
-	xlog("TASMOTA trigger %6X %d %d", id, button, action);
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
-		tasmota_state_t *ss = get_tasmota_state(sc.id, sc.relay);
+		tasmota_state_t *ss = get_state(sc.id);
+		int power = (sc.relay == 0 || sc.relay == 1) ? ss->relay1 : ss->relay2;
 
 		if (sc.t1 == id && sc.t1b == button) {
-			if (ss->state == 0)
+			if (power != 1)
 				tasmota_power(sc.id, sc.relay, 1);
 			else
 				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t2 == id && sc.t2b == button) {
-			if (ss->state == 0)
+			if (power != 1)
 				tasmota_power(sc.id, sc.relay, 1);
 			else
 				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t3 == id && sc.t3b == button) {
-			if (ss->state == 0)
+			if (power != 1)
 				tasmota_power(sc.id, sc.relay, 1);
 			else
 				tasmota_power(sc.id, sc.relay, 0);
 		}
 
 		if (sc.t4 == id && sc.t4b == button) {
-			if (ss->state == 0)
+			if (power != 1)
 				tasmota_power(sc.id, sc.relay, 1);
 			else
 				tasmota_power(sc.id, sc.relay, 0);
@@ -117,37 +143,55 @@ static void trigger(unsigned int id, int button, int action) {
 }
 
 // handle a subscribed mqtt message
-int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char fmt[32], s[32], a[5];
+void tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char fmt[32], a[5];
+	int i;
+
+	// we are only interested in RESULT messages
+	if (!ends_with("RESULT", topic, tsize))
+		return;
 
 	unsigned int id = get_id(topic, tsize);
 	if (!id)
-		return 0;
+		return;
 
-	// xlog("TASMOTA dispatch %6X %s", id, message);
-
-	// search for button action commands
+	// scan for button action commands
 	for (int i = 0; i < 8; i++) {
-		snprintf(fmt, 32, "{Switch%d:%%s}", i);
-		if (json_scanf(message, msize, fmt, &s)) {
-			if (!strcmp(s, ON))
+		snprintf(fmt, 32, "{Switch%d:%%Q}", i);
+		char *sw = NULL;
+		if (json_scanf(message, msize, fmt, &sw)) {
+			if (!strcmp(sw, ON))
 				trigger(id, i, 1); // Shelly1+2
-			else if (!strcmp(a, OFF))
+			else if (!strcmp(sw, OFF))
 				trigger(id, i, 0); // Shelly1+2
-			else if (json_scanf(s, strlen(s), "{Action:%s}", &a))
-				trigger(id, i, !strcmp(a, ON) ? 1 : 0); // Shelly4
+			else {
+				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
+					// Shelly4
+					if (!strcmp(a, ON))
+						trigger(id, i, 1);
+					else
+						trigger(id, i, 0);
+				}
+			}
+			free(sw);
 		}
 	}
 
-	// search for relay power state results
+	// scan for relay power state results
 	if (json_scanf(message, msize, "{POWER:%s}", &a))
-		update(id, 0, !strcmp(a, ON) ? 1 : 0);
+		update_relay(id, 0, !strcmp(a, ON) ? 1 : 0);
 	if (json_scanf(message, msize, "{POWER1:%s}", &a))
-		update(id, 1, !strcmp(a, ON) ? 1 : 0);
+		update_relay(id, 1, !strcmp(a, ON) ? 1 : 0);
 	if (json_scanf(message, msize, "{POWER2:%s}", &a))
-		update(id, 2, !strcmp(a, ON) ? 1 : 0);
+		update_relay(id, 2, !strcmp(a, ON) ? 1 : 0);
 
-	return 0;
+	// scan for shutter position results
+	char *sh = NULL;
+	if (json_scanf(message, msize, "{Shutter1:%Q}", &sh)) {
+		if (json_scanf(sh, strlen(sh), "{Position:%d}", &i))
+			update_shutter(id, i);
+		free(sh);
+	}
 }
 
 // execute tasmota POWER command via mqtt publish
@@ -166,11 +210,11 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 		// start timer if configured
 		for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 			tasmota_config_t sc = tasmota_config[i];
-			if (sc.id == id && sc.relay == relay)
+			if (sc.id == id)
 				if (sc.timer) {
-					tasmota_state_t *ss = get_tasmota_state(sc.id, sc.relay);
+					tasmota_state_t *ss = get_state(sc.id);
 					ss->timer = sc.timer;
-					xlog("TASMOTA started timer for %06X %d %d", ss->id, ss->relay, ss->timer);
+					xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
 				}
 		}
 	} else {
@@ -179,12 +223,16 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 	}
 }
 
-// execute tasmota BACKLOG command via mqtt publish
-void tasmota_backlog(unsigned int id, const char *cmd) {
-	char topic[32];
-	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
-	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
-	publish(topic, cmd);
+// execute tasmota shutter up/down
+void tasmota_shutter(unsigned int id, unsigned int move) {
+	if (move == SHUTTER_DOWN)
+		backlog(id, "ShutterClose");
+	else if (move == SHUTTER_HALF) {
+		backlog(id, "ShutterClose");
+		sleep(15);
+		backlog(id, "ShutterStop");
+	} else if (move == SHUTTER_UP)
+		backlog(id, "ShutterOpen");
 }
 
 static void* loop(void *arg) {
@@ -202,8 +250,12 @@ static void* loop(void *arg) {
 			// xlog("TASMOTA state %06X %d %d %d ", ss->id, ss->relay, ss->state, ss->timer);
 			if (ss->timer) {
 				ss->timer--;
-				if (ss->timer == 0)
-					tasmota_power(ss->id, ss->relay, 0);
+				if (ss->timer == 0) {
+					if (ss->relay1)
+						tasmota_power(ss->id, 0, 0);
+					if (ss->relay2)
+						tasmota_power(ss->id, 2, 0);
+				}
 			}
 			ss = ss->next;
 		}

@@ -278,7 +278,7 @@ static void module_stop(mcp_module_t *m) {
 }
 
 int main(int argc, char **argv) {
-	xlog("MCP initializing");
+	xlog("MCP startup");
 
 	cfg = malloc(sizeof(*cfg));
 	ZERO(cfg);
@@ -322,7 +322,6 @@ int main(int argc, char **argv) {
 
 	// initialize all registered modules
 	module_init(module);
-	xlog("all modules initialized");
 
 	if (cfg->interactive) {
 		xlog("MCP online, waiting for input");

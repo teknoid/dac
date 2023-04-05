@@ -129,7 +129,7 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	char *command = (char*) malloc(size);
 	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
 	system(command);
-	xlog("system: %s", command);
+	xlog("MQTT system: %s", command);
 
 	// release memory
 	free(command);
@@ -179,23 +179,35 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	return 0;
 }
 
+static int dispatch_tasmota(struct mqtt_response_publish *p) {
+	char *topic = topic_string(p);
+	char *message = message_string(p);
+	xlog("MQTT tasmota topic('%s') = %s", topic, message);
+	free(topic);
+	free(message);
+
+	tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
+
+	return 0;
+}
+
 static int dispatch(struct mqtt_response_publish *p) {
 
 	// notifications
-	if (starts_with(NOTIFICATION, p->topic_name))
+	if (starts_with(NOTIFICATION, p->topic_name, p->topic_name_size))
 		return dispatch_notification(p);
 
 	// sensors
-	if (starts_with(SENSOR, p->topic_name))
+	if (starts_with(SENSOR, p->topic_name, p->topic_name_size))
 		return dispatch_sensor(p);
 
 	// network
-	if (starts_with(NETWORK, p->topic_name))
+	if (starts_with(NETWORK, p->topic_name, p->topic_name_size))
 		return dispatch_network(p);
 
 	// tasmotas
-	if (starts_with(TASMOTA, p->topic_name))
-		return tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
+	if (starts_with(TASMOTA, p->topic_name, p->topic_name_size))
+		return dispatch_tasmota(p);
 
 	char *t = topic_string(p);
 	char *m = message_string(p);

@@ -21,7 +21,8 @@ char* printbits(uint32_t, unsigned int spacemask);
 
 void hexdump(char *desc, void *addr, int len);
 
-int starts_with(const char *pre, const char *str);
+int starts_with(const char *pre, const char *str, unsigned int strsize);
+int ends_with(const char *post, const char *str, unsigned int strsize);
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...);
 
