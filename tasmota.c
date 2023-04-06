@@ -225,19 +225,19 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 }
 
 // execute tasmota shutter up/down
-void tasmota_shutter(unsigned int id, unsigned int move) {
+void tasmota_shutter(unsigned int id, unsigned int target) {
 	tasmota_state_t *ss = get_state(id);
-	if (move == SHUTTER_DOWN && ss->position != SHUTTER_DOWN) {
+	if (target == SHUTTER_DOWN && ss->position != SHUTTER_DOWN) {
 		backlog(id, "ShutterClose");
 		return;
 	}
 
-	if (move == SHUTTER_UP && ss->position != SHUTTER_UP) {
+	if (target == SHUTTER_UP && ss->position != SHUTTER_UP) {
 		backlog(id, "ShutterOpen");
 		return;
 	}
 
-	if (move == SHUTTER_HALF && ss->position != SHUTTER_DOWN) {
+	if (target == SHUTTER_HALF && ss->position != SHUTTER_DOWN) {
 		backlog(id, "ShutterClose");
 		sleep(15);
 		backlog(id, "ShutterStop");

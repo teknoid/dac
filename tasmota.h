@@ -17,9 +17,9 @@
 #define ROLLO_SW		0x333333
 #define ROLLO_W			0x444444
 
-#define SHUTTER_UP		0
+#define SHUTTER_UP		100
 #define SHUTTER_HALF	50
-#define SHUTTER_DOWN	100
+#define SHUTTER_DOWN	0
 
 typedef struct tasmota_config_t {
 	const unsigned int id;
