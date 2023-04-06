@@ -111,15 +111,30 @@ static char* message_string(struct mqtt_response_publish *p) {
 	return m;
 }
 
+// special notification doorbell
+static void doorbell() {
+	xlog("MQTT doorbell");
+
+	// show on LCD display line 1 and 2
+	lcd_print("Ding", "Dong");
+
+	// show desktop notification
+	char *command = (char*) malloc(256);
+	snprintf(command, 256, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, "Ding", "Dong");
+	system(command);
+	xlog("MQTT system: %s", command);
+	free(command);
+
+	// play sound
+	system(PLAY_DINGDONG);
+}
+
 static int dispatch_notification(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
 
 	char *title = NULL, *text = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
-
-	// play sound
-	system(PLAY_MAU);
 
 	// show on LCD display line 1 and 2
 	lcd_print(title, text);
@@ -130,6 +145,9 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
 	system(command);
 	xlog("MQTT system: %s", command);
+
+	// play sound
+	system(PLAY_MAU);
 
 	// release memory
 	free(command);
@@ -145,20 +163,31 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
+	char *rf = NULL;
 
-	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q}", &bh1750, &bmp280);
+	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, RfReceived:%Q}", &bh1750, &bmp280, &rf);
 
-	if (bh1750 != NULL)
+	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
+		free(bh1750);
+	}
 
-	if (bmp280 != NULL)
+	if (bmp280 != NULL) {
 		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
+		free(bmp280);
+	}
+
+	if (rf != NULL) {
+		unsigned int rf_code;
+		json_scanf(rf, strlen(rf), "{Data:%x}", &rf_code);
+		if (rf_code == DOORBELL)
+			doorbell();
+		free(rf);
+	}
 
 	// xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
 	// xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
 
-	free(bh1750);
-	free(bmp280);
 	return 0;
 }
 
