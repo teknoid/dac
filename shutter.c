@@ -21,6 +21,7 @@ static const unsigned int summer_device[] = { SUMMER_DEVICES };
 static const unsigned int winter_months[] = { WINTER_MONTHS };
 static const unsigned int winter_device[] = { WINTER_DEVICES };
 
+// do automatic shutter up/down movements only once per day
 static int lock_morning = 0;
 static int lock_afternoon = 0;
 
@@ -56,22 +57,33 @@ static int summer(struct tm *now) {
 
 	if (morning) {
 
-		// morning: check if 1. not locked, 2. big light, 3. temp is above
-		if (!lock_morning)
-			if (lumi > SUMMER_SUNRISE)
-				if (temp > SUMMER_TEMP) {
-					down_summer();
-					lock_morning = 1; // no further actions today
-				}
+		// release the afternoon lock
+		lock_afternoon = 0;
+
+		// no further actions
+		if (lock_morning)
+			return 0;
+
+		// morning: check if 1. big light, 2. temp is above
+		if (lumi > SUMMER_SUNRISE && temp > SUMMER_TEMP) {
+			down_summer();
+			lock_morning = 1;
+		}
 
 	} else {
 
 		// release the morning lock
 		lock_morning = 0;
 
+		// no further actions
+		if (lock_afternoon)
+			return 0;
+
 		// evening: check if sundown is reached
-		if (lumi < SUMMER_SUNDOWN)
+		if (lumi < SUMMER_SUNDOWN) {
 			up_summer();
+			lock_afternoon = 1;
+		}
 
 	}
 
@@ -88,22 +100,33 @@ static int winter(struct tm *now) {
 
 	if (afternoon) {
 
-		// evening: check if 1. not locked, 2. sundown is reached, 3. temp is below
-		if (!lock_afternoon)
-			if (lumi < WINTER_SUNDOWN)
-				if (temp < WINTER_TEMP) {
-					down_winter();
-					lock_afternoon = 1; // no further actions today
-				}
+		// release the morning lock
+		lock_morning = 0;
+
+		// no further actions
+		if (lock_afternoon)
+			return 0;
+
+		// evening: check if 1. sundown is reached, 2. temp is below
+		if (lumi < WINTER_SUNDOWN && temp < WINTER_TEMP) {
+			down_winter();
+			lock_afternoon = 1;
+		}
 
 	} else {
 
 		// release the afternoon lock
 		lock_afternoon = 0;
 
+		// no further actions
+		if (lock_morning)
+			return 0;
+
 		// morning: check if sunrise is reached
-		if (lumi > WINTER_SUNRISE)
+		if (lumi > WINTER_SUNRISE) {
 			up_winter();
+			lock_morning = 1;
+		}
 
 	}
 
