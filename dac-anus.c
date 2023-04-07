@@ -9,12 +9,12 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	system("/usr/bin/amixer set Master 2%+ >/dev/null");
+	system("/usr/bin/amixer -q set Master 2%+");
 	xlog("VOL++");
 }
 
 void dac_volume_down() {
-	system("/usr/bin/amixer set Master 2%- >/dev/null");
+	system("/usr/bin/amixer -q set Master 2%-");
 	xlog("VOL--");
 }
 
