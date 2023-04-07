@@ -1,3 +1,13 @@
+/*****************************************************************************
+
+ read button press/release events from a PCF8574X Port expander connected
+ via I2C over CH341 USB Bridge Controller
+
+ Using kernel driver from Allan Bian
+ https://github.com/allanbian1017/i2c-ch341-usb
+
+ ****************************************************************************/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

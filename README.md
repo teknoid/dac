@@ -8,22 +8,24 @@ a MPD + DAC Controller for *Pi Boards
 
 * written in plain C using eclipse CDT
 * running on many ARM Boards (tested on Raspberry 2, Odroid C2, Nanopi Neo Plus2, even on x86)
+* modular concept and easy to enhance by adding new modules to Makefile and auto-registering in main()
 * DAC connection via XMOS / Amanero USB device or I2S
 * MPD player + playlist support
 * command input via infrared, rotary encoder, console 
 * hardware controlled volume up / down + input selection
 * hardware(!) replaygain support for FLAC and MP3
 * fbtft display support + ncurses menu control
+* MQTT Support for controlling [Tasmota](https://tasmota.github.io/) devices, e.g. lights, shutters. sensors, etc.
+* I2C PCF8574X connected LCD Displays and Buttons 
 
 # News
 
+
+Mar 2023 home automation via MQTT
+
 Feb 2019 joined github
 
-...
-
 Jun 2018 git project
-
-...
 
 ??? 2016 project start  
 

@@ -3,7 +3,7 @@
  based on simple_publisher.c simple_subscriber.c
  https://github.com/LiamBindle/MQTT-C
 
- *****************************************************************************/
+ ****************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
