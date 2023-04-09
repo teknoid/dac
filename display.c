@@ -321,6 +321,7 @@ static void* display(void *arg) {
 		return (void*) 0;
 	}
 
+	clear_clocktick(); // dummy warning [-Wunused-function]
 	while (1) {
 		get_system_status();
 		paint();
