@@ -5,4 +5,5 @@
 /gpio-sunxi
 /gpio-bcm2835
 /switch
+/flamingo
 /build/

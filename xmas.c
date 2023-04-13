@@ -19,14 +19,14 @@ static const unsigned int device[] = { DEVICES };
 static pthread_t thread;
 static int power = -1;
 
-static void on() {
+void xmas_on() {
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 1);
 
 	power = 1;
 }
 
-static void off() {
+void xmas_off() {
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 0);
 
@@ -35,22 +35,22 @@ static void off() {
 
 static void on_sundown() {
 	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux);
-	on();
+	xmas_on();
 }
 
 static void on_morning() {
 	xlog("XMAS reached ON time frame");
-	on();
+	xmas_on();
 }
 
 static void off_sunrise() {
 	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux);
-	off();
+	xmas_off();
 }
 
 static void off_evening() {
 	xlog("XMAS reached OFF time frame");
-	off();
+	xmas_off();
 }
 
 static int process(struct tm *now, const timing_t *timing) {

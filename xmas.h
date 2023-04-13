@@ -25,3 +25,6 @@ static const timing_t timings[] = {
 	{ 1, 6, 15, 00, 23, 00 },
 	{ 1, 0, 15, 00, 23, 00 }, // Sunday
 };
+
+void xmas_on();
+void xmas_off();

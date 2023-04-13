@@ -16,10 +16,12 @@
 #include <posix_sockets.h>
 #include <mqttc.h>
 
-#include "frozen.h"
+#include "flamingo.h"
 #include "tasmota.h"
+#include "frozen.h"
 #include "utils.h"
 #include "mqtt.h"
+#include "xmas.h"
 #include "lcd.h"
 #include "mcp.h"
 
@@ -129,6 +131,28 @@ static void doorbell() {
 	system(PLAY_DINGDONG);
 }
 
+// decode flamingo message
+static void flamingo(unsigned int code) {
+	unsigned int xmitter;
+	unsigned char command, channel, payload, rolling;
+
+	xlog("MQTT flamingo");
+	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
+
+	switch (xmitter) {
+	case 0x835a:
+		switch (channel) {
+		case 1:
+			if (command == 2)
+				xmas_on();
+			else if (command == 0)
+				xmas_off();
+			break;
+		}
+		break;
+	}
+}
+
 static int dispatch_notification(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
@@ -179,9 +203,12 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 
 	if (rf != NULL) {
 		unsigned int rf_code;
-		json_scanf(rf, strlen(rf), "{Data:%x}", &rf_code);
+		int bits;
+		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d}", &rf_code, &bits);
 		if (rf_code == DOORBELL)
 			doorbell();
+		else if (bits == 28)
+			flamingo(rf_code);
 		free(rf);
 	}
 

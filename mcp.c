@@ -336,5 +336,6 @@ int main(int argc, char **argv) {
 	xlog("all modules stopped");
 
 	xlog("MCP terminated");
+	xlog_close();
 	return EXIT_SUCCESS;
 }

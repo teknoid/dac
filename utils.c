@@ -17,9 +17,8 @@
 
 #include "keytable.h"
 #include "utils.h"
-#include "mcp.h"
 
-//static int output = XLOG_STDOUT;
+// static int output = XLOG_STDOUT;
 static int output = XLOG_SYSLOG;
 
 static const char *filename = "/var/log/mcp.log";
@@ -61,6 +60,15 @@ int elevate_realtime(int cpu) {
 	return 0;
 }
 
+void xlog_close() {
+	if (xlog_file) {
+		fflush(xlog_file);
+		fclose(xlog_file);
+	}
+
+	output = XLOG_STDOUT; // switch back to stdout
+}
+
 void xlog(const char *format, ...) {
 	char timestamp[256];
 	va_list vargs;
@@ -81,6 +89,14 @@ void xlog(const char *format, ...) {
 	}
 
 	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
+		}
+
 		time_t timer;
 		struct tm *tm_info;
 
@@ -292,37 +308,3 @@ uint64_t mac2uint64(char *mac) {
 
 	return x;
 }
-
-static void init() {
-
-	// print to stdout
-	if (output == XLOG_STDOUT)
-		return;
-
-	// write to syslog
-	if (output == XLOG_SYSLOG)
-		return;
-
-	// write to a logfile
-	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-		}
-		return;
-	}
-}
-
-static void stop() {
-	if (xlog_file) {
-		fflush(xlog_file);
-		fclose(xlog_file);
-	}
-
-	output = XLOG_STDOUT; // switch back to stdout
-}
-
-MCP_REGISTER(utils, 0, &init, &stop);

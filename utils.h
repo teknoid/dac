@@ -12,6 +12,7 @@
 
 int elevate_realtime(int cpu);
 
+void xlog_close();
 void xlog(const char *format, ...);
 int xerr(const char *format, ...);
 
