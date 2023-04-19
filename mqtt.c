@@ -113,6 +113,15 @@ static char* message_string(struct mqtt_response_publish *p) {
 	return m;
 }
 
+// play sound
+static void play(char *sound) {
+	char *command = (char*) malloc(128);
+	snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
+	xlog("MQTT system: %s", command);
+	system(command);
+	free(command);
+}
+
 // special notification doorbell
 static void doorbell() {
 	xlog("MQTT doorbell");
@@ -123,12 +132,12 @@ static void doorbell() {
 	// show desktop notification
 	char *command = (char*) malloc(256);
 	snprintf(command, 256, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, "Ding", "Dong");
-	system(command);
 	xlog("MQTT system: %s", command);
+	system(command);
 	free(command);
 
 	// play sound
-	system(PLAY_DINGDONG);
+	play("ding-dong.wav");
 }
 
 // decode flamingo message
@@ -157,8 +166,8 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
 
-	char *title = NULL, *text = NULL;
-	json_scanf(message, msize, "{title: %Q, text: %Q}", &title, &text);
+	char *title = NULL, *text = NULL, *sound = NULL;
+	json_scanf(message, msize, "{title: %Q, text: %Q, sound: %Q}", &title, &text, &sound);
 
 	// show on LCD display line 1 and 2
 	lcd_print(title, text);
@@ -167,11 +176,11 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	size_t size = strlen(title) + strlen(text) + 256;
 	char *command = (char*) malloc(size);
 	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
-	system(command);
 	xlog("MQTT system: %s", command);
+	system(command);
 
 	// play sound
-	system(PLAY_MAU);
+	play(sound);
 
 	// release memory
 	free(command);
