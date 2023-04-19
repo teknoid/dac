@@ -116,7 +116,10 @@ static char* message_string(struct mqtt_response_publish *p) {
 // play sound
 static void play(char *sound) {
 	char *command = (char*) malloc(128);
-	snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
+	if (sound == NULL)
+		snprintf(command, 128, "/usr/bin/aplay %s \"%s/mau.wav\"", APLAY_OPTIONS, APLAY_DIRECTORY);
+	else
+		snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 	xlog("MQTT system: %s", command);
 	system(command);
 	free(command);
@@ -186,6 +189,7 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	free(command);
 	free(title);
 	free(text);
+	free(sound);
 
 	return 0;
 }
