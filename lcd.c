@@ -45,15 +45,14 @@
 
 // static const int overflow_mode = LCD_OFLOW_SCROLL;
 static const int overflow_mode = LCD_OFLOW_ALTERN;
-static int overflow;
 
 static int i2cfd;
 
-static int backlight;
 static pthread_t thread;
 
-char *text1, *text2;
-int scroll1, scroll2;
+static char *text1 = NULL, *text2 = NULL;
+static int new_text = 0;
+static int backlight;
 
 //-	Write nibble to display with pulse of enable bit
 static void lcd_write(uint8_t value) {
@@ -170,45 +169,22 @@ static int lcd_find_line_break(const char *text) {
 static void lcd_print_break(const char *text) {
 	int x = lcd_find_line_break(text);
 	lcd_command(LCD_CLEAR);
-	msleep(200);
+	msleep(2);
 	lcd_printlxy(text, 1, 0, x);
 	lcd_printlxy(text, 2, x + 1, strlen(text));
 }
 
-static void lcd_update() {
-	if (!overflow)
-		return;
-
-	if (overflow_mode == LCD_OFLOW_SCROLL) {
-		lcd_scroll(1, text1, &scroll1);
-		lcd_scroll(2, text2, &scroll2);
-	} else if (overflow_mode == LCD_OFLOW_ALTERN) {
-		if (scroll1 == -3)
-			lcd_print_break(text1);
-		if (scroll1 == 0)
-			lcd_print_break(text2);
-		if (scroll1++ >= 3)
-			scroll1 = -3;
-	}
-}
-
 void lcd_print(const char *t1, const char *t2) {
+	if (text1 != NULL)
+		free(text1);
 	text1 = strdup(t1);
+
+	if (text2 != NULL)
+		free(text2);
 	text2 = strdup(t2);
 
-	lcd_command(LCD_CLEAR);
-	msleep(200);
-	lcd_backlight_on();
-
-	overflow = strlen(text1) > LCD_COLS || strlen(text2) > LCD_COLS;
-	if (!overflow) {
-		lcd_printl(text1, 1);
-		lcd_printl(text2, 2);
-	} else {
-		scroll1 = -3;
-		scroll2 = -3;
-		lcd_update();
-	}
+	// force display update
+	new_text = 1;
 }
 
 static void* lcd(void *arg) {
@@ -217,17 +193,63 @@ static void* lcd(void *arg) {
 		return (void*) 0;
 	}
 
+	int overflow, scroll1, scroll2;
+	int counter = 10;
+
 	while (1) {
-		sleep(1);
+		msleep(100);
 
-		// update the LCD Display - it is very slow so set sleep() to 1 second
-		lcd_update();
+		if (text1 == NULL || text2 == NULL)
+			continue;
 
+		// new text arrived, clear and check if we need to scroll
+		if (new_text) {
+			lcd_command(LCD_CLEAR);
+			msleep(250); // it's really slow
+			lcd_backlight_on();
+
+			overflow = strlen(text1) > LCD_COLS || strlen(text2) > LCD_COLS;
+			if (!overflow) {
+				lcd_printl(text1, 1);
+				lcd_printl(text2, 2);
+			} else {
+				scroll1 = -3;
+				scroll2 = -3;
+				counter = 0; // force immediate update
+			}
+			new_text = 0;
+		}
+
+		// as long as not 0 continue
+		if (counter > 0) {
+			counter--;
+			continue;
+		}
+
+		// update display if necessary
+		if (overflow) {
+			if (overflow_mode == LCD_OFLOW_SCROLL) {
+				lcd_scroll(1, text1, &scroll1);
+				lcd_scroll(2, text2, &scroll2);
+			} else if (overflow_mode == LCD_OFLOW_ALTERN) {
+				if (scroll1 == -3)
+					lcd_print_break(text1);
+				if (scroll1 == 0)
+					lcd_print_break(text2);
+				if (scroll1++ >= 3)
+					scroll1 = -3;
+			}
+		}
+
+		// switch off backlight if counter expired
 		if (backlight > 0)
 			backlight--;
 
 		if (backlight == 1)
 			lcd_backlight_off();
+
+		// go for next second
+		counter = 10;
 	}
 }
 
