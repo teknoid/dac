@@ -297,7 +297,7 @@ int main(int argc, char **argv) {
 	}
 
 	// fork into background
-	// not necessary anymore, see http://jdebp.eu/FGA/unix-daemon-design-mistakes-to-avoid.html
+	// not necessary anymore, see https://jdebp.uk/FGA/unix-daemon-design-mistakes-to-avoid.html
 	if (cfg->daemonize)
 		daemonize();
 

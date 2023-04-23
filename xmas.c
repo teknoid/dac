@@ -23,34 +23,35 @@ void xmas_on() {
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 1);
 
-	power = 1;
 }
 
 void xmas_off() {
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 0);
-
-	power = 0;
 }
 
 static void on_sundown() {
 	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux);
 	xmas_on();
+	power = 1;
 }
 
 static void on_morning() {
 	xlog("XMAS reached ON time frame");
 	xmas_on();
+	power = 1;
 }
 
 static void off_sunrise() {
 	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux);
 	xmas_off();
+	power = 0;
 }
 
 static void off_evening() {
 	xlog("XMAS reached OFF time frame");
 	xmas_off();
+	power = 0;
 }
 
 static int process(struct tm *now, const timing_t *timing) {
