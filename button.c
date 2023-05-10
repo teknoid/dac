@@ -25,7 +25,7 @@
 #include "mcp.h"
 
 #ifndef I2C
-#define I2C				"/dev/i2c-11"
+#define I2C				"/dev/i2c-3"
 #endif
 
 static int i2c;

@@ -40,7 +40,7 @@
 #include "mcp.h"
 
 #ifndef I2C
-#define I2C				"/dev/i2c-11"
+#define I2C				"/dev/i2c-3"
 #endif
 
 // static const int overflow_mode = LCD_OFLOW_SCROLL;

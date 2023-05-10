@@ -42,6 +42,8 @@ static uint8_t recvbuf_rx[1024];
 
 static int ready = 0;
 
+static int notifications = 1;
+
 sensors_t *sensors;
 
 int publish(const char *topic, const char *message) {
@@ -133,11 +135,11 @@ static void doorbell() {
 	lcd_print("Ding", "Dong");
 
 	// show desktop notification
-	char *command = (char*) malloc(256);
-	snprintf(command, 256, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, "Ding", "Dong");
-	xlog("MQTT system: %s", command);
-	system(command);
-	free(command);
+//	char *command = (char*) malloc(256);
+//	snprintf(command, 256, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, "Ding", "Dong");
+//	xlog("MQTT system: %s", command);
+//	system(command);
+//	free(command);
 
 	// play sound
 	play("ding-dong.wav");
@@ -176,17 +178,17 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	lcd_print(title, text);
 
 	// show desktop notification
-	size_t size = strlen(title) + strlen(text) + 256;
-	char *command = (char*) malloc(size);
-	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
-	xlog("MQTT system: %s", command);
-	system(command);
+//	size_t size = strlen(title) + strlen(text) + 256;
+//	char *command = (char*) malloc(size);
+//	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
+//	xlog("MQTT system: %s", command);
+//	system(command);
+//	free(command);
 
 	// play sound
 	play(sound);
 
 	// release memory
-	free(command);
 	free(title);
 	free(text);
 	free(sound);

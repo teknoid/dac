@@ -8,7 +8,7 @@
 
 #ifdef TRON
 #define MUSIC 			"/music/"
-#define I2C				"/dev/i2c-11"
+#define I2C				"/dev/i2c-3"
 #endif
 
 #ifdef ANUS
