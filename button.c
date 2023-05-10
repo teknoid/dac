@@ -44,6 +44,9 @@ static void handle_button(unsigned char c) {
 	case 4:
 		dac_volume_up();
 		break;
+	case 8:
+		mpdclient_handle(KEY_NEXTSONG);
+		break;
 	}
 }
 
