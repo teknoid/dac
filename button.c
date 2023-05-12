@@ -28,7 +28,7 @@
 #define I2C				"/dev/i2c-3"
 #endif
 
-static int i2c;
+static int i2cfd;
 static pthread_t thread;
 
 static void handle_button(unsigned char c) {
@@ -58,11 +58,11 @@ static void* button(void *arg) {
 		return (void*) 0;
 	}
 
-	c_old = i2c_get(i2c, ADDR);
+	i2c_get(i2cfd, ADDR, &c_old);
 
 	while (1) {
 		msleep(100);
-		c = i2c_get(i2c, ADDR);
+		i2c_get(i2cfd, ADDR, &c);
 
 		if (c == 0xff)
 			hold = 0;
@@ -77,7 +77,7 @@ static void* button(void *arg) {
 }
 
 static int init() {
-	if ((i2c = open(I2C, O_RDWR)) < 0)
+	if ((i2cfd = open(I2C, O_RDWR)) < 0)
 		return xerr("error opening  %s", I2C);
 
 	if (pthread_create(&thread, NULL, &button, NULL))
@@ -94,8 +94,8 @@ static void stop() {
 	if (pthread_join(thread, NULL))
 		xlog("Error joining thread_rb");
 
-	if (i2c > 0)
-		close(i2c);
+	if (i2cfd > 0)
+		close(i2cfd);
 }
 
 MCP_REGISTER(button, 5, &init, &stop);

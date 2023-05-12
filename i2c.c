@@ -58,23 +58,16 @@ void i2c_put(int fd, uint8_t addr, uint8_t value) {
 	pthread_mutex_unlock(&lock);
 }
 
-uint8_t i2c_get(int fd, uint8_t addr) {
-	uint8_t value;
-
+void i2c_get(int fd, uint8_t addr, uint8_t *value) {
 	pthread_mutex_lock(&lock);
 
-	if (ioctl(fd, I2C_SLAVE, addr) < 0) {
-		pthread_mutex_unlock(&lock);
-		return xerr("Error addressing device 0x%02x", addr);
-	}
+	if (ioctl(fd, I2C_SLAVE, addr) < 0)
+		xerr("Error addressing device 0x%02x", addr);
 
-	if (read(fd, &value, 1) != 1) {
-		pthread_mutex_unlock(&lock);
-		return xerr("Error reading from device");
-	}
+	if (read(fd, value, 1) != 1)
+		xerr("Error reading from device");
 
 	pthread_mutex_unlock(&lock);
-	return value;
 }
 
 int i2c_read(int fd, uint8_t addr, uint8_t reg, uint8_t *val) {
