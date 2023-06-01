@@ -28,21 +28,25 @@ static int lock_afternoon = 0;
 static pthread_t thread;
 
 static void up_summer() {
+	xlog("SHUTTER reached UP_SUMMER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
 		tasmota_shutter(summer_device[i], SHUTTER_UP);
 }
 
 static void down_summer() {
+	xlog("SHUTTER reached DOWN_SUMMER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
 		tasmota_shutter(summer_device[i], SHUTTER_HALF);
 }
 
 static void up_winter() {
+	xlog("SHUTTER reached UP_WINTER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
 		tasmota_shutter(winter_device[i], SHUTTER_UP);
 }
 
 static void down_winter() {
+	xlog("SHUTTER reached DOWN_WINTER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
 		tasmota_shutter(winter_device[i], SHUTTER_DOWN);
 }
