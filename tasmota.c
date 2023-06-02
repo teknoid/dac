@@ -226,6 +226,11 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 
 // execute tasmota shutter up/down
 void tasmota_shutter(unsigned int id, unsigned int target) {
+	if (target == SHUTTER_POS) {
+		backlog(id, "ShutterPosition");
+		return;
+	}
+
 	tasmota_state_t *ss = get_state(id);
 	if (target == SHUTTER_DOWN && ss->position != SHUTTER_DOWN) {
 		backlog(id, "ShutterClose");

@@ -143,6 +143,12 @@ static void* shutter(void *arg) {
 		return (void*) 0;
 	}
 
+	// request shutter positions
+	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
+		tasmota_shutter(winter_device[i], SHUTTER_POS);
+	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
+		tasmota_shutter(summer_device[i], SHUTTER_POS);
+
 	while (1) {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);

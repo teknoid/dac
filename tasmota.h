@@ -20,6 +20,7 @@
 #define SHUTTER_UP		100
 #define SHUTTER_HALF	50
 #define SHUTTER_DOWN	0
+#define SHUTTER_POS		-1
 
 typedef struct tasmota_config_t {
 	const unsigned int id;
