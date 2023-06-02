@@ -32,7 +32,7 @@ static pthread_t thread;
 //
 static int mqttfd_tx;
 static struct mqtt_client *client_tx;
-static uint8_t sendbuf_tx[1024];
+static uint8_t sendbuf_tx[4096];
 static uint8_t recvbuf_tx[1024];
 
 static int mqttfd_rx;
