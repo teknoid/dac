@@ -243,7 +243,7 @@ void tasmota_shutter(unsigned int id, unsigned int target) {
 	}
 
 	if (target == SHUTTER_HALF && ss->position == SHUTTER_UP) {
-		backlog(id, "ShutterPosition 50");
+		backlog(id, "ShutterPosition 60");
 		return;
 	}
 }
