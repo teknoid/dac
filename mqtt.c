@@ -25,6 +25,8 @@
 #include "lcd.h"
 #include "mcp.h"
 
+#define MEAN	10
+
 static pthread_t thread;
 
 //
@@ -39,6 +41,9 @@ static int mqttfd_rx;
 static struct mqtt_client *client_rx;
 static uint8_t sendbuf_rx[4096];
 static uint8_t recvbuf_rx[1024];
+
+static unsigned int bh1750_lux_mean[MEAN];
+static int mean;
 
 static int ready = 0;
 
@@ -196,6 +201,18 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	return 0;
 }
 
+static void bh1750_calc_mean() {
+	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
+	if (mean == MEAN)
+		mean = 0;
+
+	unsigned long sum = 0;
+	for (int i = 0; i < MEAN; i++)
+		sum += bh1750_lux_mean[i];
+
+	sensors->bh1750_lux_mean = sum / MEAN;
+}
+
 static int dispatch_sensor(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
@@ -209,6 +226,7 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
 		free(bh1750);
+		bh1750_calc_mean();
 	}
 
 	if (bmp280 != NULL) {
@@ -227,8 +245,10 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 		free(rf);
 	}
 
-	// xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
-	// xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+//	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+
+//	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
+//	xlog("MQTT BH1750 %d lux mean", sensors->bh1750_lux_mean);
 
 	return 0;
 }
@@ -309,10 +329,15 @@ static void* mqtt(void *arg) {
 static int init() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
+	// clear average value buffer
+	ZERO(bh1750_lux_mean);
+	mean = 0;
+
 	// initialize sensor data
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);
 	sensors->bh1750_lux = INT_MAX;
+	sensors->bh1750_lux_mean = INT_MAX;
 	sensors->bmp085_temp = INT_MAX;
 	sensors->bmp085_baro = INT_MAX;
 	sensors->bmp280_temp = INT_MAX;

@@ -19,6 +19,7 @@
 
 typedef struct sensors_t {
 	unsigned int bh1750_lux;
+	unsigned int bh1750_lux_mean;
 	float bmp085_temp;
 	float bmp085_baro;
 	float bmp280_temp;

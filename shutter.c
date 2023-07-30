@@ -28,31 +28,27 @@ static int lock_afternoon = 0;
 static pthread_t thread;
 
 static void up_summer() {
-	xlog("SHUTTER reached UP_SUMMER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
 		tasmota_shutter(summer_device[i], SHUTTER_UP);
 }
 
 static void down_summer() {
-	xlog("SHUTTER reached DOWN_SUMMER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(summer_device); i++)
 		tasmota_shutter(summer_device[i], SHUTTER_HALF);
 }
 
 static void up_winter() {
-	xlog("SHUTTER reached UP_WINTER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
 		tasmota_shutter(winter_device[i], SHUTTER_UP);
 }
 
 static void down_winter() {
-	xlog("SHUTTER reached DOWN_WINTER at lum %d temp %.1f", sensors->bh1750_lux, sensors->bmp280_temp);
 	for (int i = 0; i < ARRAY_SIZE(winter_device); i++)
 		tasmota_shutter(winter_device[i], SHUTTER_DOWN);
 }
 
 static int summer(struct tm *now) {
-	int lumi = sensors->bh1750_lux;
+	int lumi = sensors->bh1750_lux_mean;
 	int temp = sensors->bmp280_temp;
 	int morning = now->tm_hour < 12 ? 1 : 0;
 
@@ -70,6 +66,7 @@ static int summer(struct tm *now) {
 
 		// morning: check if 1. big light, 2. temp is above
 		if (lumi > SUMMER_SUNRISE && temp > SUMMER_TEMP) {
+			xlog("SHUTTER reached DOWN_SUMMER at lum %d temp %.1f", lumi, temp);
 			down_summer();
 			lock_morning = 1;
 		}
@@ -85,6 +82,7 @@ static int summer(struct tm *now) {
 
 		// evening: check if sundown is reached
 		if (lumi < SUMMER_SUNDOWN) {
+			xlog("SHUTTER reached UP_SUMMER at lum %d temp %.1f", lumi, temp);
 			up_summer();
 			lock_afternoon = 1;
 		}
@@ -95,7 +93,7 @@ static int summer(struct tm *now) {
 }
 
 static int winter(struct tm *now) {
-	int lumi = sensors->bh1750_lux;
+	int lumi = sensors->bh1750_lux_mean;
 	int temp = sensors->bmp280_temp;
 	int afternoon = now->tm_hour < 12 ? 0 : 1;
 
@@ -113,6 +111,7 @@ static int winter(struct tm *now) {
 
 		// evening: check if 1. sundown is reached, 2. temp is below
 		if (lumi < WINTER_SUNDOWN && temp < WINTER_TEMP) {
+			xlog("SHUTTER reached DOWN_WINTER at lum %d temp %.1f", lumi, temp);
 			down_winter();
 			lock_afternoon = 1;
 		}
@@ -128,6 +127,7 @@ static int winter(struct tm *now) {
 
 		// morning: check if sunrise is reached
 		if (lumi > WINTER_SUNRISE) {
+			xlog("SHUTTER reached UP_WINTER at lum %d temp %.1f", lumi, temp);
 			up_winter();
 			lock_morning = 1;
 		}
