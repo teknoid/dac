@@ -17,15 +17,4 @@
 #define TASMOTA			"tasmota"
 #define NETWORK			"network"
 
-typedef struct sensors_t {
-	unsigned int bh1750_lux;
-	unsigned int bh1750_lux_mean;
-	float bmp085_temp;
-	float bmp085_baro;
-	float bmp280_temp;
-	float bmp280_baro;
-} sensors_t;
-
-extern sensors_t *sensors;
-
 int publish(const char*, const char*);

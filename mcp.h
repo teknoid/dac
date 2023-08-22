@@ -99,6 +99,39 @@ typedef struct mcp_config_t {
 } mcp_config_t;
 extern mcp_config_t *cfg;
 
+typedef struct mcp_sensors_t {
+	// BH1750 luminousity
+	uint16_t bh1750_raw;
+	uint16_t bh1750_raw2;
+	uint8_t bh1750_prc;
+	uint16_t bh1750_lux;
+	uint16_t bh1750_lux_mean;
+
+	// BMP085 calibration data
+	int16_t bmp085_ac1;
+	int16_t bmp085_ac2;
+	int16_t bmp085_ac3;
+	uint16_t bmp085_ac4;
+	uint16_t bmp085_ac5;
+	uint16_t bmp085_ac6;
+	int16_t bmp085_b1;
+	int16_t bmp085_b2;
+	int16_t bmp085_mb;
+	int16_t bmp085_mc;
+	int16_t bmp085_md;
+
+	// BMP085 temperature + barometric pressure
+	float bmp085_temp;
+	uint16_t bmp085_utemp;
+	float bmp085_baro;
+	uint16_t bmp085_ubaro;
+
+	// BMP280 temperature + barometric pressure
+	float bmp280_temp;
+	float bmp280_baro;
+} mcp_sensors_t;
+extern mcp_sensors_t *sensors;
+
 int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);

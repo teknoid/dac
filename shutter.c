@@ -7,8 +7,8 @@
 #include <pthread.h>
 #include <time.h>
 
-#include "tasmota.h"
 #include "shutter.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "mcp.h"

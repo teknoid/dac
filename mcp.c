@@ -94,21 +94,19 @@
 
 #include <sys/stat.h>
 
-#include "display.h"
-#include "button.h"
 #include "utils.h"
-#include "mqtt.h"
-#include "lcd.h"
 #include "dac.h"
 #include "mcp.h"
 
 #if defined(SABRE18) || defined(SABRE28)
+#include "display.h"
 #include "display-menu.h"
 #endif
 
 mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_module_t *module = NULL;
+mcp_sensors_t *sensors = NULL;
 
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
@@ -282,6 +280,9 @@ int main(int argc, char **argv) {
 
 	cfg = malloc(sizeof(*cfg));
 	ZERO(cfg);
+
+	sensors = malloc(sizeof(*sensors));
+	ZERO(sensors);
 
 	// parse command line arguments
 	int c;

@@ -49,8 +49,6 @@ static int ready = 0;
 
 static int notifications = 1;
 
-sensors_t *sensors;
-
 int publish(const char *topic, const char *message) {
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
@@ -336,12 +334,12 @@ static int init() {
 	// initialize sensor data
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);
-	sensors->bh1750_lux = INT_MAX;
-	sensors->bh1750_lux_mean = INT_MAX;
-	sensors->bmp085_temp = INT_MAX;
-	sensors->bmp085_baro = INT_MAX;
-	sensors->bmp280_temp = INT_MAX;
-	sensors->bmp280_baro = INT_MAX;
+	sensors->bh1750_lux = UINT16_MAX;
+	sensors->bh1750_lux_mean = UINT16_MAX;
+	sensors->bmp085_temp = UINT16_MAX;
+	sensors->bmp085_baro = UINT16_MAX;
+	sensors->bmp280_temp = UINT16_MAX;
+	sensors->bmp280_baro = UINT16_MAX;
 
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));

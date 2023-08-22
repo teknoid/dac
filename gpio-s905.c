@@ -1,12 +1,8 @@
 /*
  * simple mmapped gpio bit-banging
  *
- *   - implementation for BCM2835
- *   - compatible with Raspberry 1 + 2 + 3
- *   - tested on a RPi 2B, Linux piwolf 5.10.83-v7+ #1499
- *
- * based on
- * https://elinux.org/RPi_GPIO_Code_Samples
+ *   - implementation for Amlogic S905
+ *   - tested on Odroid C2, Linux 5.10.102-meson64
  *
  * (C) Copyright 2022 Heiko Jehmlich <hje@jecons.de>
  *
@@ -33,12 +29,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-
 #include <sys/mman.h>
 #include <sys/types.h>
 
 #include "gpio.h"
-#include "mcp.h"
 
 #define PIO_REG_CFG(B, G)		(uint32_t*)(B) + (G/10)
 #define PIO_REG_SET(B, G)		(uint32_t*)(B) + (0x1C/4)
@@ -396,35 +390,6 @@ void gpio_flamingo_v2(const char *name, uint32_t message, int bits, int repeat, 
 }
 
 void gpio_lirc(const char *name, uint32_t message) {
-	while (*name >= 'A')
-		name++;
-
-	int pin = atoi(name);
-	uint32_t bit = 1 << pin;
-	uint32_t *set = PIO_REG_SET(gpio, pin);
-	uint32_t *clr = PIO_REG_CLR(gpio, pin);
-	uint32_t mask = 1 << 31;
-
-	// sync
-	*clr |= bit;
-	gpio_delay_micros(9020);
-	*set |= bit;
-	gpio_delay_micros(4460);
-
-	while (mask) {
-		*clr |= bit;
-		gpio_delay_micros(580);
-		*set |= bit;
-		if (message & mask)
-			gpio_delay_micros(1660); // 1
-		else
-			gpio_delay_micros(550); // 0
-		mask = mask >> 1;
-	}
-	*clr |= bit;
-	gpio_delay_micros(580);
-	*set |= bit;
-	usleep(150 * 1000);
 }
 
 void gpio_delay_micros(uint32_t us) {
@@ -450,7 +415,7 @@ uint32_t gpio_micros_since(uint32_t *when) {
 	return elapsed;
 }
 
-static int init() {
+int gpio_init() {
 	int pagesize = sysconf(_SC_PAGESIZE);
 
 	if (timer != 0 && gpio != 0)
@@ -499,13 +464,11 @@ static int init() {
 	return 0;
 }
 
-static void stop() {
+void gpio_close() {
 	int pagesize = sysconf(_SC_PAGESIZE);
 	munmap((void*) gpio, pagesize);
 	munmap((void*) timer, pagesize);
 }
-
-MCP_REGISTER(gpio, 1, &init, &stop);
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {

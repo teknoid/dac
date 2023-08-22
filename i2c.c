@@ -70,6 +70,22 @@ void i2c_get(int fd, uint8_t addr, uint8_t *value) {
 	pthread_mutex_unlock(&lock);
 }
 
+void i2c_get_int(int fd, uint8_t addr, uint16_t *value) {
+	uint8_t buf[2];
+
+	pthread_mutex_lock(&lock);
+
+	if (ioctl(fd, I2C_SLAVE, addr) < 0)
+		xerr("Error addressing device 0x%02x", addr);
+
+	if (read(fd, buf, 2) != 2)
+		xerr("Error reading from device");
+
+	*value = buf[0] << 8 | buf[1];
+
+	pthread_mutex_unlock(&lock);
+}
+
 int i2c_read(int fd, uint8_t addr, uint8_t reg, uint8_t *val) {
 	__u8 inbuf, outbuf;
 	struct i2c_rdwr_ioctl_data packets;
