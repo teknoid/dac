@@ -124,7 +124,7 @@ typedef struct mcp_sensors_t {
 	float bmp085_temp;
 	uint16_t bmp085_utemp;
 	float bmp085_baro;
-	uint16_t bmp085_ubaro;
+	uint32_t bmp085_ubaro;
 
 	// BMP280 temperature + barometric pressure
 	float bmp280_temp;

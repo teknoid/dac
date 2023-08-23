@@ -74,6 +74,7 @@ static void read_bmp085() {
 	msleep(2 + (3 << BMP085_OVERSAMPLE));
 	i2c_read_block(i2cfd, BMP085_ADDR, 0xF6, buf, 3);
 	sensors->bmp085_ubaro = ((buf[0] << 16) | (buf[1] << 8) | buf[2]) >> (8 - BMP085_OVERSAMPLE);
+	printf("ubaro %u\n", sensors->bmp085_ubaro);
 	int b6 = b5 - 4000;
 	x1 = (sensors->bmp085_b2 * (b6 * b6) >> 12) >> 11;
 	x2 = (sensors->bmp085_ac2 * b6) >> 11;
