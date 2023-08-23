@@ -1,14 +1,16 @@
 #include <mpd/status.h>
 
-#define TRON
+// #define TRON
 // #define ANUS
 // #define PIWOLF
+#define PICAM
 // #define SABRE18
 // #define SABRE28
 
 #ifdef TRON
 #define MUSIC 			"/music/"
 #define I2C				"/dev/i2c-3"
+#define LCD
 #endif
 
 #ifdef ANUS
@@ -19,6 +21,11 @@
 #ifdef PIWOLF
 #define MUSIC 			"/var/lib/mpd/music/"
 #define DEVINPUT_IR		"/dev/input/infrared"
+#endif
+
+#ifdef PICAM
+#define MUSIC 			"/tmp"
+#define I2C				"/dev/i2c-0"
 #endif
 
 #ifdef SABRE18

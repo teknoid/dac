@@ -135,7 +135,9 @@ static void doorbell() {
 	xlog("MQTT doorbell");
 
 	// show on LCD display line 1 and 2
+#ifdef LCD
 	lcd_print("Ding", "Dong");
+#endif
 
 	// show desktop notification
 //	char *command = (char*) malloc(256);
@@ -178,7 +180,9 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	json_scanf(message, msize, "{title: %Q, text: %Q, sound: %Q}", &title, &text, &sound);
 
 	// show on LCD display line 1 and 2
+#ifdef LCD
 	lcd_print(title, text);
+#endif
 
 	// show desktop notification
 //	size_t size = strlen(title) + strlen(text) + 256;

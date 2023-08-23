@@ -15,7 +15,7 @@ COBJS-TRON 		= $(COBJS-COMMON) dac-tron.o button.o lcd.o i2c.o mqtt.o tasmota.o 
 COBJS-PIWOLF 	= $(COBJS-COMMON) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) dac-es9028.o devinput-infrared.o gpio-sunxi.o i2c.o display.o display-menu.o devinput-rotary.o
-COBJS-PICAM		= $(COBJS-COMMON) dac.o webcam.o xmas.o sensors.o flamingo.o gpio-bcm2835.o lcd.o i2c.o mqtt.o tasmota.o
+COBJS-PICAM		= $(COBJS-COMMON) dac.o webcam.o xmas.o sensors.o flamingo.o gpio-bcm2835.o i2c.o mqtt.o tasmota.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
