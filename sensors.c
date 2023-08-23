@@ -67,6 +67,7 @@ static void read_bmp085() {
 	int x2 = ((int) sensors->bmp085_mc << 11) / (x1 + sensors->bmp085_md);
 	int b5 = x1 + x2;
 	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
+	xlog("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
 
 	// pressure
 	uint8_t buf[3];
@@ -94,7 +95,7 @@ static void read_bmp085() {
 	x2 = (-7357 * p) >> 16;
 	p += (x1 + x2 + 3791) >> 4;
 	sensors->bmp085_baro = p / 100.0;
-
+	xlog("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
 }
 
 // read BMP085 calibration data
