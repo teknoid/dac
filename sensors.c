@@ -213,15 +213,14 @@ static void stop() {
 		close(i2cfd);
 }
 
-#ifdef SENSORS_MAIN
-int main(int argc, char **argv) {
+int sensor_main(int argc, char **argv) {
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);
 
 	init();
 	sleep(1);
 
-	while(1) {
+	while (1) {
 		printf("BH1750 raw  %d\n", sensors->bh1750_raw);
 		printf("BH1750 raw2 %d\n", sensors->bh1750_raw2);
 		printf("BH1750 lux  %d lx\n", sensors->bh1750_lux);
@@ -239,8 +238,10 @@ int main(int argc, char **argv) {
 	stop();
 	return 0;
 }
-#endif
-
-#ifndef SENSORS_MAIN
+#ifdef SENSORS_MAIN
+int main(int argc, char **argv) {
+	return sensor_main(argc, argv);
+}
+#else
 MCP_REGISTER(sensors, 3, &init, &stop);
 #endif

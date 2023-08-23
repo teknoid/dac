@@ -69,7 +69,6 @@ typedef struct {
 
 static volatile void *mem;
 
-#ifdef GPIO_MAIN
 static void test_blink() {
 	const char *pio = "PA3";
 
@@ -132,18 +131,6 @@ static void test_timers() {
 	printf("AVS0 %08u\n", *avs0);
 	printf("usleep %u AVS0 elapsed = %u\n", delay, elapsed);
 }
-
-static int gpio_main(int argc, char **argv) {
-	gpio_init();
-	printf("mmap OK\n");
-
-	test_timers();
-	test_blink();
-
-	gpio_close();
-	return 0;
-}
-#endif
 
 static void mem_read(gpio_status_t *pio) {
 	uint32_t val;
@@ -317,8 +304,7 @@ void gpio_delay_micros(uint32_t us) {
 	*ctrl |= 0b10; // run
 	if (us > 100)
 		usleep(us - 90);
-	while (*avs1 < us)
-		;
+	while (*avs1 < us);
 }
 
 uint32_t gpio_micros() {
@@ -379,10 +365,21 @@ static void stop() {
 	munmap((void*) mem, pagesize);
 }
 
-MCP_REGISTER(gpio, 1, &init, &stop);
+int gpio_main(int argc, char **argv) {
+	init();
+	printf("mmap OK\n");
+
+	test_timers();
+	test_blink();
+
+	stop();
+	return 0;
+}
 
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
 	return gpio_main(argc, argv);
 }
+#else
+MCP_REGISTER(gpio, 1, &init, &stop);
 #endif
