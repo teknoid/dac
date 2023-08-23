@@ -53,7 +53,7 @@ int publish(const char *topic, const char *message) {
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
 
-	xlog("MQTT publish topic('%s') = %s", topic, message);
+	// xlog("MQTT publish topic('%s') = %s", topic, message);
 
 	/* check that we don't have any errors */
 	if (client_tx->error != MQTT_OK)
