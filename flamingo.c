@@ -255,6 +255,16 @@ int flamingo_main(int argc, char *argv[]) {
 	if (argc < 1)
 		return usage();
 
+	// parse command line arguments
+	int c;
+	while ((c = getopt(argc, argv, "t")) != -1) {
+		switch (c) {
+		case 't':
+			flamingo_test(argc, argv);
+			return EXIT_SUCCESS;
+		}
+	}
+
 	if (argc >= 4) {
 
 		// SEND mode
@@ -314,9 +324,9 @@ int flamingo_main(int argc, char *argv[]) {
 #ifdef FLAMINGO_MAIN
 typedef int (*init_t)();
 void mcp_register(const char *name, const void *init, const void *stop) {
-	printf("call init() for  %s\n", name);
-	init_t iinit = init;
-	(iinit)();
+	xlog("call init() for  %s\n", name);
+	init_t xinit = init;
+	(xinit)();
 }
 int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);

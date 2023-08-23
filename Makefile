@@ -72,7 +72,7 @@ switch: switch.o gpio-sunxi.o utils.o
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display rotary2uinput test gpio-sunxi gpio-bcm2835 switch
+	rm -f mcp display switch sensors flamingo rotary2uinput test gpio-sunxi gpio-bcm2835
 
 install:
 	@echo "[Installing and starting mcp]"
