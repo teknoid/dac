@@ -160,6 +160,42 @@ int i2c_read_int(int fd, uint8_t addr, uint8_t reg, uint16_t *val) {
 	return 0;
 }
 
+int i2c_read_block(int fd, uint8_t addr, uint8_t reg, uint8_t *block, int size) {
+	uint8_t outbuf;
+	struct i2c_rdwr_ioctl_data packets;
+	struct i2c_msg messages[2];
+
+	/*
+	 * In order to read a register, we first do a "dummy write" by writing
+	 * 0 bytes to the register we want to read from.  This is similar to
+	 * the packet in set_i2c_register, except it's 1 byte rather than 2.
+	 */
+	outbuf = reg;
+	messages[0].addr = addr;
+	messages[0].flags = 0;
+	messages[0].len = 1;
+	messages[0].buf = &outbuf;
+
+	/* The data will get returned in this structure */
+	messages[1].addr = addr;
+	messages[1].flags = I2C_M_RD/* | I2C_M_NOSTART*/;
+	messages[1].len = size;
+	messages[1].buf = block;
+
+	/* Send the request to the kernel and get the result back */
+	packets.msgs = messages;
+	packets.nmsgs = 2;
+
+	pthread_mutex_lock(&lock);
+	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
+		pthread_mutex_unlock(&lock);
+		return xerr("Error reading data from register 0x%02x", reg);
+	}
+	pthread_mutex_unlock(&lock);
+
+	return 0;
+}
+
 int i2c_write(int fd, uint8_t addr, uint8_t reg, uint8_t value) {
 	uint8_t outbuf[2];
 	struct i2c_rdwr_ioctl_data packets;

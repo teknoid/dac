@@ -68,21 +68,48 @@ static void read_bmp085() {
 	int b5 = x1 + x2;
 	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
 
+	// pressure
+	uint8_t buf[3];
+	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x34 + (BMP085_OVERSAMPLE << 6));
+	msleep(2 + (3 << BMP085_OVERSAMPLE));
+	i2c_read_block(i2cfd, BMP085_ADDR, 0xF6, buf, 3);
+	sensors->bmp085_ubaro = ((buf[0] << 16) | (buf[1] << 8) | buf[2]) >> (8 - BMP085_OVERSAMPLE);
+	int b6 = b5 - 4000;
+	x1 = (sensors->bmp085_b2 * (b6 * b6) >> 12) >> 11;
+	x2 = (sensors->bmp085_ac2 * b6) >> 11;
+	int x3 = x1 + x2;
+	int b3 = (((((int) sensors->bmp085_ac1) * 4 + x3) << BMP085_OVERSAMPLE) + 2) >> 2;
+	x1 = (sensors->bmp085_ac3 * b6) >> 13;
+	x2 = (sensors->bmp085_b1 * ((b6 * b6) >> 12)) >> 16;
+	x3 = ((x1 + x2) + 2) >> 2;
+	unsigned int b4 = (sensors->bmp085_ac4 * (unsigned int) (x3 + 32768)) >> 15;
+	unsigned int b7 = ((unsigned int) (sensors->bmp085_ubaro - b3) * (50000 >> BMP085_OVERSAMPLE));
+	int p;
+	if (b7 < 0x80000000)
+		p = (b7 << 1) / b4;
+	else
+		p = (b7 / b4) << 1;
+	x1 = (p >> 8) * (p >> 8);
+	x1 = (x1 * 3038) >> 16;
+	x2 = (-7357 * p) >> 16;
+	p += (x1 + x2 + 3791) >> 4;
+	sensors->bmp085_baro = p / 100.0;
+
 }
 
 // read BMP085 calibration data
 static void init_bmp085() {
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAA, (uint16_t *) &sensors->bmp085_ac1);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAC, (uint16_t *) &sensors->bmp085_ac2);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAE, (uint16_t *) &sensors->bmp085_ac3);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAA, (uint16_t*) &sensors->bmp085_ac1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAC, (uint16_t*) &sensors->bmp085_ac2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAE, (uint16_t*) &sensors->bmp085_ac3);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xB0, &sensors->bmp085_ac4);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xB2, &sensors->bmp085_ac5);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xB4, &sensors->bmp085_ac6);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB6, (uint16_t *) &sensors->bmp085_b1);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB8, (uint16_t *) &sensors->bmp085_b2);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, (uint16_t *) &sensors->bmp085_mb);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, (uint16_t *) &sensors->bmp085_mc);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, (uint16_t *) &sensors->bmp085_md);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB6, (uint16_t*) &sensors->bmp085_b1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB8, (uint16_t*) &sensors->bmp085_b2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, (uint16_t*) &sensors->bmp085_mb);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, (uint16_t*) &sensors->bmp085_mc);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, (uint16_t*) &sensors->bmp085_md);
 	xlog("read BMP085 calibration data AC1:%u", sensors->bmp085_ac1);
 }
 
