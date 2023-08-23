@@ -139,10 +139,10 @@ static void publish_mqtt() {
 	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
 	publish_sensor(BH1750, "lum_percent", cvalue);
 
-	snprintf(cvalue, 5, "%2.1f", sensors->bmp085_temp);
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
 	publish_sensor(BMP085, "temp", cvalue);
 
-	snprintf(cvalue, 8, "%4.1f", sensors->bmp085_baro);
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
 	publish_sensor(BMP085, "baro", cvalue);
 }
 
@@ -161,10 +161,10 @@ static void write_sysfslike() {
 	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
 	create_sysfslike(DIRECTORY, "lum_percent", cvalue, "%s", BH1750);
 
-	snprintf(cvalue, 5, "%2.1f", sensors->bmp085_temp);
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
 	create_sysfslike(DIRECTORY, "temp", cvalue, "%s", BMP085);
 
-	snprintf(cvalue, 8, "%4.1f", sensors->bmp085_baro);
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
 	create_sysfslike(DIRECTORY, "baro", cvalue, "%s", BMP085);
 }
 
@@ -177,15 +177,9 @@ static void* loop(void *arg) {
 	init_bmp085();
 
 	while (1) {
-		xlog("read_bh1750");
 		read_bh1750();
-
-		xlog("read_bmp085");
 		read_bmp085();
-
 		// write_sysfslike();
-
-		xlog("publish_mqtt");
 		publish_mqtt();
 		sleep(60);
 	}
