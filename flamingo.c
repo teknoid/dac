@@ -34,7 +34,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
+#include "gpio.h"
 #include "utils.h"
 #include "frozen.h"
 #include "flamingo.h"
@@ -52,9 +54,9 @@ static const unsigned char DKEY[16] = { 5, 12, 6, 2, 8, 11, 1, 10, 3, 0, 4, 14, 
 static const char *fmt_message28 = "FLAMINGO28 0x%08lx id=%04x, chan=%02d, cmd=%d, pay=0x%02x, roll=%d";
 static const char *fmt_message32 = "FLAMINGO32 0x%08lx id=%04x, chan=%02d, cmd=%d, pay=0x%02x";
 
-static unsigned int encrypt(unsigned int message) {
-	unsigned int code = 0;
-	unsigned char n[7];
+static uint32_t encrypt(uint32_t message) {
+	uint32_t code = 0;
+	uint8_t n[7];
 	int i, r, idx;
 
 	// split into nibbles
@@ -81,9 +83,9 @@ static unsigned int encrypt(unsigned int message) {
 	return code;
 }
 
-static unsigned int decrypt(unsigned int code) {
-	unsigned int message = 0;
-	unsigned char n[7];
+static uint32_t decrypt(uint32_t code) {
+	uint32_t message = 0;
+	uint8_t n[7];
 	int i, r;
 
 	//shift 2 bits left & copy bit 27/28 to bit 1/2
@@ -112,8 +114,8 @@ static unsigned int decrypt(unsigned int code) {
 	return message;
 }
 
-void flamingo28_decode(unsigned int code, unsigned int *xmitter, unsigned char *command, unsigned char *channel, unsigned char *payload, unsigned char *rolling) {
-	unsigned int message = decrypt(code);
+void flamingo28_decode(uint32_t code, uint16_t *xmitter, uint8_t *command, uint8_t *channel, uint8_t *payload, uint8_t *rolling) {
+	uint32_t message = decrypt(code);
 	*payload = (message >> 24) & 0x0F;
 	*xmitter = (message >> 8) & 0xFFFF;
 	*rolling = (message >> 6) & 0x03;
@@ -124,7 +126,7 @@ void flamingo28_decode(unsigned int code, unsigned int *xmitter, unsigned char *
 	xlog(fmt_message28, message, *xmitter, *channel, *command, *payload, *rolling);
 }
 
-void flamingo32_decode(unsigned int message, unsigned int *xmitter, unsigned char *command, unsigned char *channel, unsigned char *payload) {
+void flamingo32_decode(uint32_t message, uint16_t *xmitter, uint8_t *command, uint8_t *channel, uint8_t *payload) {
 	*payload = (message >> 24) & 0x0F;
 	*xmitter = (message >> 8) & 0xFFFF;
 	*command = (message >> 4) & 0x0F;
@@ -134,9 +136,9 @@ void flamingo32_decode(unsigned int message, unsigned int *xmitter, unsigned cha
 	xlog(fmt_message32, message, *xmitter, *channel, *command, *payload);
 }
 
-unsigned int flamingo28_encode(unsigned int xmitter, char channel, char command, char payload, char rolling) {
-	unsigned int message = (payload & 0x0F) << 24 | xmitter << 8 | (rolling << 6 & 0xC0) | (command & 0x03) << 4 | (channel & 0x0F);
-	unsigned int code = encrypt(message);
+uint32_t flamingo28_encode(uint16_t xmitter, uint8_t channel, uint8_t command, uint8_t payload, uint8_t rolling) {
+	uint32_t message = (payload & 0x0F) << 24 | xmitter << 8 | (rolling << 6 & 0xC0) | (command & 0x03) << 4 | (channel & 0x0F);
+	uint32_t code = encrypt(message);
 
 	xlog("F28 %04x %02d %d %d %s => 0x%08x => 0x%08x", xmitter, channel, command, rolling, printbits(message, SPACEMASK_FA500), message, code);
 	xlog(fmt_message28, 0, code, xmitter, channel, command, payload, rolling);
@@ -144,8 +146,8 @@ unsigned int flamingo28_encode(unsigned int xmitter, char channel, char command,
 	return code;
 }
 
-unsigned int flamingo32_encode(unsigned int xmitter, char channel, char command, char payload) {
-	unsigned int message = (payload & 0x0F) << 24 | xmitter << 8 | (command & 0x0F) << 4 | (channel & 0x0F);
+uint32_t flamingo32_encode(uint16_t xmitter, uint8_t channel, uint8_t command, uint8_t payload) {
+	uint32_t message = (payload & 0x0F) << 24 | xmitter << 8 | (command & 0x0F) << 4 | (channel & 0x0F);
 
 	xlog("F32 %04x %02d %d %s => 0x%08x", xmitter, channel, command, printbits(message, SPACEMASK_FA500), message);
 	xlog(fmt_message32, 0, message, xmitter, channel, command, payload);
@@ -153,11 +155,17 @@ unsigned int flamingo32_encode(unsigned int xmitter, char channel, char command,
 	return message;
 }
 
+// TODO
+uint32_t flamingo24_encode(uint16_t xmitter, uint8_t channel, uint8_t command, uint8_t payload) {
+	return 0;
+}
+
 int flamingo_test(int argc, char **argv) {
-	unsigned int bruteforce[4] = { 0x0e6bd68d, 0x0e7be29d, 0x0e7be29d, 0x0e763e15 };
-	unsigned int deadbeef[3] = { 0x0000dead, 0x000beef0, 0x0affe000 };
-	unsigned int code, message, xmitter;
-	unsigned char command, channel, payload, rolling;
+	uint32_t bruteforce[4] = { 0x0e6bd68d, 0x0e7be29d, 0x0e7be29d, 0x0e763e15 };
+	uint32_t deadbeef[3] = { 0x0000dead, 0x000beef0, 0x0affe000 };
+	uint32_t code, message;
+	uint16_t xmitter;
+	uint8_t command, channel, payload, rolling;
 
 	xlog("*** test message encode + decode + re-encode ***");
 	code = flamingo28_encode(REMOTES[0], 2, 1, 0x05, 0);
@@ -194,6 +202,44 @@ int flamingo_test(int argc, char **argv) {
 			}
 
 	return EXIT_SUCCESS;
+}
+
+void flamingo_send_FA500(int remote, uint8_t channel, uint8_t command, uint8_t rolling) {
+	if (remote < 1 || remote > ARRAY_SIZE(REMOTES))
+		return;
+
+	if (channel < 'A' || channel > 'P')
+		return;
+
+	uint16_t transmitter = REMOTES[remote - 1];
+	if (0 <= rolling && rolling <= 4) {
+		// send specified rolling code
+		uint32_t c28 = flamingo28_encode(transmitter, channel - 'A' + 1, command ? 2 : 0, 0, rolling);
+		gpio_flamingo_v1(TX, c28, 28, 4, T1);
+
+		uint32_t m32 = flamingo32_encode(transmitter, channel - 'A' + 1, command, 0);
+		gpio_flamingo_v2(TX, m32, 32, 3, T2H, T2L);
+	} else {
+		// send all rolling codes in sequence
+		for (int r = 0; r < 4; r++) {
+			uint32_t c28 = flamingo28_encode(transmitter, channel - 'A' + 1, command ? 2 : 0, 0, r);
+			gpio_flamingo_v1(TX, c28, 28, 4, T1);
+
+			uint32_t m32 = flamingo32_encode(transmitter, channel - 'A' + 1, command, 0);
+			gpio_flamingo_v2(TX, m32, 32, 3, T2H, T2L);
+			sleep(1);
+		}
+	}
+}
+
+// TODO
+void flamingo_send_SF500(int remote, uint8_t channel, uint8_t command) {
+	if (remote < 1 || remote > ARRAY_SIZE(REMOTES))
+		return;
+
+	uint16_t transmitter = REMOTES[remote - 1];
+	uint32_t message = flamingo24_encode(transmitter, channel - 'A' + 1, command, 0);
+	gpio_flamingo_v2(TX, message, 32, 5, T2H, T2L);
 }
 
 #ifdef LOCALMAIN

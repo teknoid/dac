@@ -20,6 +20,10 @@ static const char *topic = "sensor";
 static pthread_t thread;
 static int i2cfd;
 
+#ifdef SENSORS_MAIN
+mcp_sensors_t *sensors = NULL;
+#endif
+
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux
 // Straßenlampe Wiesenstraße bei 0x08 = 6 Lux (20:15)
@@ -158,6 +162,9 @@ static void stop() {
 
 #ifdef SENSORS_MAIN
 int main(int argc, char **argv) {
+	sensors = malloc(sizeof(*sensors));
+	ZERO(sensors);
+
 	init();
 
 	read_bh1750();

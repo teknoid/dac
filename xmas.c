@@ -8,13 +8,16 @@
 #include <time.h>
 
 #include "tasmota.h"
+#include "flamingo.h"
 #include "utils.h"
 #include "xmas.h"
-#include "mqtt.h"
 #include "mcp.h"
 
 // these tasmota devices will be in XMAS mode
 static const unsigned int device[] = { DEVICES };
+
+// TODO define channel status for each remote control unit
+static char channel_status[128];
 
 static pthread_t thread;
 static int power = -1;
@@ -22,7 +25,15 @@ static int power = -1;
 void xmas_on() {
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 1);
+}
 
+void xmas_on_flamingo(const timing_t *timing) {
+	int index = timing->channel - 'A';
+	if (!channel_status[index]) {
+		xlog("flamingo_send_FA500 %d %c 1\n", timing->remote, timing->channel);
+		flamingo_send_FA500(timing->remote, timing->channel, 1, -1);
+		channel_status[index] = 1;
+	}
 }
 
 void xmas_off() {
@@ -30,27 +41,40 @@ void xmas_off() {
 		tasmota_power(device[i], 0, 0);
 }
 
-static void on_sundown() {
+void xmas_off_flamingo(const timing_t *timing) {
+	int index = timing->channel - 'A';
+	if (channel_status[index]) {
+		xlog("flamingo_send_FA500 %d %c 0\n", timing->remote, timing->channel);
+		flamingo_send_FA500(timing->remote, timing->channel, 0, -1);
+		channel_status[index] = 0;
+	}
+}
+
+static void on_sundown(const timing_t *timing) {
 	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux);
 	xmas_on();
+	xmas_on_flamingo(timing);
 	power = 1;
 }
 
-static void on_morning() {
+static void on_morning(const timing_t *timing) {
 	xlog("XMAS reached ON time frame");
 	xmas_on();
+	xmas_on_flamingo(timing);
 	power = 1;
 }
 
-static void off_sunrise() {
+static void off_sunrise(const timing_t *timing) {
 	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux);
 	xmas_off();
+	xmas_off_flamingo(timing);
 	power = 0;
 }
 
-static void off_evening() {
+static void off_evening(const timing_t *timing) {
 	xlog("XMAS reached OFF time frame");
 	xmas_off();
+	xmas_off_flamingo(timing);
 	power = 0;
 }
 
@@ -74,13 +98,13 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
 			if (lumi < SUNDOWN)
-				on_sundown();
+				on_sundown(timing);
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
 				return 0;
 		} else
 			// morning: switch on
-			on_morning();
+			on_morning(timing);
 
 	} else {
 		// OFF time frame
@@ -92,13 +116,13 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
 			if (lumi > SUNRISE)
-				off_sunrise();
+				off_sunrise(timing);
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
 				return 0;
 		else
 			// evening: switch off
-			off_evening();
+			off_evening(timing);
 	}
 
 	return 0;

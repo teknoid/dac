@@ -150,8 +150,8 @@ static void doorbell() {
 
 // decode flamingo message
 static void flamingo(unsigned int code) {
-	unsigned int xmitter;
-	unsigned char command, channel, payload, rolling;
+	uint16_t xmitter;
+	uint8_t command, channel, payload, rolling;
 
 	xlog("MQTT flamingo");
 	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
