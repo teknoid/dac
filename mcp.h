@@ -1,31 +1,29 @@
 #include <mpd/status.h>
 
-// #define TRON
-// #define ANUS
-// #define PIWOLF
-#define PICAM
-// #define SABRE18
-// #define SABRE28
+#define TRON
+//#define ANUS
+//#define PIWOLF
+//#define PICAM
+//#define SABRE18
+//#define SABRE28
 
 #ifdef TRON
-#define DAC
 #define LCD
 #define I2C				"/dev/i2c-3"
 #endif
 
 #ifdef ANUS
-#define DAC
 #define MUSIC 			"/opt/music/"
 #define DISPLAY			"/dev/tty"
+#endif
+
+#ifdef PICAM
+#define I2C				"/dev/i2c-0"
 #endif
 
 #ifdef PIWOLF
 #define DAC
 #define DEVINPUT_IR		"/dev/input/infrared"
-#endif
-
-#ifdef PICAM
-#define I2C				"/dev/i2c-0"
 #endif
 
 #ifdef SABRE18

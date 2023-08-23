@@ -163,20 +163,20 @@ void mcp_status_set(const void *p1, const void *p2, int value) {
 }
 
 void mcp_system_shutdown() {
-	xlog("shutting down system now!");
 #ifdef DAC
 	if (mcp->dac_power)
 		dac_power();
 #endif
+	xlog("shutting down system now!");
 	system("shutdown -h now");
 }
 
 void mcp_system_reboot() {
-	xlog("rebooting system now!");
 #ifdef DAC
 	if (mcp->dac_power)
 		dac_power();
 #endif
+	xlog("rebooting system now!");
 	system("shutdown -r now");
 }
 
@@ -284,11 +284,16 @@ static void module_stop(mcp_module_t *m) {
 int main(int argc, char **argv) {
 	xlog("MCP startup");
 
+	// allocate global data exchange structures
 	cfg = malloc(sizeof(*cfg));
 	ZERO(cfg);
 
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);
+
+	mcp = malloc(sizeof(*mcp));
+	ZERO(mcp);
+	mcp->ir_active = 1;
 
 	// parse command line arguments
 	int c;
@@ -321,11 +326,6 @@ int main(int argc, char **argv) {
 		xlog("can't catch SIGHUP");
 		exit(EXIT_FAILURE);
 	}
-
-	// allocate global data exchange structure
-	mcp = malloc(sizeof(*mcp));
-	ZERO(mcp);
-	mcp->ir_active = 1;
 
 	// initialize all registered modules
 	module_init(module);
