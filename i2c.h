@@ -3,6 +3,7 @@ void i2c_get(int, uint8_t, uint8_t*);
 void i2c_get_int(int, uint8_t, uint16_t*);
 
 int i2c_read(int, uint8_t, uint8_t, uint8_t*);
+int i2c_read_int(int, uint8_t, uint8_t, uint16_t*);
 int i2c_write(int, uint8_t, uint8_t, uint8_t);
 int i2c_read_bits(int, uint8_t, uint8_t, uint8_t*, uint8_t);
 int i2c_write_bits(int, uint8_t, uint8_t, uint8_t, uint8_t);

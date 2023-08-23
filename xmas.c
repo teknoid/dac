@@ -157,17 +157,17 @@ static void* xmas(void *arg) {
 
 static int init() {
 	if (pthread_create(&thread, NULL, &xmas, NULL))
-		xlog("XMAS Error creating thread");
+		xlog("XMAS Error creating xmas thread");
 
 	return 0;
 }
 
 static void stop() {
 	if (pthread_cancel(thread))
-		xlog("XMAS Error canceling thread");
+		xlog("XMAS Error canceling xmas thread");
 
 	if (pthread_join(thread, NULL))
-		xlog("XMAS Error joining thread");
+		xlog("XMAS Error joining xmas thread");
 }
 
 MCP_REGISTER(xmas, 6, &init, &stop);

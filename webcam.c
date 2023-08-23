@@ -103,5 +103,5 @@ static void stop() {
 	webcam_stop();
 }
 
-MCP_REGISTER(webcam, 5, &init, &stop);
+MCP_REGISTER(webcam, 6, &init, &stop);
 

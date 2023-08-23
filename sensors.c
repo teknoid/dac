@@ -62,6 +62,18 @@ static void read_bmp085() {
 
 // read BMP085 calibration data
 static void init_bmp085() {
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAA, &sensors->bmp085_ac1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAC, &sensors->bmp085_ac2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAE, &sensors->bmp085_ac3);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB0, &sensors->bmp085_ac4);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB2, &sensors->bmp085_ac5);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB4, &sensors->bmp085_ac6);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB6, &sensors->bmp085_b1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB8, &sensors->bmp085_b2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, &sensors->bmp085_mb);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, &sensors->bmp085_mc);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, &sensors->bmp085_md);
+	xlog("read BMP085 calibration data AC1:%u", sensors->bmp085_ac1);
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
