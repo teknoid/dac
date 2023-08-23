@@ -8,33 +8,33 @@
 // #define SABRE28
 
 #ifdef TRON
-#define MUSIC 			"/music/"
-#define I2C				"/dev/i2c-3"
+#define DAC
 #define LCD
+#define I2C				"/dev/i2c-3"
 #endif
 
 #ifdef ANUS
+#define DAC
 #define MUSIC 			"/opt/music/"
 #define DISPLAY			"/dev/tty"
 #endif
 
 #ifdef PIWOLF
-#define MUSIC 			"/var/lib/mpd/music/"
+#define DAC
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef PICAM
-#define MUSIC 			"/tmp"
 #define I2C				"/dev/i2c-0"
 #endif
 
 #ifdef SABRE18
-#define MUSIC 			"/var/lib/mpd/music/"
+#define DAC
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
 #ifdef SABRE28
-#define MUSIC 			"/var/lib/mpd/music/"
+#define DAC
 #define DEVINPUT_IR		"/dev/input/infrared"
 #define DEVINPUT_RA		"/dev/input/rotary_axis"
 #define DEVINPUT_RB		"/dev/input/rotary_button"

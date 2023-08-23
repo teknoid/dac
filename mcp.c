@@ -134,7 +134,7 @@ void mcp_register(const char *name, const void *init, const void *stop) {
 }
 
 int mcp_status_get(const void *p1, const void *p2) {
-#if defined(SABRE18) || defined(SABRE28)
+#ifdef DAC
 	// const menuconfig_t *config = p1;
 	const menuitem_t *item = p2;
 	xlog("mcp_status_get %i", item->index);
@@ -150,7 +150,7 @@ int mcp_status_get(const void *p1, const void *p2) {
 }
 
 void mcp_status_set(const void *p1, const void *p2, int value) {
-#if defined(SABRE18) || defined(SABRE28)
+#ifdef DAC
 	// const menuconfig_t *config = p1;
 	const menuitem_t *item = p2;
 	xlog("mcp_status_set %i", item->index);
@@ -164,15 +164,19 @@ void mcp_status_set(const void *p1, const void *p2, int value) {
 
 void mcp_system_shutdown() {
 	xlog("shutting down system now!");
+#ifdef DAC
 	if (mcp->dac_power)
 		dac_power();
+#endif
 	system("shutdown -h now");
 }
 
 void mcp_system_reboot() {
 	xlog("rebooting system now!");
+#ifdef DAC
 	if (mcp->dac_power)
 		dac_power();
+#endif
 	system("shutdown -r now");
 }
 
@@ -213,7 +217,9 @@ static void interactive() {
 			continue; // ignore
 
 		xlog("CONSOLE: distributing key 0x%02x", c);
+#ifdef DAC
 		dac_handle(c);
+#endif
 	}
 
 	// reset terminal
