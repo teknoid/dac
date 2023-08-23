@@ -125,9 +125,11 @@ static void publish_sensor(const char *sensor, const char *name, const char *val
 static void publish_mqtt() {
 	char cvalue[8];
 
+	xlog("publish_sensor BH1750 lum_raw");
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
 	publish_sensor(BH1750, "lum_raw", cvalue);
 
+	xlog("publish_sensor BH1750 lum_raw2");
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
 	publish_sensor(BH1750, "lum_raw2", cvalue);
 
