@@ -174,6 +174,8 @@ static void* loop(void *arg) {
 		return (void*) 0;
 	}
 
+	init_bmp085();
+
 	while (1) {
 		xlog("read_bh1750");
 		read_bh1750();
@@ -195,12 +197,8 @@ static int init() {
 	if (i2cfd < 0)
 		xlog("I2C BUS error");
 
-	init_bmp085();
-
-#ifndef SENSORS_MAIN
 	if (pthread_create(&thread, NULL, &loop, NULL))
 		xlog("Error creating sensors thread");
-#endif
 
 	return 0;
 }
@@ -224,19 +222,20 @@ int main(int argc, char **argv) {
 
 	init();
 
-	read_bh1750();
-	read_bmp085();
+	while(1) {
+		printf("BH1750 raw  %d\n", sensors->bh1750_raw);
+		printf("BH1750 raw2 %d\n", sensors->bh1750_raw2);
+		printf("BH1750 lux  %d lx\n", sensors->bh1750_lux);
+		printf("BH1750 prc  %d %%\n", sensors->bh1750_prc);
 
-	printf("BH1750 raw  %d\n", sensors->bh1750_raw);
-	printf("BH1750 raw2 %d\n", sensors->bh1750_raw2);
-	printf("BH1750 lux  %d lx\n", sensors->bh1750_lux);
-	printf("BH1750 prc  %d %%\n", sensors->bh1750_prc);
+		printf("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
+		printf("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
 
-	printf("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
-	printf("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
+		printf("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
+		printf("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
 
-	printf("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
-	printf("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
+		sleep(1);
+	}
 
 	stop();
 	return 0;
