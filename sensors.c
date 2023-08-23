@@ -174,11 +174,16 @@ static void* loop(void *arg) {
 		return (void*) 0;
 	}
 
-	sleep(1);
 	while (1) {
+		xlog("read_bh1750");
 		read_bh1750();
+
+		xlog("read_bmp085");
 		read_bmp085();
+
 		// write_sysfslike();
+
+		xlog("publish_mqtt");
 		publish_mqtt();
 		sleep(60);
 	}
