@@ -5,4 +5,11 @@
 #define MUSIC			"/var/lib/mpd/music/"
 #endif
 
+typedef struct plist {
+	int key;
+	int pos;
+	char *name;
+	char *path;
+} plist;
+
 void mpdclient_handle(int);
