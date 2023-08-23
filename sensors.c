@@ -224,8 +224,8 @@ int main(int argc, char **argv) {
 	printf("BH1750 lux  %d lx\n", sensors->bh1750_lux);
 	printf("BH1750 prc  %d %%\n", sensors->bh1750_prc);
 
-	printf("BMP085 temp %d (raw)\n", sensors->bmp085_utemp);
-	printf("BMP085 baro %d (raw)\n", sensors->bmp085_ubaro);
+	printf("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
+	printf("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
 
 	printf("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
 	printf("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
