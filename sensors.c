@@ -83,7 +83,6 @@ static void read_bmp085() {
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, (uint16_t*) &mb);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, (uint16_t*) &mc);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, (uint16_t*) &md);
-	xlog("read BMP085 calibration data");
 
 	// temperature
 	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x2E);
@@ -93,7 +92,6 @@ static void read_bmp085() {
 	int x2 = ((int) mc << 11) / (x1 + md);
 	int b5 = x1 + x2;
 	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
-	xlog("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
 
 	// pressure
 	uint8_t buf[3];
@@ -121,7 +119,6 @@ static void read_bmp085() {
 	x2 = (-7357 * p) >> 16;
 	p += (x1 + x2 + 3791) >> 4;
 	sensors->bmp085_baro = p / 100.0;
-	xlog("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
@@ -136,11 +133,9 @@ static void publish_sensor(const char *sensor, const char *name, const char *val
 static void publish_mqtt() {
 	char cvalue[8];
 
-	xlog("publish_sensor BH1750 lum_raw");
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
 	publish_sensor(BH1750, "lum_raw", cvalue);
 
-	xlog("publish_sensor BH1750 lum_raw2");
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
 	publish_sensor(BH1750, "lum_raw2", cvalue);
 
@@ -224,6 +219,7 @@ int main(int argc, char **argv) {
 	ZERO(sensors);
 
 	init();
+	sleep(1);
 
 	while(1) {
 		printf("BH1750 raw  %d\n", sensors->bh1750_raw);
