@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
 		printf("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
 		printf("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
 
-		sleep(1);
+		sleep(10);
 	}
 
 	stop();
