@@ -58,6 +58,16 @@ static void read_bh1750() {
 
 // https://forums.raspberrypi.com/viewtopic.php?t=16968
 static void read_bmp085() {
+
+	// temperature
+	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x2E);
+	msleep(5);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xF6, &sensors->bmp085_utemp);
+	int x1 = (((int) sensors->bmp085_utemp - (int) sensors->bmp085_ac6) * (int) sensors->bmp085_ac5) >> 15;
+	int x2 = ((int) sensors->bmp085_mc << 11) / (x1 + sensors->bmp085_md);
+	int b5 = x1 + x2;
+	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
+
 }
 
 // read BMP085 calibration data
