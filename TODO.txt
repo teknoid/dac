@@ -2,6 +2,8 @@
 TODO
 ----------------------------------------------
 
+* flamingo realtime
+
 * LOCALMAIN's in devinput-*, display, lcd
 
 * switch: on/off zum DAC einschalten ohne Fernbedienung
