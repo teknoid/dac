@@ -172,6 +172,7 @@ static void* loop(void *arg) {
 		return (void*) 0;
 	}
 
+	sleep(1);
 	while (1) {
 		read_bh1750();
 		read_bmp085();
