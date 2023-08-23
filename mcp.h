@@ -108,17 +108,17 @@ typedef struct mcp_sensors_t {
 	uint16_t bh1750_lux_mean;
 
 	// BMP085 calibration data
-	int bmp085_ac1;
-	int bmp085_ac2;
-	int bmp085_ac3;
-	unsigned int bmp085_ac4;
-	unsigned int bmp085_ac5;
-	unsigned int bmp085_ac6;
-	int bmp085_b1;
-	int bmp085_b2;
-	int bmp085_mb;
-	int bmp085_mc;
-	int bmp085_md;
+	int16_t bmp085_ac1;
+	int16_t bmp085_ac2;
+	int16_t bmp085_ac3;
+	uint16_t bmp085_ac4;
+	uint16_t bmp085_ac5;
+	uint16_t bmp085_ac6;
+	int16_t bmp085_b1;
+	int16_t bmp085_b2;
+	int16_t bmp085_mb;
+	int16_t bmp085_mc;
+	int16_t bmp085_md;
 
 	// BMP085 temperature + barometric pressure
 	float bmp085_temp;
