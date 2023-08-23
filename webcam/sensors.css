@@ -1,0 +1,23 @@
+body {
+	overflow: auto
+}
+
+canvas {
+	width: 800px !important
+}
+
+br {
+	clear: both;
+	margin: 50px
+}
+
+#content {
+	position: relative;
+	width: max-content;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.model {
+	display: inline-flex
+}

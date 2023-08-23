@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+	<title>gartencam</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<link rel="shortcut icon" type="image/x-icon" href="/webcam/favicon.ico"/>
+	<link rel="stylesheet" href="../webcam.css">
+	<script src="../webcam.js"></script>
+</head>
+
+<body>
+	<div id="navigation-top">
+		<ul>
+			<li onclick="live();">Live</li>
+			|
+			<li onclick="picture(this,'../image.php?url=050000.jpg');">05</li>
+			<li onclick="picture(this,'../image.php?url=060000.jpg');">06</li>
+			<li onclick="picture(this,'../image.php?url=070000.jpg');">07</li>
+			<li onclick="picture(this,'../image.php?url=080000.jpg');">08</li>
+			<li onclick="picture(this,'../image.php?url=090000.jpg');">09</li>
+			<li onclick="picture(this,'../image.php?url=100000.jpg');">10</li>
+			<li onclick="picture(this,'../image.php?url=110000.jpg');">11</li>
+			<li onclick="picture(this,'../image.php?url=120000.jpg');">12</li>
+			<li onclick="picture(this,'../image.php?url=130000.jpg');">13</li>
+			<li onclick="picture(this,'../image.php?url=140000.jpg');">14</li>
+			<li onclick="picture(this,'../image.php?url=150000.jpg');">15</li>
+			<li onclick="picture(this,'../image.php?url=160000.jpg');">16</li>
+			<li onclick="picture(this,'../image.php?url=170000.jpg');">17</li>
+			<li onclick="picture(this,'../image.php?url=180000.jpg');">18</li>
+			<li onclick="picture(this,'../image.php?url=190000.jpg');">19</li>
+			<li onclick="picture(this,'../image.php?url=200000.jpg');">20</li>
+			<li onclick="picture(this,'../image.php?url=210000.jpg');">21</li>
+			|
+			<li><a href="../weather.html">&#10148; Wetter</a></li>
+			<li><a href="../sensors.html">&#10148; Sensoren</a></li>
+		</ul>
+	</div>
+
+	<div id="slider-left">
+		<img src="../slider_left.gif" />
+		<div id="menu-left">
+			<ul>
+				<li onclick="live();">Live</li>
+				<li class="has-sub">Tag >>>
+					<ul>
+						<li onclick="video('1.mp4');">Montag</li>
+						<li onclick="video('2.mp4');">Dienstag</li>
+						<li onclick="video('3.mp4');">Mittwoch</li>
+						<li onclick="video('4.mp4');">Donnerstag</li>
+						<li onclick="video('5.mp4');">Freitag</li>
+						<li onclick="video('6.mp4');">Samstag</li>
+						<li onclick="video('7.mp4');">Sonntag</li>
+					</ul>
+				</li>
+				<li onclick="video('week.mp4');">Woche</li>
+				<li onclick="video('month.mp4');">Monat</li>
+				<li class="has-sub">Jahr >>>
+					<ul>
+						<li onclick="video('year-09.mp4');">09 Uhr</li>
+						<li onclick="video('year-12.mp4');">12 Uhr</li>
+						<li onclick="video('year-15.mp4');">15 Uhr</li>
+					</ul>
+				</li>
+			</ul>
+		</div>
+	</div>
+
+	<div id="slider-right">
+		<img src="../slider_right.gif" />
+		<div id="menu-right">
+			<ul>
+				<li onclick="high()">High</li>
+				<li onclick="low()">Low</li>
+				<li class="has-sub"><<< Videos
+					<ul id="videos">
+					</ul>
+				</li>
+			</ul>
+		</div>
+	</div>
+
+	<div id="content">
+		<img id="image" src="../image.php?url=current.jpg&ts=" />
+		<div id="sensors">
+			<div id="temp">
+				<div class="label">Temp</div>
+				<div class="value"></div>
+			</div>
+			<div id="humi">
+				<div class="label">Humi</div>
+				<div class="value"></div>
+			</div>
+			<div id="lumi">
+				<div class="label">Lumi</div>
+				<div class="value"></div>
+			</div>
+			<div id="baro">
+				<div class="label">Baro</div>
+				<div class="value"></div>
+			</div>
+			<div id="mtime">
+				<div class="value"></div>
+			</div>
+		</div>
+		<video id="video" controls>
+			<source src="1.mp4">
+		</video>
+	</div>
+
+</body>
+</html>

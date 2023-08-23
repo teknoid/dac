@@ -17,9 +17,11 @@ a MPD + DAC Controller for *Pi Boards
 * fbtft display support + ncurses menu control
 * MQTT Support for controlling [Tasmota](https://tasmota.github.io/) devices, e.g. lights, shutters. sensors, etc.
 * I2C PCF8574X connected LCD Displays and Buttons 
+* control wireless [Flamingo](https://www.flamingo.eu/en-gb/flamingo-products/) wall plugs and webcam by environment luminosity
 
 # News
 
+Aug 2023 insert [picam](https://github.com/teknoid/picam) functionality
 
 Mar 2023 home automation via MQTT
 

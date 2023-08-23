@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+	<title>Wetter</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+	<meta http-equiv="Pragma" content="no-cache" />
+	<meta http-equiv="Expires" content="0" />
+	<link rel="icon" href="favicon.ico" type="image/x-icon">
+	<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+	<link rel="stylesheet" href="weather.css">
+	<script src="weather.js"></script>
+</head>
+
+<body>
+	<div id="content">
+		<div id="navigation-top">
+			<ul class="nav">
+				<li onclick="show(this,'1day');">Tag</li>
+				<li onclick="show(this,'1week');">Woche</li>
+				<li onclick="show(this,'1month');">Monat</li>
+				<li onclick="show(this,'1year');">Jahr</li>
+				<li onclick="show(this,'5year');">5 Jahre</li> |
+				<li><a href="h/webcam.html">&#10148; Webcam</a></li>
+				<li><a href="sensors.html">&#10148; Sensoren</a></li>
+			</ul>
+		</div>
+
+		<table>
+			<tbody>
+				<tr>
+					<td><img src="/monitorix/imgs/ambsens0.1day.png"></td>
+					<td><img src="/monitorix/imgs/ambsens1.1day.png"></td>
+				</tr>
+				<tr>
+					<td><img src="/monitorix/imgs/ambsens2.1day.png"></td>
+					<td><img src="/monitorix/imgs/ambsens3.1day.png"></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<div id="current">
+			<span class="current-label">Aktuelle Werte</span>
+			<ul class="current">
+				<li>
+					<div id="temp">
+						<div class="label">Temp</div>
+						<div class="value"></div>
+					</div>
+				</li>
+				<li>
+					<div id="humi">
+						<div class="label">Humi</div>
+						<div class="value"></div>
+					</div>
+				</li>
+				<li>
+					<div id="lumi">
+						<div class="label">Lumi</div>
+						<div class="value"></div>
+					</div>
+				</li>
+				<li>
+					<div id="baro">
+						<div class="label">Baro</div>
+						<div class="value"></div>
+					</div>
+				</li>
+			</ul>
+		</div>
+	</div>
+</body>
+</html>
