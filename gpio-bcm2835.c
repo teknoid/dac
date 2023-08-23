@@ -505,10 +505,10 @@ static void stop() {
 	munmap((void*) timer, pagesize);
 }
 
-MCP_REGISTER(gpio, 1, &init, &stop);
-
 #ifdef GPIO_MAIN
 int main(int argc, char **argv) {
 	return gpio_main(argc, argv);
 }
+#else
+MCP_REGISTER(gpio, 1, &init, &stop);
 #endif

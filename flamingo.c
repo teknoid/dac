@@ -35,13 +35,13 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
+#include <ctype.h>
 
 #include "gpio.h"
 #include "utils.h"
 #include "frozen.h"
 #include "flamingo.h"
-
-// #define LOCALMAIN
 
 #define BUFFER				128
 
@@ -242,9 +242,83 @@ void flamingo_send_SF500(int remote, uint8_t channel, uint8_t command) {
 	gpio_flamingo_v2(TX, message, 32, 5, T2H, T2L);
 }
 
-#ifdef LOCALMAIN
+static int usage() {
+	printf("Usage: flamingo <remote> <channel> <command> [rolling]\n");
+	printf("    <remote>  1, 2, 3, ...\n");
+	printf("    <channel> A, B, C, D\n");
+	printf("    <command> 0 - off, 1 - on\n");
+	printf("    [rolling]  rolling code index, 0...3\n");
+	return EXIT_FAILURE;
+}
+
+int flamingo_main(int argc, char *argv[]) {
+	if (argc < 1)
+		return usage();
+
+	if (argc >= 4) {
+
+		// SEND mode
+
+		// remote 1, 2, 3, ...
+		int remote = atoi(argv[1]);
+		if (remote < 1 || remote > sizeof(REMOTES)) {
+			printf("unknown remote %i\n", remote);
+			usage();
+			return EINVAL;
+		}
+
+		// channel A, B, C, D
+		char *c = argv[2];
+		char channel = toupper(c[0]);
+		if (channel < 'A' || channel > 'D') {
+			printf("channel not supported %c\n", channel);
+			usage();
+			return EINVAL;
+		}
+
+		// command 0 = off, 1 = on
+		int command = atoi(argv[3]);
+		if (!(command == 0 || command == 1)) {
+			printf("wrong command %i\n", command);
+			usage();
+			return EINVAL;
+		}
+
+		// optional: send rolling code index
+		int rolling = -1;
+		if (argv[4] != NULL) {
+			rolling = atoi(argv[4]);
+			if (rolling < 0 || rolling > 3) {
+				printf("wrong rolling code index %i\n", rolling);
+				usage();
+				return EINVAL;
+			}
+		}
+
+		// initialize without receive support (clear pattern + default handler)
+		// elevate realtime priority for sending thread
+		if (elevate_realtime(3) < 0)
+			return -2;
+
+		// GPIO pin connected to 433MHz receiver+sender module
+		gpio_configure(TX, 1, 0, 0);
+
+		flamingo_send_FA500(remote, channel, command, rolling);
+
+		return EXIT_SUCCESS;
+
+	} else
+		return usage();
+}
+
+#ifdef FLAMINGO_MAIN
+typedef int (*init_t)();
+void mcp_register(const char *name, const void *init, const void *stop) {
+	printf("call init() for  %s\n", name);
+	init_t iinit = init;
+	(iinit)();
+}
 int main(int argc, char **argv) {
-	flamingo_test(argc, argv);
+	return flamingo_main(argc, argv);
 }
 #endif
-

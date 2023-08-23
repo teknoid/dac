@@ -42,12 +42,16 @@ sabre28: $(COBJS-SABRE28)
 picam: $(COBJS-PICAM)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
 
-sensors: sensors.o utils.o i2c.o
+sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
 	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o $(LIBS)
 
+flamingo: flamingo.o utils.o gpio-bcm2835.o
+	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
+	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
+
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o
-	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o -lncurses -lmenu
+	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o -lpthread -lncurses -lmenu -lm
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
@@ -63,10 +67,6 @@ gpio-bcm2835: gpio-bcm2835.o
 switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
-
-flamingo: flamingo.o utils.o
-	$(CC) $(CFLAGS) -DLOCALMAIN -c flamingo.c
-	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o
 
 .PHONY: clean install install-local install-service keytable
 
