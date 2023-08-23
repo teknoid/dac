@@ -114,19 +114,6 @@ typedef struct mcp_sensors_t {
 	uint16_t bh1750_lux;
 	uint16_t bh1750_lux_mean;
 
-	// BMP085 calibration data
-	int16_t bmp085_ac1;
-	int16_t bmp085_ac2;
-	int16_t bmp085_ac3;
-	uint16_t bmp085_ac4;
-	uint16_t bmp085_ac5;
-	uint16_t bmp085_ac6;
-	int16_t bmp085_b1;
-	int16_t bmp085_b2;
-	int16_t bmp085_mb;
-	int16_t bmp085_mc;
-	int16_t bmp085_md;
-
 	// BMP085 temperature + barometric pressure
 	float bmp085_temp;
 	uint16_t bmp085_temp_raw;
@@ -135,7 +122,9 @@ typedef struct mcp_sensors_t {
 
 	// BMP280 temperature + barometric pressure
 	float bmp280_temp;
+	uint16_t bmp280_temp_raw;
 	float bmp280_baro;
+	uint32_t bmp280_baro_raw;
 } mcp_sensors_t;
 extern mcp_sensors_t *sensors;
 

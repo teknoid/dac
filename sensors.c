@@ -59,12 +59,38 @@ static void read_bh1750() {
 // https://forums.raspberrypi.com/viewtopic.php?t=16968
 static void read_bmp085() {
 
+	int16_t ac1;
+	int16_t ac2;
+	int16_t ac3;
+	uint16_t ac4;
+	uint16_t ac5;
+	uint16_t ac6;
+	int16_t b1;
+	int16_t b2;
+	int16_t mb;
+	int16_t mc;
+	int16_t md;
+
+	// read calibration data
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAA, (uint16_t*) &ac1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAC, (uint16_t*) &ac2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xAE, (uint16_t*) &ac3);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB0, &ac4);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB2, &ac5);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB4, &ac6);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB6, (uint16_t*) &b1);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xB8, (uint16_t*) &b2);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, (uint16_t*) &mb);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, (uint16_t*) &mc);
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, (uint16_t*) &md);
+	xlog("read BMP085 calibration data");
+
 	// temperature
 	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x2E);
 	msleep(5);
 	i2c_read_int(i2cfd, BMP085_ADDR, 0xF6, &sensors->bmp085_temp_raw);
-	int x1 = (((int) sensors->bmp085_temp_raw - (int) sensors->bmp085_ac6) * (int) sensors->bmp085_ac5) >> 15;
-	int x2 = ((int) sensors->bmp085_mc << 11) / (x1 + sensors->bmp085_md);
+	int x1 = (((int) sensors->bmp085_temp_raw - (int) ac6) * (int) ac5) >> 15;
+	int x2 = ((int) mc << 11) / (x1 + md);
 	int b5 = x1 + x2;
 	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
 	xlog("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
@@ -76,14 +102,14 @@ static void read_bmp085() {
 	i2c_read_block(i2cfd, BMP085_ADDR, 0xF6, buf, 3);
 	sensors->bmp085_baro_raw = ((buf[0] << 16) | (buf[1] << 8) | buf[2]) >> (8 - BMP085_OVERSAMPLE);
 	int b6 = b5 - 4000;
-	x1 = (sensors->bmp085_b2 * (b6 * b6) >> 12) >> 11;
-	x2 = (sensors->bmp085_ac2 * b6) >> 11;
+	x1 = (b2 * (b6 * b6) >> 12) >> 11;
+	x2 = (ac2 * b6) >> 11;
 	int x3 = x1 + x2;
-	int b3 = (((((int) sensors->bmp085_ac1) * 4 + x3) << BMP085_OVERSAMPLE) + 2) >> 2;
-	x1 = (sensors->bmp085_ac3 * b6) >> 13;
-	x2 = (sensors->bmp085_b1 * ((b6 * b6) >> 12)) >> 16;
+	int b3 = (((((int) ac1) * 4 + x3) << BMP085_OVERSAMPLE) + 2) >> 2;
+	x1 = (ac3 * b6) >> 13;
+	x2 = (b1 * ((b6 * b6) >> 12)) >> 16;
 	x3 = ((x1 + x2) + 2) >> 2;
-	unsigned int b4 = (sensors->bmp085_ac4 * (unsigned int) (x3 + 32768)) >> 15;
+	unsigned int b4 = (ac4 * (unsigned int) (x3 + 32768)) >> 15;
 	unsigned int b7 = ((unsigned int) (sensors->bmp085_baro_raw - b3) * (50000 >> BMP085_OVERSAMPLE));
 	int p;
 	if (b7 < 0x80000000)
@@ -96,22 +122,6 @@ static void read_bmp085() {
 	p += (x1 + x2 + 3791) >> 4;
 	sensors->bmp085_baro = p / 100.0;
 	xlog("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
-}
-
-// read BMP085 calibration data
-static void init_bmp085() {
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAA, (uint16_t*) &sensors->bmp085_ac1);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAC, (uint16_t*) &sensors->bmp085_ac2);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xAE, (uint16_t*) &sensors->bmp085_ac3);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB0, &sensors->bmp085_ac4);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB2, &sensors->bmp085_ac5);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB4, &sensors->bmp085_ac6);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB6, (uint16_t*) &sensors->bmp085_b1);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xB8, (uint16_t*) &sensors->bmp085_b2);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBA, (uint16_t*) &sensors->bmp085_mb);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBC, (uint16_t*) &sensors->bmp085_mc);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xBE, (uint16_t*) &sensors->bmp085_md);
-	xlog("read BMP085 calibration data");
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
@@ -174,8 +184,6 @@ static void* loop(void *arg) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
-
-	init_bmp085();
 
 	while (1) {
 		read_bh1750();
