@@ -110,7 +110,7 @@ mcp_sensors_t *sensors = NULL;
 
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
-void mcp_register(const char *name, const void *init, const void *stop) {
+void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
 	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
 	ZERO(new_module);
 
@@ -130,7 +130,7 @@ void mcp_register(const char *name, const void *init, const void *stop) {
 		m->next = new_module;
 	}
 
-	xlog("MCP registered module %s", name);
+	xlog("MCP registered module {%d} %s", prio, name);
 }
 
 int mcp_status_get(const void *p1, const void *p2) {
