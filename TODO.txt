@@ -6,8 +6,6 @@ TODO
 
 * mqtt.c notifications: ein/aus, temporär aus(?)
 
-* flamingo realtime
-
 * LOCALMAIN's in devinput-*, display, lcd
 
 * switch: on/off zum DAC einschalten ohne Fernbedienung
@@ -36,6 +34,8 @@ TODO
 
 DONE
 ----------------------------------------------
+
+* flamingo realtime
 
 * input selector ausprogrammieren
 

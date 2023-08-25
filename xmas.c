@@ -134,7 +134,9 @@ static void* xmas(void *arg) {
 		return (void*) 0;
 	}
 
-	// realtime
+	// elevate realtime priority for flamingo 433MHz transmit
+	if (elevate_realtime(3) < 0)
+		return (void*) 0;
 
 	while (1) {
 		time_t now_ts = time(NULL);

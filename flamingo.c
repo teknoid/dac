@@ -38,6 +38,7 @@
 #include <errno.h>
 #include <ctype.h>
 
+#include "mcp.h"
 #include "gpio.h"
 #include "utils.h"
 #include "frozen.h"
@@ -251,6 +252,15 @@ static int usage() {
 	return EXIT_FAILURE;
 }
 
+static int init() {
+	// GPIO pin connected to 433MHz sender module
+	gpio_configure(TX, 1, 0, 0);
+	return 0;
+}
+
+static void stop() {
+}
+
 int flamingo_main(int argc, char *argv[]) {
 	if (argc < 1)
 		return usage();
@@ -316,19 +326,15 @@ int flamingo_main(int argc, char *argv[]) {
 		flamingo_send_FA500(remote, channel, command, rolling);
 
 		return EXIT_SUCCESS;
+	}
 
-	} else
-		return usage();
+	return usage();
 }
 
 #ifdef FLAMINGO_MAIN
-typedef int (*init_t)();
-void mcp_register(const char *name, const void *init, const void *stop) {
-	xlog("call init() for  %s\n", name);
-	init_t xinit = init;
-	(xinit)();
-}
 int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);
 }
+#else
+MCP_REGISTER(flamingo, 2, &init, &stop);
 #endif
