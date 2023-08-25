@@ -1,6 +1,9 @@
 
 TODO
 ----------------------------------------------
+
+* sensors: BMP085 neu schreiben
+
 * mqtt.c notifications: ein/aus, temporär aus(?)
 
 * flamingo realtime

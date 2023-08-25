@@ -134,6 +134,8 @@ static void* xmas(void *arg) {
 		return (void*) 0;
 	}
 
+	// realtime
+
 	while (1) {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
