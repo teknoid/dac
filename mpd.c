@@ -400,7 +400,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &mpdclient, NULL))
 		return xerr("Error creating mpd thread");
 
-	xlog("mpd initialized");
+	xlog("MPD initialized");
 	return 0;
 }
 

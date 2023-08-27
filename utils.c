@@ -34,6 +34,10 @@ static FILE *xlog_file;
 //
 
 int elevate_realtime(int cpu) {
+	// realtime can only done by root
+	if (getuid() != 0)
+		return 0;
+
 	// Set our thread to MAX priority
 	struct sched_param sp;
 	ZERO(&sp);

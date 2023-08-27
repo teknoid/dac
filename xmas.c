@@ -135,8 +135,10 @@ static void* xmas(void *arg) {
 	}
 
 	// elevate realtime priority for flamingo 433MHz transmit
-	if (elevate_realtime(3) < 0)
+	if (elevate_realtime(3) < 0) {
+		xlog("XMAS Error elevating realtime");
 		return (void*) 0;
+	}
 
 	while (1) {
 		time_t now_ts = time(NULL);
@@ -161,17 +163,18 @@ static void* xmas(void *arg) {
 
 static int init() {
 	if (pthread_create(&thread, NULL, &xmas, NULL))
-		xlog("XMAS Error creating xmas thread");
+		xlog("Error creating xmas thread");
 
+	xlog("XMAS initialized");
 	return 0;
 }
 
 static void stop() {
 	if (pthread_cancel(thread))
-		xlog("XMAS Error canceling xmas thread");
+		xlog("Error canceling xmas thread");
 
 	if (pthread_join(thread, NULL))
-		xlog("XMAS Error joining xmas thread");
+		xlog("Error joining xmas thread");
 }
 
 MCP_REGISTER(xmas, 6, &init, &stop);
