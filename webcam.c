@@ -87,9 +87,9 @@ static void* webcam(void *arg) {
 static int init() {
 	webcam_on = 0;
 	if (pthread_create(&thread, NULL, &webcam, NULL))
-		return xerr("Error creating template thread");
+		return xerr("Error creating webcam thread");
 
-	xlog("TEMPLATE initialized");
+	xlog("webcam initialized");
 	return 0;
 }
 

@@ -42,7 +42,7 @@ static struct plist playlists[] = {
 
 static struct mpd_connection *conn;
 
-static pthread_t thread_mpdclient;
+static pthread_t thread;
 
 static struct mpd_connection* mpdclient_get_connection() {
 	// wait for mpd connect success
@@ -397,22 +397,22 @@ static int init() {
 		return -1;
 
 	// listen for mpd state changes
-	if (pthread_create(&thread_mpdclient, NULL, &mpdclient, NULL))
-		return xerr("Error creating thread_mpdclient");
+	if (pthread_create(&thread, NULL, &mpdclient, NULL))
+		return xerr("Error creating mpd thread");
 
-	xlog("MPDCLIENT initialized");
+	xlog("mpd initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread_mpdclient))
-		xlog("Error canceling thread_mpdclient");
+	if (pthread_cancel(thread))
+		xlog("Error canceling mpd thread");
 
-	if (pthread_join(thread_mpdclient, NULL))
-		xlog("Error joining thread_mpdclient");
+	if (pthread_join(thread, NULL))
+		xlog("Error joining mpd thread");
 
 	if (conn)
 		mpd_connection_free(conn);
 }
 
-MCP_REGISTER(mpdclient, 4, &init, &stop);
+MCP_REGISTER(mpd, 4, &init, &stop);
