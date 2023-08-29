@@ -55,13 +55,27 @@ static double mp3_get_replaygain(const char *filename) {
 	struct MP3GainTagInfo *taginfo;
 	taginfo = malloc(sizeof(struct MP3GainTagInfo));
 
-	ReadMP3GainID3Tag((char*) filename, taginfo);
-//	if (taginfo->haveAlbumGain) {
-//		return taginfo->albumGain;
-//	}
-	if (taginfo->haveTrackGain) {
+	struct FileTagsStruct *filetags;
+	filetags = malloc(sizeof(struct FileTagsStruct));
+
+	// 1st try APE
+	ReadMP3GainAPETag((char*) filename, taginfo, filetags);
+
+	if (taginfo->haveTrackGain)
 		return taginfo->trackGain;
-	}
+
+	if (taginfo->haveAlbumGain)
+		return taginfo->albumGain;
+
+	// 2nd try ID3
+	ReadMP3GainID3Tag((char*) filename, taginfo);
+
+	if (taginfo->haveTrackGain)
+		return taginfo->trackGain;
+
+	if (taginfo->haveAlbumGain)
+		return taginfo->albumGain;
+
 	return 0;
 }
 

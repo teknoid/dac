@@ -4,6 +4,8 @@
 // Relays
 #define PLUG1			0x810F43
 #define PLUG2			0x123456
+#define PLUG3			0x123456
+#define PLUG4			0x83185A
 #define HOFLICHT		0x2FEFEE
 
 // Switches
