@@ -54,9 +54,11 @@ static double flac_get_replaygain(const char *filename) {
 static double mp3_get_replaygain(const char *filename) {
 	struct MP3GainTagInfo *taginfo;
 	taginfo = malloc(sizeof(struct MP3GainTagInfo));
+	ZERO(taginfo);
 
 	struct FileTagsStruct *filetags;
 	filetags = malloc(sizeof(struct FileTagsStruct));
+	ZERO(filetags);
 
 	// 1st try APE
 	ReadMP3GainAPETag((char*) filename, taginfo, filetags);

@@ -14,38 +14,6 @@
 
 #include "mp3gain.h"
 
-void DoError_ape( char * localerrstr, MMRESULT localerrnum )
-{
-	fprintf(stdout, "%s", localerrstr);
-}
-
-void passError_ape(MMRESULT lerrnum, int numStrings, ...)
-{
-    char * errstr;
-    size_t totalStrLen = 0;
-    int i;
-    va_list marker;
-
-    va_start(marker, numStrings);
-    for (i = 0; i < numStrings; i++) {
-        totalStrLen += strlen(va_arg(marker, const char *));
-    }
-    va_end(marker);
-
-    errstr = (char *)malloc(totalStrLen + 3);
-    errstr[0] = '\0';
-
-    va_start(marker, numStrings);
-    for (i = 0; i < numStrings; i++) {
-        strcat(errstr,va_arg(marker, const char *));
-    }
-    va_end(marker);
-
-    DoError_ape(errstr,lerrnum);
-    free(errstr);
-    errstr = NULL;
-}
-
 int ReadMP3ID3v1Tag(FILE *fi, unsigned char **tagbuff, long *tag_offset) {
     char tmp[128];
 
@@ -181,7 +149,7 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
 {
     unsigned long               vsize;
     unsigned long               isize;
-//    unsigned long               flags;
+    unsigned long               flags;
 	unsigned long				remaining;
     char*                       buff;
     char*                       p;
@@ -192,7 +160,7 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
     unsigned long               TagLen;
     unsigned long               TagCount;
     unsigned long               origTagCount, otherFieldsCount;
-//    unsigned long               curFieldNum;
+    unsigned long               curFieldNum;
     unsigned long               Ver;
     char*                       name;
     int                         is_info;
@@ -230,11 +198,11 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
 
 
     end = buff + TagLen - sizeof (T);
-//	curFieldNum = 0;
+	curFieldNum = 0;
     for ( p = buff; p < end && TagCount--; ) {
 		if (end - p < 8) break;
         vsize = Read_LE_Uint32 (p); p += 4;
-//        flags = Read_LE_Uint32 (p); p += 4;
+        flags = Read_LE_Uint32 (p); p += 4;
 
 		remaining = (unsigned long) (end - p);
         isize = strlen_max (p, remaining);
@@ -343,46 +311,6 @@ int ReadMP3APETag ( FILE *fp,  struct MP3GainTagInfo *info, struct APETagStruct 
     }
 
     return 1;
-}
-
-int truncate_file (char *filename, long truncLength) {
-
-#ifdef WIN32
-
-   int fh, result;
-
-   /* Open a file */
-    if( (fh = _open(filename, _O_RDWR))  != -1 )
-    {
-        if( ( result = _chsize( fh, truncLength ) ) == 0 ) {
-            _close(fh);
-            return 1;
-        } else {
-            _close(fh);
-            return 0;
-        }
-   } else {
-       return 0;
-   }
-
-#else
-
-	int fd;
-
-	fd = open(filename, O_RDWR);
-	if (fd < 0)
-		return 0;
-	if (ftruncate(fd, truncLength)) {
-		close(fd);
-		passError_ape( MP3GAIN_UNSPECIFED_ERROR, 3, "Could not truncate ",
-			filename, "\n");
-		return 0;
-	}
-	close(fd);
-
-	return 1;
-
-#endif
 }
 
 
