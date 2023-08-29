@@ -1049,8 +1049,6 @@ int mp3gain_id3_main(int argc, char **argv) {
 		printf("Track Gain %f", taginfo->trackGain);
 
 	return 0;
-
-	return 0;
 }
 
 #ifdef MP3GAIN_MAIN
