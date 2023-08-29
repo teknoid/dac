@@ -1040,6 +1040,7 @@ int ReadMP3GainID3Tag(char *filename, struct MP3GainTagInfo *info)
 int mp3gain_id3_main(int argc, char **argv) {
 	struct MP3GainTagInfo *taginfo;
 	taginfo = malloc(sizeof(struct MP3GainTagInfo));
+	memset(taginfo, 0, sizeof(*taginfo));
 
 	ReadMP3GainID3Tag(argv[1], taginfo);
 	if (taginfo->haveAlbumGain)
