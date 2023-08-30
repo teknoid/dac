@@ -336,8 +336,6 @@ static int init() {
 	mean = 0;
 
 	// initialize sensor data
-	sensors = malloc(sizeof(*sensors));
-	ZERO(sensors);
 	sensors->bh1750_lux = UINT16_MAX;
 	sensors->bh1750_lux_mean = UINT16_MAX;
 	sensors->bmp085_temp = UINT16_MAX;

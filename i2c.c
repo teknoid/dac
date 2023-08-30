@@ -279,5 +279,5 @@ int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 void i2c_dump_reg(int fd, uint8_t addr, uint8_t reg) {
 	uint8_t value;
 	i2c_read(fd, addr, reg, &value);
-	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value, SPACEMASK));
+	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value));
 }

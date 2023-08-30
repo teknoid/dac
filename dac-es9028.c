@@ -267,14 +267,14 @@ int dac_status_get(const void *p1, const void *p2) {
 	// const menuitem_t *item = p2;
 	uint8_t value;
 	i2c_read_bits(i2c, ADDR, config->reg, &value, config->mask);
-	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
+	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
 	return value;
 }
 
 void dac_status_set(const void *p1, const void *p2, int value) {
 	const menuconfig_t *config = p1;
 	// const menuitem_t *item = p2;
-	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask, SPACEMASK), value);
+	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
 	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
 }
 

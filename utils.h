@@ -2,7 +2,8 @@
 #define XLOG_SYSLOG					1
 #define XLOG_FILE					2
 
-#define SPACEMASK					0x01010101
+#define SPACEMASK32					0x01010101
+#define SPACEMASK64					0x0101010101010101
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -16,9 +17,10 @@ void xlog_close();
 void xlog(const char *format, ...);
 int xerr(const char *format, ...);
 
+// WARNING strings are malloc'd - take care of freeing them after usage
 char* printbits64(uint64_t code, uint64_t spacemask);
-
-char* printbits(uint32_t, unsigned int spacemask);
+char* printbits32(uint32_t code, uint32_t spacemask);
+char* printbits(uint8_t value);
 
 void hexdump(char *desc, void *addr, int len);
 

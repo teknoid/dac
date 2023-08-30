@@ -16,20 +16,6 @@ static menu_t *menu;
 static int current;
 static int xpos;
 
-static char* printbits8(char value) {
-	char *out = malloc(sizeof(char) * 8) + 1;
-	char *p = out;
-
-	for (unsigned char mask = 0b10000000; mask > 0; mask >>= 1)
-		if (value & mask)
-			*p++ = '1';
-		else
-			*p++ = '0';
-
-	*p++ = '\0';
-	return out;
-}
-
 // toggle bit on current position
 static void current_bit_toogle() {
 	int mask = 1 << xpos;
@@ -204,11 +190,13 @@ static void menu_paint() {
 		case bits:
 			menu_get_selected();
 			// bitwise input > print current value as bits
-			mvwprintw(menu->cwindow, 3, XPOS_BITS, "%s", printbits8(current));
+			char *out = printbits(current);
+			mvwprintw(menu->cwindow, 3, XPOS_BITS, "%s", out);
 			wmove(menu->cwindow, YPOS_BITS, XPOS_BITS + 7 - xpos);
 			if (xpos >= 0 && xpos <= 7)
 				// highlight position if cursor is inside
 				wchgat(menu->cwindow, 1, A_REVERSE | A_BOLD, 0, NULL);
+			free(out);
 			break;
 
 		case value:

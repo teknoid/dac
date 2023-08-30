@@ -123,40 +123,54 @@ int xerr(const char *format, ...) {
 	return -1;
 }
 
-char* printbits64(uint64_t code, uint64_t spacemask) {
+char* printbits64(uint64_t value, uint64_t spacemask) {
 	uint64_t mask = 0x8000000000000000;
-	uint16_t bits = 64;
-	char *out = malloc(bits * 2 + 1);
+	char *out = malloc(sizeof(value) * 8 * 2 + 1);
 	char *p = out;
 	while (mask) {
-		if (code & mask) {
+		if (value & mask)
 			*p++ = '1';
-		} else {
+		else
 			*p++ = '0';
-		}
-		if (mask & spacemask) {
+
+		if (mask & spacemask)
 			*p++ = ' ';
-		}
+
 		mask >>= 1;
 	}
 	*p++ = '\0';
 	return out;
 }
 
-char* printbits(uint32_t code, uint32_t spacemask) {
+char* printbits32(uint32_t value, uint32_t spacemask) {
 	uint32_t mask = 0x80000000;
-	uint16_t bits = 32;
-	char *out = malloc(bits * 2 + 1);
+	char *out = malloc(sizeof(value) * 8 * 2 + 1);
 	char *p = out;
 	while (mask) {
-		if (code & mask) {
+		if (value & mask)
 			*p++ = '1';
-		} else {
+		else
 			*p++ = '0';
-		}
-		if (mask & spacemask) {
+
+		if (mask & spacemask)
 			*p++ = ' ';
-		}
+
+		mask >>= 1;
+	}
+	*p++ = '\0';
+	return out;
+}
+
+char* printbits(uint8_t value) {
+	uint8_t mask = 0x80;
+	char *out = malloc(sizeof(value) * 8 * 2 + 1);
+	char *p = out;
+	while (mask) {
+		if (value & mask)
+			*p++ = '1';
+		else
+			*p++ = '0';
+
 		mask >>= 1;
 	}
 	*p++ = '\0';

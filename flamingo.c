@@ -123,7 +123,7 @@ void flamingo28_decode(uint32_t code, uint16_t *xmitter, uint8_t *command, uint8
 	*command = (message >> 4) & 0x03;
 	*channel = message & 0x0F;
 
-	xlog("F28 %04x %02d %d 0 %s <= 0x%08x <= 0x%08x", *xmitter, *channel, *command, printbits(message, SPACEMASK_FA500), message, code);
+	xlog("F28 %04x %02d %d 0 %s <= 0x%08x <= 0x%08x", *xmitter, *channel, *command, printbits32(message, SPACEMASK_FA500), message, code);
 	xlog(fmt_message28, message, *xmitter, *channel, *command, *payload, *rolling);
 }
 
@@ -133,7 +133,7 @@ void flamingo32_decode(uint32_t message, uint16_t *xmitter, uint8_t *command, ui
 	*command = (message >> 4) & 0x0F;
 	*channel = message & 0x0F;
 
-	xlog("F32 %04x %02d %d %s <= 0x%08x", *xmitter, *channel, *command, printbits(message, SPACEMASK_FA500), message);
+	xlog("F32 %04x %02d %d %s <= 0x%08x", *xmitter, *channel, *command, printbits32(message, SPACEMASK_FA500), message);
 	xlog(fmt_message32, message, *xmitter, *channel, *command, *payload);
 }
 
@@ -141,7 +141,7 @@ uint32_t flamingo28_encode(uint16_t xmitter, uint8_t channel, uint8_t command, u
 	uint32_t message = (payload & 0x0F) << 24 | xmitter << 8 | (rolling << 6 & 0xC0) | (command & 0x03) << 4 | (channel & 0x0F);
 	uint32_t code = encrypt(message);
 
-	xlog("F28 %04x %02d %d %d %s => 0x%08x => 0x%08x", xmitter, channel, command, rolling, printbits(message, SPACEMASK_FA500), message, code);
+	xlog("F28 %04x %02d %d %d %s => 0x%08x => 0x%08x", xmitter, channel, command, rolling, printbits32(message, SPACEMASK_FA500), message, code);
 	xlog(fmt_message28, 0, code, xmitter, channel, command, payload, rolling);
 
 	return code;
@@ -150,7 +150,7 @@ uint32_t flamingo28_encode(uint16_t xmitter, uint8_t channel, uint8_t command, u
 uint32_t flamingo32_encode(uint16_t xmitter, uint8_t channel, uint8_t command, uint8_t payload) {
 	uint32_t message = (payload & 0x0F) << 24 | xmitter << 8 | (command & 0x0F) << 4 | (channel & 0x0F);
 
-	xlog("F32 %04x %02d %d %s => 0x%08x", xmitter, channel, command, printbits(message, SPACEMASK_FA500), message);
+	xlog("F32 %04x %02d %d %s => 0x%08x", xmitter, channel, command, printbits32(message, SPACEMASK_FA500), message);
 	xlog(fmt_message32, 0, message, xmitter, channel, command, payload);
 
 	return message;
@@ -167,6 +167,11 @@ int flamingo_test(int argc, char **argv) {
 	uint32_t code, message;
 	uint16_t xmitter;
 	uint8_t command, channel, payload, rolling;
+
+	xlog("*** test printbits ***");
+	xlog("printbits8 0x55=%s 0xAA=%s ", printbits(0x55), printbits(0xAA));
+	xlog("printbits32 0xAFFE=%s", printbits32(0xAFFE, SPACEMASK32));
+	xlog("printbits64 0xDEADBEEF=%s", printbits64(0xDEADBEEF, SPACEMASK64));
 
 	xlog("*** test message encode + decode + re-encode ***");
 	code = flamingo28_encode(REMOTES[0], 2, 1, 0x05, 0);
@@ -186,7 +191,7 @@ int flamingo_test(int argc, char **argv) {
 			message = y << 24 | REMOTES[0] << 8 | x;
 			code = encrypt(message);
 			if (code == bruteforce[0] || code == bruteforce[1] || code == bruteforce[2] || code == bruteforce[4])
-				xlog("%s => 0x%08x => 0x%08x", printbits(message, SPACEMASK_FA500), message, code);
+				xlog("%s => 0x%08x => 0x%08x", printbits32(message, SPACEMASK_FA500), message, code);
 		}
 
 	xlog("*** test dead+beef+affe ***");
@@ -320,10 +325,9 @@ int flamingo_main(int argc, char *argv[]) {
 		if (elevate_realtime(3) < 0)
 			return -2;
 
-		// GPIO pin connected to 433MHz receiver+sender module
-		gpio_configure(TX, 1, 0, 0);
-
+		init();
 		flamingo_send_FA500(remote, channel, command, rolling);
+		stop();
 
 		return EXIT_SUCCESS;
 	}
@@ -332,6 +336,12 @@ int flamingo_main(int argc, char *argv[]) {
 }
 
 #ifdef FLAMINGO_MAIN
+typedef int (*init_t)();
+void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+	xlog("call init() for  %s\n", name);
+	init_t xinit = init;
+	(xinit)();
+}
 int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);
 }
