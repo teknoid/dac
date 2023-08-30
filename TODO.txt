@@ -8,7 +8,8 @@ TODO
 
 * LOCALMAIN's in devinput-*
 
-* switch: on/off zum DAC einschalten ohne Fernbedienung
+* switch: on/off zum ES9018 einschalten ohne Fernbedienung
+	--> switch.c schon da nur mit compilieren und installieren; umbenennen in dac_power_toggle o.ä
 
 * display:
 	* ascii arts: cfire, astreroids etc...

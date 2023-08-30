@@ -119,10 +119,10 @@ static char* message_string(struct mqtt_response_publish *p) {
 // show on LCD display line 1 and 2
 static void lcd(char *line1, char *line2) {
 	if (!mcp->notifications_lcd)
-		return
+		return;
 
 #ifdef LCD
-		lcd_print(line1, line2);
+	lcd_print(line1, line2);
 #endif
 }
 
