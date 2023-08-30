@@ -14,15 +14,15 @@
 #include "display-sysfont.h"
 #include "display-menu.h"
 #include "utils.h"
-#include "dac.h"
 #include "mpd.h"
-
-// #define LOCALMAIN
-
-#ifdef LOCALMAIN
-#include "dac-es9028.h"
-#else
 #include "mcp.h"
+
+#include "dac.h"
+#include "dac-es9028.h"
+
+#ifdef DISPLAY_MAIN
+mcp_state_t *mcp = NULL;
+mcp_config_t *cfg = NULL;
 #endif
 
 #ifndef DISPLAY
@@ -392,33 +392,20 @@ static void stop() {
 	endwin();
 }
 
-MCP_REGISTER(display, 2, &init, &stop);
-
-#ifdef LOCALMAIN
-
-mcp_state_t *mcp;
-mcp_config_t *cfg;
-
-void mpdclient_handle(int key) {
-}
-void mcp_system_shutdown() {
-}
-void mcp_system_reboot() {
-}
-int mcp_status_get(const void *p1, const void *p2) {
-	return 0;
-}
-void mcp_status_set(const void *p1, const void *p2, int value) {
-}
-
-int main(void) {
+int display_main(int argc, char **argv) {
 	cfg = malloc(sizeof(*cfg));
+	ZERO(cfg);
+
 	mcp = malloc(sizeof(*mcp));
+	ZERO(mcp);
+
+	mcp->ir_active = 1;
+	mcp->dac_power = 1;
+	mcp->mpd_state = MPD_STATE_PLAY;
 	strcpy(mcp->artist, "The KLF");
 	strcpy(mcp->title, "Justified & Ancient (Stand by the Jams)");
 	strcpy(mcp->album, "");
-	mcp->dac_power = 1;
-	mcp->mpd_state = MPD_STATE_PLAY;
+
 	init();
 	es9028_prepare_menus();
 
@@ -437,13 +424,13 @@ int main(void) {
 		}
 
 		switch (c) {
-			case KEY_DOWN:
+		case KEY_DOWN:
 			display_fullscreen_number(--z);
 			break;
-			case KEY_UP:
+		case KEY_UP:
 			display_fullscreen_number(++z);
 			break;
-			case '\n':
+		case '\n':
 			display_menu_mode();
 			menu_open(&m_main);
 			break;
@@ -453,4 +440,28 @@ int main(void) {
 	stop();
 	return EXIT_SUCCESS;
 }
+
+#ifdef DISPLAY_MAIN
+void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+	xlog("call init() for  %s\n", name);
+	init_t xinit = init;
+	(xinit)();
+}
+// dummy functions for menu items in dac-es9028.h
+void mpdclient_handle(int key) {
+}
+void mcp_system_reboot() {
+}
+void mcp_system_shutdown() {
+}
+void mcp_status_set(const void *p1, const void *p2, int value) {
+}
+int mcp_status_get(const void *p1, const void *p2) {
+	return 0;
+}
+int main(int argc, char **argv) {
+	return display_main(argc, argv);
+}
+#else
+MCP_REGISTER(display, 2, &init, &stop);
 #endif

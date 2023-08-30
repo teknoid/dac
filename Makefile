@@ -50,8 +50,9 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
 
-display: display.o display-menu.o utils.o i2c.o dac-es9028.o
-	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o -lpthread -lncurses -lmenu -lm
+display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
+	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
+	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lpthread -lncurses -lmenu -lm
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c

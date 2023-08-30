@@ -6,7 +6,7 @@ TODO
 
 * mqtt.c notifications: ein/aus, temporär aus(?)
 
-* LOCALMAIN's in devinput-*, display, lcd
+* LOCALMAIN's in devinput-*
 
 * switch: on/off zum DAC einschalten ohne Fernbedienung
 
