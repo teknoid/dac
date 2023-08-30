@@ -25,8 +25,6 @@
 #define REG_STATUS			0x40
 #define REG_SIGNAL			0x64
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
-
 /**
  * Menu structure
  */

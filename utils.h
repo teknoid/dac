@@ -5,9 +5,11 @@
 #define SPACEMASK32					0x01010101
 #define SPACEMASK64					0x0101010101010101
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
-#define ZERO(a) memset(a, 0, sizeof(*a));
+#define ZERO(x) memset(x, 0, sizeof(*x));
+
+#define SWAP(x) ((x<<8) & 0xFF00) | ((x>>8) & 0xFF)
 
 #define msleep(x) usleep(x*1000)
 

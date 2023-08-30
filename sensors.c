@@ -13,7 +13,7 @@
 #include "i2c.h"
 #include "mcp.h"
 
-#define SWAP(X) ((X<<8) & 0xFF00) | ((X>>8) & 0xFF)
+#define SYSFSLIKE	0
 
 static const char *topic = "sensor";
 
@@ -183,7 +183,8 @@ static void* loop(void *arg) {
 	while (1) {
 		read_bh1750();
 		read_bmp085();
-		// write_sysfslike();
+		if (SYSFSLIKE)
+			write_sysfslike();
 		publish_mqtt();
 		sleep(60);
 	}
