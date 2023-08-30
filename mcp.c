@@ -288,12 +288,12 @@ int main(int argc, char **argv) {
 	cfg = malloc(sizeof(*cfg));
 	ZERO(cfg);
 
-	sensors = malloc(sizeof(*sensors));
-	ZERO(sensors);
-
 	mcp = malloc(sizeof(*mcp));
 	ZERO(mcp);
 	mcp->ir_active = 1;
+
+	sensors = malloc(sizeof(*sensors));
+	ZERO(sensors);
 
 	// parse command line arguments
 	int c;
