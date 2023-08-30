@@ -26,32 +26,33 @@ static const char* flac_get_tag_utf8(const FLAC__StreamMetadata *tags, const cha
 	return value;
 }
 
-static double flac_get_replaygain(const char *filename) {
+static int flac_get_replaygain(const char *filename, double *rgvalue) {
 	FLAC__StreamMetadata *tags = NULL;
-	double rgvalue = 0;
 
 	if (!FLAC__metadata_get_tags(filename, &tags))
-		return 0;
+		return -1;
 
 	if (FLAC__METADATA_TYPE_VORBIS_COMMENT != tags->type)
-		return 0;
+		return -1;
 
-//	const char *albumgain = flac_get_tag_utf8(tags, "REPLAYGAIN_ALBUM_GAIN");
-//	if (albumgain) {
-//		sscanf(albumgain, "%lf dB", &rgvalue);
-//		FLAC__metadata_object_delete(tags);
-//		return rgvalue;
-//	}
+	const char *albumgain = flac_get_tag_utf8(tags, "REPLAYGAIN_ALBUM_GAIN");
+	if (albumgain) {
+		sscanf(albumgain, "%lf dB", rgvalue);
+		FLAC__metadata_object_delete(tags);
+		return 0;
+	}
+
 	const char *trackgain = flac_get_tag_utf8(tags, "REPLAYGAIN_TRACK_GAIN");
 	if (trackgain) {
-		sscanf(trackgain, "%lf dB", &rgvalue);
+		sscanf(trackgain, "%lf dB", rgvalue);
 		FLAC__metadata_object_delete(tags);
-		return rgvalue;
+		return 0;
 	}
-	return 0;
+
+	return -1;
 }
 
-static double mp3_get_replaygain(const char *filename) {
+static int mp3_get_replaygain(const char *filename, double *rgvalue) {
 	struct MP3GainTagInfo *taginfo;
 	taginfo = malloc(sizeof(struct MP3GainTagInfo));
 	ZERO(taginfo);
@@ -63,28 +64,43 @@ static double mp3_get_replaygain(const char *filename) {
 	// 1st try APE
 	ReadMP3GainAPETag((char*) filename, taginfo, filetags);
 
-	if (taginfo->haveTrackGain)
-		return taginfo->trackGain;
+	if (taginfo->haveTrackGain) {
+		*rgvalue = taginfo->trackGain;
+		free(taginfo);
+		free(filetags);
+		return 0;
+	}
 
-	if (taginfo->haveAlbumGain)
-		return taginfo->albumGain;
+	if (taginfo->haveAlbumGain) {
+		*rgvalue = taginfo->albumGain;
+		free(taginfo);
+		free(filetags);
+		return 0;
+	}
 
 	// 2nd try ID3
 	ReadMP3GainID3Tag((char*) filename, taginfo);
 
-	if (taginfo->haveTrackGain)
-		return taginfo->trackGain;
+	if (taginfo->haveTrackGain) {
+		*rgvalue = taginfo->trackGain;
+		free(taginfo);
+		free(filetags);
+		return 0;
+	}
 
-	if (taginfo->haveAlbumGain)
-		return taginfo->albumGain;
+	if (taginfo->haveAlbumGain) {
+		*rgvalue = taginfo->albumGain;
+		free(taginfo);
+		free(filetags);
+		return 0;
+	}
 
-	return 0;
+	return -1;
 }
 
 void replaygain(const char *filename) {
-	double this_replaygain = 0;
-	char buf[256];
-	int i;
+	double new_replaygain = 0;
+	int res, i;
 
 	if (magic == NULL) {
 		magic = magic_open(MAGIC_CONTINUE | MAGIC_MIME);
@@ -93,36 +109,38 @@ void replaygain(const char *filename) {
 
 	const char *mime = magic_file(magic, filename);
 	if (strstr(mime, "flac") != NULL) {
-		this_replaygain = flac_get_replaygain(filename);
+		res = flac_get_replaygain(filename, &new_replaygain);
 	} else if (strstr(mime, "mpeg") != NULL) {
-		this_replaygain = mp3_get_replaygain(filename);
+		res = mp3_get_replaygain(filename, &new_replaygain);
 	} else {
 		xlog("replaygain not supported for %s", filename);
 		return;
 	}
 
-	if (this_replaygain < -12.0) {
-		xlog("limiting replaygain to -12 (%f)", this_replaygain);
-		this_replaygain = -12;
-	} else if (this_replaygain > 0.0) {
-		xlog("limiting replaygain to 0 (%f)", this_replaygain);
-		this_replaygain = 0;
+	if (res < 0) {
+		xlog("no replaygain found in %s", filename);
+		return;
 	}
 
-	double diff = this_replaygain - current_replaygain;
-	sprintf(buf, "current %5.2f | new %5.2f | adjust %5.2f", current_replaygain, this_replaygain, diff);
-	xlog("%s", buf);
+	if (new_replaygain < -12.0) {
+		xlog("limiting replaygain to -12 (%f)", new_replaygain);
+		new_replaygain = -12;
+	} else if (new_replaygain > 3.0) {
+		xlog("limiting replaygain to +3 (%f)", new_replaygain);
+		new_replaygain = 3;
+	}
 
-	int count = (int) abs(rint(diff));
-	if (count != 0 && diff < 0) {
-		for (i = 0; i < count; i++) {
+	double diff = new_replaygain - current_replaygain;
+	xlog("current %5.2f | new %5.2f | adjust %5.2f", current_replaygain, new_replaygain, diff);
+
+	int steps = (int) abs(rint(diff));
+	if (steps != 0 && diff < 0) {
+		for (i = 0; i < steps; i++)
 			dac_volume_down();
-		}
-		current_replaygain = this_replaygain;
-	} else if (count != 0 && diff > 0) {
-		for (i = 0; i < count; i++) {
+		current_replaygain = new_replaygain;
+	} else if (steps != 0 && diff > 0) {
+		for (i = 0; i < steps; i++)
 			dac_volume_up();
-		}
-		current_replaygain = this_replaygain;
+		current_replaygain = new_replaygain;
 	}
 }
