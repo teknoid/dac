@@ -291,6 +291,9 @@ int main(int argc, char **argv) {
 	mcp = malloc(sizeof(*mcp));
 	ZERO(mcp);
 	mcp->ir_active = 1;
+	mcp->notifications_lcd = 1;
+	mcp->notifications_sound = 1;
+	mcp->notifications_desktop = 0;
 
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);

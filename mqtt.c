@@ -47,8 +47,6 @@ static int mean;
 
 static int ready = 0;
 
-static int notifications = 1;
-
 int publish(const char *topic, const char *message) {
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
@@ -118,8 +116,34 @@ static char* message_string(struct mqtt_response_publish *p) {
 	return m;
 }
 
+// show on LCD display line 1 and 2
+static void lcd(char *line1, char *line2) {
+	if (!mcp->notifications_lcd)
+		return
+
+#ifdef LCD
+		lcd_print(line1, line2);
+#endif
+}
+
+// desktop notifications via DBUS
+static void desktop(char *title, char *text) {
+	if (!mcp->notifications_desktop)
+		return;
+
+	size_t size = strlen(title) + strlen(text) + 256;
+	char *command = (char*) malloc(size);
+	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
+	xlog("MQTT system: %s", command);
+	system(command);
+	free(command);
+}
+
 // play sound
 static void play(char *sound) {
+	if (!mcp->notifications_sound)
+		return;
+
 	char *command = (char*) malloc(128);
 	if (sound == NULL)
 		snprintf(command, 128, "/usr/bin/aplay %s \"%s/mau.wav\"", APLAY_OPTIONS, APLAY_DIRECTORY);
@@ -134,19 +158,8 @@ static void play(char *sound) {
 static void doorbell() {
 	xlog("MQTT doorbell");
 
-	// show on LCD display line 1 and 2
-#ifdef LCD
-	lcd_print("Ding", "Dong");
-#endif
-
-	// show desktop notification
-//	char *command = (char*) malloc(256);
-//	snprintf(command, 256, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, "Ding", "Dong");
-//	xlog("MQTT system: %s", command);
-//	system(command);
-//	free(command);
-
-	// play sound
+	lcd("Ding", "Dong");
+	desktop("Ding", "Dong");
 	play("ding-dong.wav");
 }
 
@@ -179,23 +192,10 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	char *title = NULL, *text = NULL, *sound = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q, sound: %Q}", &title, &text, &sound);
 
-	// show on LCD display line 1 and 2
-#ifdef LCD
-	lcd_print(title, text);
-#endif
-
-	// show desktop notification
-//	size_t size = strlen(title) + strlen(text) + 256;
-//	char *command = (char*) malloc(size);
-//	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
-//	xlog("MQTT system: %s", command);
-//	system(command);
-//	free(command);
-
-	// play sound
+	lcd(title, text);
+	desktop(title, text);
 	play(sound);
 
-	// release memory
 	free(title);
 	free(text);
 	free(sound);
