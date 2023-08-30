@@ -6,7 +6,7 @@ LIB = ./lib/$(UNAME_M)
 CFLAGS = -I$(INCLUDE) -Wall
 LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
-SRCS := $(shell find . -maxdepth 1 -name '*.c')
+SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o i2c.o
