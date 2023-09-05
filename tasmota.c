@@ -42,34 +42,34 @@ static unsigned int get_id(const char *topic, size_t size) {
 
 // find existing tasmota state or create a new one
 static tasmota_state_t* get_state(unsigned int id) {
-	tasmota_state_t *ss = tasmota_state;
-	while (ss != NULL) {
-		if (ss->id == id)
-			return ss;
-		ss = ss->next;
+	tasmota_state_t *ts = tasmota_state;
+	while (ts != NULL) {
+		if (ts->id == id)
+			return ts;
+		ts = ts->next;
 	}
 
-	tasmota_state_t *ss_new = malloc(sizeof(tasmota_state_t));
-	ss_new->id = id;
-	ss_new->relay1 = -1;
-	ss_new->relay2 = -1;
-	ss_new->position = -1;
-	ss_new->timer = 0;
-	ss_new->next = NULL;
+	tasmota_state_t *ts_new = malloc(sizeof(tasmota_state_t));
+	ts_new->id = id;
+	ts_new->relay1 = -1;
+	ts_new->relay2 = -1;
+	ts_new->position = -1;
+	ts_new->timer = 0;
+	ts_new->next = NULL;
 
 	if (tasmota_state == NULL)
 		// this is the head
-		tasmota_state = ss_new;
+		tasmota_state = ts_new;
 	else {
 		// append to last in chain
-		ss = tasmota_state;
-		while (ss->next != NULL)
-			ss = ss->next;
-		ss->next = ss_new;
+		ts = tasmota_state;
+		while (ts->next != NULL)
+			ts = ts->next;
+		ts->next = ts_new;
 	}
 
-	xlog("TASMOTA created new state for %06X", ss_new->id);
-	return ss_new;
+	xlog("TASMOTA created new state for %06X", ts_new->id);
+	return ts_new;
 }
 
 // execute tasmota BACKLOG command via mqtt publish
@@ -258,18 +258,18 @@ static void* loop(void *arg) {
 		sleep(1);
 
 		// decrease timers and switch off if timer reached 0
-		tasmota_state_t *ss = tasmota_state;
-		while (ss != NULL) {
-			if (ss->timer) {
-				ss->timer--;
-				if (ss->timer == 0) {
-					if (ss->relay1)
-						tasmota_power(ss->id, 0, 0);
-					if (ss->relay2)
-						tasmota_power(ss->id, 2, 0);
+		tasmota_state_t *ts = tasmota_state;
+		while (ts != NULL) {
+			if (ts->timer) {
+				ts->timer--;
+				if (ts->timer == 0) {
+					if (ts->relay1)
+						tasmota_power(ts->id, 0, 0);
+					if (ts->relay2)
+						tasmota_power(ts->id, 2, 0);
 				}
 			}
-			ss = ss->next;
+			ts = ts->next;
 		}
 	}
 }

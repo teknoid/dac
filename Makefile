@@ -24,11 +24,11 @@ all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
 	@echo "To create executables specify target: \"make (tron|anus|piwolf|sabre18|sabre28|picam)\""
  
-anus: $(COBJS-ANUS) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
-
 tron: $(COBJS-TRON) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc
+
+anus: $(COBJS-ANUS) 
+	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
 
 piwolf: $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
