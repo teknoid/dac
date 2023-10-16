@@ -1,6 +1,7 @@
 /*.o
 /.settings/language.settings.xml
 /mcp
+/fronius
 /display
 /gpio-sunxi
 /gpio-bcm2835

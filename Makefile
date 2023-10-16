@@ -54,6 +54,10 @@ display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
 	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lpthread -lncurses -lmenu -lm
 
+fronius: fronius.o utils.o frozen.o
+	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius.c
+	$(CC) $(CFLAGS) -o fronius fronius.o utils.o frozen.o -lcurl
+
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
 

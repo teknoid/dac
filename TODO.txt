@@ -2,6 +2,8 @@
 TODO
 ----------------------------------------------
 
+* Sprachausgabe e.g. confirm("Strahler Bad an")
+
 * sensors: BMP085 neu schreiben
 
 * mqtt.c notifications: ein/aus, temporär aus(?)
@@ -35,6 +37,8 @@ TODO
 
 DONE
 ----------------------------------------------
+
+* Fronius auslesen
 
 * flamingo realtime
 
