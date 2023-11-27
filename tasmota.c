@@ -149,7 +149,8 @@ void tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, si
 	int i;
 
 	// we are only interested in RESULT messages
-	if (!ends_with("RESULT", topic, tsize))
+	// licht-haustuer only sends SENSOR messages in switchmode 15 ???
+	if (!ends_with("RESULT", topic, tsize) && !ends_with("SENSOR", topic, tsize))
 		return;
 
 	unsigned int id = get_id(topic, tsize);
