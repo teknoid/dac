@@ -37,6 +37,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
+#include "utils.h"
 #include "gpio.h"
 #include "mcp.h"
 
@@ -209,6 +210,7 @@ int gpio_configure(const char *name, int function, int trigger, int initial) {
 	pio.func = function;
 	pio.data = initial;
 	mem_write(&pio);
+	xlog("GPIO %d configured as %s", pio.pin, pio.func == 1 ? "OUT" : "IN");
 	return pio.data;
 }
 
@@ -481,6 +483,7 @@ static int init() {
 	}
 
 	close(fd);
+	xlog("GPIO initialized, base address=0x%08x", base);
 	return 0;
 }
 

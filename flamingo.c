@@ -338,7 +338,7 @@ int flamingo_main(int argc, char *argv[]) {
 #ifdef FLAMINGO_MAIN
 typedef int (*init_t)();
 void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
-	xlog("call init() for  %s\n", name);
+	xlog("call init() for  %s", name);
 	init_t xinit = init;
 	(xinit)();
 }

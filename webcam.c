@@ -89,7 +89,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &webcam, NULL))
 		return xerr("Error creating webcam thread");
 
-	xlog("webcam initialized");
+	xlog("WEBCAM initialized");
 	return 0;
 }
 
