@@ -100,6 +100,8 @@ void xlog(const char *format, ...) {
 				perror("error opening logfile!");
 				exit(EXIT_FAILURE);
 			}
+			fprintf(xlog_file, "\nlogging initialized\n");
+			fflush(xlog_file);
 		}
 
 		time_t timer;
