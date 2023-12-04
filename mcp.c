@@ -343,9 +343,8 @@ int main(int argc, char **argv) {
 
 	// stop all registered modules
 	module_stop(module);
-	xlog("all modules stopped");
+	xlog("MCP all modules terminated, hasta la vista, baby...");
 
-	xlog("MCP terminated");
 	xlog_close();
 	return EXIT_SUCCESS;
 }

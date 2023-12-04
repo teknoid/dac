@@ -2,8 +2,8 @@
 
 //#define TRON
 //#define ANUS
-//#define PIWOLF
-#define PICAM
+#define PIWOLF
+//#define PICAM
 //#define SABRE18
 //#define SABRE28
 
