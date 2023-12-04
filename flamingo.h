@@ -3,8 +3,8 @@
 // #define RX				247
 
 // picam
-#define TX				"GPIO04"
-#define RX				"GPIO17"
+#define TX				"GPIO17"
+#define RX				"GPIO27"
 
 // pidev
 // #define TX					"GPIO17"

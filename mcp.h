@@ -22,7 +22,6 @@
 #endif
 
 #ifdef PIWOLF
-#define DAC
 #define DEVINPUT_IR		"/dev/input/infrared"
 #endif
 
