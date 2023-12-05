@@ -1,17 +1,24 @@
 #define ON				"ON"
 #define OFF				"OFF"
 
-// Relays
+// Shelly Plugs
 #define PLUG1			0x810F43
 #define PLUG2			0x81420A
 #define PLUG3			0x814D47
 #define PLUG4			0x83185A
+#define PLUG5			0x5E40EC
+#define PLUG6			0x5EEEE8
+#define PLUG7			0x58ED80
+#define PLUG8			0xB60A0C
+#define PLUG9			0xC24A88
+
+// Shelly Switches
 #define HOFLICHT		0x2FEFEE
 
-// Switches
+// Shelly Buttons
 #define KUECHE			0xB20670
 
-// Shutters
+// Shelly Shutters
 #define ROLLO_KUECHE	0xA2950C
 #define ROLLO_OMA		0xA0F584
 #define ROLLO_O			0x111111
