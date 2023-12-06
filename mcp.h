@@ -1,8 +1,8 @@
 #include <mpd/status.h>
 
-//#define TRON
+#define TRON
 //#define ANUS
-#define PIWOLF
+//#define PIWOLF
 //#define PICAM
 //#define SABRE18
 //#define SABRE28

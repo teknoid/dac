@@ -30,7 +30,7 @@ void xmas_on() {
 void xmas_on_flamingo(const timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (!channel_status[index]) {
-		xlog("flamingo_send_FA500 %d %c 1\n", timing->remote, timing->channel);
+		xlog("flamingo_send_FA500 %d %c 1", timing->remote, timing->channel);
 		flamingo_send_FA500(timing->remote, timing->channel, 1, -1);
 		channel_status[index] = 1;
 	}
@@ -44,7 +44,7 @@ void xmas_off() {
 void xmas_off_flamingo(const timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (channel_status[index]) {
-		xlog("flamingo_send_FA500 %d %c 0\n", timing->remote, timing->channel);
+		xlog("flamingo_send_FA500 %d %c 0", timing->remote, timing->channel);
 		flamingo_send_FA500(timing->remote, timing->channel, 0, -1);
 		channel_status[index] = 0;
 	}
