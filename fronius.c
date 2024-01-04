@@ -14,13 +14,12 @@
 #include "mcp.h"
 
 static pthread_t thread;
-static int wait = 1;
+static int wait = 3;
 
 static CURL *curl;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
-static int watteater[] = { 0, 0, 0 };
-static int heater[] = { 0, 0 };
+static int boiler[] = { 0, 0, 0 };
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -42,93 +41,105 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 static void print_status() {
-	printf("watteater");
-	for (int i = 0; i < ARRAY_SIZE(watteater); i++)
-		printf(" %3d", watteater[i]);
-	printf("   ");
+	printf("boiler");
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		printf(" %3d", boiler[i]);
 
-	printf("heater");
-	for (int i = 0; i < ARRAY_SIZE(heater); i++)
-		printf(" %d", heater[i]);
-	printf("\n");
+	printf("   wait %d\n", wait);
 }
 
-static void set_watteater(int id) {
-}
-
-static void set_heater(int id) {
+static void set_boiler(int id) {
+	char command[128];
+	// convert 0..100% to 2..10V SSR control voltage 
+	int voltage = boiler[id] == 0 ? 0 : boiler[id] * 80 + 2000;
+	snprintf(command, 128, "curl --silent --output /dev/null -X POST http://boiler%d/0/%d", id + 1, voltage);
+	system(command);
 }
 
 static void deny(int new_wait) {
 	printf("deny\n");
 	wait = new_wait;
 
-	for (int i = 0; i < ARRAY_SIZE(watteater); i++)
-		if (watteater[i]) {
-			watteater[i] = 0;
-			set_watteater(i);
-		}
-
-	for (int i = 0; i < ARRAY_SIZE(heater); i++)
-		if (heater[i]) {
-			heater[i] = 0;
-			set_heater(i);
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		if (boiler[i]) {
+			boiler[i] = 0;
+			set_boiler(i);
 		}
 }
 
-static void rampup(int new_wait, int surplus) {
-	printf("rampup (Surplus Power: %d)\n", surplus);
+static void rampup(int new_wait, float p_grid, float p_load) {
 	wait = new_wait;
 
-	// 100 watt min surplus is 5% at 2000 watt max
-	int step = surplus / 20;
+	// check if all boilers are in standby mode
+	int standby = 1;
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		if (boiler[i] != BOILER_STANDBY)
+			standby = 0;
+	if (standby) {
+		wait = 30;
+		printf("standby\n");
+		return;
+	}
 
-	// a watteater consumes 0 to 100% in steps depending of surplus power
-	for (int i = 0; i < ARRAY_SIZE(watteater); i++) {
-		if (watteater[i] != 100) {
-			watteater[i] += step;
-			if (watteater[i] > 100)
-				watteater[i] = 100;
-			set_watteater(i);
+	// check if all boilers are ramped up to 100% but do not consume power
+	int full = 1;
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		if (boiler[i] != 100)
+			full = 0;
+	int load = abs(p_load);
+	if (full && (load < 1000)) {
+		for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
+			boiler[i] = BOILER_STANDBY;
+			set_boiler(i);
+		}
+		wait = 30;
+		printf("entering standby\n");
+		return;
+	}
+
+	// 100% == 2000 watt
+	int surplus = abs(p_grid) - 100;
+	int step = surplus / 50;
+	printf("rampup step %d\n", step);
+
+	// a boiler consumes 0 to 100% in steps depending of surplus power
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
+		if (boiler[i] != 100) {
+			boiler[i] += step;
+			if (boiler[i] > 100)
+				boiler[i] = 100;
+			set_boiler(i);
 			return;
 		}
 	}
-
-	// a heater consumes HEATER_WATT at once
-	if (surplus < HEATER_WATT)
-		return;
-
-	// heater only when cold
-//	if (sensors->bmp085_temp > 15)
-//		return;
-
-	for (int i = 0; i < ARRAY_SIZE(heater); i++)
-		if (heater[i] != 1) {
-			heater[i] = 1;
-			set_heater(i);
-			return;
-		}
 }
 
-static void rampdown(int new_wait, int lower) {
-	printf("rampdown (Lowering Power: %d)\n", lower);
+static void rampdown(int new_wait, float p_grid, float p_load) {
 	wait = new_wait;
 
-	// first switch off heaters
-	for (int i = ARRAY_SIZE(heater) - 1; i >= 0; i--)
-		if (heater[i]) {
-			heater[i] = 0;
-			set_heater(i);
-			return;
-		}
+	// check if all boilers are ramped down
+	int off = 1;
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		if (boiler[i] != 0)
+			off = 0;
+	if (off) {
+		wait = 30;
+		printf("standby\n");
+		return;
+	}
 
-	// then lowering watteaters
-	for (int i = ARRAY_SIZE(watteater) - 1; i >= 0; i--) {
-		if (watteater[i]) {
-			watteater[i] -= 10;
-			if (watteater[i] < 0)
-				watteater[i] = 0;
-			set_watteater(i);
+	// 100% == 2000 watt
+	int surplus = abs(p_grid) - 100;
+	int step = surplus / 50;
+	printf("rampdown step %d\n", step);
+
+	// lowering boilers
+	for (int i = ARRAY_SIZE(boiler) - 1; i >= 0; i--) {
+		if (boiler[i]) {
+			boiler[i] -= step;
+			if (boiler[i] < 0)
+				boiler[i] = 0;
+			set_boiler(i);
 			return;
 		}
 	}
@@ -162,23 +173,26 @@ static void* fronius(void *arg) {
 		printf("P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f\n", p_akku, p_grid, p_load, p_pv);
 
 		if (p_pv == 0)
-			// no PV production, wait 60 seconds and evaluate new
+			// no PV production, wait 60 seconds
 			deny(60);
-		else if (p_grid >= 0)
-			// not enough PV production, wait 30 seconds and evaluate new
-			deny(30);
-		else if (p_grid < 0 && p_grid > -100)
-			// 0 to 100 watts: quickly shut down bulk consumers
-			rampdown(1, (int) (0 - p_grid));
+		else if (-100 < p_grid && p_grid < 100)
+			// -100 to 100 watts: keep current state for 10 seconds
+			wait = 10;
 		else if (p_grid < -100)
-			// over 100 watts: slowly ramp up bulk consumers
-			rampup(10, (int) (0 - p_grid - 100));
+			// upload over 100 watts: slowly ramp up
+			rampup(3, p_grid, p_load);
+		else if (p_grid > 100)
+			// consume more than 100 watts: quickly rampdown
+			rampdown(1, p_grid, p_load);
 
 		print_status();
 	}
 }
 
 static int init() {
+	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
+		set_boiler(i);
+
 	curl = curl_easy_init();
 	if (curl == NULL)
 		return xerr("Error initializing libcurl");
