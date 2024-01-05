@@ -15,6 +15,7 @@
 
 static pthread_t thread;
 static int wait = 3;
+static int standby_timer;
 
 static CURL *curl;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
@@ -88,8 +89,19 @@ static void offline() {
 static void rampup(float p_grid, float p_load) {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
+		if (--standby_timer == 0) {
+			// exit standby once per hour and calculate new
+			for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
+				boiler[i] = 0;
+				set_boiler(i);
+			}
+			wait = WAIT_KEEP;
+			printf("exiting standby\n");
+			return;
+		}
+
 		wait = WAIT_STANDBY;
-		printf("standby\n");
+		printf("standby %d\n", standby_timer);
 		return;
 	}
 
@@ -101,6 +113,7 @@ static void rampup(float p_grid, float p_load) {
 			set_boiler(i);
 		}
 		wait = WAIT_STANDBY;
+		standby_timer = STANDBY_EXPIRE;
 		printf("entering standby\n");
 		return;
 	}
@@ -177,10 +190,9 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-//		printf("Received data:/n%s\n", req.buffer);
-
-//		json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
-//		printf("Grid Power %f\n", grid_power);
+		// printf("Received data:/n%s\n", req.buffer);
+		// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
+		// printf("Grid Power %f\n", grid_power);
 
 		json_scanf(req.buffer, req.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
 		printf("P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f\n", p_akku, p_grid, p_load, p_pv);
@@ -189,13 +201,13 @@ static void* fronius(void *arg) {
 			// no PV production, go into offline mode
 			offline();
 		else if (p_grid < -100)
-			// upload over 100 watts: ramp up
+			// uploading grid power over 100 watts: ramp up
 			rampup(p_grid, p_load);
 		else if (-100 <= p_grid && p_grid <= 0)
-			// upload 100 to 0 watts: keep current state
+			// uploading grid power from 0 to 100 watts: keep current state
 			keep();
 		else if (p_grid > 0)
-			// consuming power: ramp down
+			// consuming grid power: ramp down
 			rampdown(p_grid, p_load);
 
 		print_status();
@@ -231,7 +243,7 @@ static void stop() {
 	if (pthread_join(thread, NULL))
 		xlog("Error joining fronius thread");
 
-// stop and destroy this module
+	// stop and destroy this module
 	free(req.buffer);
 	curl_easy_cleanup(curl);
 }
