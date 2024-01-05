@@ -66,18 +66,19 @@ static int check_all(int value) {
 }
 
 static void keep() {
-	printf("keep\n");
 	wait = WAIT_KEEP;
+	printf("keep\n");
 }
 
 static void offline() {
+	wait = WAIT_OFFLINE;
+
 	if (check_all(0)) {
 		printf("offline\n");
 		return;
 	}
 
 	printf("entering offline\n");
-	wait = WAIT_OFFLINE;
 	for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
 		boiler[i] = 0;
 		set_boiler(i);
@@ -109,6 +110,7 @@ static void rampup(float p_grid, float p_load) {
 	int step = surplus / 20;
 	if (surplus < 200)
 		step /= 2; // smaller steps as it's not linear
+
 	printf("rampup surplus:%d step:%d\n", surplus, step);
 	wait = WAIT_RAMPUP;
 
