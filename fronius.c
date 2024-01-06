@@ -86,7 +86,7 @@ static void offline() {
 	}
 }
 
-static void rampup(float p_grid, float p_load) {
+static void rampup(int grid, int load) {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0) {
@@ -106,8 +106,7 @@ static void rampup(float p_grid, float p_load) {
 	}
 
 	// check if all boilers are ramped up to 100% but do not consume power
-	int load = abs(p_load);
-	if (check_all(100) && (load < 1000)) {
+	if (check_all(100) && (load > -1000)) {
 		for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
 			boiler[i] = BOILER_STANDBY;
 			set_boiler(i);
@@ -119,7 +118,7 @@ static void rampup(float p_grid, float p_load) {
 	}
 
 	// 100% == 2000 watt --> 1% == 20W
-	int surplus = abs(p_grid);
+	int surplus = abs(grid);
 	int step = surplus / 20;
 	if (surplus < 200)
 		step /= 2; // smaller steps as it's not linear
@@ -141,7 +140,7 @@ static void rampup(float p_grid, float p_load) {
 	}
 }
 
-static void rampdown(float p_grid, float p_load) {
+static void rampdown(int grid, int load) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
@@ -150,7 +149,7 @@ static void rampdown(float p_grid, float p_load) {
 	}
 
 	// 100% == 2000 watt --> 1% == 20W
-	int overload = abs(p_grid);
+	int overload = abs(grid);
 	int step = overload / 20;
 	if (overload < 200)
 		step /= 2; // smaller steps as it's not linear
@@ -178,6 +177,7 @@ static void* fronius(void *arg) {
 	}
 
 	float p_akku, p_grid, p_load, p_pv;
+	int akku, grid, load, pv;
 
 	while (1) {
 		sleep(wait);
@@ -195,20 +195,24 @@ static void* fronius(void *arg) {
 		// printf("Grid Power %f\n", grid_power);
 
 		json_scanf(req.buffer, req.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
-		printf("P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f\n", p_akku, p_grid, p_load, p_pv);
+		akku = p_akku;
+		grid = p_grid;
+		load = p_load;
+		pv = p_pv;
+		printf("Akku:%d, Grid:%d, Load:%d, PV:%d\n", akku, grid, load, pv);
 
-		if (p_pv == 0)
+		if (pv == 0)
 			// no PV production, go into offline mode
 			offline();
-		else if (p_grid < -100)
+		else if (grid < -100)
 			// uploading grid power over 100 watts: ramp up
-			rampup(p_grid, p_load);
-		else if (-100 <= p_grid && p_grid <= 0)
+			rampup(grid, load);
+		else if (-100 <= grid && grid <= 0)
 			// uploading grid power from 0 to 100 watts: keep current state
 			keep();
-		else if (p_grid > 0)
+		else if (grid > 0)
 			// consuming grid power: ramp down
-			rampdown(p_grid, p_load);
+			rampdown(grid, load);
 
 		print_status();
 	}
