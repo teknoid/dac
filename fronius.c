@@ -111,7 +111,7 @@ static void rampup(int grid, int load) {
 		}
 
 		wait = WAIT_STANDBY;
-		printf("standby %d\n", standby_timer);
+		printf("rampup standby %d\n", standby_timer);
 		return;
 	}
 
@@ -149,7 +149,7 @@ static void rampdown(int grid, int load) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
-		printf("standby\n");
+		printf("rampdown standby\n");
 		return;
 	}
 
