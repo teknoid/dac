@@ -50,6 +50,16 @@ static void print_status() {
 	printf("   wait %d\n", wait);
 }
 
+static int calculate_step(int grid) {
+	// 100% == 2000 watt --> 1% == 20W
+	int step = abs(grid) / 20;
+	if (-200 > grid && grid < 200)
+		step /= 2; // smaller steps as it's not linear
+	if (!step)
+		step = 1; // at least 1
+	return step;
+}
+
 static void set_boiler(int id) {
 	char command[128];
 	// convert 0..100% to 2..10V SSR control voltage 
@@ -117,13 +127,8 @@ static void rampup(int grid, int load) {
 		return;
 	}
 
-	// 100% == 2000 watt --> 1% == 20W
-	int surplus = abs(grid);
-	int step = surplus / 20;
-	if (surplus < 200)
-		step /= 2; // smaller steps as it's not linear
-
-	printf("rampup surplus:%d step:%d\n", surplus, step);
+	int step = calculate_step(grid);
+	printf("rampup surplus:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
@@ -148,13 +153,8 @@ static void rampdown(int grid, int load) {
 		return;
 	}
 
-	// 100% == 2000 watt --> 1% == 20W
-	int overload = abs(grid);
-	int step = overload / 20;
-	if (overload < 200)
-		step /= 2; // smaller steps as it's not linear
-
-	printf("rampdown overload:%d step:%d\n", overload, step);
+	int step = calculate_step(grid);
+	printf("rampdown overload:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
@@ -208,7 +208,7 @@ static void* fronius(void *arg) {
 			// uploading grid power over 100 watts: ramp up
 			rampup(grid, load);
 		else if (-100 <= grid && grid <= 0)
-			// uploading grid power from 0 to 100 watts: keep current state
+			// uploading grid power between 0 and 100 watts: keep current state
 			keep();
 		else if (grid > 0)
 			// consuming grid power: ramp down
