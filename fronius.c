@@ -7,8 +7,8 @@
 #include <pthread.h>
 
 #include <sys/socket.h>
-#include <curl/curl.h>
 #include <arpa/inet.h>
+#include <curl/curl.h>
 
 #include "fronius.h"
 #include "frozen.h"
@@ -56,6 +56,14 @@ static void print_status() {
 	printf("   wait %d\n", wait);
 }
 
+static int check_all(int value) {
+	int check = 1;
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+		if (boiler[i]->load != value)
+			check = 0;
+	return check;
+}
+
 static int calculate_step(int grid) {
 	// 100% == 2000 watt --> 1% == 20W
 	int step = abs(grid) / 20;
@@ -73,7 +81,7 @@ static void set_boiler(boiler_t *boiler) {
 		return;
 
 	// convert 0..100% to 2..10V SSR control voltage
-	uint16_t voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
+	unsigned int voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
 
 	snprintf(command, 128, "curl --silent --output /dev/null -X POST http://%s/0/%d", boiler->name, voltage);
 	system(command);
@@ -95,14 +103,6 @@ static void set_boiler(boiler_t *boiler) {
 	snprintf(message, 16, "%d:%d", voltage, 0);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		xlog("Sendto failed");
-}
-
-static int check_all(int value) {
-	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		if (boiler[i]->load != value)
-			check = 0;
-	return check;
 }
 
 static void keep() {
@@ -275,7 +275,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &fronius, NULL))
 		return xerr("Error creating fronius thread");
 
-	xlog("fronius initialized");
+	xlog("FRONIUS initialized");
 	return 0;
 }
 

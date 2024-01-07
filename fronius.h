@@ -24,5 +24,5 @@ typedef struct get_request_t {
 typedef struct boiler_t {
 	const char *name;
 	const char *addr;
-	int load;
+	unsigned int load;
 } boiler_t;
