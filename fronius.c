@@ -22,7 +22,7 @@ static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static CURL *curl;
 
 // boiler status
-const char *boiler_devices[] = { BOILERS };
+const char *boilers[] = { BOILERS };
 static boiler_t **boiler;
 
 // UDP socket communication
@@ -50,7 +50,7 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 
 static void print_status() {
 	printf("boiler");
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		printf(" %3d", boiler[i]->load);
 
 	printf("   wait %d\n", wait);
@@ -99,7 +99,7 @@ static void set_boiler(boiler_t *boiler) {
 
 static int check_all(int value) {
 	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		if (boiler[i]->load != value)
 			check = 0;
 	return check;
@@ -119,7 +119,7 @@ static void offline() {
 	}
 
 	printf("entering offline\n");
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		boiler[i]->load = 0;
 		set_boiler(boiler[i]);
 	}
@@ -130,7 +130,7 @@ static void rampup(int grid, int load) {
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0) {
 			// exit standby once per hour and calculate new
-			for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+			for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 				boiler[i]->load = 0;
 				set_boiler(boiler[i]);
 			}
@@ -146,7 +146,7 @@ static void rampup(int grid, int load) {
 
 	// check if all boilers are ramped up to 100% but do not consume power
 	if (check_all(100) && (load > -1000)) {
-		for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+		for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 			boiler[i]->load = BOILER_STANDBY;
 			set_boiler(boiler[i]);
 		}
@@ -161,7 +161,7 @@ static void rampup(int grid, int load) {
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->load != 100) {
 			boiler[i]->load += step;
 			if (boiler[i]->load == BOILER_STANDBY)
@@ -187,7 +187,7 @@ static void rampdown(int grid, int load) {
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
-	for (int i = ARRAY_SIZE(boiler_devices) - 1; i >= 0; i--) {
+	for (int i = ARRAY_SIZE(boilers) - 1; i >= 0; i--) {
 		if (boiler[i]->load) {
 			boiler[i]->load -= step;
 			if (boiler[i]->load == BOILER_STANDBY)
@@ -206,7 +206,7 @@ static void* fronius(void *arg) {
 	}
 
 	// initialize all boilers
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		set_boiler(boiler[i]);
 
 	float p_akku, p_grid, p_load, p_pv;
@@ -252,10 +252,10 @@ static void* fronius(void *arg) {
 }
 
 static int init() {
-	boiler = malloc(ARRAY_SIZE(boiler_devices));
-	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+	boiler = malloc(ARRAY_SIZE(boilers));
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		boiler_t *b = malloc(sizeof(boiler_t));
-		b->name = boiler_devices[i];
+		b->name = boilers[i];
 		b->addr = resolve_ip(b->name);
 		b->load = 0;
 		boiler[i] = b;
