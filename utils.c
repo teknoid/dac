@@ -11,9 +11,11 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <time.h>
+#include <netdb.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <arpa/inet.h>
 
 #include "keytable.h"
 #include "utils.h"
@@ -329,3 +331,38 @@ uint64_t mac2uint64(char *mac) {
 
 	return x;
 }
+
+char* resolve_ip(const char *hostname) {
+	struct addrinfo hints = { 0 };
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	hints.ai_flags |= AI_CANONNAME;
+
+	struct addrinfo *addr;
+
+	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
+		xerr("Could not resolve inetAddr for %s\n", hostname);
+		return NULL;
+	}
+
+	void *ptr;
+	switch (addr->ai_family) {
+	case AF_INET:
+		ptr = &((struct sockaddr_in*) addr->ai_addr)->sin_addr;
+		break;
+	case AF_INET6:
+		ptr = &((struct sockaddr_in6*) addr->ai_addr)->sin6_addr;
+		break;
+	}
+
+	char *addrstr = malloc(16);
+	ZERO(addrstr);
+
+	inet_ntop(addr->ai_family, ptr, addrstr, 16);
+	printf("%s IPv%d address: %s (%s)\n", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
+	freeaddrinfo(addr);
+
+	return addrstr;
+}
+

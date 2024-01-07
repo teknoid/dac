@@ -1,5 +1,7 @@
 #define CHUNK_SIZE 		2048
 
+#define BOILERS			"boiler1", "boiler2", "boiler3"
+
 #define BOILER_STANDBY	20
 
 #define WAIT_OFFLINE	60
@@ -18,3 +20,9 @@ typedef struct get_request_t {
 	size_t len;
 	size_t buflen;
 } get_request_t;
+
+typedef struct boiler_t {
+	const char *name;
+	const char *addr;
+	int load;
+} boiler_t;

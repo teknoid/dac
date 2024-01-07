@@ -6,7 +6,9 @@
 #include <unistd.h>
 #include <pthread.h>
 
+#include <sys/socket.h>
 #include <curl/curl.h>
+#include <arpa/inet.h>
 
 #include "fronius.h"
 #include "frozen.h"
@@ -16,12 +18,16 @@
 static pthread_t thread;
 static int wait = 3;
 static int standby_timer;
-
-static CURL *curl;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
+static CURL *curl;
 
-// load power in 0..100 percent
-static int boiler[] = { 0, 0, 0 };
+// boiler status
+const char *boiler_devices[] = { BOILERS };
+static boiler_t **boiler;
+
+// UDP socket communication
+static int sock;
+static struct sockaddr_in sock_addr_in = { .sin_family = AF_INET, .sin_port = 1975 };
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -44,8 +50,8 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 
 static void print_status() {
 	printf("boiler");
-	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
-		printf(" %3d", boiler[i]);
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+		printf(" %3d", boiler[i]->load);
 
 	printf("   wait %d\n", wait);
 }
@@ -60,18 +66,41 @@ static int calculate_step(int grid) {
 	return step;
 }
 
-static void set_boiler(int id) {
-	char command[128];
-	// convert 0..100% to 2..10V SSR control voltage 
-	int voltage = boiler[id] == 0 ? 0 : boiler[id] * 80 + 2000;
-	snprintf(command, 128, "curl --silent --output /dev/null -X POST http://boiler%d/0/%d", id + 1, voltage);
+static void set_boiler(boiler_t *boiler) {
+	char command[128], message[16];
+
+	if (boiler->addr == NULL)
+		return;
+
+	// convert 0..100% to 2..10V SSR control voltage
+	uint16_t voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
+
+	snprintf(command, 128, "curl --silent --output /dev/null -X POST http://%s/0/%d", boiler->name, voltage);
 	system(command);
+
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	if (sock == 0) {
+		xlog("Error creating socket");
+		return;
+	}
+
+	// update IP and port in sockaddr structure
+	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	// send message to boiler
+	snprintf(message, 16, "%d:%d", voltage, 0);
+	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
+		xlog("Sendto failed");
 }
 
 static int check_all(int value) {
 	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
-		if (boiler[i] != value)
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+		if (boiler[i]->load != value)
 			check = 0;
 	return check;
 }
@@ -90,9 +119,9 @@ static void offline() {
 	}
 
 	printf("entering offline\n");
-	for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
-		boiler[i] = 0;
-		set_boiler(i);
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+		boiler[i]->load = 0;
+		set_boiler(boiler[i]);
 	}
 }
 
@@ -101,9 +130,9 @@ static void rampup(int grid, int load) {
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0) {
 			// exit standby once per hour and calculate new
-			for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
-				boiler[i] = 0;
-				set_boiler(i);
+			for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+				boiler[i]->load = 0;
+				set_boiler(boiler[i]);
 			}
 			wait = WAIT_KEEP;
 			printf("exiting standby\n");
@@ -117,9 +146,9 @@ static void rampup(int grid, int load) {
 
 	// check if all boilers are ramped up to 100% but do not consume power
 	if (check_all(100) && (load > -1000)) {
-		for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
-			boiler[i] = BOILER_STANDBY;
-			set_boiler(i);
+		for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+			boiler[i]->load = BOILER_STANDBY;
+			set_boiler(boiler[i]);
 		}
 		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
@@ -132,14 +161,14 @@ static void rampup(int grid, int load) {
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
-	for (int i = 0; i < ARRAY_SIZE(boiler); i++) {
-		if (boiler[i] != 100) {
-			boiler[i] += step;
-			if (boiler[i] == BOILER_STANDBY)
-				boiler[i]++; // not the standby value
-			if (boiler[i] > 100)
-				boiler[i] = 100;
-			set_boiler(i);
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+		if (boiler[i]->load != 100) {
+			boiler[i]->load += step;
+			if (boiler[i]->load == BOILER_STANDBY)
+				boiler[i]->load++; // not the standby value
+			if (boiler[i]->load > 100)
+				boiler[i]->load = 100;
+			set_boiler(boiler[i]);
 			return;
 		}
 	}
@@ -158,14 +187,14 @@ static void rampdown(int grid, int load) {
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
-	for (int i = ARRAY_SIZE(boiler) - 1; i >= 0; i--) {
-		if (boiler[i]) {
-			boiler[i] -= step;
-			if (boiler[i] == BOILER_STANDBY)
-				boiler[i]--; // not the standby value
-			if (boiler[i] < 0)
-				boiler[i] = 0;
-			set_boiler(i);
+	for (int i = ARRAY_SIZE(boiler_devices) - 1; i >= 0; i--) {
+		if (boiler[i]->load) {
+			boiler[i]->load -= step;
+			if (boiler[i]->load == BOILER_STANDBY)
+				boiler[i]->load--; // not the standby value
+			if (boiler[i]->load < 0)
+				boiler[i]->load = 0;
+			set_boiler(boiler[i]);
 		}
 	}
 }
@@ -175,6 +204,10 @@ static void* fronius(void *arg) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
+
+	// initialize all boilers
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++)
+		set_boiler(boiler[i]);
 
 	float p_akku, p_grid, p_load, p_pv;
 	int akku, grid, load, pv;
@@ -219,8 +252,14 @@ static void* fronius(void *arg) {
 }
 
 static int init() {
-	for (int i = 0; i < ARRAY_SIZE(boiler); i++)
-		set_boiler(i);
+	boiler = malloc(ARRAY_SIZE(boiler_devices));
+	for (int i = 0; i < ARRAY_SIZE(boiler_devices); i++) {
+		boiler_t *b = malloc(sizeof(boiler_t));
+		b->name = boiler_devices[i];
+		b->addr = resolve_ip(b->name);
+		b->load = 0;
+		boiler[i] = b;
+	}
 
 	curl = curl_easy_init();
 	if (curl == NULL)
@@ -250,6 +289,9 @@ static void stop() {
 	// stop and destroy this module
 	free(req.buffer);
 	curl_easy_cleanup(curl);
+
+	if (sock != 0)
+		close(sock);
 }
 
 int fronius_main(int argc, char **argv) {
