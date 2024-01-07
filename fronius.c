@@ -16,6 +16,7 @@
 #include "mcp.h"
 
 static pthread_t thread;
+static int sock = 0;
 static int wait = 3;
 static int standby_timer;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
@@ -24,10 +25,6 @@ static CURL *curl;
 // boiler status
 const char *boilers[] = { BOILERS };
 static boiler_t **boiler;
-
-// UDP socket communication
-static int sock;
-static struct sockaddr_in sock_addr_in = { .sin_family = AF_INET, .sin_port = 1975 };
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -66,7 +63,7 @@ static int check_all(int value) {
 
 static int calculate_step(int grid) {
 	// 100% == 2000 watt --> 1% == 20W
-	int step = abs(grid) / 20;
+	unsigned int step = abs(grid) / 20;
 	if (-200 > grid && grid < 200)
 		step /= 2; // smaller steps as it's not linear
 	if (!step)
@@ -75,34 +72,34 @@ static int calculate_step(int grid) {
 }
 
 static void set_boiler(boiler_t *boiler) {
-	char command[128], message[16];
+	char message[16];
 
 	if (boiler->addr == NULL)
 		return;
-
-	// convert 0..100% to 2..10V SSR control voltage
-	unsigned int voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
-
-	snprintf(command, 128, "curl --silent --output /dev/null -X POST http://%s/0/%d", boiler->name, voltage);
-	system(command);
 
 	// create a socket if not yet done
 	if (sock == 0)
 		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	if (sock == 0) {
-		xlog("Error creating socket");
+		printf("Error creating socket");
 		return;
 	}
 
 	// update IP and port in sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
 	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	// send message to boiler
+	// convert 0..100% to 2..10V SSR control voltage
+	unsigned int voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
 	snprintf(message, 16, "%d:%d", voltage, 0);
+
+	// send message to boiler
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
-		xlog("Sendto failed");
+		printf("Sendto failed");
 }
 
 static void keep() {
@@ -156,7 +153,7 @@ static void rampup(int grid, int load) {
 		return;
 	}
 
-	int step = calculate_step(grid);
+	unsigned int step = calculate_step(grid);
 	printf("rampup surplus:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPUP;
 
@@ -182,7 +179,7 @@ static void rampdown(int grid, int load) {
 		return;
 	}
 
-	int step = calculate_step(grid);
+	unsigned int step = calculate_step(grid);
 	printf("rampdown overload:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
