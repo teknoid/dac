@@ -8,7 +8,7 @@
 #define WAIT_STANDBY	30
 #define WAIT_KEEP		10
 #define WAIT_RAMPUP		5
-#define WAIT_RAMPDOWN	3
+#define WAIT_RAMPDOWN	5
 
 #define STANDBY_EXPIRE	3600 / WAIT_STANDBY
 
