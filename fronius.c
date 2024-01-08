@@ -61,19 +61,28 @@ static int check_all(int value) {
 	return check;
 }
 
-static int calculate_step(int grid) {
-	// 100% == 2000 watt --> 1% == 20W
-	unsigned int step = abs(grid) / 20;
-	if (-200 > grid && grid < 200)
-		step /= 2; // smaller steps as it's not linear
+// 100% == 2000 watt --> 1% == 20W
+static unsigned int calculate_step(int grid) {
+	unsigned int step;
+
+	if (grid < -1000)
+		// big surplus - normal steps
+		step = abs(grid) / 20;
+	else if (grid < 0)
+		// small surplus - smaller steps
+		step = abs(grid) / 20 / 2;
+	else
+		// overload - normal steps
+		step = grid / 20;
+
 	if (!step)
 		step = 1; // at least 1
+
 	return step;
 }
 
-static void set_boiler(boiler_t *boiler) {
-	char message[16];
-
+static void set_boiler(boiler_t *boiler, unsigned int load) {
+	boiler->load = load;
 	if (boiler->addr == NULL)
 		return;
 
@@ -94,6 +103,7 @@ static void set_boiler(boiler_t *boiler) {
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	// convert 0..100% to 2..10V SSR control voltage
+	char message[16];
 	unsigned int voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
@@ -116,21 +126,19 @@ static void offline() {
 	}
 
 	printf("entering offline\n");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		boiler[i]->load = 0;
-		set_boiler(boiler[i]);
-	}
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+		set_boiler(boiler[i], 0);
+
 }
 
 static void rampup(int grid, int load) {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
-		if (--standby_timer == 0) {
-			// exit standby once per hour and calculate new
-			for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-				boiler[i]->load = 0;
-				set_boiler(boiler[i]);
-			}
+		if (--standby_timer == 0 || abs(load) > 500) {
+			// exit standby once per hour or when load > 0,5kW
+			for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+				set_boiler(boiler[i], 0);
+
 			wait = WAIT_KEEP;
 			printf("exiting standby\n");
 			return;
@@ -142,11 +150,10 @@ static void rampup(int grid, int load) {
 	}
 
 	// check if all boilers are ramped up to 100% but do not consume power
-	if (check_all(100) && (load > -1000)) {
-		for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-			boiler[i]->load = BOILER_STANDBY;
-			set_boiler(boiler[i]);
-		}
+	if (check_all(100) && (abs(load) < 500)) {
+		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+			set_boiler(boiler[i], BOILER_STANDBY);
+
 		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
 		printf("entering standby\n");
@@ -160,12 +167,13 @@ static void rampup(int grid, int load) {
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->load != 100) {
-			boiler[i]->load += step;
-			if (boiler[i]->load == BOILER_STANDBY)
-				boiler[i]->load++; // not the standby value
-			if (boiler[i]->load > 100)
-				boiler[i]->load = 100;
-			set_boiler(boiler[i]);
+			int boiler_load = boiler[i]->load;
+			boiler_load += step;
+			if (boiler_load == BOILER_STANDBY)
+				boiler_load++; // not the standby value
+			if (boiler_load > 100)
+				boiler_load = 100;
+			set_boiler(boiler[i], boiler_load);
 			return;
 		}
 	}
@@ -183,15 +191,17 @@ static void rampdown(int grid, int load) {
 	printf("rampdown overload:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
-	// lowering all boilers
+	// rampdown each boiler separately
 	for (int i = ARRAY_SIZE(boilers) - 1; i >= 0; i--) {
 		if (boiler[i]->load) {
-			boiler[i]->load -= step;
-			if (boiler[i]->load == BOILER_STANDBY)
-				boiler[i]->load--; // not the standby value
-			if (boiler[i]->load < 0)
-				boiler[i]->load = 0;
-			set_boiler(boiler[i]);
+			int boiler_load = boiler[i]->load;
+			boiler_load -= step;
+			if (boiler_load == BOILER_STANDBY)
+				boiler_load--; // not the standby value
+			if (boiler_load < 0)
+				boiler_load = 0;
+			set_boiler(boiler[i], boiler_load);
+			return;
 		}
 	}
 }
@@ -204,7 +214,7 @@ static void* fronius(void *arg) {
 
 	// initialize all boilers
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		set_boiler(boiler[i]);
+		set_boiler(boiler[i], 0);
 
 	float p_akku, p_grid, p_load, p_pv;
 	int akku, grid, load, pv;
