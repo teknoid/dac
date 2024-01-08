@@ -19,6 +19,7 @@ static pthread_t thread;
 static int sock = 0;
 static int wait = 3;
 static int standby_timer;
+static int override_flag = 0;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static CURL *curl;
 
@@ -46,11 +47,19 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 static void print_status() {
-	printf("boiler");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		printf(" %3d", boiler[i]->load);
+	char message[32];
+	char value[5];
 
-	printf("   wait %d\n", wait);
+	strcpy(message, "boiler");
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
+		snprintf(value, 5, " %3d", boiler[i]->load);
+		strcat(message, value);
+	}
+
+	snprintf(value, 5, "%3d", wait);
+	strcat(message, "   wait ");
+	strcat(message, value);
+	xlog(message);
 }
 
 static int check_all(int value) {
@@ -81,19 +90,17 @@ static unsigned int calculate_step(int grid) {
 	return step;
 }
 
-static void set_boiler(boiler_t *boiler, unsigned int load) {
+static int set_boiler(boiler_t *boiler, unsigned int load) {
 	boiler->load = load;
 	if (boiler->addr == NULL)
-		return;
+		return -1;
 
 	// create a socket if not yet done
 	if (sock == 0)
 		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (sock == 0) {
-		printf("Error creating socket");
-		return;
-	}
+	if (sock == 0)
+		return xerr("Error creating socket");
 
 	// update IP and port in sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
@@ -109,26 +116,27 @@ static void set_boiler(boiler_t *boiler, unsigned int load) {
 
 	// send message to boiler
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
-		printf("Sendto failed");
+		return xerr("Sendto failed");
+
+	return 0;
 }
 
 static void keep() {
 	wait = WAIT_KEEP;
-	printf("keep\n");
+	xlog("keep");
 }
 
 static void offline() {
 	wait = WAIT_OFFLINE;
 
 	if (check_all(0)) {
-		printf("offline\n");
+		xlog("offline");
 		return;
 	}
 
-	printf("entering offline\n");
+	xlog("entering offline");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		set_boiler(boiler[i], 0);
-
 }
 
 static void rampup(int grid, int load) {
@@ -140,12 +148,12 @@ static void rampup(int grid, int load) {
 				set_boiler(boiler[i], 0);
 
 			wait = WAIT_KEEP;
-			printf("exiting standby\n");
+			xlog("exiting standby");
 			return;
 		}
 
 		wait = WAIT_STANDBY;
-		printf("rampup standby %d\n", standby_timer);
+		xlog("rampup standby %d", standby_timer);
 		return;
 	}
 
@@ -156,12 +164,12 @@ static void rampup(int grid, int load) {
 
 		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
-		printf("entering standby\n");
+		xlog("entering standby");
 		return;
 	}
 
 	unsigned int step = calculate_step(grid);
-	printf("rampup surplus:%d step:%d\n", abs(grid), step);
+	xlog("rampup surplus:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
@@ -183,12 +191,12 @@ static void rampdown(int grid, int load) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
-		printf("rampdown standby\n");
+		xlog("rampdown standby");
 		return;
 	}
 
 	unsigned int step = calculate_step(grid);
-	printf("rampdown overload:%d step:%d\n", abs(grid), step);
+	xlog("rampdown overload:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
@@ -221,6 +229,15 @@ static void* fronius(void *arg) {
 	while (1) {
 		sleep(wait);
 
+		// forcing first boiler to heat up for 10 minutes
+		if (override_flag) {
+			set_boiler(boiler[0], 100);
+			wait = WAIT_OVERRIDE;
+			override_flag = 0;
+			xlog("Override active for %d seconds", WAIT_OVERRIDE);
+			continue;
+		}
+
 		req.len = 0;
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
@@ -238,7 +255,7 @@ static void* fronius(void *arg) {
 		grid = p_grid;
 		load = p_load;
 		pv = p_pv;
-		printf("Akku:%d, Grid:%d, Load:%d, PV:%d\n", akku, grid, load, pv);
+		xlog("Akku:%d, Grid:%d, Load:%d, PV:%d", akku, grid, load, pv);
 
 		if (pv == 0)
 			// no PV production, go into offline mode
@@ -298,6 +315,10 @@ static void stop() {
 
 	if (sock != 0)
 		close(sock);
+}
+
+void override() {
+	override_flag = 1;
 }
 
 int fronius_main(int argc, char **argv) {

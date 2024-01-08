@@ -11,7 +11,7 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-anus.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-tron.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o gpio-dummy.o
+COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-tron.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius.o gpio-dummy.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
@@ -25,7 +25,7 @@ all: $(OBJS)
 	@echo "To create executables specify target: \"make (tron|anus|piwolf|sabre18|sabre28|picam)\""
  
 tron: $(COBJS-TRON) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc
+	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lcurl
 
 anus: $(COBJS-ANUS) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc

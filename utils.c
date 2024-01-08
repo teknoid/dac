@@ -360,7 +360,7 @@ char* resolve_ip(const char *hostname) {
 	ZERO(addrstr);
 
 	inet_ntop(addr->ai_family, ptr, addrstr, 16);
-	printf("%s IPv%d address: %s (%s)\n", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
+	xlog("%s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
 	freeaddrinfo(addr);
 
 	return addrstr;
