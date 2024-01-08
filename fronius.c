@@ -191,8 +191,8 @@ static void rampdown(int grid, int load) {
 	printf("rampdown overload:%d step:%d\n", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
-	// rampdown each boiler separately
-	for (int i = ARRAY_SIZE(boilers) - 1; i >= 0; i--) {
+	// lowering all boilers
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->load) {
 			int boiler_load = boiler[i]->load;
 			boiler_load -= step;
@@ -201,7 +201,6 @@ static void rampdown(int grid, int load) {
 			if (boiler_load < 0)
 				boiler_load = 0;
 			set_boiler(boiler[i], boiler_load);
-			return;
 		}
 	}
 }
