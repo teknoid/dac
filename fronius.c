@@ -50,7 +50,7 @@ static void print_status() {
 	char message[32];
 	char value[5];
 
-	strcpy(message, "boiler");
+	strcpy(message, "FRONIUS boiler");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		snprintf(value, 5, " %3d", boiler[i]->load);
 		strcat(message, value);
@@ -123,18 +123,18 @@ static int set_boiler(boiler_t *boiler, unsigned int load) {
 
 static void keep() {
 	wait = WAIT_KEEP;
-	xlog("keep");
+	xlog("FRONIUS keep");
 }
 
 static void offline() {
 	wait = WAIT_OFFLINE;
 
 	if (check_all(0)) {
-		xlog("offline");
+		xlog("FRONIUS offline");
 		return;
 	}
 
-	xlog("entering offline");
+	xlog("FRONIUS entering offline");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		set_boiler(boiler[i], 0);
 }
@@ -148,12 +148,12 @@ static void rampup(int grid, int load) {
 				set_boiler(boiler[i], 0);
 
 			wait = WAIT_KEEP;
-			xlog("exiting standby");
+			xlog("FRONIUS exiting standby");
 			return;
 		}
 
 		wait = WAIT_STANDBY;
-		xlog("rampup standby %d", standby_timer);
+		xlog("FRONIUS rampup standby %d", standby_timer);
 		return;
 	}
 
@@ -164,12 +164,12 @@ static void rampup(int grid, int load) {
 
 		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
-		xlog("entering standby");
+		xlog("FRONIUS entering standby");
 		return;
 	}
 
 	unsigned int step = calculate_step(grid);
-	xlog("rampup surplus:%d step:%d", abs(grid), step);
+	xlog("FRONIUS rampup surplus:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
@@ -191,12 +191,12 @@ static void rampdown(int grid, int load) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
-		xlog("rampdown standby");
+		xlog("FRONIUS rampdown standby");
 		return;
 	}
 
 	unsigned int step = calculate_step(grid);
-	xlog("rampdown overload:%d step:%d", abs(grid), step);
+	xlog("FRONIUS rampdown overload:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
@@ -234,14 +234,14 @@ static void* fronius(void *arg) {
 			set_boiler(boiler[0], 100);
 			wait = WAIT_OVERRIDE;
 			override_flag = 0;
-			xlog("Override active for %d seconds", WAIT_OVERRIDE);
+			xlog("FRONIUS Override active for %d seconds", WAIT_OVERRIDE);
 			continue;
 		}
 
 		req.len = 0;
 		CURLcode res = curl_easy_perform(curl);
 		if (res != CURLE_OK) {
-			xerr("No response from Fronius API");
+			xerr("FRONIUS No response from Fronius API: %d", res);
 			offline();
 			continue;
 		}
@@ -255,7 +255,7 @@ static void* fronius(void *arg) {
 		grid = p_grid;
 		load = p_load;
 		pv = p_pv;
-		xlog("Akku:%d, Grid:%d, Load:%d, PV:%d", akku, grid, load, pv);
+		xlog("FRONIUS Akku:%d, Grid:%d, Load:%d, PV:%d", akku, grid, load, pv);
 
 		if (pv == 0)
 			// no PV production, go into offline mode
@@ -317,7 +317,7 @@ static void stop() {
 		close(sock);
 }
 
-void override() {
+void fronius_override() {
 	override_flag = 1;
 }
 

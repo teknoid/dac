@@ -10,6 +10,7 @@
 #include "mqtt.h"
 #include "utils.h"
 #include "frozen.h"
+#include "fronius.h"
 #include "tasmota-config.h"
 
 static pthread_t thread;
@@ -108,6 +109,12 @@ static void trigger(unsigned int id, int button, int action) {
 	if (!action)
 		return;
 
+	if (id == KUECHE && button == 2) {
+		fronius_override();
+		return;
+	}
+
+	// check tasmota-config.h
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
 		tasmota_state_t *ss = get_state(sc.id);

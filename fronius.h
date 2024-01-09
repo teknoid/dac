@@ -28,4 +28,4 @@ typedef struct boiler_t {
 	unsigned int load;
 } boiler_t;
 
-void override();
+void fronius_override();
