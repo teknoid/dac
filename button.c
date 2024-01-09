@@ -47,6 +47,9 @@ static void handle_button(unsigned char c) {
 	case 8:
 		mpdclient_handle(KEY_NEXTSONG);
 		break;
+	case 16:
+		system("/m/party.sh");
+		break;
 	}
 }
 
