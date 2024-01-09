@@ -9,7 +9,6 @@
 #define WAIT_KEEP		10
 #define WAIT_RAMPUP		5
 #define WAIT_RAMPDOWN	5
-#define WAIT_OVERRIDE	60 * 10
 
 #define STANDBY_EXPIRE	3600 / WAIT_STANDBY
 
@@ -25,7 +24,9 @@ typedef struct get_request_t {
 typedef struct boiler_t {
 	const char *name;
 	const char *addr;
-	unsigned int load;
+	unsigned int active;
+	unsigned int override;
+	unsigned int power;
 } boiler_t;
 
-void fronius_override();
+void fronius_override(int index);

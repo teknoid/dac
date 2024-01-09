@@ -110,7 +110,8 @@ static void trigger(unsigned int id, int button, int action) {
 		return;
 
 	if (id == KUECHE && button == 2) {
-		fronius_override();
+		// forcing first boiler to heat up for 10 minutes
+		fronius_override(0);
 		return;
 	}
 

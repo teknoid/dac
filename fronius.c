@@ -19,7 +19,6 @@ static pthread_t thread;
 static int sock = 0;
 static int wait = 3;
 static int standby_timer;
-static int override_flag = 0;
 static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static CURL *curl;
 
@@ -52,7 +51,7 @@ static void print_status() {
 
 	strcpy(message, "FRONIUS boiler");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		snprintf(value, 5, " %3d", boiler[i]->load);
+		snprintf(value, 5, " %3d", boiler[i]->power);
 		strcat(message, value);
 	}
 
@@ -65,7 +64,7 @@ static void print_status() {
 static int check_all(int value) {
 	int check = 1;
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		if (boiler[i]->load != value)
+		if (boiler[i]->power != value)
 			check = 0;
 	return check;
 }
@@ -90,10 +89,22 @@ static unsigned int calculate_step(int grid) {
 	return step;
 }
 
-static int set_boiler(boiler_t *boiler, unsigned int load) {
-	boiler->load = load;
+static int set_boiler(boiler_t *boiler, unsigned int power) {
+	boiler->power = power;
+
 	if (boiler->addr == NULL)
 		return -1;
+
+	// boiler is not active - completely switch off
+	if (!boiler->active)
+		power = 0;
+
+	// countdown override and set power to 100%
+	if (boiler->override) {
+		boiler->override--;
+		power = 100;
+		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
+	}
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -111,7 +122,7 @@ static int set_boiler(boiler_t *boiler, unsigned int load) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	char message[16];
-	unsigned int voltage = boiler->load == 0 ? 0 : boiler->load * 80 + 2000;
+	unsigned int voltage = power == 0 ? 0 : power * 80 + 2000;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
@@ -119,6 +130,11 @@ static int set_boiler(boiler_t *boiler, unsigned int load) {
 		return xerr("Sendto failed");
 
 	return 0;
+}
+
+static void set_boilers(unsigned int power) {
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+		set_boiler(boiler[i], power);
 }
 
 static void keep() {
@@ -135,8 +151,7 @@ static void offline() {
 	}
 
 	xlog("FRONIUS entering offline");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		set_boiler(boiler[i], 0);
+	set_boilers(0);
 }
 
 static void rampup(int grid, int load) {
@@ -144,9 +159,7 @@ static void rampup(int grid, int load) {
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0 || abs(load) > 500) {
 			// exit standby once per hour or when load > 0,5kW
-			for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-				set_boiler(boiler[i], 0);
-
+			set_boilers(0);
 			wait = WAIT_KEEP;
 			xlog("FRONIUS exiting standby");
 			return;
@@ -159,9 +172,7 @@ static void rampup(int grid, int load) {
 
 	// check if all boilers are ramped up to 100% but do not consume power
 	if (check_all(100) && (abs(load) < 500)) {
-		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-			set_boiler(boiler[i], BOILER_STANDBY);
-
+		set_boilers(BOILER_STANDBY);
 		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
 		xlog("FRONIUS entering standby");
@@ -174,8 +185,8 @@ static void rampup(int grid, int load) {
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		if (boiler[i]->load != 100) {
-			int boiler_load = boiler[i]->load;
+		if (boiler[i]->power != 100) {
+			int boiler_load = boiler[i]->power;
 			boiler_load += step;
 			if (boiler_load == BOILER_STANDBY)
 				boiler_load++; // not the standby value
@@ -201,8 +212,8 @@ static void rampdown(int grid, int load) {
 
 	// lowering all boilers
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		if (boiler[i]->load) {
-			int boiler_load = boiler[i]->load;
+		if (boiler[i]->power) {
+			int boiler_load = boiler[i]->power;
 			boiler_load -= step;
 			if (boiler_load == BOILER_STANDBY)
 				boiler_load--; // not the standby value
@@ -220,8 +231,7 @@ static void* fronius(void *arg) {
 	}
 
 	// initialize all boilers
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		set_boiler(boiler[i], 0);
+	set_boilers(0);
 
 	float p_akku, p_grid, p_load, p_pv;
 	int akku, grid, load, pv;
@@ -229,14 +239,12 @@ static void* fronius(void *arg) {
 	while (1) {
 		sleep(wait);
 
-		// forcing first boiler to heat up for 10 minutes
-		if (override_flag) {
-			set_boiler(boiler[0], 100);
-			wait = WAIT_OVERRIDE;
-			override_flag = 0;
-			xlog("FRONIUS Override active for %d seconds", WAIT_OVERRIDE);
-			continue;
-		}
+		// Idee: if afternoon() && PV < 1000 then boiler[3]->active = 0
+		// wenn er bis dahin nicht voll ist - pech gehabt - rest geht in Akku
+
+		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+			if (boiler[i]->override)
+				set_boiler(boiler[i], 100);
 
 		req.len = 0;
 		CURLcode res = curl_easy_perform(curl);
@@ -280,7 +288,9 @@ static int init() {
 		boiler_t *b = malloc(sizeof(boiler_t));
 		b->name = boilers[i];
 		b->addr = resolve_ip(b->name);
-		b->load = 0;
+		b->active = 1;
+		b->override = 0;
+		b->power = 0;
 		boiler[i] = b;
 	}
 
@@ -317,8 +327,9 @@ static void stop() {
 		close(sock);
 }
 
-void fronius_override() {
-	override_flag = 1;
+void fronius_override(int index) {
+	boiler[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
+	xlog("FRONIUS Setting Override for %s loops %d", boiler[index]->name, boiler[index]->override);
 }
 
 int fronius_main(int argc, char **argv) {
