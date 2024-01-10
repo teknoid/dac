@@ -73,6 +73,16 @@ static int check_all(int value) {
 	return check;
 }
 
+// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
+int calculate_pv_distortion() {
+	int distortion = 0;
+
+	for (int i = 0; i < PV_HISTORY - 1; i++)
+		distortion += abs(pv_history[i + 1] - pv_history[i]);
+
+	return distortion;
+}
+
 // Grid < 0	--> upload
 // Grid > 0	--> download
 
@@ -82,18 +92,24 @@ static int check_all(int value) {
 // 100% == 2000 watt --> 1% == 20W
 static int calculate_step(int akku, int grid, int load, int pv) {
 	// allow 100 watt grid upload or akku charging
-	int surplus = ((grid - 100) + akku) * -1;
+	int surplus = ((grid + akku) - 100) * -1;
+	int distortion = calculate_pv_distortion();
 
 	int step;
 	if (surplus > 1000)
 		// big surplus - normal steps
 		step = surplus / 20;
-	else if (surplus > 0)
-		// small surplus - smaller steps
-		step = surplus / 20 / 2;
-	else
+	else if (surplus < 0)
 		// overload - normal steps
 		step = surplus / 20;
+	else {
+		if (distortion < 100)
+			// small surplus - smaller steps
+			step = surplus / 20 / 2;
+		else
+			// small surplus and big distortion - much smaller steps
+			step = surplus / 20 / 2 / 2;
+	}
 
 	if (step < -100)
 		step = -100; // min -100
@@ -102,11 +118,11 @@ static int calculate_step(int akku, int grid, int load, int pv) {
 		step = 100; // max 100
 
 	if (step < 0)
-		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d rampdown step:%d", akku, grid, load, pv, surplus, step);
+		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> rampdown step:%d", akku, grid, load, pv, surplus, distortion, step);
 	else if (step > 0)
-		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d rampup step:%d", akku, grid, load, pv, surplus, step);
+		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> rampup step:%d", akku, grid, load, pv, surplus, distortion, step);
 	else
-		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d keep", akku, grid, load, pv);
+		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> keep", akku, grid, load, pv, surplus, distortion);
 
 	return step;
 }
@@ -282,7 +298,7 @@ static void* fronius(void *arg) {
 
 		// no PV production, go into offline mode
 		if (pv < 10) {
-			xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d --> offline", akku, grid, load, pv);
+			xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d --> offline", akku, grid, load, pv);
 			offline();
 			continue;
 		}
