@@ -26,6 +26,10 @@ static CURL *curl;
 const char *boilers[] = { BOILERS };
 static boiler_t **boiler;
 
+// PV history values to calculate distortion
+static int pv_history[PV_HISTORY];
+static int pv_history_ptr = 0;
+
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
 	get_request_t *req = (get_request_t*) userdata;
@@ -77,7 +81,7 @@ static int check_all(int value) {
 
 // 100% == 2000 watt --> 1% == 20W
 static int calculate_step(int akku, int grid, int load, int pv) {
-	// allow 100 watt upload
+	// allow 100 watt grid upload or akku charging
 	int surplus = ((grid - 100) + akku) * -1;
 
 	int step;
@@ -92,15 +96,17 @@ static int calculate_step(int akku, int grid, int load, int pv) {
 		step = surplus / 20;
 
 	if (step < -100)
-		step = -100; // max -100
+		step = -100; // min -100
 
 	if (step > 100)
 		step = 100; // max 100
 
 	if (step < 0)
-		xlog("FRONIUS surplus:%d rampdown step:%d", surplus, step);
+		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d rampdown step:%d", akku, grid, load, pv, surplus, step);
 	else if (step > 0)
-		xlog("FRONIUS surplus:%d rampup step:%d", surplus, step);
+		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d rampup step:%d", akku, grid, load, pv, surplus, step);
+	else
+		xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d surplus:%d keep", akku, grid, load, pv);
 
 	return step;
 }
@@ -166,16 +172,13 @@ static void keep() {
 static void offline() {
 	wait = WAIT_OFFLINE;
 
-	if (check_all(0)) {
-		xlog("FRONIUS offline");
+	if (check_all(0))
 		return;
-	}
 
-	xlog("FRONIUS entering offline");
 	set_boilers(0);
 }
 
-static void rampup(int step, int akku, int grid, int load) {
+static void rampup(int akku, int grid, int load, int pv, int step) {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0 || abs(load) > 500) {
@@ -215,7 +218,7 @@ static void rampup(int step, int akku, int grid, int load) {
 	}
 }
 
-static void rampdown(int step, int akku, int grid, int load) {
+static void rampdown(int akku, int grid, int load, int pv, int step) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
@@ -276,22 +279,29 @@ static void* fronius(void *arg) {
 		grid = p_grid;
 		load = p_load;
 		pv = p_pv;
-		xlog("FRONIUS Akku:%d, Grid:%d, Load:%d, PV:%d", akku, grid, load, pv);
+
+		// no PV production, go into offline mode
+		if (pv < 10) {
+			xlog("FRONIUS Akku:%6d, Grid:%6d, Load:%6d, PV:%6d --> offline", akku, grid, load, pv);
+			offline();
+			continue;
+		}
+
+		// update PV history
+		pv_history[pv_history_ptr++] = pv;
+		if (pv_history_ptr == PV_HISTORY)
+			pv_history_ptr = 0;
 
 		int step = calculate_step(akku, grid, load, pv);
-
-		if (pv == 0)
-			// no PV production, go into offline mode
-			offline();
-		else if (step < 0)
-			// consuming grid power: ramp down
-			rampdown(step, akku, grid, load);
+		if (step < 0)
+			// consuming grid power or discharging akku: ramp down
+			rampdown(akku, grid, load, pv, step);
 		else if (step == 0)
 			// uploading grid power between 0 and 100 watts: keep current state
-			keep();
+			keep(akku, grid, load, pv);
 		else if (step > 0)
-			// uploading grid power: ramp up
-			rampup(step, akku, grid, load);
+			// uploading grid power or charging akku: ramp up
+			rampup(akku, grid, load, pv, step);
 
 		print_status();
 	}
