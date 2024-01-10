@@ -69,27 +69,49 @@ static int check_all(int value) {
 	return check;
 }
 
-// 100% == 2000 watt --> 1% == 20W
-static unsigned int calculate_step(int grid) {
-	unsigned int step;
+// Grid < 0	--> upload
+// Grid > 0	--> download
 
-	if (grid < -1000)
+// Akku < 0	--> charge
+// Akku > 0	--> discharge
+
+// 100% == 2000 watt --> 1% == 20W
+static int calculate_step(int akku, int grid, int load, int pv) {
+	// allow 100 watt upload
+	int surplus = ((grid - 100) + akku) * -1;
+
+	int step;
+	if (surplus > 1000)
 		// big surplus - normal steps
-		step = abs(grid) / 20;
-	else if (grid < 0)
+		step = surplus / 20;
+	else if (surplus > 0)
 		// small surplus - smaller steps
-		step = abs(grid) / 20 / 2;
+		step = surplus / 20 / 2;
 	else
 		// overload - normal steps
-		step = grid / 20;
+		step = surplus / 20;
 
-	if (!step)
-		step = 1; // at least 1
+	if (step < -100)
+		step = -100; // max -100
+
+	if (step > 100)
+		step = 100; // max 100
+
+	if (step < 0)
+		xlog("FRONIUS surplus:%d rampdown step:%d", surplus, step);
+	else if (step > 0)
+		xlog("FRONIUS surplus:%d rampup step:%d", surplus, step);
 
 	return step;
 }
 
-static int set_boiler(boiler_t *boiler, unsigned int power) {
+static int set_boiler(boiler_t *boiler, int power) {
+	if (power < 0)
+		power = 0;
+
+	if (power > 100)
+		power = 100;
+
 	boiler->power = power;
 
 	if (boiler->addr == NULL)
@@ -132,14 +154,13 @@ static int set_boiler(boiler_t *boiler, unsigned int power) {
 	return 0;
 }
 
-static void set_boilers(unsigned int power) {
+static void set_boilers(int power) {
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		set_boiler(boiler[i], power);
 }
 
 static void keep() {
 	wait = WAIT_KEEP;
-	xlog("FRONIUS keep");
 }
 
 static void offline() {
@@ -154,7 +175,7 @@ static void offline() {
 	set_boilers(0);
 }
 
-static void rampup(int grid, int load) {
+static void rampup(int step, int akku, int grid, int load) {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0 || abs(load) > 500) {
@@ -179,26 +200,22 @@ static void rampup(int grid, int load) {
 		return;
 	}
 
-	unsigned int step = calculate_step(grid);
-	xlog("FRONIUS rampup surplus:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPUP;
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->power != 100) {
-			int boiler_load = boiler[i]->power;
-			boiler_load += step;
-			if (boiler_load == BOILER_STANDBY)
-				boiler_load++; // not the standby value
-			if (boiler_load > 100)
-				boiler_load = 100;
-			set_boiler(boiler[i], boiler_load);
+			int boiler_power = boiler[i]->power;
+			boiler_power += step;
+			if (boiler_power == BOILER_STANDBY)
+				boiler_power++; // not the standby value
+			set_boiler(boiler[i], boiler_power);
 			return;
 		}
 	}
 }
 
-static void rampdown(int grid, int load) {
+static void rampdown(int step, int akku, int grid, int load) {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
@@ -206,20 +223,16 @@ static void rampdown(int grid, int load) {
 		return;
 	}
 
-	unsigned int step = calculate_step(grid);
-	xlog("FRONIUS rampdown overload:%d step:%d", abs(grid), step);
 	wait = WAIT_RAMPDOWN;
 
 	// lowering all boilers
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->power) {
-			int boiler_load = boiler[i]->power;
-			boiler_load -= step;
-			if (boiler_load == BOILER_STANDBY)
-				boiler_load--; // not the standby value
-			if (boiler_load < 0)
-				boiler_load = 0;
-			set_boiler(boiler[i], boiler_load);
+			int boiler_power = boiler[i]->power;
+			boiler_power += step;
+			if (boiler_power == BOILER_STANDBY)
+				boiler_power--; // not the standby value
+			set_boiler(boiler[i], boiler_power);
 		}
 	}
 }
@@ -265,18 +278,20 @@ static void* fronius(void *arg) {
 		pv = p_pv;
 		xlog("FRONIUS Akku:%d, Grid:%d, Load:%d, PV:%d", akku, grid, load, pv);
 
+		int step = calculate_step(akku, grid, load, pv);
+
 		if (pv == 0)
 			// no PV production, go into offline mode
 			offline();
-		else if (grid < -100)
-			// uploading grid power over 100 watts: ramp up
-			rampup(grid, load);
-		else if (-100 <= grid && grid <= 0)
+		else if (step < 0)
+			// consuming grid power: ramp down
+			rampdown(step, akku, grid, load);
+		else if (step == 0)
 			// uploading grid power between 0 and 100 watts: keep current state
 			keep();
-		else if (grid > 0)
-			// consuming grid power: ramp down
-			rampdown(grid, load);
+		else if (step > 0)
+			// uploading grid power: ramp up
+			rampup(step, akku, grid, load);
 
 		print_status();
 	}
