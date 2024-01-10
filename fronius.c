@@ -118,9 +118,9 @@ static int calculate_step(int akku, int grid, int load, int pv) {
 		step = 100; // max 100
 
 	if (step < 0)
-		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> rampdown step:%d", akku, grid, load, pv, surplus, distortion, step);
+		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> ramp↓ step:%d", akku, grid, load, pv, surplus, distortion, step);
 	else if (step > 0)
-		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> rampup step:%d", akku, grid, load, pv, surplus, distortion, step);
+		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> ramp↑ step:%d", akku, grid, load, pv, surplus, distortion, step);
 	else
 		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> keep", akku, grid, load, pv, surplus, distortion);
 
@@ -200,7 +200,7 @@ static void rampup(int akku, int grid, int load, int pv, int step) {
 		if (--standby_timer == 0 || abs(load) > 500) {
 			// exit standby once per hour or when load > 0,5kW
 			set_boilers(0);
-			wait = WAIT_KEEP;
+			wait = 1;
 			xlog("FRONIUS exiting standby");
 			return;
 		}
@@ -213,8 +213,8 @@ static void rampup(int akku, int grid, int load, int pv, int step) {
 	// check if all boilers are ramped up to 100% but do not consume power
 	if (check_all(100) && (abs(load) < 500)) {
 		set_boilers(BOILER_STANDBY);
-		wait = WAIT_STANDBY;
 		standby_timer = STANDBY_EXPIRE;
+		wait = WAIT_STANDBY;
 		xlog("FRONIUS entering standby");
 		return;
 	}
