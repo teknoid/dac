@@ -92,7 +92,7 @@ int calculate_pv_distortion() {
 // 100% == 2000 watt --> 1% == 20W
 static int calculate_step(int akku, int grid, int load, int pv) {
 	// allow 100 watt grid upload or akku charging
-	int surplus = ((grid + akku) - 100) * -1;
+	int surplus = ((grid + akku) + 100) * -1;
 	int distortion = calculate_pv_distortion();
 
 	int step;
@@ -103,12 +103,12 @@ static int calculate_step(int akku, int grid, int load, int pv) {
 		// overload - normal steps
 		step = surplus / 20;
 	else {
-		if (distortion < 100)
-			// small surplus - smaller steps
-			step = surplus / 20 / 2;
-		else
-			// small surplus and big distortion - much smaller steps
+		if (distortion > 500)
+			// small surplus and big distortion - very small steps
 			step = surplus / 20 / 2 / 2;
+		else
+			// small surplus - small steps
+			step = surplus / 20 / 2;
 	}
 
 	if (step < -100)
@@ -296,8 +296,8 @@ static void* fronius(void *arg) {
 		load = p_load;
 		pv = p_pv;
 
-		// no PV production, go into offline mode
-		if (pv < 10) {
+		// not enough PV production, go into offline mode
+		if (pv < 100) {
 			xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d --> offline", akku, grid, load, pv);
 			offline();
 			continue;
