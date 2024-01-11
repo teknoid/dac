@@ -92,7 +92,7 @@ int calculate_pv_distortion() {
 // 100% == 2000 watt --> 1% == 20W
 static int calculate_step(int akku, int grid, int load, int pv) {
 	// allow 100 watt grid upload or akku charging
-	int surplus = ((grid + akku) + 100) * -1;
+	int surplus = (grid + akku) * -1 - 100;
 	int distortion = calculate_pv_distortion();
 
 	int step;
@@ -181,10 +181,6 @@ static void set_boilers(int power) {
 		set_boiler(boiler[i], power);
 }
 
-static void keep() {
-	wait = WAIT_KEEP;
-}
-
 static void offline() {
 	wait = WAIT_OFFLINE;
 
@@ -271,7 +267,11 @@ static void* fronius(void *arg) {
 	while (1) {
 		sleep(wait);
 
-		// Idee: if afternoon() && PV < 1000 then boiler[3]->active = 0
+		// Idee 1:
+		// Akkustand auslesen: erst wenn 75% -> boiler[2]->active = 1
+
+		// Idee 2:
+		// if afternoon() && PV < 1000 then boiler[2]->active = 0
 		// wenn er bis dahin nicht voll ist - pech gehabt - rest geht in Akku
 
 		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
@@ -313,8 +313,8 @@ static void* fronius(void *arg) {
 			// consuming grid power or discharging akku: ramp down
 			rampdown(akku, grid, load, pv, step);
 		else if (step == 0)
-			// uploading grid power between 0 and 100 watts: keep current state
-			keep(akku, grid, load, pv);
+			// keep current state
+			wait = WAIT_KEEP;
 		else if (step > 0)
 			// uploading grid power or charging akku: ramp up
 			rampup(akku, grid, load, pv, step);
@@ -369,6 +369,9 @@ static void stop() {
 }
 
 void fronius_override(int index) {
+	if (index < 0 || index >= ARRAY_SIZE(boilers))
+		return;
+
 	boiler[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
 	xlog("FRONIUS Setting Override for %s loops %d", boiler[index]->name, boiler[index]->override);
 }
