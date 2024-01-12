@@ -15,7 +15,7 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define FRONIUSLOG 			"FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
+#define FRONIUSLOG 			"FRONIUS SoC:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
 
 static pthread_t thread;
 
@@ -31,8 +31,8 @@ static device_t **boiler;
 const char *heaters[] = { HEATERS };
 static device_t **heater;
 
-// actual Fronius power flow data
-static int charge, akku, grid, load, pv, surplus, step;
+// actual Fronius power flow data + calculations
+static int soc, akku, grid, load, pv, surplus, step;
 
 // PV history values to calculate distortion
 static int pv_history[PV_HISTORY];
@@ -62,7 +62,7 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 static void parse() {
-	float p_charge, p_akku, p_grid, p_load, p_pv;
+	float p_soc, p_akku, p_grid, p_load, p_pv;
 
 	// printf("Received data:/n%s\n", req.buffer);
 	// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
@@ -79,10 +79,10 @@ static void parse() {
 	p++;
 	while (*p != '{')
 		p++;
-	json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
+	json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_soc);
 	free(c);
 
-	charge = p_charge;
+	soc = p_soc;
 	akku = p_akku;
 	grid = p_grid;
 	load = p_load;
@@ -281,7 +281,7 @@ static void calculate_step() {
 
 static void offline() {
 	wait = WAIT_OFFLINE;
-	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> offline", soc, akku, grid, load, pv, surplus, step);
 
 	if (check_all_boilers(0) && check_all_heaters(0))
 		return;
@@ -292,7 +292,7 @@ static void offline() {
 
 void keep() {
 	wait = WAIT_KEEP;
-	xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> keep", soc, akku, grid, load, pv, surplus, step);
 }
 
 static void rampup() {
@@ -324,7 +324,7 @@ static void rampup() {
 	}
 
 	wait = WAIT_RAMPUP;
-	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> ramp↑", soc, akku, grid, load, pv, surplus, step);
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
@@ -363,7 +363,7 @@ static void rampdown() {
 	}
 
 	wait = WAIT_RAMPDOWN;
-	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> ramp↓", soc, akku, grid, load, pv, surplus, step);
 
 	// first switch off heaters separately
 	for (int i = ARRAY_SIZE(heaters) - 1; i >= 0; i--)
