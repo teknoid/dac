@@ -15,138 +15,89 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define FRONIUSLOG 			"FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
+
 static pthread_t thread;
-static int sock = 0;
-static int wait = 3;
-static int standby_timer;
-static get_request_t req = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
+
+// curl response buffer
 static CURL *curl;
+static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
 // boiler status
 const char *boilers[] = { BOILERS };
-static boiler_t **boiler;
+static device_t **boiler;
+
+// heater status
+const char *heaters[] = { HEATERS };
+static device_t **heater;
+
+// actual Fronius power flow data
+static int charge, akku, grid, load, pv, surplus, step;
 
 // PV history values to calculate distortion
 static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
 
+static int sock = 0;
+static int wait = 3;
+static int standby_timer;
+
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
-	get_request_t *req = (get_request_t*) userdata;
+	get_response_t *xres = (get_response_t*) userdata;
 
-	if (req->buffer == NULL)
-		req->buffer = malloc(CHUNK_SIZE);
+	if (xres->buffer == NULL)
+		xres->buffer = malloc(CHUNK_SIZE);
 
-	while (req->buflen < req->len + realsize + 1) {
-		req->buffer = realloc(req->buffer, req->buflen + CHUNK_SIZE);
-		req->buflen += CHUNK_SIZE;
+	while (xres->buflen < xres->len + realsize + 1) {
+		xres->buffer = realloc(xres->buffer, xres->buflen + CHUNK_SIZE);
+		xres->buflen += CHUNK_SIZE;
 	}
 
-	memcpy(&req->buffer[req->len], ptr, realsize);
-	req->len += realsize;
-	req->buffer[req->len] = 0;
+	memcpy(&xres->buffer[xres->len], ptr, realsize);
+	xres->len += realsize;
+	xres->buffer[xres->len] = 0;
 
 	return realsize;
 }
 
-static void print_status() {
-	char message[32];
-	char value[5];
+static void parse() {
+	float p_charge, p_akku, p_grid, p_load, p_pv;
 
-	strcpy(message, "FRONIUS boiler");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		snprintf(value, 5, " %3d", boiler[i]->power);
-		strcat(message, value);
-	}
+	// printf("Received data:/n%s\n", req.buffer);
+	// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
+	// printf("Grid Power %f\n", grid_power);
 
-	snprintf(value, 5, "%3d", wait);
-	strcat(message, "   wait ");
-	strcat(message, value);
-	xlog(message);
+	json_scanf(res.buffer, res.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
+
+	// workaround parsing { "Inverters" : { "1" : { ... } } }
+	char *c, *p;
+	json_scanf(res.buffer, res.len, "{ Body { Data { Inverters:%Q } } }", &c);
+	p = c;
+	while (*p != '{')
+		p++;
+	p++;
+	while (*p != '{')
+		p++;
+	json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
+	free(c);
+
+	charge = p_charge;
+	akku = p_akku;
+	grid = p_grid;
+	load = p_load;
+	pv = p_pv;
 }
 
-static int check_all(int value) {
-	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		if (boiler[i]->power != value)
-			check = 0;
-	return check;
+static int set_heater(device_t *header, int power) {
 }
 
-// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
-int calculate_pv_distortion() {
-	char message[64];
-	char value[8];
-
-	strcpy(message, "[");
-	for (int i = 0; i < PV_HISTORY; i++) {
-		snprintf(value, 5, "%d", pv_history[i]);
-		if (i > 0 && i < PV_HISTORY)
-			strcat(message, ", ");
-		strcat(message, value);
-	}
-	strcat(message, "]");
-
-	int average = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		average += pv_history[i];
-	average /= PV_HISTORY;
-
-	int variation = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		variation += abs(average - pv_history[i]);
-
-	int distortion = (variation / 2) > average;
-	xlog("FRONIUS PV history %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
-
-	return distortion;
+static void set_heaters(int power) {
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
+		set_heater(heater[i], power);
 }
 
-// Grid < 0	--> upload
-// Grid > 0	--> download
-
-// Akku < 0	--> charge
-// Akku > 0	--> discharge
-
-// 100% == 2000 watt --> 1% == 20W
-static int calculate_step(int akku, int grid, int load, int pv) {
-	// allow 100 watt grid upload or akku charging
-	int surplus = (grid + akku) * -1 - 100;
-	int distortion = calculate_pv_distortion();
-
-	int step;
-	if (surplus > 1000)
-		// big surplus - normal steps
-		step = surplus / 20;
-	else if (surplus < 0)
-		// overload - normal steps
-		step = surplus / 20;
-	else {
-		if (distortion)
-			// small surplus and big distortion - very small steps
-			step = surplus / 20 / 2 / 2;
-		else
-			// small surplus - small steps
-			step = surplus / 20 / 2;
-	}
-
-	if (step < -100)
-		step = -100; // min -100
-
-	if (step > 100)
-		step = 100; // max 100
-
-	if (step < 0)
-		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> ramp↓ step:%d", akku, grid, load, pv, surplus, distortion, step);
-	else if (step > 0)
-		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> ramp↑ step:%d", akku, grid, load, pv, surplus, distortion, step);
-	else
-		xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d surplus:%5d distortion:%4d --> keep", akku, grid, load, pv, surplus, distortion);
-
-	return step;
-}
-
-static int set_boiler(boiler_t *boiler, int power) {
+static int set_boiler(device_t *boiler, int power) {
 	if (power < 0)
 		power = 0;
 
@@ -200,8 +151,100 @@ static void set_boilers(int power) {
 		set_boiler(boiler[i], power);
 }
 
+static int check_all(int value) {
+	int check = 1;
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+		if (boiler[i]->power != value)
+			check = 0;
+	return check;
+}
+
+static void print_status() {
+	char message[64];
+	char value[5];
+
+	strcpy(message, "FRONIUS boiler active");
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+		strcat(message, boiler[i]->active ? "1" : "0");
+
+	strcat(message, "   power ");
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
+		snprintf(value, 5, " %3d", boiler[i]->power);
+		strcat(message, value);
+	}
+
+	snprintf(value, 5, "%3d", wait);
+	strcat(message, "   wait ");
+	strcat(message, value);
+	xlog(message);
+}
+
+// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
+int calculate_pv_distortion() {
+	char message[64];
+	char value[8];
+
+	strcpy(message, "[");
+	for (int i = 0; i < PV_HISTORY; i++) {
+		snprintf(value, 8, "%d", pv_history[i]);
+		if (i > 0 && i < PV_HISTORY)
+			strcat(message, ", ");
+		strcat(message, value);
+	}
+	strcat(message, "]");
+
+	int average = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		average += pv_history[i];
+	average /= PV_HISTORY;
+
+	int variation = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		variation += abs(average - pv_history[i]);
+
+	int distortion = (variation / 2) > average;
+	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
+
+	return distortion;
+}
+
+// Grid < 0	--> upload
+// Grid > 0	--> download
+
+// Akku < 0	--> charge
+// Akku > 0	--> discharge
+
+// 100% == 2000 watt --> 1% == 20W
+static void calculate_step() {
+	// allow 100 watt grid upload or akku charging
+	surplus = (grid + akku) * -1 - 100;
+	int distortion = calculate_pv_distortion();
+
+	if (surplus > 1000)
+		// big surplus - normal steps
+		step = surplus / 20;
+	else if (surplus < 0)
+		// overload - normal steps
+		step = surplus / 20;
+	else {
+		if (distortion)
+			// small surplus and big distortion - very small steps
+			step = surplus / 20 / 2 / 2;
+		else
+			// small surplus - small steps
+			step = surplus / 20 / 2;
+	}
+
+	if (step < -100)
+		step = -100; // min -100
+
+	if (step > 100)
+		step = 100; // max 100
+}
+
 static void offline() {
 	wait = WAIT_OFFLINE;
+	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
 	if (check_all(0))
 		return;
@@ -209,7 +252,12 @@ static void offline() {
 	set_boilers(0);
 }
 
-static void rampup(int akku, int grid, int load, int pv, int step) {
+void keep() {
+	wait = WAIT_KEEP;
+	xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
+}
+
+static void rampup() {
 	// check if all boilers are in standby mode
 	if (check_all(BOILER_STANDBY)) {
 		if (--standby_timer == 0 || abs(load) > 500) {
@@ -235,6 +283,7 @@ static void rampup(int akku, int grid, int load, int pv, int step) {
 	}
 
 	wait = WAIT_RAMPUP;
+	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, step);
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
@@ -249,7 +298,7 @@ static void rampup(int akku, int grid, int load, int pv, int step) {
 	}
 }
 
-static void rampdown(int akku, int grid, int load, int pv, int step) {
+static void rampdown() {
 	// check if all boilers are ramped down
 	if (check_all(0)) {
 		wait = WAIT_STANDBY;
@@ -258,6 +307,7 @@ static void rampdown(int akku, int grid, int load, int pv, int step) {
 	}
 
 	wait = WAIT_RAMPDOWN;
+	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
 
 	// lowering all boilers
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
@@ -280,9 +330,6 @@ static void* fronius(void *arg) {
 	// initialize all boilers
 	set_boilers(0);
 
-	float p_akku, p_grid, p_load, p_pv;
-	int akku, grid, load, pv;
-
 	while (1) {
 		sleep(wait);
 
@@ -293,31 +340,26 @@ static void* fronius(void *arg) {
 		// if afternoon() && PV < 1000 then boiler[2]->active = 0
 		// wenn er bis dahin nicht voll ist - pech gehabt - rest geht in Akku
 
+		// check if override is active
 		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 			if (boiler[i]->override)
 				set_boiler(boiler[i], 100);
 
-		req.len = 0;
-		CURLcode res = curl_easy_perform(curl);
-		if (res != CURLE_OK) {
-			xerr("FRONIUS No response from Fronius API: %d", res);
-			offline();
+		// make Fronius API call
+		res.len = 0;
+		CURLcode ret = curl_easy_perform(curl);
+		if (ret != CURLE_OK) {
+			xerr("FRONIUS No response from Fronius API: %d", ret);
+			wait = WAIT_OFFLINE;
+			set_boilers(0);
 			continue;
 		}
 
-		// printf("Received data:/n%s\n", req.buffer);
-		// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
-		// printf("Grid Power %f\n", grid_power);
-
-		json_scanf(req.buffer, req.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
-		akku = p_akku;
-		grid = p_grid;
-		load = p_load;
-		pv = p_pv;
+		// extract values from Fronius JSON response
+		parse();
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
-			xlog("FRONIUS Akku:%5d, Grid:%5d, Load:%5d, PV:%5d --> offline", akku, grid, load, pv);
 			offline();
 			continue;
 		}
@@ -327,16 +369,16 @@ static void* fronius(void *arg) {
 		if (pv_history_ptr == PV_HISTORY)
 			pv_history_ptr = 0;
 
-		int step = calculate_step(akku, grid, load, pv);
+		calculate_step();
 		if (step < 0)
 			// consuming grid power or discharging akku: ramp down
-			rampdown(akku, grid, load, pv, step);
-		else if (step == 0)
-			// keep current state
-			wait = WAIT_KEEP;
+			rampdown();
 		else if (step > 0)
 			// uploading grid power or charging akku: ramp up
-			rampup(akku, grid, load, pv, step);
+			rampup();
+		else
+			// keep current state
+			keep();
 
 		print_status();
 	}
@@ -345,7 +387,7 @@ static void* fronius(void *arg) {
 static int init() {
 	boiler = malloc(ARRAY_SIZE(boilers));
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		boiler_t *b = malloc(sizeof(boiler_t));
+		device_t *b = malloc(sizeof(device_t));
 		b->name = boilers[i];
 		b->addr = resolve_ip(b->name);
 		b->active = 1;
@@ -363,7 +405,7 @@ static int init() {
 	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "http");
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &req);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
 	if (pthread_create(&thread, NULL, &fronius, NULL))
 		return xerr("Error creating fronius thread");
@@ -380,7 +422,7 @@ static void stop() {
 		xlog("Error joining fronius thread");
 
 	// stop and destroy this module
-	free(req.buffer);
+	free(res.buffer);
 	curl_easy_cleanup(curl);
 
 	if (sock != 0)
