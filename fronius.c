@@ -167,7 +167,7 @@ static int set_boiler(device_t *boiler, int power) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	char message[16];
-	unsigned int voltage = power == 0 ? 0 : power * 80 + BOILER_WATT;
+	int voltage = power == 0 ? 0 : power * 80 + BOILER_WATT;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
@@ -460,20 +460,20 @@ static int init() {
 		b->addr = resolve_ip(b->name);
 		b->active = 1;
 		b->override = 0;
-		b->power = 0;
+		b->power = -1;
 		boiler[i] = b;
 	}
 
 	// create heater device structures
 	heater = malloc(ARRAY_SIZE(heaters));
 	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
-		device_t *b = malloc(sizeof(device_t));
-		b->name = heaters[i];
-		b->addr = resolve_ip(b->name);
-		b->active = 1;
-		b->override = 0;
-		b->power = 0;
-		heater[i] = b;
+		device_t *h = malloc(sizeof(device_t));
+		h->name = heaters[i];
+		h->addr = resolve_ip(h->name);
+		h->active = 1;
+		h->override = 0;
+		h->power = -1;
+		heater[i] = h;
 	}
 
 	curl = curl_easy_init();

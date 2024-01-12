@@ -29,9 +29,9 @@ typedef struct get_response_t {
 typedef struct device_t {
 	const char *name;
 	const char *addr;
-	unsigned int active;
-	unsigned int override;
-	unsigned int power;
+	int active;
+	int override;
+	int power;
 } device_t;
 
 void fronius_override(int index);
