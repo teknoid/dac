@@ -13,7 +13,6 @@
 #include "fronius.h"
 #include "frozen.h"
 #include "utils.h"
-#include "mqtt.h"
 #include "mcp.h"
 
 #define FRONIUSLOG 			"FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
@@ -93,11 +92,19 @@ static void parse() {
 static int set_heater(device_t *heater, int power) {
 	char command[128];
 
+	if (heater->power == power)
+		return 0;
+
+	if (heater->addr == NULL)
+		return -1;
+
+	heater->power = power;
+
 	if (power) {
-		xlog("FRONIUS switching heater %s ON", heater->name);
+		xlog("FRONIUS switching %s ON", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->name);
 	} else {
-		xlog("FRONIUS switching heater %s OFF", heater->name);
+		xlog("FRONIUS switching %s OFF", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->name);
 	}
 
@@ -119,6 +126,12 @@ static void set_heaters(int power) {
 }
 
 static int set_boiler(device_t *boiler, int power) {
+	if (boiler->power == power)
+		return 0;
+
+	if (boiler->addr == NULL)
+		return -1;
+
 	if (power < 0)
 		power = 0;
 
@@ -126,9 +139,6 @@ static int set_boiler(device_t *boiler, int power) {
 		power = 100;
 
 	boiler->power = power;
-
-	if (boiler->addr == NULL)
-		return -1;
 
 	// boiler is not active - completely switch off
 	if (!boiler->active)
@@ -161,7 +171,7 @@ static int set_boiler(device_t *boiler, int power) {
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
-	xlog("FRONIUS send boiler %s UDP %s", boiler->addr, message);
+	xlog("FRONIUS send %s UDP %s", boiler->name, message);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
@@ -196,10 +206,8 @@ static void print_status() {
 	}
 
 	strcat(message, "   heaters ");
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
-		snprintf(value, 5, " %3d", heater[i]->power);
-		strcat(message, value);
-	}
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
+		strcat(message, heater[i]->active ? "1" : "0");
 
 	snprintf(value, 5, "%3d", wait);
 	strcat(message, "   wait ");
@@ -520,6 +528,6 @@ int main(int argc, char **argv) {
 	return fronius_main(argc, argv);
 }
 #else
-MCP_REGISTER(fronius, 1, &init, &stop);
+MCP_REGISTER(fronius, 7, &init, &stop);
 #endif
 
