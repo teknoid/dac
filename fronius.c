@@ -328,7 +328,7 @@ static void rampup() {
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		if (boiler[i]->power != 100) {
+		if (boiler[i]->power != 100 && boiler[i]->power != BOILER_STANDBY) {
 			int boiler_power = boiler[i]->power;
 			boiler_power += step;
 			if (boiler_power == BOILER_STANDBY)
