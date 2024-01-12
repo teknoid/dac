@@ -95,10 +95,10 @@ static int set_heater(device_t *heater, int power) {
 
 	if (power) {
 		xlog("FRONIUS switching heater %s ON", heater->name);
-		snprintf(command, 64, "curl --silent --output /dev/null http://%s/cm?cmnd=Power On", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->name);
 	} else {
 		xlog("FRONIUS switching heater %s OFF", heater->name);
-		snprintf(command, 64, "curl --silent --output /dev/null http://%s/cm?cmnd=Power Off", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->name);
 	}
 
 	system(command);
@@ -382,8 +382,9 @@ static void* fronius(void *arg) {
 		return (void*) 0;
 	}
 
-	// initialize all boilers
+	// switch off all
 	set_boilers(0);
+	set_heaters(0);
 
 	while (1) {
 		sleep(wait);
