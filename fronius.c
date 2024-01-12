@@ -13,6 +13,7 @@
 #include "fronius.h"
 #include "frozen.h"
 #include "utils.h"
+#include "mqtt.h"
 #include "mcp.h"
 
 #define FRONIUSLOG 			"FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
@@ -89,7 +90,27 @@ static void parse() {
 	pv = p_pv;
 }
 
-static int set_heater(device_t *header, int power) {
+static int set_heater(device_t *heater, int power) {
+	char command[128];
+
+	if (power) {
+		xlog("FRONIUS switching heater %s ON", heater->name);
+		snprintf(command, 64, "curl --silent --output /dev/null http://%s/cm?cmnd=Power On", heater->name);
+	} else {
+		xlog("FRONIUS switching heater %s OFF", heater->name);
+		snprintf(command, 64, "curl --silent --output /dev/null http://%s/cm?cmnd=Power Off", heater->name);
+	}
+
+	system(command);
+	return 0;
+}
+
+static int check_all_heaters(int value) {
+	int check = 1;
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
+		if (heater[i]->power != value)
+			check = 0;
+	return check;
 }
 
 static void set_heaters(int power) {
@@ -136,10 +157,11 @@ static int set_boiler(device_t *boiler, int power) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	char message[16];
-	unsigned int voltage = power == 0 ? 0 : power * 80 + 2000;
+	unsigned int voltage = power == 0 ? 0 : power * 80 + BOILER_WATT;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
+	xlog("FRONIUS send boiler %s UDP %s", boiler->addr, message);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
@@ -151,7 +173,7 @@ static void set_boilers(int power) {
 		set_boiler(boiler[i], power);
 }
 
-static int check_all(int value) {
+static int check_all_boilers(int value) {
 	int check = 1;
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		if (boiler[i]->power != value)
@@ -163,13 +185,19 @@ static void print_status() {
 	char message[64];
 	char value[5];
 
-	strcpy(message, "FRONIUS boiler active");
+	strcpy(message, "FRONIUS boilers active");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 		strcat(message, boiler[i]->active ? "1" : "0");
 
 	strcat(message, "   power ");
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		snprintf(value, 5, " %3d", boiler[i]->power);
+		strcat(message, value);
+	}
+
+	strcat(message, "   heaters ");
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
+		snprintf(value, 5, " %3d", heater[i]->power);
 		strcat(message, value);
 	}
 
@@ -219,20 +247,21 @@ static void calculate_step() {
 	// allow 100 watt grid upload or akku charging
 	surplus = (grid + akku) * -1 - 100;
 	int distortion = calculate_pv_distortion();
+	int onepercent = BOILER_WATT / 100;
 
 	if (surplus > 1000)
 		// big surplus - normal steps
-		step = surplus / 20;
+		step = surplus / onepercent;
 	else if (surplus < 0)
 		// overload - normal steps
-		step = surplus / 20;
+		step = surplus / onepercent;
 	else {
 		if (distortion)
 			// small surplus and big distortion - very small steps
-			step = surplus / 20 / 2 / 2;
+			step = surplus / onepercent / 2 / 2;
 		else
 			// small surplus - small steps
-			step = surplus / 20 / 2;
+			step = surplus / onepercent / 2;
 	}
 
 	if (step < -100)
@@ -246,9 +275,10 @@ static void offline() {
 	wait = WAIT_OFFLINE;
 	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
-	if (check_all(0))
+	if (check_all_boilers(0) && check_all_heaters(0))
 		return;
 
+	set_heaters(0);
 	set_boilers(0);
 }
 
@@ -258,23 +288,26 @@ void keep() {
 }
 
 static void rampup() {
-	// check if all boilers are in standby mode
-	if (check_all(BOILER_STANDBY)) {
-		if (--standby_timer == 0 || abs(load) > 500) {
-			// exit standby once per hour or when load > 0,5kW
+	// exit standby once per hour
+	if (standby_timer) {
+		if (--standby_timer == 0) {
+			set_heaters(0);
 			set_boilers(0);
 			wait = 1;
 			xlog("FRONIUS exiting standby");
 			return;
 		}
+	}
 
+	// check if all boilers are in standby and all heaters on
+	if (check_all_boilers(BOILER_STANDBY) && check_all_heaters(1)) {
 		wait = WAIT_STANDBY;
 		xlog("FRONIUS rampup standby %d", standby_timer);
 		return;
 	}
 
 	// check if all boilers are ramped up to 100% but do not consume power
-	if (check_all(100) && (abs(load) < 500)) {
+	if (check_all_boilers(100) && (abs(load) < 1000)) {
 		set_boilers(BOILER_STANDBY);
 		standby_timer = STANDBY_EXPIRE;
 		wait = WAIT_STANDBY;
@@ -296,11 +329,26 @@ static void rampup() {
 			return;
 		}
 	}
+
+	// check if we have enough surplus for at least one heater
+	if (surplus < HEATER_WATT)
+		return;
+
+	// switch on heater only when cold
+//	if (sensors->bmp085_temp > 15)
+//		return;
+
+	// switch on each heater separately
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
+		if (!heater[i]->power) {
+			set_heater(heater[i], 1);
+			return;
+		}
 }
 
 static void rampdown() {
-	// check if all boilers are ramped down
-	if (check_all(0)) {
+	// check if all heaters and boilers are ramped down
+	if (check_all_boilers(0) && check_all_heaters(0)) {
 		wait = WAIT_STANDBY;
 		xlog("FRONIUS rampdown standby");
 		return;
@@ -309,7 +357,14 @@ static void rampdown() {
 	wait = WAIT_RAMPDOWN;
 	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
 
-	// lowering all boilers
+	// first switch off heaters separately
+	for (int i = ARRAY_SIZE(heaters) - 1; i >= 0; i--)
+		if (heater[i]->power) {
+			set_heater(heater[i], 0);
+			return;
+		}
+
+	// then lowering all boilers - as we don't know which one consumes power
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		if (boiler[i]->power) {
 			int boiler_power = boiler[i]->power;
@@ -385,6 +440,7 @@ static void* fronius(void *arg) {
 }
 
 static int init() {
+	// create boiler device structures
 	boiler = malloc(ARRAY_SIZE(boilers));
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
 		device_t *b = malloc(sizeof(device_t));
@@ -394,6 +450,18 @@ static int init() {
 		b->override = 0;
 		b->power = 0;
 		boiler[i] = b;
+	}
+
+	// create heater device structures
+	heater = malloc(ARRAY_SIZE(heaters));
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
+		device_t *b = malloc(sizeof(device_t));
+		b->name = heaters[i];
+		b->addr = resolve_ip(b->name);
+		b->active = 1;
+		b->override = 0;
+		b->power = 0;
+		heater[i] = b;
 	}
 
 	curl = curl_easy_init();

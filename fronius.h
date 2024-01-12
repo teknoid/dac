@@ -1,9 +1,10 @@
 #define CHUNK_SIZE 		2048
 
 #define	HEATERS			"plug9"
+#define HEATER_WATT		600
 
 #define BOILERS			"boiler1", "boiler2", "boiler3"
-
+#define BOILER_WATT		2000
 #define BOILER_STANDBY	20
 
 #define WAIT_OFFLINE	60
