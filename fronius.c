@@ -301,7 +301,7 @@ static void rampup() {
 		if (--standby_timer == 0) {
 			set_heaters(0);
 			set_boilers(0);
-			wait = 1;
+			wait = 0;
 			xlog("FRONIUS exiting standby");
 			return;
 		}
@@ -395,7 +395,10 @@ static void* fronius(void *arg) {
 	set_heaters(0);
 
 	while (1) {
-		sleep(wait);
+
+		sleep(1);
+		if (wait--)
+			continue;
 
 		// Idee 1:
 		// Akkustand auslesen: erst wenn 75% -> boiler[2]->active = 1
@@ -510,6 +513,7 @@ void fronius_override(int index) {
 	if (index < 0 || index >= ARRAY_SIZE(boilers))
 		return;
 
+	wait = 0; // immediately exit wait loop
 	boiler[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
 	xlog("FRONIUS Setting Override for %s loops %d", boiler[index]->name, boiler[index]->override);
 }
