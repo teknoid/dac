@@ -75,10 +75,29 @@ static int check_all(int value) {
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 int calculate_pv_distortion() {
-	int distortion = 0;
+	char message[64];
+	char value[8];
 
-	for (int i = 0; i < PV_HISTORY - 1; i++)
-		distortion += abs(pv_history[i + 1] - pv_history[i]);
+	strcpy(message, "[");
+	for (int i = 0; i < PV_HISTORY; i++) {
+		snprintf(value, 5, "%d", pv_history[i]);
+		if (i > 0 && i < PV_HISTORY)
+			strcat(message, ", ");
+		strcat(message, value);
+	}
+	strcat(message, "]");
+
+	int average = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		average += pv_history[i];
+	average /= PV_HISTORY;
+
+	int variation = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		variation += abs(average - pv_history[i]);
+
+	int distortion = (variation / 2) > average;
+	xlog("FRONIUS PV history %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
 
 	return distortion;
 }
@@ -103,7 +122,7 @@ static int calculate_step(int akku, int grid, int load, int pv) {
 		// overload - normal steps
 		step = surplus / 20;
 	else {
-		if (distortion > 500)
+		if (distortion)
 			// small surplus and big distortion - very small steps
 			step = surplus / 20 / 2 / 2;
 		else
