@@ -221,7 +221,7 @@ static void print_status() {
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 int calculate_pv_distortion() {
-	char message[64];
+	char message[128];
 	char value[8];
 
 	strcpy(message, "[");
@@ -404,17 +404,16 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// Idee 1:
-		// Akkustand auslesen: erst wenn 75% -> boiler[2]->active = 1
-
-		// Idee 2:
-		// if afternoon() && PV < 1000 then boiler[2]->active = 0
-		// wenn er bis dahin nicht voll ist - pech gehabt - rest geht in Akku
-
 		// check if override is active
 		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
 			if (boiler[i]->override)
 				set_boiler(boiler[i], 100);
+
+		// enable boiler3 if akku soc is greater than 75% or more than 3kw surplus
+		if (charge > 75 || surplus > 3000)
+			boiler[2]->active = 1;
+		else
+			boiler[2]->active = 0;
 
 		// make Fronius API call
 		res.len = 0;
