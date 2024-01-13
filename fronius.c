@@ -303,12 +303,14 @@ static void keep() {
 
 static void rampup() {
 	// exit standby once per hour
-	if (standby_timer-- == 0) {
-		set_heaters(0);
-		set_boilers(0);
-		wait = 0;
-		xlog("FRONIUS exiting standby");
-		return;
+	if (standby_timer) {
+		if (--standby_timer == 0) {
+			set_heaters(0);
+			set_boilers(0);
+			wait = 0;
+			xlog("FRONIUS exiting standby");
+			return;
+		}
 	}
 
 	// check if all boilers are in standby and all heaters on
