@@ -243,8 +243,8 @@ int calculate_pv_distortion() {
 		variation += abs(average - pv_history[i]);
 	variation /= PV_HISTORY;
 
-	int diff = abs(pv - average);
-	int distortion = diff > variation;
+	int diff = pv - average;
+	int distortion = abs(diff) > variation;
 	xlog("FRONIUS calculate_pv_distortion() %s average:%d diff:%d variation:%d --> distortion:%d", message, average, diff, variation, distortion);
 
 	return distortion;
@@ -422,7 +422,7 @@ static void* fronius(void *arg) {
 		CURLcode ret = curl_easy_perform(curl);
 		if (ret != CURLE_OK) {
 			xerr("FRONIUS No response from Fronius API: %d", ret);
-			wait = WAIT_OFFLINE;
+			wait = WAIT_KEEP;
 			set_boilers(0);
 			continue;
 		}

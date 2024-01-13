@@ -11,8 +11,8 @@
 #define WAIT_OFFLINE	60
 #define WAIT_STANDBY	30
 #define WAIT_KEEP		10
-#define WAIT_RAMPUP		5
-#define WAIT_RAMPDOWN	5
+#define WAIT_RAMPUP		6
+#define WAIT_RAMPDOWN	4
 
 #define STANDBY_EXPIRE	3600 / WAIT_STANDBY
 
