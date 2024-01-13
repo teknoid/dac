@@ -241,9 +241,11 @@ int calculate_pv_distortion() {
 	int variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - pv_history[i]);
+	variation /= PV_HISTORY;
 
-	int distortion = variation > average;
-	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
+	int diff = abs(pv - average);
+	int distortion = diff > variation;
+	xlog("FRONIUS calculate_pv_distortion() %s average:%d diff:%d variation:%d --> distortion:%d", message, average, diff, variation, distortion);
 
 	return distortion;
 }
@@ -261,7 +263,7 @@ static void calculate_step() {
 	int distortion = calculate_pv_distortion();
 	int onepercent = BOILER_WATT / 100;
 
-	if (surplus > 1000)
+	if (surplus > BOILER_WATT / 2)
 		// big surplus - normal steps
 		step = surplus / onepercent;
 	else if (surplus < 0)
@@ -319,7 +321,7 @@ static void rampup() {
 	}
 
 	// check if all boilers are ramped up to 100% but do not consume power
-	if (check_all_boilers(100) && (abs(load) < 1000)) {
+	if (check_all_boilers(100) && (abs(load) < (BOILER_WATT / 2))) {
 		set_boilers(BOILER_STANDBY);
 		standby_timer = STANDBY_EXPIRE;
 		wait = WAIT_STANDBY;
