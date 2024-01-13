@@ -220,7 +220,7 @@ static void print_status() {
 }
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
-int calculate_pv_distortion() {
+static int calculate_pv_distortion() {
 	char message[128];
 	char value[8];
 
@@ -296,21 +296,19 @@ static void offline() {
 	set_boilers(0);
 }
 
-void keep() {
+static void keep() {
 	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
 }
 
 static void rampup() {
 	// exit standby once per hour
-	if (standby_timer) {
-		if (--standby_timer == 0) {
-			set_heaters(0);
-			set_boilers(0);
-			wait = 0;
-			xlog("FRONIUS exiting standby");
-			return;
-		}
+	if (standby_timer-- == 0) {
+		set_heaters(0);
+		set_boilers(0);
+		wait = 0;
+		xlog("FRONIUS exiting standby");
+		return;
 	}
 
 	// check if all boilers are in standby and all heaters on
@@ -411,8 +409,8 @@ static void* fronius(void *arg) {
 			if (boiler[i]->override)
 				set_boiler(boiler[i], 100);
 
-		// enable boiler3 if akku soc is greater than 75% or more than 3kw surplus
-		if (charge > 75 || surplus > 3000)
+		// enable boiler3 if akku charge is greater than 75% or surplus more than boiler power
+		if (charge > 75 || surplus > BOILER_WATT)
 			boiler[2]->active = 1;
 		else
 			boiler[2]->active = 0;
