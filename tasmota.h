@@ -6,11 +6,11 @@
 #define PLUG2			0x81420A
 #define PLUG3			0x814D47
 #define PLUG4			0x83185A
-#define PLUG5			0x5E40EC
-#define PLUG6			0x5EEEE8
-#define PLUG7			0x58ED80
-#define PLUG8			0xB60A0C
-#define PLUG9			0xC24A88
+#define PLUG5			0xB60A0C
+#define PLUG6			0x5E40EC
+#define PLUG7			0xC24A88
+#define PLUG8			0x58ED80
+#define PLUG9			0x5EEEE8
 
 // Shelly Switches
 #define HOFLICHT		0x2FEFEE
