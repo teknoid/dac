@@ -112,7 +112,7 @@ void xlog(const char *format, ...) {
 		time(&timer);
 		tm_info = localtime(&timer);
 		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
-		fprintf(xlog_file, "%s: ", timestamp);
+		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
 		vfprintf(xlog_file, format, vargs);
