@@ -24,11 +24,11 @@ static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
 // boiler status
-const char *boilers[] = { BOILERS };
+static const char *boilers[] = { BOILERS };
 static device_t **boiler;
 
 // heater status
-const char *heaters[] = { HEATERS };
+static const char *heaters[] = { HEATERS };
 static device_t **heater;
 
 // actual Fronius power flow data + calculations
@@ -37,6 +37,9 @@ static int charge, akku, grid, load, pv, surplus, step;
 // PV history values to calculate distortion
 static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
+
+// SSR control voltage for 0..100% power
+static const unsigned int phase_angle[] = { PHASE_ANGLES };
 
 static int sock = 0;
 static int wait = 3;
@@ -166,8 +169,9 @@ static int set_boiler(device_t *boiler, int power) {
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	// convert 0..100% to 2..10V SSR control voltage
+	// int voltage = power == 0 ? 0 : power * 80 + 2000;
+	int voltage = phase_angle[power];
 	char message[16];
-	int voltage = power == 0 ? 0 : power * 80 + BOILER_WATT;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
@@ -259,7 +263,18 @@ static int calculate_pv_distortion() {
 // 100% == 2000 watt --> 1% == 20W
 static void calculate_step() {
 	// allow 100 watt grid upload or akku charging
-	surplus = (grid + akku) * -1 - 100;
+	// surplus = (grid + akku) * -1 - 100;
+
+	// to avoid swinging if surplus is very small
+	surplus = (grid + akku) * -1;
+	if (0 < surplus && surplus < 50) {
+		step = 0;
+		return;
+	} else if (50 <= surplus && surplus < 100) {
+		step = 1;
+		return;
+	}
+
 	int distortion = calculate_pv_distortion();
 	int onepercent = BOILER_WATT / 100;
 
