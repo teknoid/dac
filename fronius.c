@@ -93,8 +93,6 @@ static void parse() {
 }
 
 static int set_heater(device_t *heater, int power) {
-	char command[128];
-
 	if (heater->power == power)
 		return 0;
 
@@ -103,12 +101,13 @@ static int set_heater(device_t *heater, int power) {
 
 	heater->power = power;
 
+	char command[128];
 	if (power) {
 		xlog("FRONIUS switching %s ON", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
 	} else {
 		xlog("FRONIUS switching %s OFF", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
 	}
 
 	system(command);
@@ -301,6 +300,8 @@ static void calculate_step() {
 }
 
 static void offline() {
+	step = 0;
+	surplus = 0;
 	wait = WAIT_OFFLINE;
 	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
@@ -421,16 +422,21 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
+		// enable boiler2+3 if akku charge is greater than 75% or pv more than boiler power
+		if (charge > 75 || pv > BOILER_WATT) {
+			boiler[1]->active = 1;
+			boiler[2]->active = 1;
+		} else {
+			boiler[1]->active = 0;
+			boiler[2]->active = 0;
+		}
+
 		// check if override is active
 		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-			if (boiler[i]->override)
+			if (boiler[i]->override) {
+				boiler[i]->active = 1;
 				set_boiler(boiler[i], 100);
-
-		// enable boiler3 if akku charge is greater than 75% or surplus more than boiler power
-		if (charge > 75 || surplus > BOILER_WATT)
-			boiler[2]->active = 1;
-		else
-			boiler[2]->active = 0;
+			}
 
 		// make Fronius API call
 		res.len = 0;
