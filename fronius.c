@@ -266,10 +266,10 @@ static void calculate_step() {
 
 	// fixed small steps to avoid swinging if surplus is very small
 	surplus = (grid + akku) * -1;
-	if (-100 < surplus && surplus < -50) {
+	if (-100 < surplus && surplus < 0) {
 		step = -1;
 		return;
-	} else if (-50 <= surplus && surplus < 100) {
+	} else if (0 <= surplus && surplus < 100) {
 		step = 0;
 		return;
 	} else if (100 <= surplus && surplus < 200) {
@@ -363,8 +363,8 @@ static void rampup() {
 		}
 	}
 
-	// check if we have enough surplus for at least one heater
-	if (surplus < HEATER_WATT)
+	// check if akku is full and we have enough surplus for at least one heater
+	if (charge < 100 && surplus < HEATER_WATT)
 		return;
 
 	// switch on heater only when cold
