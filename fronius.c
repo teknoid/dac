@@ -264,12 +264,15 @@ static void calculate_step() {
 	// allow 100 watt grid upload or akku charging
 	// surplus = (grid + akku) * -1 - 100;
 
-	// to avoid swinging if surplus is very small
+	// fixed small steps to avoid swinging if surplus is very small
 	surplus = (grid + akku) * -1;
-	if (0 < surplus && surplus < 50) {
+	if (-100 < surplus && surplus < -50) {
+		step = -1;
+		return;
+	} else if (-50 <= surplus && surplus < 100) {
 		step = 0;
 		return;
-	} else if (50 <= surplus && surplus < 100) {
+	} else if (100 <= surplus && surplus < 200) {
 		step = 1;
 		return;
 	}
