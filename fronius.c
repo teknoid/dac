@@ -64,32 +64,74 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	return realsize;
 }
 
-static void parse() {
+static int parse() {
 	float p_charge, p_akku, p_grid, p_load, p_pv;
+	char *c;
+	int ret;
 
 	// printf("Received data:/n%s\n", req.buffer);
 	// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
 	// printf("Grid Power %f\n", grid_power);
 
-	json_scanf(res.buffer, res.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
+	ret = json_scanf(res.buffer, res.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
+	if (ret != 4)
+		return -1;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
-	char *c, *p;
-	json_scanf(res.buffer, res.len, "{ Body { Data { Inverters:%Q } } }", &c);
-	p = c;
-	while (*p != '{')
+	ret = json_scanf(res.buffer, res.len, "{ Body { Data { Inverters:%Q } } }", &c);
+	if (ret != 1)
+		return -2;
+
+	if (c != NULL) {
+		char *p = c;
+		while (*p != '{')
+			p++;
 		p++;
-	p++;
-	while (*p != '{')
-		p++;
-	json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
-	free(c);
+		while (*p != '{')
+			p++;
+		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
+		free(c);
+		if (ret != 1)
+			return -3;
+	}
 
 	charge = p_charge;
 	akku = p_akku;
 	grid = p_grid;
 	load = p_load;
 	pv = p_pv;
+
+	return 0;
+}
+
+static int api() {
+	res.len = 0;
+
+	CURLcode ret = curl_easy_perform(curl);
+	if (ret != CURLE_OK) {
+		xerr("FRONIUS Error calling API: %d", ret);
+		return -1;
+	}
+
+	long http_code = 0;
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+	if (http_code != 200) {
+		xerr("FRONIUS API returned %d", http_code);
+		return -2;
+	}
+
+	struct curl_header *header;
+	CURLHcode hret = curl_easy_header(curl, "Content-Type", 0, CURLH_HEADER, -1, &header);
+	if (hret != CURLHE_OK) {
+		xerr("FRONIUS No Content-Type header from API: %d", hret);
+		return -3;
+	}
+
+	xlog("CURLHcode header value %s", header->value);
+//		if (header->value)
+//			return -4;
+
+	return 0;
 }
 
 static int set_heater(device_t *heater, int power) {
@@ -335,7 +377,7 @@ static void rampup() {
 	// check if all boilers are in standby and all heaters on
 	if (check_all_boilers(BOILER_STANDBY) && check_all_heaters(1)) {
 		wait = WAIT_STANDBY;
-		xlog(FRONIUSLOG" --> ramp↑ standby %d", charge, akku, grid, load, pv, surplus, step, standby_timer);
+		xlog(FRONIUSLOG" --> ramp↑ standby count down %d", charge, akku, grid, load, pv, surplus, step, standby_timer);
 		return;
 	}
 
@@ -353,18 +395,18 @@ static void rampup() {
 
 	// rampup each boiler separately
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		if (boiler[i]->power != 100 && boiler[i]->power != BOILER_STANDBY) {
-			int boiler_power = boiler[i]->power;
-			boiler_power += step;
-			if (boiler_power == BOILER_STANDBY)
-				boiler_power++; // not the standby value
-			set_boiler(boiler[i], boiler_power);
+		int bp = boiler[i]->power;
+		if (bp != 100 && bp != BOILER_STANDBY) {
+			bp += step;
+			if (bp == BOILER_STANDBY)
+				bp++; // not the standby value
+			set_boiler(boiler[i], bp);
 			return;
 		}
 	}
 
-	// check if akku is full and we have enough surplus for at least one heater
-	if (charge < 100 && surplus < HEATER_WATT)
+	// check if akku is full and we have enough surplus for heater
+	if (charge < 100 && surplus < (HEATER_WATT * 2))
 		return;
 
 	// switch on heater only when cold
@@ -399,17 +441,19 @@ static void rampdown() {
 
 	// then lowering all boilers - as we don't know which one consumes power
 	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		if (boiler[i]->power) {
-			int boiler_power = boiler[i]->power;
-			boiler_power += step;
-			if (boiler_power == BOILER_STANDBY)
-				boiler_power--; // not the standby value
-			set_boiler(boiler[i], boiler_power);
+		int bp = boiler[i]->power;
+		if (bp != 0) {
+			bp += step;
+			if (bp == BOILER_STANDBY)
+				bp--; // not the standby value
+			set_boiler(boiler[i], bp);
 		}
 	}
 }
 
 static void* fronius(void *arg) {
+	int ret;
+
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -442,17 +486,27 @@ static void* fronius(void *arg) {
 			}
 
 		// make Fronius API call
-		res.len = 0;
-		CURLcode ret = curl_easy_perform(curl);
-		if (ret != CURLE_OK) {
-			xerr("FRONIUS No response from Fronius API: %d", ret);
+		ret = api();
+		if (ret != 0) {
+			xlog("FRONIUS api() returned %d", ret);
 			wait = WAIT_KEEP;
 			set_boilers(0);
 			continue;
 		}
 
 		// extract values from Fronius JSON response
-		parse();
+		ret = parse();
+		if (ret != 0) {
+			xlog("FRONIUS parse() returned %d", ret);
+			wait = WAIT_KEEP;
+			set_boilers(0);
+			continue;
+		}
+
+		// test data
+//		pv = 50000;
+//		grid = -5000;
+//		akku = -500;
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
