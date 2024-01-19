@@ -39,7 +39,7 @@ static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
 
 // SSR control voltage for 0..100% power
-static const unsigned int phase_angle[] = { PHASE_ANGLES };
+static const unsigned int phase_angle[] = { PHASE_ANGLES_600 };
 
 static int sock = 0;
 static int wait = 3;
@@ -127,7 +127,7 @@ static int api() {
 		return -3;
 	}
 
-	xlog("CURLHcode header value %s", header->value);
+//	xlog("CURLHcode header value %s", header->value);
 //		if (header->value)
 //			return -4;
 
@@ -142,6 +142,9 @@ static int set_heater(device_t *heater, int power) {
 		return -1;
 
 	heater->power = power;
+
+	if (!heater->active)
+		power = 0;
 
 	char command[128];
 	if (power) {
@@ -216,7 +219,7 @@ static int set_boiler(device_t *boiler, int power) {
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
-	xlog("FRONIUS send %s UDP %s", boiler->name, message);
+	// xlog("FRONIUS send %s UDP %s", boiler->name, message);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
@@ -405,8 +408,8 @@ static void rampup() {
 		}
 	}
 
-	// check if akku is full and we have enough surplus for heater
-	if (charge < 100 && surplus < (HEATER_WATT * 2))
+	// check if we have enough surplus for one heater
+	if (surplus < HEATER_WATT)
 		return;
 
 	// switch on heater only when cold
@@ -469,13 +472,15 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// enable boiler2+3 if akku charge is greater than 75% or pv more than boiler power
-		if (charge > 75 || pv > BOILER_WATT) {
+		// enable unimportant boilers and heaters only when we have grid upload
+		if (grid < -500) {
 			boiler[1]->active = 1;
 			boiler[2]->active = 1;
+			heater[0]->active = 1;
 		} else {
 			boiler[1]->active = 0;
 			boiler[2]->active = 0;
+			heater[0]->active = 0;
 		}
 
 		// check if override is active
