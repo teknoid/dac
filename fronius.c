@@ -289,7 +289,7 @@ static int calculate_pv_distortion() {
 	int variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - pv_history[i]);
-	variation /= PV_HISTORY;
+	// variation /= PV_HISTORY;
 
 	int diff = pv - average;
 	int distortion = abs(diff) > variation;
@@ -467,8 +467,8 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// enable unimportant boilers and heaters only when we have grid upload
-		if (grid < -500) {
+		// enable unimportant boilers and heaters only if akku almost full or grid upload
+		if (charge > 95 || grid < -500) {
 			boiler[1]->active = 1;
 			boiler[2]->active = 1;
 			heater[0]->active = 1;
