@@ -306,11 +306,9 @@ static int calculate_pv_distortion() {
 
 // 100% == 2000 watt --> 1% == 20W
 static void calculate_step() {
-	// allow 100 watt grid upload or akku charging
-	// surplus = (grid + akku) * -1 - 100;
+	surplus = (grid + akku) * -1;
 
 	// fixed small steps to avoid swinging if surplus is very small
-	surplus = (grid + akku) * -1;
 	if (-100 < surplus && surplus < 0) {
 		step = -1;
 		return;
@@ -348,14 +346,11 @@ static void calculate_step() {
 }
 
 static void offline() {
-	step = 0;
-	surplus = 0;
 	wait = WAIT_OFFLINE;
 	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
-	if (check_all_boilers(0) && check_all_heaters(0))
-		return;
-
+	step = 0;
+	surplus = 0;
 	set_heaters(0);
 	set_boilers(0);
 }
