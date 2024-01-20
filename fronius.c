@@ -467,8 +467,8 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// enable unimportant boilers and heaters only if akku almost full or grid upload
-		if (charge > 95 || grid < -500) {
+		// enable unimportant boilers and heaters only if akku charging and almost complete or if we have grid upload
+		if ((akku < 0 && charge > 95) || grid < -500) {
 			boiler[1]->active = 1;
 			boiler[2]->active = 1;
 			heater[0]->active = 1;
