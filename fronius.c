@@ -467,8 +467,9 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// enable unimportant boilers and heaters only if akku charging and almost complete or if we have grid upload
-		if ((akku < 0 && charge > 95) || grid < -500) {
+		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
+		// TODO make generic via configuration
+		if (charge > 95 || grid < -500) {
 			boiler[1]->active = 1;
 			boiler[2]->active = 1;
 			heater[0]->active = 1;
