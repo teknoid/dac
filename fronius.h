@@ -8,11 +8,11 @@
 #define BOILER_STANDBY	20
 
 // Fronius API is slow --> timings <5s make no sense
-#define WAIT_OFFLINE	60
-#define WAIT_STANDBY	30
-#define WAIT_KEEP		10
-#define WAIT_RAMPUP		4
-#define WAIT_RAMPDOWN	4
+#define WAIT_OFFLINE	300
+#define WAIT_STANDBY	60
+#define WAIT_KEEP		30
+#define WAIT_RAMPUP		5
+#define WAIT_RAMPDOWN	5
 
 #define STANDBY_EXPIRE	3600 / WAIT_STANDBY
 
