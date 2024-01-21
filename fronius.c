@@ -32,7 +32,7 @@ static const char *heaters[] = { HEATERS };
 static device_t **heater;
 
 // actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, step;
+static int charge, akku, grid, load, pv, surplus, step, distortion;
 
 // PV history values to calculate distortion
 static int pv_history[PV_HISTORY];
@@ -268,7 +268,7 @@ static void print_status() {
 }
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
-static int calculate_pv_distortion() {
+static void calculate_pv_distortion() {
 	char message[128];
 	char value[8];
 
@@ -289,13 +289,9 @@ static int calculate_pv_distortion() {
 	int variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - pv_history[i]);
-	// variation /= PV_HISTORY;
 
-	int diff = pv - average;
-	int distortion = abs(diff) > variation;
-	xlog("FRONIUS calculate_pv_distortion() %s average:%d diff:%d variation:%d --> distortion:%d", message, average, diff, variation, distortion);
-
-	return distortion;
+	distortion = variation > average;
+	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
 }
 
 // Grid < 0	--> upload
@@ -320,7 +316,7 @@ static void calculate_step() {
 		return;
 	}
 
-	int distortion = calculate_pv_distortion();
+	calculate_pv_distortion();
 	int onepercent = BOILER_WATT / 100;
 
 	if (surplus > BOILER_WATT / 2)
@@ -530,6 +526,10 @@ static void* fronius(void *arg) {
 		else
 			// keep current state
 			keep();
+
+		// faster next round when distortion
+		if (distortion && (wait > 10))
+			wait /= 2;
 
 		print_status();
 	}
