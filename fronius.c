@@ -302,7 +302,7 @@ static void calculate_pv_distortion() {
 static void calculate_step() {
 	surplus = (grid + akku) * -1;
 
-	// fixed small steps to avoid swinging if surplus is very small
+	// single step to avoid swinging if surplus is very small
 	if (-100 < surplus && surplus < 0) {
 		step = -1;
 		return;
@@ -315,21 +315,19 @@ static void calculate_step() {
 	}
 
 	calculate_pv_distortion();
-	int onepercent = BOILER_WATT / 100;
-
 	if (surplus > BOILER_WATT / 2)
 		// big surplus - normal steps
-		step = surplus / onepercent;
+		step = surplus / BOILER_PERCENT;
 	else if (surplus < 0)
 		// overload - normal steps
-		step = surplus / onepercent;
+		step = surplus / BOILER_PERCENT;
 	else {
 		if (distortion)
-			// small surplus and big distortion - very small steps
-			step = surplus / onepercent / 2 / 2;
+			// small surplus and distortion - very small steps
+			step = surplus / BOILER_PERCENT / 2 / 2;
 		else
 			// small surplus - small steps
-			step = surplus / onepercent / 2;
+			step = surplus / BOILER_PERCENT / 2;
 	}
 
 	if (step < -100)
