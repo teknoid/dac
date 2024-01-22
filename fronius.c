@@ -173,6 +173,9 @@ static void set_heaters(int power) {
 }
 
 static int set_boiler(device_t *boiler, int power) {
+	if (boiler->power == power)
+		return 0;
+
 	if (boiler->addr == NULL)
 		return -1;
 
@@ -182,7 +185,7 @@ static int set_boiler(device_t *boiler, int power) {
 	if (power > 100)
 		power = 100;
 
-	// countdown override and set power to 100%
+	// count down override and set power to 100%
 	if (boiler->override) {
 		boiler->override--;
 		boiler->active = 1;
@@ -190,13 +193,12 @@ static int set_boiler(device_t *boiler, int power) {
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
 
+	// update power value
+	boiler->power = power;
+
 	// boiler is not active - completely switch off
 	if (!boiler->active)
 		power = 0;
-
-	// check if update needed
-	if (boiler->power == power)
-		return 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -223,7 +225,6 @@ static int set_boiler(device_t *boiler, int power) {
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
-	boiler->power = power;
 	return 0;
 }
 
@@ -487,6 +488,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS api() returned %d", ret);
 			wait = WAIT_KEEP;
 			set_boilers(0);
+			set_heaters(0);
 			continue;
 		}
 
@@ -496,6 +498,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS parse() returned %d", ret);
 			wait = WAIT_KEEP;
 			set_boilers(0);
+			set_heaters(0);
 			continue;
 		}
 
