@@ -173,12 +173,13 @@ static void set_heaters(int power) {
 }
 
 static int set_boiler(device_t *boiler, int power) {
+	char message[16];
 
 	// check if update is necessary
 	if (boiler->power == power)
 		return 0;
 
-	// validate/correct power values
+	// fix power value if out of range
 	if (power < 0)
 		power = 0;
 	if (power > 100)
@@ -202,7 +203,7 @@ static int set_boiler(device_t *boiler, int power) {
 	if (sock == 0)
 		return xerr("Error creating socket");
 
-	// update IP and port in sockaddr structure
+	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
 	sock_addr_in.sin_family = AF_INET;
 	sock_addr_in.sin_port = htons(1975);
@@ -211,8 +212,6 @@ static int set_boiler(device_t *boiler, int power) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	int voltage = boiler->active ? phase_angle[power] : 0;
-
-	char message[16];
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
@@ -462,23 +461,6 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
-		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
-		// TODO make generic via configuration
-		if (charge > 95 || grid < -500) {
-			boiler[1]->active = 1;
-			boiler[2]->active = 1;
-			heater[0]->active = 1;
-		} else {
-			boiler[1]->active = 0;
-			boiler[2]->active = 0;
-			heater[0]->active = 0;
-		}
-
-		// check if override is active
-		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-			if (boiler[i]->override)
-				set_boiler(boiler[i], 100);
-
 		// make Fronius API call
 		ret = api();
 		if (ret != 0) {
@@ -499,10 +481,10 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// test data
-//		pv = 50000;
-//		grid = -5000;
-//		akku = -500;
+		// check if override is active
+		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
+			if (boiler[i]->override)
+				set_boiler(boiler[i], 100);
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
@@ -515,6 +497,19 @@ static void* fronius(void *arg) {
 		if (pv_history_ptr == PV_HISTORY)
 			pv_history_ptr = 0;
 
+		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
+		// TODO make generic via configuration
+		if (charge > 95 || grid < -500) {
+			boiler[1]->active = 1;
+			boiler[2]->active = 1;
+			heater[0]->active = 1;
+		} else {
+			boiler[1]->active = 0;
+			boiler[2]->active = 0;
+			heater[0]->active = 0;
+		}
+
+		// convert surplus power into ramp up / ramp down percent steps
 		calculate_step();
 		if (step < 0)
 			// consuming grid power or discharging akku: ramp down
