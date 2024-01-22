@@ -39,7 +39,7 @@ static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
 
 // SSR control voltage for 0..100% power
-static const unsigned int phase_angle[] = { PHASE_ANGLES_600 };
+static const unsigned int phase_angle[] = { PHASE_ANGLES_BOILER1 };
 
 static int sock = 0;
 static int wait = 3;
