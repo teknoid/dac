@@ -173,15 +173,14 @@ static void set_heaters(int power) {
 }
 
 static int set_boiler(device_t *boiler, int power) {
+
+	// check if update is necessary
 	if (boiler->power == power)
 		return 0;
 
-	if (boiler->addr == NULL)
-		return -1;
-
+	// validate/correct power values
 	if (power < 0)
 		power = 0;
-
 	if (power > 100)
 		power = 100;
 
@@ -193,12 +192,8 @@ static int set_boiler(device_t *boiler, int power) {
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
 
-	// update power value
-	boiler->power = power;
-
-	// boiler is not active - completely switch off
-	if (!boiler->active)
-		power = 0;
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -215,8 +210,8 @@ static int set_boiler(device_t *boiler, int power) {
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	// convert 0..100% to 2..10V SSR control voltage
-	// int voltage = power == 0 ? 0 : power * 80 + 2000;
-	int voltage = phase_angle[power];
+	int voltage = boiler->active ? phase_angle[power] : 0;
+
 	char message[16];
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
@@ -225,6 +220,8 @@ static int set_boiler(device_t *boiler, int power) {
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
+	// update power value
+	boiler->power = power;
 	return 0;
 }
 
