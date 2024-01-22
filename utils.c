@@ -366,3 +366,12 @@ char* resolve_ip(const char *hostname) {
 	return addrstr;
 }
 
+int round10(int n) {
+	int x = n / 10;
+	int y = n % 10;
+
+	if (y < 5)
+		return x * 10;
+	else
+		return (x + 1) * 10;
+}

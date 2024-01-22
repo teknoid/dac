@@ -55,8 +55,8 @@
 6580, 6660, 6740, 6820, 6900, 6980, 7060, 7140, 7220, 7300,\
 7380, 7450, 7600, 7750, 7900, 8000, 8250, 8500, 8800, 10000
 
-//#define URL			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
-#define URL				"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+#define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
+#define URL_FLOW			"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
 typedef struct get_response_t {
 	char *buffer;

@@ -556,7 +556,7 @@ static int init() {
 	if (curl == NULL)
 		return xerr("Error initializing libcurl");
 
-	curl_easy_setopt(curl, CURLOPT_URL, URL);
+	curl_easy_setopt(curl, CURLOPT_URL, URL_FLOW);
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
 	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "http");
@@ -585,6 +585,98 @@ static void stop() {
 		close(sock);
 }
 
+// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
+// - Nur Nachts
+// - Akku aus
+// - Külschränke aus
+// - Heizung aus
+// - Rechner aus
+static void calibrate(char *name, int max_power) {
+	char message[16];
+	float p_power;
+	int voltage, power, offset_start = 0, offset_end = 0;
+	device_t boiler = { .name = name, .addr = resolve_ip(name), .active = 1, .power = -1 };
+
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(boiler.addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	curl = curl_easy_init();
+	if (curl == NULL)
+		perror("Error initializing libcurl");
+
+	curl_easy_setopt(curl, CURLOPT_URL, URL_METER);
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "http");
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
+
+	set_boiler(&boiler, 0);
+	sleep(5);
+
+	// average offset power at start
+	printf("calculating offset start...\n");
+	printf("offset start ");
+	for (int i = 0; i < 10; i++) {
+		res.len = 0;
+		curl_easy_perform(curl);
+		json_scanf(res.buffer, res.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_power);
+		offset_start += (int) p_power;
+		printf(" %d", (int) p_power);
+		sleep(1);
+	}
+	offset_start /= 10;
+	printf(" average %d\n", offset_start);
+
+	printf("waiting for heat up 100%%...\n");
+	set_boiler(&boiler, 100);
+	sleep(5);
+
+	int onepercent = max_power / 100;
+	printf("starting calibration on %s with maximum power %d watt 1%%=%d watt\n", name, max_power, onepercent);
+	for (int i = 0; i < 1000; i++) {
+		voltage = 10000 - (i * 10);
+
+		snprintf(message, 16, "%d:%d", voltage, 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		usleep(1000 * 500);
+
+		res.len = 0;
+		curl_easy_perform(curl);
+		json_scanf(res.buffer, res.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_power);
+
+		power = ((int) p_power) - offset_start;
+		int x1 = ((power + 2) % onepercent) == 0;
+		int x2 = ((power + 1) % onepercent) == 0;
+		int x3 = (power % onepercent) == 0;
+		int x4 = ((power - 1) % onepercent) == 0;
+		int x5 = ((power - 2) % onepercent) == 0;
+		printf("%5d %5d %5d\n", voltage, power, (x1 || x2 || x3 || x4 || x5) ? round10(power) : 0);
+	}
+
+	// average offset power at end
+	printf("calculating offset end...\n");
+	printf("offset end ");
+	for (int i = 0; i < 10; i++) {
+		res.len = 0;
+		curl_easy_perform(curl);
+		json_scanf(res.buffer, res.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_power);
+		offset_end += (int) p_power;
+		printf(" %d", (int) p_power);
+		sleep(1);
+	}
+	offset_end /= 10;
+	printf(" average %d\n", offset_end);
+}
+
 void fronius_override(int index) {
 	if (index < 0 || index >= ARRAY_SIZE(boilers))
 		return;
@@ -595,11 +687,30 @@ void fronius_override(int index) {
 }
 
 int fronius_main(int argc, char **argv) {
-	init();
+	if (argc == 1) {
 
-	pause();
+		init();
+		pause();
+		stop();
 
-	stop();
+	} else {
+		int i, p = 0;
+		char *c = NULL;
+		while ((i = getopt(argc, argv, "c:p:")) != -1) {
+			switch (i) {
+			case 'c':
+				c = optarg;
+				break;
+			case 'p':
+				p = atoi(optarg);
+				break;
+			}
+		}
+
+		if (c != NULL)
+			calibrate(c, p);
+	}
+
 	return 0;
 }
 
