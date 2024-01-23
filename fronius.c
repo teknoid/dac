@@ -43,6 +43,9 @@ static const unsigned int phase_angle1[] = { PHASE_ANGLES_BOILER1 };
 static const unsigned int phase_angle2[] = { PHASE_ANGLES_BOILER2 };
 static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
 
+// 1% of maximum boiler power
+static const int percent = BOILER_WATT / 100;
+
 static int sock = 0;
 static int wait = 3;
 static int standby_timer;
@@ -305,32 +308,30 @@ static void calculate_step() {
 	surplus = (grid + akku) * -1;
 
 	// single step to avoid swinging if surplus is very small
-	if (-100 < surplus && surplus < 0) {
+	if (-50 < surplus && surplus < 0) {
 		step = -1;
 		return;
-	} else if (0 <= surplus && surplus < 100) {
+	} else if (0 <= surplus && surplus < 50) {
 		step = 0;
 		return;
-	} else if (100 <= surplus && surplus < 200) {
+	} else if (50 <= surplus && surplus < 100) {
 		step = 1;
 		return;
 	}
 
 	calculate_pv_distortion();
-	if (surplus > BOILER_WATT / 2)
-		// big surplus - normal steps
-		step = surplus / BOILER_PERCENT;
-	else if (surplus < 0)
+	if (surplus <= 0)
 		// overload - normal steps
-		step = surplus / BOILER_PERCENT;
-	else {
-		if (distortion)
-			// small surplus and distortion - very small steps
-			step = surplus / BOILER_PERCENT / 2 / 2;
-		else
-			// small surplus - small steps
-			step = surplus / BOILER_PERCENT / 2;
-	}
+		step = surplus / percent;
+	else if (surplus > BOILER_WATT / 2)
+		// big surplus - normal steps
+		step = surplus / percent;
+	else if (distortion)
+		// small surplus and distortion - very small steps
+		step = surplus / percent / 2 / 2;
+	else
+		// small surplus - small steps
+		step = surplus / percent / 2;
 
 	if (step < -100)
 		step = -100; // min -100
@@ -361,15 +362,15 @@ static void rampup() {
 			set_heaters(0);
 			set_boilers(0);
 			wait = 0;
-			xlog("FRONIUS exiting standby");
+			xlog("FRONIUS exiting boiler standby");
 			return;
 		}
 	}
 
-	// check if all boilers are in standby and all heaters on
-	if (check_all_boilers(BOILER_STANDBY) && check_all_heaters(1)) {
+	// check if all boilers are in standby and not enough power for heaters
+	if (check_all_boilers(BOILER_STANDBY) && (surplus < HEATER_WATT)) {
 		wait = WAIT_STANDBY;
-		xlog(FRONIUSLOG" --> ramp↑ standby count down %d", charge, akku, grid, load, pv, surplus, step, standby_timer);
+		xlog(FRONIUSLOG" --> ramp↑ boiler standby count down %d", charge, akku, grid, load, pv, surplus, step, standby_timer);
 		return;
 	}
 
@@ -378,7 +379,7 @@ static void rampup() {
 		set_boilers(BOILER_STANDBY);
 		standby_timer = STANDBY_EXPIRE;
 		wait = WAIT_STANDBY;
-		xlog("FRONIUS entering standby");
+		xlog("FRONIUS entering boiler standby");
 		return;
 	}
 
@@ -397,13 +398,13 @@ static void rampup() {
 		}
 	}
 
-	// check if we have enough surplus for one heater
-	if (surplus < HEATER_WATT)
+	// check if all heaters already on or not enough power or heater not needed
+	// if (check_all_heaters(1) || (surplus < HEATER_WATT) || (sensors->bmp085_temp > 15)) {
+	if (check_all_heaters(1) || (surplus < HEATER_WATT)) {
+		wait = WAIT_STANDBY;
+		xlog("FRONIUS heater standby");
 		return;
-
-	// switch on heater only when cold
-//	if (sensors->bmp085_temp > 15)
-//		return;
+	}
 
 	// switch on each heater separately
 	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
@@ -607,10 +608,13 @@ static void stop() {
 // - Külschränke aus
 // - Heizung aus
 // - Rechner aus
-static void calibrate(char *name, int max_power) {
+static void calibrate(char *name) {
 	char message[16];
 	float p_power;
-	int voltage, power, offset_start = 0, offset_end = 0;
+	int voltage, closest, target, offset_start = 0, offset_end = 0;
+	int measure[1000], raster[101];
+
+	// create a dummy device
 	device_t boiler = { .name = name, .addr = resolve_ip(name), .active = 1, .power = -1 };
 
 	// create a socket if not yet done
@@ -635,6 +639,7 @@ static void calibrate(char *name, int max_power) {
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
+	printf("starting calibration on %s\n", name);
 	set_boiler(&boiler, 0);
 	sleep(5);
 
@@ -656,27 +661,69 @@ static void calibrate(char *name, int max_power) {
 	set_boiler(&boiler, 100);
 	sleep(5);
 
+	// get maximum power
+	res.len = 0;
+	curl_easy_perform(curl);
+	json_scanf(res.buffer, res.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_power);
+	int max_power = round100(((int) p_power) - offset_start);
+
 	int onepercent = max_power / 100;
-	printf("starting calibration on %s with maximum power %d watt 1%%=%d watt\n", name, max_power, onepercent);
+	printf("starting measure on %s with maximum power %d watt 1%%=%d watt\n", name, max_power, onepercent);
+
+	// do a full SSR power load curve measurement
 	for (int i = 0; i < 1000; i++) {
 		voltage = 10000 - (i * 10);
 
 		snprintf(message, 16, "%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		usleep(1000 * 500);
+
+		// give SSR time to set voltage and smart meter to measure
+		if (2000 < voltage && voltage < 8000)
+			usleep(100 * 1000); // more time to
+		else
+			usleep(100 * 600);
 
 		res.len = 0;
 		curl_easy_perform(curl);
 		json_scanf(res.buffer, res.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_power);
 
-		power = ((int) p_power) - offset_start;
-		int x1 = ((power + 2) % onepercent) == 0;
-		int x2 = ((power + 1) % onepercent) == 0;
-		int x3 = (power % onepercent) == 0;
-		int x4 = ((power - 1) % onepercent) == 0;
-		int x5 = ((power - 2) % onepercent) == 0;
-		printf("%5d %5d %5d\n", voltage, power, (x1 || x2 || x3 || x4 || x5) ? round10(power) : 0);
+		measure[i] = ((int) p_power) - offset_start;
+		printf("%5d %5d\n", voltage, measure[i]);
 	}
+
+	// build raster table
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power -i%
+		target = max_power - (onepercent * i);
+
+		// find closest power to target power
+		int min_diff = max_power;
+		for (int j = 0; j < 1000; j++) {
+			int diff = abs(measure[j] - target);
+			if (diff < min_diff) {
+				min_diff = diff;
+				closest = j;
+			}
+		}
+
+		// find all closest voltages that match target power
+		int sum = 0, count = 0;
+		printf("closest voltages to target power %5d (matching %5d): ", target, measure[closest]);
+		for (int j = 0; j < 1000; j++)
+			if (measure[j] == measure[closest]) {
+				printf("%5d", j);
+				sum += j;
+				count++;
+			}
+
+		// average of all closest voltages
+		raster[i] = sum / count;
+
+		printf(" --> average %5d\n", raster[i]);
+	}
+	raster[0] = 10000;
+	raster[100] = 0;
 
 	// average offset power at end
 	printf("calculating offset end...\n");
@@ -691,6 +738,18 @@ static void calibrate(char *name, int max_power) {
 	}
 	offset_end /= 10;
 	printf(" average %d\n", offset_end);
+
+	if (offset_start != offset_end)
+		printf("!!! measuring tainted with parasitic power !!!\n");
+
+	// dump raster table in ascending order
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n", onepercent);
+	printf("%d, ", raster[100]);
+	for (int i = 99; i >= 0; i--) {
+		printf("%d, ", raster[i]);
+		if (i % 10 == 0)
+			printf("\\\n");
+	}
 }
 
 void fronius_override(int index) {
@@ -703,29 +762,29 @@ void fronius_override(int index) {
 }
 
 int fronius_main(int argc, char **argv) {
-	if (argc == 1) {
 
+	// no arguments - main loop
+	if (argc == 1) {
 		init();
 		pause();
 		stop();
-
-	} else {
-		int i, p = 0;
-		char *c = NULL;
-		while ((i = getopt(argc, argv, "c:p:")) != -1) {
-			switch (i) {
-			case 'c':
-				c = optarg;
-				break;
-			case 'p':
-				p = atoi(optarg);
-				break;
-			}
-		}
-
-		if (c != NULL)
-			calibrate(c, p);
+		return 0;
 	}
+
+	int i;
+	char *c = NULL;
+	while ((i = getopt(argc, argv, "c:")) != -1) {
+		switch (i) {
+		case 'c':
+			c = optarg;
+			break;
+		}
+	}
+
+	// calibration - execute as
+	//   stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
+	if (c != NULL)
+		calibrate(c);
 
 	return 0;
 }

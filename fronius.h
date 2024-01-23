@@ -6,12 +6,11 @@
 #define BOILERS			"boiler1", "boiler2", "boiler3"
 #define BOILER_WATT		2000
 #define BOILER_STANDBY	20
-#define BOILER_PERCENT	BOILER_WATT / 100
 
 // Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE	900
 #define WAIT_STANDBY	300
-#define WAIT_KEEP		60
+#define WAIT_KEEP		30
 #define WAIT_RAMPUP		5
 #define WAIT_RAMPDOWN	5
 
