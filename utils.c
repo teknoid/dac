@@ -375,3 +375,13 @@ int round10(int n) {
 	else
 		return (x + 1) * 10;
 }
+
+int round100(int n) {
+	int x = n / 100;
+	int y = n % 100;
+
+	if (y < 5)
+		return x * 100;
+	else
+		return (x + 1) * 100;
+}

@@ -37,4 +37,6 @@ int devinput_find_key(const char *name);
 uint64_t mac2uint64(char *mac);
 
 char* resolve_ip(const char *hostname);
+
 int round10(int n);
+int round100(int n);
