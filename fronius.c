@@ -740,8 +740,12 @@ static void calibrate(char *name) {
 	offset_end /= 10;
 	printf(" average %d\n", offset_end);
 
+	// validate - values in measure table should shrink, not grow
+	for (int i = 1; i < 1000; i++)
+		if (measure[i] > measure[i - 1])
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d: %d > %d\n", i * 10, measure[i], measure[i - 1]);
 	if (offset_start != offset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power\n");
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
 
 	// dump raster table in ascending order
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n", onepercent);
