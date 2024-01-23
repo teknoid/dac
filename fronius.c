@@ -639,7 +639,7 @@ static void calibrate(char *name) {
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
-	printf("starting calibration on %s\n", name);
+	printf("starting calibration on %s (%s)\n", boiler.name, boiler.addr);
 	set_boiler(&boiler, 0);
 	sleep(5);
 
@@ -668,7 +668,7 @@ static void calibrate(char *name) {
 	int max_power = round100(((int) p_power) - offset_start);
 
 	int onepercent = max_power / 100;
-	printf("starting measure on %s with maximum power %d watt 1%%=%d watt\n", name, max_power, onepercent);
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 
 	// do a full SSR power load curve measurement
 	for (int i = 0; i < 1000; i++) {
@@ -750,6 +750,9 @@ static void calibrate(char *name) {
 		if (i % 10 == 0)
 			printf("\\\n");
 	}
+
+	// cleanup
+	close(sock);
 }
 
 void fronius_override(int index) {
