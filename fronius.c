@@ -541,6 +541,7 @@ static int init() {
 		b->override = 0;
 		b->power = -1;
 
+		// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
 		if (i == 0)
 			b->phase_angle = phase_angle1;
 		if (i == 1)
@@ -670,7 +671,7 @@ static void calibrate(char *name) {
 	int onepercent = max_power / 100;
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 
-	// do a full SSR power load curve measurement
+	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
 	for (int i = 0; i < 1000; i++) {
 		voltage = 10000 - (i * 10);
 
@@ -679,9 +680,9 @@ static void calibrate(char *name) {
 
 		// give SSR time to set voltage and smart meter to measure
 		if (2000 < voltage && voltage < 8000)
-			usleep(100 * 1000); // more time to
+			usleep(1000 * 1000); // more time between 8 and 2 volts
 		else
-			usleep(100 * 600);
+			usleep(1000 * 600);
 
 		res.len = 0;
 		curl_easy_perform(curl);
@@ -692,6 +693,8 @@ static void calibrate(char *name) {
 	}
 
 	// build raster table
+	raster[0] = 10000;
+	raster[100] = 0;
 	for (int i = 1; i < 100; i++) {
 
 		// calculate next target power -i%
@@ -722,8 +725,6 @@ static void calibrate(char *name) {
 
 		printf(" --> average %5d\n", raster[i]);
 	}
-	raster[0] = 10000;
-	raster[100] = 0;
 
 	// average offset power at end
 	printf("calculating offset end...\n");
@@ -740,7 +741,7 @@ static void calibrate(char *name) {
 	printf(" average %d\n", offset_end);
 
 	if (offset_start != offset_end)
-		printf("!!! measuring tainted with parasitic power !!!\n");
+		printf("!!! WARNING !!! measuring tainted with parasitic power\n");
 
 	// dump raster table in ascending order
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n", onepercent);
@@ -753,6 +754,8 @@ static void calibrate(char *name) {
 
 	// cleanup
 	close(sock);
+	free(res.buffer);
+	curl_easy_cleanup(curl);
 }
 
 void fronius_override(int index) {
