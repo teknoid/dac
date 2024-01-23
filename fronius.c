@@ -39,7 +39,9 @@ static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
 
 // SSR control voltage for 0..100% power
-static const unsigned int phase_angle[] = { PHASE_ANGLES_BOILER1 };
+static const unsigned int phase_angle1[] = { PHASE_ANGLES_BOILER1 };
+static const unsigned int phase_angle2[] = { PHASE_ANGLES_BOILER2 };
+static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
 
 static int sock = 0;
 static int wait = 3;
@@ -211,11 +213,11 @@ static int set_boiler(device_t *boiler, int power) {
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	// convert 0..100% to 2..10V SSR control voltage
-	int voltage = boiler->active ? phase_angle[power] : 0;
+	int voltage = boiler->active ? boiler->phase_angle[power] : 0;
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
-	// xlog("FRONIUS send %s UDP %s", boiler->name, message);
+	xlog("FRONIUS send %s UDP %s", boiler->name, message);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
 
@@ -537,6 +539,14 @@ static int init() {
 		b->active = 1;
 		b->override = 0;
 		b->power = -1;
+
+		if (i == 0)
+			b->phase_angle = phase_angle1;
+		if (i == 1)
+			b->phase_angle = phase_angle2;
+		if (i == 2)
+			b->phase_angle = phase_angle3;
+
 		boiler[i] = b;
 	}
 
