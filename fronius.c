@@ -562,6 +562,12 @@ static int init() {
 		heater[i] = h;
 	}
 
+	// debug phase angle edges
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
+		device_t *b = boiler[i];
+		xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", b->name, b->phase_angle[0], b->phase_angle[1], b->phase_angle[50], b->phase_angle[100]);
+	}
+
 	curl = curl_easy_init();
 	if (curl == NULL)
 		return xerr("Error initializing libcurl");
