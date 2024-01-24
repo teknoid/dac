@@ -10,9 +10,8 @@
 // Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE	900
 #define WAIT_STANDBY	300
-#define WAIT_KEEP		30
-#define WAIT_RAMPUP		5
-#define WAIT_RAMPDOWN	5
+#define WAIT_KEEP		60
+#define WAIT_NEXT		5
 
 #define STANDBY_EXPIRE	3600 / WAIT_STANDBY
 
@@ -63,12 +62,16 @@ typedef struct get_response_t {
 	size_t buflen;
 } get_response_t;
 
+typedef int (*set_function_t)(int, int);
+
 typedef struct device_t {
 	const char *name;
 	const char *addr;
+	set_function_t set_function;
 	unsigned const int *phase_angle;
 	int active;
 	int override;
+	int standby;
 	int power;
 } device_t;
 

@@ -23,13 +23,9 @@ static pthread_t thread;
 static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
-// boiler status
-static const char *boilers[] = { BOILERS };
-static device_t **boiler;
-
-// heater status
-static const char *heaters[] = { HEATERS };
-static device_t **heater;
+// device status for boilers and heaters
+static const char *devices[] = { BOILERS, HEATERS };
+static device_t **device;
 
 // actual Fronius power flow data + calculations
 static int charge, akku, grid, load, pv, surplus, step, distortion;
@@ -48,7 +44,6 @@ static const int percent = BOILER_WATT / 100;
 
 static int sock = 0;
 static int wait = 3;
-static int standby_timer;
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -139,12 +134,62 @@ static int api() {
 	return 0;
 }
 
-static int set_heater(device_t *heater, int power) {
+static void trigger(int index, int active) {
+	device_t *d = device[index];
+
+	if (d->active == active)
+		return; // no state change -> nothing to do
+
+	// trigger update
+	d->active = active;
+
+	int power = d->power;
+	(d->set_function)(index, 0);
+	(d->set_function)(index, power);
+}
+
+static int all_devices_max() {
+	int check = 1;
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		if (device[i]->phase_angle == NULL) {
+			// heater
+			if (!device[i]->power)
+				check = 0;
+		} else {
+			// boiler
+			if (device[i]->standby == 0 || device[i]->power != 100)
+				check = 0;
+		}
+	return check;
+}
+
+static int all_devices_off() {
+	int check = 1;
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		if (device[i]->power)
+			check = 0;
+	return check;
+}
+
+static void set_devices(int power) {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		(device[i]->set_function)(i, power);
+}
+
+static int set_heater(int index, int power) {
+	device_t *heater = device[index];
+
 	if (heater->power == power)
 		return 0;
 
 	if (heater->addr == NULL)
-		return -1;
+		return xerr("No address to send HTTP message");
+
+	// fix power value if out of range
+	if (power < 0)
+		power = 0;
+	if (power > 1)
+		power = 1;
 
 	heater->power = power;
 
@@ -161,23 +206,13 @@ static int set_heater(device_t *heater, int power) {
 	}
 
 	system(command);
+
+	wait = WAIT_NEXT;
 	return 0;
 }
 
-static int check_all_heaters(int value) {
-	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
-		if (heater[i]->power != value)
-			check = 0;
-	return check;
-}
-
-static void set_heaters(int power) {
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
-		set_heater(heater[i], power);
-}
-
-static int set_boiler(device_t *boiler, int power) {
+static int set_boiler(int index, int power) {
+	device_t *boiler = device[index];
 	char message[16];
 
 	// check if update is necessary
@@ -198,8 +233,11 @@ static int set_boiler(device_t *boiler, int power) {
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
 
-	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
+	if (boiler->standby)
+		power = BOILER_STANDBY;
+
+	if (!boiler->active)
+		power = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -226,43 +264,23 @@ static int set_boiler(device_t *boiler, int power) {
 
 	// update power value
 	boiler->power = power;
+	wait = WAIT_NEXT;
 	return 0;
-}
-
-static void set_boilers(int power) {
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		set_boiler(boiler[i], power);
-}
-
-static int check_all_boilers(int value) {
-	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		if (boiler[i]->power != value)
-			check = 0;
-	return check;
 }
 
 static void print_status() {
 	char message[128];
 	char value[5];
 
-	strcpy(message, "FRONIUS boilers active ");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-		strcat(message, boiler[i]->active ? "1" : "0");
+	strcpy(message, "FRONIUS devices active ");
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		strcat(message, device[i]->active ? "1" : "0");
 
 	strcat(message, "   power ");
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		snprintf(value, 5, " %3d", boiler[i]->power);
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		snprintf(value, 5, " %3d", device[i]->power);
 		strcat(message, value);
 	}
-
-	strcat(message, "   heaters active ");
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
-		strcat(message, heater[i]->active ? "1" : "0");
-
-	strcat(message, "   power ");
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
-		strcat(message, heater[i]->power ? "1" : "0");
 
 	snprintf(value, 5, "%3d", wait);
 	strcat(message, "   wait ");
@@ -346,8 +364,7 @@ static void offline() {
 
 	step = 0;
 	surplus = 0;
-	set_heaters(0);
-	set_boilers(0);
+	set_devices(0);
 }
 
 static void keep() {
@@ -356,90 +373,85 @@ static void keep() {
 }
 
 static void rampup() {
-	// exit standby once per hour
-	if (standby_timer) {
-		if (--standby_timer == 0) {
-			set_heaters(0);
-			set_boilers(0);
-			wait = 0;
-			xlog("FRONIUS exiting boiler standby");
-			return;
-		}
-	}
-
-	// check if all boilers are in standby and not enough power for heaters
-	if (check_all_boilers(BOILER_STANDBY) && (surplus < HEATER_WATT)) {
+	// check if all devices already on
+	if (all_devices_max()) {
 		wait = WAIT_STANDBY;
-		xlog(FRONIUSLOG" --> ramp↑ boiler standby count down %d", charge, akku, grid, load, pv, surplus, step, standby_timer);
+		xlog(FRONIUSLOG" --> ramp↑ standby", charge, akku, grid, load, pv, surplus, step);
 		return;
 	}
 
-	// check if all boilers are ramped up to 100% but do not consume power
-	if (check_all_boilers(100) && (abs(load) < (BOILER_WATT / 2))) {
-		set_boilers(BOILER_STANDBY);
-		standby_timer = STANDBY_EXPIRE;
-		wait = WAIT_STANDBY;
-		xlog("FRONIUS entering boiler standby");
-		return;
-	}
-
-	wait = WAIT_RAMPUP;
+	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, step);
 
-	// rampup each boiler separately
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		int bp = boiler[i]->power;
-		if (bp != 100 && bp != BOILER_STANDBY) {
-			bp += step;
-			if (bp == BOILER_STANDBY)
-				bp++; // not the standby value
-			set_boiler(boiler[i], bp);
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+
+		if (!d->active)
+			continue;
+
+		if (d->standby)
+			continue;
+
+		if (d->phase_angle != NULL) { // this is a boiler
+
+			// check if boiler is ramped up to 100% but do not consume power
+			if (d->power == 100 && (abs(load) < (BOILER_WATT / 2))) {
+				d->standby = 1;
+				set_boiler(i, BOILER_STANDBY);
+				continue;
+			}
+
+			// ramp up each boiler separately
+			if (d->power != 100) {
+				set_boiler(i, d->power + step);
+				return;
+			}
+
+		} else { // this is a heater
+
+			// not enough surplus power for heater
+			if (surplus < HEATER_WATT)
+				return;
+
+			// switch on heater
+			set_heater(i, 1);
 			return;
 		}
 	}
-
-	// check if all heaters already on or not enough power or heater not needed
-	// if (check_all_heaters(1) || (surplus < HEATER_WATT) || (sensors->bmp085_temp > 15)) {
-	if (check_all_heaters(1) || (surplus < HEATER_WATT)) {
-		wait = WAIT_STANDBY;
-		xlog("FRONIUS heater standby");
-		return;
-	}
-
-	// switch on each heater separately
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++)
-		if (!heater[i]->power) {
-			set_heater(heater[i], 1);
-			return;
-		}
 }
 
 static void rampdown() {
-	// check if all heaters and boilers are ramped down
-	if (check_all_boilers(0) && check_all_heaters(0)) {
+	// check if all devices already off
+	if (all_devices_off()) {
 		wait = WAIT_STANDBY;
 		xlog(FRONIUSLOG" --> ramp↓ standby", charge, akku, grid, load, pv, surplus, step);
 		return;
 	}
 
-	wait = WAIT_RAMPDOWN;
+	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
 
-	// first switch off heaters separately
-	for (int i = ARRAY_SIZE(heaters) - 1; i >= 0; i--)
-		if (heater[i]->power) {
-			set_heater(heater[i], 0);
-			return;
-		}
+	// inverse order
+	for (int i = ARRAY_SIZE(devices) - 1; i >= 0; i--) {
+		device_t *d = device[i];
 
-	// then lowering all boilers - as we don't know which one consumes power
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		int bp = boiler[i]->power;
-		if (bp != 0) {
-			bp += step;
-			if (bp == BOILER_STANDBY)
-				bp--; // not the standby value
-			set_boiler(boiler[i], bp);
+		if (!d->active)
+			continue;
+
+		if (d->phase_angle == NULL) { // this is a heater
+
+			// first switch off heater
+			if (d->power) {
+				set_heater(i, 0);
+				return;
+			}
+
+		} else { // this is a boiler
+
+			// then lowering all boilers - as we don't know which one consumes power
+			if (d->power != 0)
+				set_boiler(i, d->power + step);
+
 		}
 	}
 }
@@ -453,8 +465,7 @@ static void* fronius(void *arg) {
 	}
 
 	// switch off all
-	set_boilers(0);
-	set_heaters(0);
+	set_devices(0);
 
 	while (1) {
 
@@ -467,8 +478,7 @@ static void* fronius(void *arg) {
 		if (ret != 0) {
 			xlog("FRONIUS api() returned %d", ret);
 			wait = WAIT_KEEP;
-			set_boilers(0);
-			set_heaters(0);
+			set_devices(0);
 			continue;
 		}
 
@@ -477,15 +487,17 @@ static void* fronius(void *arg) {
 		if (ret != 0) {
 			xlog("FRONIUS parse() returned %d", ret);
 			wait = WAIT_KEEP;
-			set_boilers(0);
-			set_heaters(0);
+			set_devices(0);
 			continue;
 		}
 
 		// check if override is active
-		for (int i = 0; i < ARRAY_SIZE(boilers); i++)
-			if (boiler[i]->override)
-				set_boiler(boiler[i], 100);
+		for (int i = 0; i < ARRAY_SIZE(devices); i++)
+			if (device[i]->override)
+				(device[i]->set_function)(i, 100);
+
+		// clear all standby states onec per hour
+		// TODO
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
@@ -499,15 +511,17 @@ static void* fronius(void *arg) {
 			pv_history_ptr = 0;
 
 		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
+		// and reset power value to trigger UDP send
+		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie gehen)
 		// TODO make generic via configuration
-		if (charge > 95 || grid < -500) {
-			boiler[1]->active = 1;
-			boiler[2]->active = 1;
-			heater[0]->active = 1;
+		if (charge > 95 || grid < -200) {
+			trigger(1, 1);
+			trigger(2, 1);
+			trigger(3, 1);
 		} else {
-			boiler[1]->active = 0;
-			boiler[2]->active = 0;
-			heater[0]->active = 0;
+			trigger(1, 0);
+			trigger(2, 0);
+			trigger(3, 0);
 		}
 
 		// convert surplus power into ramp up / ramp down percent steps
@@ -697,43 +711,46 @@ static void calibrate(char *name) {
 }
 
 static int init() {
-	// create boiler device structures
-	boiler = malloc(ARRAY_SIZE(boilers));
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		device_t *b = malloc(sizeof(device_t));
-		b->name = boilers[i];
-		b->addr = resolve_ip(b->name);
-		b->active = 1;
-		b->override = 0;
-		b->power = -1;
+	// create device structures for boilers and heaters
+	device = malloc(ARRAY_SIZE(devices));
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = malloc(sizeof(device_t));
+
+		d->name = devices[i];
+		d->addr = resolve_ip(d->name);
+		d->active = 1;
+		d->standby = 0;
+		d->override = 0;
+		d->power = -1;
 
 		// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
-		if (i == 0)
-			b->phase_angle = phase_angle1;
-		if (i == 1)
-			b->phase_angle = phase_angle2;
-		if (i == 2)
-			b->phase_angle = phase_angle3;
+		switch (i) {
+		case 0:
+			d->phase_angle = phase_angle1;
+			d->set_function = &set_boiler;
+			break;
+		case 1:
+			d->phase_angle = phase_angle2;
+			d->set_function = &set_boiler;
+			break;
+		case 2:
+			d->phase_angle = phase_angle3;
+			d->set_function = &set_boiler;
+			break;
+		case 3:
+			d->phase_angle = NULL;
+			d->set_function = &set_heater;
+			break;
+		}
 
-		boiler[i] = b;
-	}
-
-	// create heater device structures
-	heater = malloc(ARRAY_SIZE(heaters));
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
-		device_t *h = malloc(sizeof(device_t));
-		h->name = heaters[i];
-		h->addr = resolve_ip(h->name);
-		h->active = 1;
-		h->override = 0;
-		h->power = -1;
-		heater[i] = h;
+		device[i] = d;
 	}
 
 	// debug phase angle edges
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		device_t *b = boiler[i];
-		xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", b->name, b->phase_angle[0], b->phase_angle[1], b->phase_angle[50], b->phase_angle[100]);
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+		if (d->phase_angle != NULL)
+			xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", d->name, d->phase_angle[0], d->phase_angle[1], d->phase_angle[50], d->phase_angle[100]);
 	}
 
 	curl = curl_easy_init();
@@ -770,12 +787,12 @@ static void stop() {
 }
 
 void fronius_override(int index) {
-	if (index < 0 || index >= ARRAY_SIZE(boilers))
+	if (index < 0 || index >= ARRAY_SIZE(devices))
 		return;
 
 	wait = 0; // immediately exit wait loop
-	boiler[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
-	xlog("FRONIUS Setting Override for %s loops %d", boiler[index]->name, boiler[index]->override);
+	device[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
+	xlog("FRONIUS Setting Override for %s loops %d", device[index]->name, device[index]->override);
 }
 
 int fronius_main(int argc, char **argv) {
