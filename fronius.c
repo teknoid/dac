@@ -150,24 +150,40 @@ static void trigger(int index, int active) {
 
 static int all_devices_max() {
 	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(devices); i++)
-		if (device[i]->phase_angle == NULL) {
+
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+
+		if (!d->active)
+			continue;
+
+		if (d->phase_angle == NULL) {
 			// heater
-			if (!device[i]->power)
+			if (!d->power)
 				check = 0;
 		} else {
 			// boiler
-			if (device[i]->standby == 0 || device[i]->power != 100)
+			if (d->standby == 0 || device[i]->power != 100)
 				check = 0;
 		}
+	}
+
 	return check;
 }
 
 static int all_devices_off() {
 	int check = 1;
-	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+
+		if (!d->active)
+			continue;
+
 		if (device[i]->power)
 			check = 0;
+	}
+
 	return check;
 }
 
@@ -179,9 +195,11 @@ static void set_devices(int power) {
 static int set_heater(int index, int power) {
 	device_t *heater = device[index];
 
+	// check if update is necessary
 	if (heater->power == power)
 		return 0;
 
+	// can we send a message
 	if (heater->addr == NULL)
 		return xerr("No address to send HTTP message");
 
@@ -190,8 +208,6 @@ static int set_heater(int index, int power) {
 		power = 0;
 	if (power > 1)
 		power = 1;
-
-	heater->power = power;
 
 	if (!heater->active)
 		power = 0;
@@ -204,20 +220,26 @@ static int set_heater(int index, int power) {
 		xlog("FRONIUS switching %s OFF", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
 	}
-
+	// send message to heater
 	system(command);
 
+	// update power value
+	heater->power = power;
 	wait = WAIT_NEXT;
+
 	return 0;
 }
 
 static int set_boiler(int index, int power) {
 	device_t *boiler = device[index];
-	char message[16];
 
 	// check if update is necessary
 	if (boiler->power == power)
 		return 0;
+
+	// can we send a message
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
 
 	// fix power value if out of range
 	if (power < 0)
@@ -228,7 +250,6 @@ static int set_boiler(int index, int power) {
 	// count down override and set power to 100%
 	if (boiler->override) {
 		boiler->override--;
-		boiler->active = 1;
 		power = 100;
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
@@ -255,6 +276,7 @@ static int set_boiler(int index, int power) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	int voltage = boiler->active ? boiler->phase_angle[power] : 0;
+	char message[16];
 	snprintf(message, 16, "%d:%d", voltage, 0);
 
 	// send message to boiler
@@ -265,6 +287,7 @@ static int set_boiler(int index, int power) {
 	// update power value
 	boiler->power = power;
 	wait = WAIT_NEXT;
+
 	return 0;
 }
 
@@ -491,12 +514,7 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// check if override is active
-		for (int i = 0; i < ARRAY_SIZE(devices); i++)
-			if (device[i]->override)
-				(device[i]->set_function)(i, 100);
-
-		// clear all standby states onec per hour
+		// clear all standby states once per hour
 		// TODO
 
 		// not enough PV production, go into offline mode
@@ -511,7 +529,6 @@ static void* fronius(void *arg) {
 			pv_history_ptr = 0;
 
 		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
-		// and reset power value to trigger UDP send
 		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie gehen)
 		// TODO make generic via configuration
 		if (charge > 95 || grid < -200) {
@@ -587,8 +604,7 @@ static void calibrate(char *name) {
 	sleep(5);
 
 	// average offset power at start
-	printf("calculating offset start...\n");
-	printf("offset start ");
+	printf("calculating offset start");
 	for (int i = 0; i < 10; i++) {
 		res.len = 0;
 		curl_easy_perform(curl);
@@ -598,7 +614,7 @@ static void calibrate(char *name) {
 		sleep(1);
 	}
 	offset_start /= 10;
-	printf(" average %d\n", offset_start);
+	printf(" --> average %d\n", offset_start);
 
 	printf("waiting for heat up 100%%...\n");
 	snprintf(message, 16, "10000:0");
@@ -670,8 +686,7 @@ static void calibrate(char *name) {
 	}
 
 	// average offset power at end
-	printf("calculating offset end...\n");
-	printf("offset end ");
+	printf("calculating offset end");
 	for (int i = 0; i < 10; i++) {
 		res.len = 0;
 		curl_easy_perform(curl);
@@ -681,7 +696,7 @@ static void calibrate(char *name) {
 		sleep(1);
 	}
 	offset_end /= 10;
-	printf(" average %d\n", offset_end);
+	printf(" --> average %d\n", offset_end);
 
 	// validate - values in measure table should shrink, not grow
 	for (int i = 1; i < 1000; i++)
@@ -790,9 +805,13 @@ void fronius_override(int index) {
 	if (index < 0 || index >= ARRAY_SIZE(devices))
 		return;
 
-	wait = 0; // immediately exit wait loop
-	device[index]->override = 10; // 10 x WAIT_OFFLINE -> 10 minutes
-	xlog("FRONIUS Setting Override for %s loops %d", device[index]->name, device[index]->override);
+	device_t *d = device[index];
+	d->override = 60 * 10 / WAIT_NEXT; // 10 minutes
+	d->active = 1;
+	d->standby = 0;
+
+	xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
+	(d->set_function)(index, 100);
 }
 
 int fronius_main(int argc, char **argv) {
