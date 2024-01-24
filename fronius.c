@@ -472,7 +472,7 @@ static void rampdown() {
 }
 
 static void* fronius(void *arg) {
-	int ret, last_hour = 0;
+	int ret, last_hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -506,6 +506,12 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
+		// not enough PV production, go into offline mode
+		if (pv < 100) {
+			offline();
+			continue;
+		}
+
 		// clear device standby states once per hour
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
@@ -514,12 +520,6 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS clearing all standby states");
 			for (int i = 0; i < ARRAY_SIZE(devices); i++)
 				device[i]->standby = 0;
-		}
-
-		// not enough PV production, go into offline mode
-		if (pv < 100) {
-			offline();
-			continue;
 		}
 
 		// update PV history
