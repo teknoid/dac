@@ -543,7 +543,7 @@ static void calibrate(char *name) {
 	int measure[1000], raster[101];
 
 	// create a dummy device
-	device_t boiler = { .name = name, .addr = resolve_ip(name), .active = 1, .power = -1, .phase_angle = phase_angle1 };
+	device_t boiler = { .name = name, .addr = resolve_ip(name) };
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -568,7 +568,8 @@ static void calibrate(char *name) {
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
 	printf("starting calibration on %s (%s)\n", boiler.name, boiler.addr);
-	set_boiler(&boiler, 0);
+	snprintf(message, 16, "0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
 	// average offset power at start
@@ -586,7 +587,8 @@ static void calibrate(char *name) {
 	printf(" average %d\n", offset_start);
 
 	printf("waiting for heat up 100%%...\n");
-	set_boiler(&boiler, 100);
+	snprintf(message, 16, "10000:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
 	// get maximum power
@@ -669,8 +671,13 @@ static void calibrate(char *name) {
 
 	// validate - values in measure table should shrink, not grow
 	for (int i = 1; i < 1000; i++)
-		if ((measure[i] - 5) > measure[i - 1])
-			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d: %d > %d\n", i * 10, measure[i], measure[i - 1]);
+		if (measure[i - 1] < (measure[i] - 5)) { // with 5 watt tolerance
+			int v_x = 10000 - (i * 10);
+			int m_x = measure[i - 1];
+			int v_y = 10000 - ((i - 1) * 10);
+			int m_y = measure[i];
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
+		}
 	if (offset_start != offset_end)
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
 
