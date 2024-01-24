@@ -135,15 +135,15 @@ static int api() {
 	return 0;
 }
 
-static void trigger(int index, int active) {
+static void set_active(int index, int active) {
 	device_t *d = device[index];
 
 	if (d->active == active)
 		return; // no state change -> nothing to do
 
-	// trigger update
 	d->active = active;
 
+	// trigger update
 	int power = d->power;
 	(d->set_function)(index, 0);
 	(d->set_function)(index, power);
@@ -522,18 +522,11 @@ static void* fronius(void *arg) {
 		if (pv_history_ptr == PV_HISTORY)
 			pv_history_ptr = 0;
 
-		// enable secondary boilers and heaters only if akku charging is almost complete or if we have grid upload
-		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie gehen)
-		// TODO make generic via configuration
-		if (charge > 95 || grid < -200) {
-			trigger(1, 1);
-			trigger(2, 1);
-			trigger(3, 1);
-		} else {
-			trigger(1, 0);
-			trigger(2, 0);
-			trigger(3, 0);
-		}
+		// enable secondary devices only if akku charging is almost complete or if we have grid upload
+		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie geht)
+		int active = (charge > 95 || grid < -200) ? 1 : 0;
+		for (int i = 1; i < ARRAY_SIZE(devices); i++)
+			set_active(i, active);
 
 		// convert surplus power into ramp up / ramp down percent steps
 		calculate_step();
