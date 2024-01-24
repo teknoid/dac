@@ -454,17 +454,17 @@ static void rampdown() {
 
 		if (d->adjustable) {
 
+			// lowering all boilers - as we don't know which one consumes power
+			if (d->power != 0)
+				set_boiler(i, d->power + step);
+
+		} else {
+
 			// switch off heater
 			if (d->power) {
 				set_heater(i, 0);
 				return;
 			}
-
-		} else {
-
-			// lowering all boilers - as we don't know which one consumes power
-			if (d->power != 0)
-				set_boiler(i, d->power + step);
 
 		}
 	}
