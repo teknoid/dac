@@ -616,7 +616,7 @@ static void calibrate(char *name) {
 	int measure[1000], raster[101];
 
 	// create a dummy device
-	device_t boiler = { .name = name, .addr = resolve_ip(name), .active = 1, .power = -1 };
+	device_t boiler = { .name = name, .addr = resolve_ip(name), .active = 1, .power = -1, .phase_angle = phase_angle1 };
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -716,7 +716,7 @@ static void calibrate(char *name) {
 		for (int j = 0; j < 1000; j++)
 			if (measure[j] == measure[closest]) {
 				printf("%5d", j);
-				sum += j;
+				sum += 10000 - (j * 10);
 				count++;
 			}
 
@@ -742,7 +742,7 @@ static void calibrate(char *name) {
 
 	// validate - values in measure table should shrink, not grow
 	for (int i = 1; i < 1000; i++)
-		if (measure[i] > measure[i - 1])
+		if ((measure[i] - 5) > measure[i - 1])
 			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d: %d > %d\n", i * 10, measure[i], measure[i - 1]);
 	if (offset_start != offset_end)
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
