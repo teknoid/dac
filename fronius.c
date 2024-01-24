@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 #include <pthread.h>
 
 #include <sys/socket.h>
@@ -128,9 +128,10 @@ static int api() {
 		return -3;
 	}
 
-//	xlog("CURLHcode header value %s", header->value);
-//		if (header->value)
-//			return -4;
+	// TODO validate application/json
+	//	xlog("CURLHcode header value %s", header->value);
+	//		if (header->value)
+	//			return -4;
 
 	return 0;
 }
@@ -471,7 +472,7 @@ static void rampdown() {
 }
 
 static void* fronius(void *arg) {
-	int ret;
+	int ret, last_hour = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -505,11 +506,15 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// default wait for next round
-		wait = WAIT_KEEP;
-
-		// clear all standby states once per hour
-		// TODO
+		// clear device standby states once per hour
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
+		if (last_hour != now->tm_hour) {
+			last_hour = now->tm_hour;
+			xlog("FRONIUS clearing all standby states");
+			for (int i = 0; i < ARRAY_SIZE(devices); i++)
+				device[i]->standby = 0;
+		}
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
@@ -521,6 +526,9 @@ static void* fronius(void *arg) {
 		pv_history[pv_history_ptr++] = pv;
 		if (pv_history_ptr == PV_HISTORY)
 			pv_history_ptr = 0;
+
+		// default wait for next round
+		wait = WAIT_KEEP;
 
 		// enable secondary devices only if akku charging is almost complete or if we have grid upload
 		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie geht)
@@ -698,7 +706,7 @@ static void calibrate(char *name) {
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
 
 	// dump raster table in ascending order
-	printf("phase angle voltage table 0..100%% in %d watt steps:\n", onepercent);
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
 	printf("%d, ", raster[100]);
 	for (int i = 99; i >= 0; i--) {
 		printf("%d, ", raster[i]);
