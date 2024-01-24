@@ -530,79 +530,6 @@ static void* fronius(void *arg) {
 	}
 }
 
-static int init() {
-	// create boiler device structures
-	boiler = malloc(ARRAY_SIZE(boilers));
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		device_t *b = malloc(sizeof(device_t));
-		b->name = boilers[i];
-		b->addr = resolve_ip(b->name);
-		b->active = 1;
-		b->override = 0;
-		b->power = -1;
-
-		// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
-		if (i == 0)
-			b->phase_angle = phase_angle1;
-		if (i == 1)
-			b->phase_angle = phase_angle2;
-		if (i == 2)
-			b->phase_angle = phase_angle3;
-
-		boiler[i] = b;
-	}
-
-	// create heater device structures
-	heater = malloc(ARRAY_SIZE(heaters));
-	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
-		device_t *h = malloc(sizeof(device_t));
-		h->name = heaters[i];
-		h->addr = resolve_ip(h->name);
-		h->active = 1;
-		h->override = 0;
-		h->power = -1;
-		heater[i] = h;
-	}
-
-	// debug phase angle edges
-	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
-		device_t *b = boiler[i];
-		xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", b->name, b->phase_angle[0], b->phase_angle[1], b->phase_angle[50], b->phase_angle[100]);
-	}
-
-	curl = curl_easy_init();
-	if (curl == NULL)
-		return xerr("Error initializing libcurl");
-
-	curl_easy_setopt(curl, CURLOPT_URL, URL_FLOW);
-	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
-	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-	curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "http");
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
-
-	if (pthread_create(&thread, NULL, &fronius, NULL))
-		return xerr("Error creating fronius thread");
-
-	xlog("FRONIUS initialized");
-	return 0;
-}
-
-static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling fronius thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining fronius thread");
-
-	// stop and destroy this module
-	free(res.buffer);
-	curl_easy_cleanup(curl);
-
-	if (sock != 0)
-		close(sock);
-}
-
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
 // - Nur Nachts
 // - Akku aus
@@ -712,7 +639,7 @@ static void calibrate(char *name) {
 
 		// find all closest voltages that match target power
 		int sum = 0, count = 0;
-		printf("closest voltages to target power %5d (matching %5d): ", target, measure[closest]);
+		printf("closest voltages to target power %5d matching %5d: ", target, measure[closest]);
 		for (int j = 0; j < 1000; j++)
 			if (measure[j] == measure[closest]) {
 				printf("%5d", j);
@@ -760,6 +687,79 @@ static void calibrate(char *name) {
 	close(sock);
 	free(res.buffer);
 	curl_easy_cleanup(curl);
+}
+
+static int init() {
+	// create boiler device structures
+	boiler = malloc(ARRAY_SIZE(boilers));
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
+		device_t *b = malloc(sizeof(device_t));
+		b->name = boilers[i];
+		b->addr = resolve_ip(b->name);
+		b->active = 1;
+		b->override = 0;
+		b->power = -1;
+
+		// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
+		if (i == 0)
+			b->phase_angle = phase_angle1;
+		if (i == 1)
+			b->phase_angle = phase_angle2;
+		if (i == 2)
+			b->phase_angle = phase_angle3;
+
+		boiler[i] = b;
+	}
+
+	// create heater device structures
+	heater = malloc(ARRAY_SIZE(heaters));
+	for (int i = 0; i < ARRAY_SIZE(heaters); i++) {
+		device_t *h = malloc(sizeof(device_t));
+		h->name = heaters[i];
+		h->addr = resolve_ip(h->name);
+		h->active = 1;
+		h->override = 0;
+		h->power = -1;
+		heater[i] = h;
+	}
+
+	// debug phase angle edges
+	for (int i = 0; i < ARRAY_SIZE(boilers); i++) {
+		device_t *b = boiler[i];
+		xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", b->name, b->phase_angle[0], b->phase_angle[1], b->phase_angle[50], b->phase_angle[100]);
+	}
+
+	curl = curl_easy_init();
+	if (curl == NULL)
+		return xerr("Error initializing libcurl");
+
+	curl_easy_setopt(curl, CURLOPT_URL, URL_FLOW);
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_DEFAULT_PROTOCOL, "http");
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
+
+	if (pthread_create(&thread, NULL, &fronius, NULL))
+		return xerr("Error creating fronius thread");
+
+	xlog("FRONIUS initialized");
+	return 0;
+}
+
+static void stop() {
+	if (pthread_cancel(thread))
+		xlog("Error canceling fronius thread");
+
+	if (pthread_join(thread, NULL))
+		xlog("Error joining fronius thread");
+
+	// stop and destroy this module
+	free(res.buffer);
+	curl_easy_cleanup(curl);
+
+	if (sock != 0)
+		close(sock);
 }
 
 void fronius_override(int index) {
