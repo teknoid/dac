@@ -382,28 +382,26 @@ static void calculate_step() {
 }
 
 static void offline() {
-	wait = WAIT_OFFLINE;
 	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
 	step = 0;
 	surplus = 0;
 	set_devices(0);
+	wait = WAIT_OFFLINE;
 }
 
 static void keep() {
-	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
 }
 
 static void rampup() {
 	// check if all devices already on
 	if (all_devices_max()) {
-		wait = WAIT_STANDBY;
 		xlog(FRONIUSLOG" --> ramp↑ standby", charge, akku, grid, load, pv, surplus, step);
+		wait = WAIT_STANDBY;
 		return;
 	}
 
-	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, step);
 
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
@@ -446,12 +444,11 @@ static void rampup() {
 static void rampdown() {
 	// check if all devices already off
 	if (all_devices_off()) {
-		wait = WAIT_STANDBY;
 		xlog(FRONIUSLOG" --> ramp↓ standby", charge, akku, grid, load, pv, surplus, step);
+		wait = WAIT_STANDBY;
 		return;
 	}
 
-	wait = WAIT_KEEP;
 	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
 
 	// inverse order
@@ -500,8 +497,8 @@ static void* fronius(void *arg) {
 		ret = api();
 		if (ret != 0) {
 			xlog("FRONIUS api() returned %d", ret);
-			wait = WAIT_KEEP;
 			set_devices(0);
+			wait = WAIT_KEEP;
 			continue;
 		}
 
@@ -509,10 +506,13 @@ static void* fronius(void *arg) {
 		ret = parse();
 		if (ret != 0) {
 			xlog("FRONIUS parse() returned %d", ret);
-			wait = WAIT_KEEP;
 			set_devices(0);
+			wait = WAIT_KEEP;
 			continue;
 		}
+
+		// default wait for next round
+		wait = WAIT_KEEP;
 
 		// clear all standby states once per hour
 		// TODO
@@ -806,7 +806,7 @@ void fronius_override(int index) {
 		return;
 
 	device_t *d = device[index];
-	d->override = 60 * 10 / WAIT_NEXT; // 10 minutes
+	d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
 	d->active = 1;
 	d->standby = 0;
 
