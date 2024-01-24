@@ -35,6 +35,7 @@ static int pv_history[PV_HISTORY];
 static int pv_history_ptr = 0;
 
 // SSR control voltage for 0..100% power
+// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
 static const unsigned int phase_angle1[] = { PHASE_ANGLES_BOILER1 };
 static const unsigned int phase_angle2[] = { PHASE_ANGLES_BOILER2 };
 static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
@@ -42,8 +43,8 @@ static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
 // 1% of maximum boiler power
 static const int percent = BOILER_WATT / 100;
 
+static int wait = WAIT_NEXT;
 static int sock = 0;
-static int wait = 3;
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -149,31 +150,25 @@ static void trigger(int index, int active) {
 }
 
 static int all_devices_max() {
-	int check = 1;
-
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
 
 		if (!d->active)
 			continue;
 
-		if (d->phase_angle == NULL) {
-			// heater
-			if (!d->power)
-				check = 0;
-		} else {
-			// boiler
+		if (d->adjustable) {
 			if (d->standby == 0 || device[i]->power != 100)
-				check = 0;
+				return 0;
+		} else {
+			if (!d->power)
+				return 0;
 		}
 	}
 
-	return check;
+	return 1;
 }
 
 static int all_devices_off() {
-	int check = 1;
-
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
 
@@ -181,10 +176,10 @@ static int all_devices_off() {
 			continue;
 
 		if (device[i]->power)
-			check = 0;
+			return 0;
 	}
 
-	return check;
+	return 1;
 }
 
 static void set_devices(int power) {
@@ -275,9 +270,8 @@ static int set_boiler(int index, int power) {
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	// convert 0..100% to 2..10V SSR control voltage
-	int voltage = boiler->active ? boiler->phase_angle[power] : 0;
 	char message[16];
-	snprintf(message, 16, "%d:%d", voltage, 0);
+	snprintf(message, 16, "%d:%d", boiler->phase_angle[power], 0);
 
 	// send message to boiler
 	xlog("FRONIUS send %s UDP %s", boiler->name, message);
@@ -413,7 +407,7 @@ static void rampup() {
 		if (d->standby)
 			continue;
 
-		if (d->phase_angle != NULL) { // this is a boiler
+		if (d->adjustable) {
 
 			// check if boiler is ramped up to 100% but do not consume power
 			if (d->power == 100 && (abs(load) < (BOILER_WATT / 2))) {
@@ -428,7 +422,7 @@ static void rampup() {
 				return;
 			}
 
-		} else { // this is a heater
+		} else {
 
 			// not enough surplus power for heater
 			if (surplus < HEATER_WATT)
@@ -451,24 +445,24 @@ static void rampdown() {
 
 	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
 
-	// inverse order
+	// reverse order
 	for (int i = ARRAY_SIZE(devices) - 1; i >= 0; i--) {
 		device_t *d = device[i];
 
 		if (!d->active)
 			continue;
 
-		if (d->phase_angle == NULL) { // this is a heater
+		if (d->adjustable) {
 
-			// first switch off heater
+			// switch off heater
 			if (d->power) {
 				set_heater(i, 0);
 				return;
 			}
 
-		} else { // this is a boiler
+		} else {
 
-			// then lowering all boilers - as we don't know which one consumes power
+			// lowering all boilers - as we don't know which one consumes power
 			if (d->power != 0)
 				set_boiler(i, d->power + step);
 
@@ -728,32 +722,33 @@ static void calibrate(char *name) {
 static int init() {
 	// create device structures for boilers and heaters
 	device = malloc(ARRAY_SIZE(devices));
+
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = malloc(sizeof(device_t));
+		ZERO(d);
 
 		d->name = devices[i];
 		d->addr = resolve_ip(d->name);
 		d->active = 1;
-		d->standby = 0;
-		d->override = 0;
 		d->power = -1;
 
-		// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
 		switch (i) {
 		case 0:
+			d->adjustable = 1;
 			d->phase_angle = phase_angle1;
 			d->set_function = &set_boiler;
 			break;
 		case 1:
+			d->adjustable = 1;
 			d->phase_angle = phase_angle2;
 			d->set_function = &set_boiler;
 			break;
 		case 2:
+			d->adjustable = 1;
 			d->phase_angle = phase_angle3;
 			d->set_function = &set_boiler;
 			break;
 		case 3:
-			d->phase_angle = NULL;
 			d->set_function = &set_heater;
 			break;
 		}

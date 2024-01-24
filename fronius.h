@@ -67,12 +67,13 @@ typedef int (*set_function_t)(int, int);
 typedef struct device_t {
 	const char *name;
 	const char *addr;
-	set_function_t set_function;
 	unsigned const int *phase_angle;
+	int adjustable;
 	int active;
 	int override;
 	int standby;
 	int power;
+	set_function_t set_function;
 } device_t;
 
 void fronius_override(int index);
