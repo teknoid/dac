@@ -9,13 +9,10 @@
 
 #include "sensors.h"
 #include "utils.h"
-#include "mqtt.h"
 #include "i2c.h"
 #include "mcp.h"
 
 #define SYSFSLIKE	0
-
-static const char *topic = "sensor";
 
 static pthread_t thread;
 static int i2cfd;
@@ -121,37 +118,6 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
-static void publish_sensor(const char *sensor, const char *name, const char *value) {
-	char subtopic[64];
-	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", topic, sensor, name);
-
-#ifndef SENSORS_MAIN
-	publish(subtopic, value);
-#endif
-}
-
-static void publish_mqtt() {
-	char cvalue[8];
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
-	publish_sensor(BH1750, "lum_raw", cvalue);
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
-	publish_sensor(BH1750, "lum_raw2", cvalue);
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
-	publish_sensor(BH1750, "lum_lux", cvalue);
-
-	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
-	publish_sensor(BH1750, "lum_percent", cvalue);
-
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
-	publish_sensor(BMP085, "temp", cvalue);
-
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
-	publish_sensor(BMP085, "baro", cvalue);
-}
-
 static void write_sysfslike() {
 	char cvalue[8];
 
@@ -183,9 +149,10 @@ static void* loop(void *arg) {
 	while (1) {
 		read_bh1750();
 		read_bmp085();
+
 		if (SYSFSLIKE)
 			write_sysfslike();
-		publish_mqtt();
+
 		sleep(60);
 	}
 }

@@ -14,7 +14,9 @@
 #include "mcp.h"
 
 // these tasmota devices will be in XMAS mode
+#ifndef PICAM
 static const unsigned int device[] = { DEVICES };
+#endif
 
 // TODO define channel status for each remote control unit
 static char channel_status[128];
@@ -23,11 +25,20 @@ static pthread_t thread;
 static int power = -1;
 
 void xmas_on() {
+#ifndef PICAM
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 1);
+#endif
 }
 
-void xmas_on_flamingo(const timing_t *timing) {
+void xmas_off() {
+#ifndef PICAM
+	for (int i = 0; i < ARRAY_SIZE(device); i++)
+		tasmota_power(device[i], 0, 0);
+#endif
+}
+
+static void xmas_on_flamingo(const timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (!channel_status[index]) {
 		xlog("flamingo_send_FA500 %d %c 1", timing->remote, timing->channel);
@@ -36,12 +47,7 @@ void xmas_on_flamingo(const timing_t *timing) {
 	}
 }
 
-void xmas_off() {
-	for (int i = 0; i < ARRAY_SIZE(device); i++)
-		tasmota_power(device[i], 0, 0);
-}
-
-void xmas_off_flamingo(const timing_t *timing) {
+static void xmas_off_flamingo(const timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (channel_status[index]) {
 		xlog("flamingo_send_FA500 %d %c 0", timing->remote, timing->channel);
