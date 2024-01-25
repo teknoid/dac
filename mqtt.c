@@ -48,22 +48,6 @@ static int mean;
 
 static int ready = 0;
 
-int publish(const char *topic, const char *message) {
-	if (!ready)
-		return xerr("MQTT publish(): client not ready yet, check module registration priority");
-
-	// xlog("MQTT publish topic('%s') = %s", topic, message);
-
-	/* check that we don't have any errors */
-	if (client_tx->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
-
-	if (mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
-
-	return 0;
-}
-
 // network/dhcp/fc:53:9e:a9:3a:c5 old 192.168.25.83 2023-04-02 13:16:40 (gigaset-hje)
 //              ^^^^^^^^^^^^^^^^^
 static uint64_t get_mac(const char *topic, size_t size) {
@@ -266,9 +250,11 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	free(message);
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
+#ifdef TASMOTA
 	if (mac == MAC_HANDY)
 		if (sensors->bh1750_lux < DARKNESS)
 			tasmota_power(HOFLICHT, 0, 1);
+#endif
 
 	return 0;
 }
@@ -280,7 +266,9 @@ static int dispatch_tasmota(struct mqtt_response_publish *p) {
 	free(topic);
 	free(message);
 
+#ifdef TASMOTA
 	tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
+#endif
 
 	return 0;
 }
@@ -288,19 +276,19 @@ static int dispatch_tasmota(struct mqtt_response_publish *p) {
 static int dispatch(struct mqtt_response_publish *p) {
 
 	// notifications
-	if (starts_with(NOTIFICATION, p->topic_name, p->topic_name_size))
+	if (starts_with(TOPIC_NOTIFICATION, p->topic_name, p->topic_name_size))
 		return dispatch_notification(p);
 
 	// sensors
-	if (starts_with(SENSOR, p->topic_name, p->topic_name_size))
+	if (starts_with(TOPIC_SENSOR, p->topic_name, p->topic_name_size))
 		return dispatch_sensor(p);
 
 	// network
-	if (starts_with(NETWORK, p->topic_name, p->topic_name_size))
+	if (starts_with(TOPIC_NETWORK, p->topic_name, p->topic_name_size))
 		return dispatch_network(p);
 
 	// tasmotas
-	if (starts_with(TASMOTA, p->topic_name, p->topic_name_size))
+	if (starts_with(TOPIC_TASMOTA, p->topic_name, p->topic_name_size))
 		return dispatch_tasmota(p);
 
 	char *t = topic_string(p);
@@ -322,46 +310,16 @@ static void publish_sensor(const char *sensor, const char *name, const char *val
 	publish(subtopic, value);
 }
 
-static void publish_sensors() {
-	char cvalue[8];
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
-	publish_sensor(BH1750, "lum_raw", cvalue);
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
-	publish_sensor(BH1750, "lum_raw2", cvalue);
-
-	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
-	publish_sensor(BH1750, "lum_lux", cvalue);
-
-	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
-	publish_sensor(BH1750, "lum_percent", cvalue);
-
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
-	publish_sensor(BMP085, "temp", cvalue);
-
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
-	publish_sensor(BMP085, "baro", cvalue);
-}
-
 static void* mqtt(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("MQTT Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
 
-	int count = PUBLISH_SENSORS;
-
 	while (1) {
 		mqtt_sync(client_rx);
 		mqtt_sync(client_tx);
 		msleep(100);
-
-		// once per minute
-		if (--count == 0) {
-			publish_sensors();
-			count = PUBLISH_SENSORS;
-		}
 	}
 }
 
@@ -414,16 +372,16 @@ static int init() {
 	if (client_rx->error != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, NOTIFICATION, 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_NOTIFICATION, 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, SENSOR"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_SENSOR"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, NETWORK"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, TASMOTA"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))
@@ -446,6 +404,45 @@ static void stop() {
 
 	if (mqttfd_rx > 0)
 		close(mqttfd_rx);
+}
+
+int publish(const char *topic, const char *message) {
+	if (!ready)
+		return xerr("MQTT publish(): client not ready yet, check module registration priority");
+
+	// xlog("MQTT publish topic('%s') = %s", topic, message);
+
+	/* check that we don't have any errors */
+	if (client_tx->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
+
+	if (mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
+
+	return 0;
+}
+
+//  publishing sensors read from sensors.c to mqtt
+void publish_sensors() {
+	char cvalue[8];
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
+	publish_sensor(BH1750, "lum_raw", cvalue);
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
+	publish_sensor(BH1750, "lum_raw2", cvalue);
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
+	publish_sensor(BH1750, "lum_lux", cvalue);
+
+	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
+	publish_sensor(BH1750, "lum_percent", cvalue);
+
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
+	publish_sensor(BMP085, "temp", cvalue);
+
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
+	publish_sensor(BMP085, "baro", cvalue);
 }
 
 MCP_REGISTER(mqtt, 5, &init, &stop);

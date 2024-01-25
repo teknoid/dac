@@ -8,6 +8,7 @@
 //#define SABRE28
 
 #ifdef TRON
+#define TASMOTA
 #define LCD
 #define I2C				"/dev/i2c-3"
 #endif

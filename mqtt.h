@@ -12,11 +12,10 @@
 #define DARKNESS			50
 #define	DOORBELL			0x670537
 
-#define NOTIFICATION		"notification"
-#define SENSOR				"sensor"
-#define TASMOTA				"tasmota"
-#define NETWORK				"network"
-
-#define PUBLISH_SENSORS		60 * 1000 * 10
+#define TOPIC_NOTIFICATION	"notification"
+#define TOPIC_SENSOR		"sensor"
+#define TOPIC_NETWORK		"network"
+#define TOPIC_TASMOTA		"tasmota"
 
 int publish(const char*, const char*);
+void publish_sensors();

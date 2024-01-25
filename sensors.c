@@ -9,6 +9,7 @@
 
 #include "sensors.h"
 #include "utils.h"
+#include "mqtt.h"
 #include "i2c.h"
 #include "mcp.h"
 
@@ -152,6 +153,8 @@ static void* loop(void *arg) {
 
 		if (SYSFSLIKE)
 			write_sysfslike();
+
+		publish_sensors();
 
 		sleep(60);
 	}
