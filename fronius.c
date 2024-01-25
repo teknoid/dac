@@ -153,40 +153,6 @@ static void check_active() {
 	}
 }
 
-// enable configured devices when we have extra power from additional inverters
-// normally load < 0 but if secondary inverters are active we have positive load
-static void check_extrapower() {
-	int x;
-
-	if (grid < (BOILER_WATT / 2 * -1))
-		// akku will not be charged anymore with maximum pv
-		x = grid * -1;
-	else if (load > 200 && grid < -200)
-		// extrapower from Fronius7
-		x = load;
-	else
-		// not enough extra power available
-		x = 0;
-
-	// smaller steps to avoid swinging
-	int xp = x / percent / 2;
-	if (xp > 100)
-		xp = 100; // max 100
-
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
-
-		if (!d->extra_power)
-			continue;
-
-		if (xp) {
-			xlog("FRONIUS spending extra power %d watt to %s --> %d%%", d->name, x, xp);
-			(d->set_function)(i, xp);
-		} else
-			(d->set_function)(i, 0);
-	}
-}
-
 static int all_devices_max() {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
@@ -504,6 +470,40 @@ static void rampdown() {
 	}
 }
 
+// enable configured devices when we have extra power from additional inverters
+// normally load < 0 but if secondary inverters are active we have positive load
+static void extrapower() {
+	int x;
+
+	if (grid < (BOILER_WATT / 2 * -1))
+		// akku will not be charged anymore with maximum pv
+		x = grid * -1;
+	else if (load > 200 && grid < -200)
+		// extra power from Fronius7
+		x = load;
+	else
+		// not enough extra power available
+		x = 0;
+
+	// smaller steps to avoid swinging
+	int xp = x / percent / 2;
+	if (xp > 100)
+		xp = 100; // max 100
+
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+
+		if (!d->extra_power)
+			continue;
+
+		if (xp) {
+			xlog("FRONIUS spending extra power %d watt to %s --> %d%%", d->name, x, xp);
+			(d->set_function)(i, xp);
+		} else
+			(d->set_function)(i, 0);
+	}
+}
+
 static void* fronius(void *arg) {
 	int ret, last_hour = -1;
 
@@ -581,7 +581,7 @@ static void* fronius(void *arg) {
 
 		// as long as akku is not full check if we have surplus power from additional inverters
 		if (charge < CHARGE_EXTRA_POWER)
-			check_extrapower();
+			extrapower();
 
 		// faster next round when distortion
 		if (distortion && (wait > 10))
