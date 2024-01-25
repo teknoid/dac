@@ -18,4 +18,3 @@
 #define TOPIC_TASMOTA		"tasmota"
 
 int publish(const char*, const char*);
-void publish_sensors();

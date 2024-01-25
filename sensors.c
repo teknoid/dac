@@ -119,6 +119,34 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
+static void publish_sensor(const char *sensor, const char *name, const char *value) {
+	char subtopic[64];
+	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", "sensor", sensor, name);
+	publish(subtopic, value);
+}
+
+static void publish_sensors() {
+	char cvalue[8];
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
+	publish_sensor(BH1750, "lum_raw", cvalue);
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
+	publish_sensor(BH1750, "lum_raw2", cvalue);
+
+	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
+	publish_sensor(BH1750, "lum_lux", cvalue);
+
+	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
+	publish_sensor(BH1750, "lum_percent", cvalue);
+
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
+	publish_sensor(BMP085, "temp", cvalue);
+
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
+	publish_sensor(BMP085, "baro", cvalue);
+}
+
 static void write_sysfslike() {
 	char cvalue[8];
 
