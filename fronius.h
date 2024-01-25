@@ -68,7 +68,7 @@ typedef struct device_t {
 	const char *name;
 	const char *addr;
 	unsigned const int *phase_angle;
-	int pv_minimum;
+	int minimum_grid;
 	int extra_power;
 	int adjustable;
 	int active;

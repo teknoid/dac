@@ -145,7 +145,7 @@ static void check_active() {
 		else if (d->adjustable)
 			d->active = 1;
 		else {
-			if (pv > d->pv_minimum)
+			if (grid < d->minimum_grid)
 				d->active = 1;
 			else
 				d->active = 0;
@@ -785,7 +785,7 @@ static int init() {
 			break;
 		case 3:
 			d->set_function = &set_heater;
-			d->pv_minimum = 5000;
+			d->minimum_grid = -3000;
 			break;
 		}
 
