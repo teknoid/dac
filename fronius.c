@@ -553,7 +553,7 @@ static void* fronius(void *arg) {
 			last_hour = now->tm_hour;
 			xlog("FRONIUS clearing all standby states");
 			for (int i = 0; i < ARRAY_SIZE(devices); i++)
-				device[i]->standby = 0;
+				device[i]->standby = device[i]->power = 0;
 		}
 
 		// update PV history
