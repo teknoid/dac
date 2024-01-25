@@ -409,8 +409,7 @@ static void calculate_step() {
 static void offline() {
 	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
 
-	step = 0;
-	surplus = 0;
+	step = surplus = 0;
 	set_devices(0);
 	wait = WAIT_OFFLINE;
 }

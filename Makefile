@@ -22,13 +22,19 @@ COBJS-PICAM		= $(COBJS-COMMON) webcam.o xmas.o mqtt.o tasmota.o sensors.o flamin
 
 all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
-	@echo "To create executables specify target: \"make (tron|anus|piwolf|sabre18|sabre28|picam)\""
- 
+	@echo "To create executables specify target: \"make (tron|anus|picam|piwolf|sabre18|sabre28)\""
+
+#
+# mcp main programs  
+#
 tron: $(COBJS-TRON) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lcurl
 
 anus: $(COBJS-ANUS) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
+
+picam: $(COBJS-PICAM)
+	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
 
 piwolf: $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
@@ -39,24 +45,24 @@ sabre18: $(COBJS-SABRE18)
 sabre28: $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
 
-picam: $(COBJS-PICAM)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
+#
+# module tests
+#
+flamingo: flamingo.o utils.o gpio-bcm2835.o
+	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
+	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
+
+fronius: fronius.o utils.o frozen.o
+	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius.c
+	$(CC) $(CFLAGS) -o fronius fronius.o utils.o frozen.o -lpthread -lcurl
 
 sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
 	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o $(LIBS)
 
-flamingo: flamingo.o utils.o gpio-bcm2835.o
-	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
-	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
-
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
 	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lpthread -lncurses -lmenu -lm
-
-fronius: fronius.o utils.o frozen.o
-	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius.c
-	$(CC) $(CFLAGS) -o fronius fronius.o utils.o frozen.o -lpthread -lcurl
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
