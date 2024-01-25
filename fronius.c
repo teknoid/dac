@@ -153,39 +153,31 @@ static void check_active() {
 	}
 }
 
-// enable secondary devices when we have extra power from additional inverters
+// enable configured devices when we have extra power from additional inverters
 // normally load < 0 but if secondary inverters are active we have positive load
 static void check_extrapower() {
 	int extra;
 
-	if (load < 200 || grid > 200)
-		extra = 0; // no reasonable extra power available
-	else
+	if (load > 200 && grid < -200)
 		extra = grid * -1; // extra == inverted grid
+	else
+		extra = 0; // not enough extra power available
+
+	int extra_percent = extra / percent / 2 / 2; // very small steps
+	if (extra_percent > 100)
+		extra_percent = 100; // max 100
 
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
 
-		// only possible when set in config
 		if (!d->extra_power)
 			continue;
 
-		int extra_percent = extra / percent / 2 / 2;
-		if (extra_percent > 100)
-			extra_percent = 100; // max 100
-
 		if (extra_percent) {
-
-			// enable
-			xlog("FRONIUS enabling extra power on %s %d percent %d", d->name, extra, extra_percent);
+			xlog("FRONIUS enabling extra power %d watt on %s --> %d%%", d->name, extra, extra_percent);
 			(d->set_function)(i, extra_percent);
-
-		} else {
-
-			// disable
+		} else
 			(d->set_function)(i, 0);
-
-		}
 	}
 }
 
