@@ -158,7 +158,7 @@ static void check_active() {
 static void check_extrapower() {
 	int x;
 
-	if (charge > 75 && grid < (BOILER_WATT / 2 * -1))
+	if (grid < (BOILER_WATT / 2 * -1))
 		// akku will not be charged anymore with maximum pv
 		x = grid * -1;
 	else if (load > 200 && grid < -200)
@@ -168,8 +168,8 @@ static void check_extrapower() {
 		// not enough extra power available
 		x = 0;
 
-	// very small steps to avoid swinging
-	int xp = x / percent / 2 / 2;
+	// smaller steps to avoid swinging
+	int xp = x / percent / 2;
 	if (xp > 100)
 		xp = 100; // max 100
 
@@ -438,8 +438,9 @@ static void rampup() {
 		if (d->standby)
 			continue;
 
-		if (d->extra_power)
-			continue; // controlled via extra power logic
+		// controlled via extra power logic
+		if (d->extra_power && charge < CHARGE_EXTRA_POWER)
+			continue;
 
 		if (d->adjustable) {
 
@@ -579,8 +580,9 @@ static void* fronius(void *arg) {
 			// keep current state
 			keep();
 
-		// check if we have surplus power from additional inverters
-		check_extrapower();
+		// as long as akku is not full check if we have surplus power from additional inverters
+		if (charge < CHARGE_EXTRA_POWER)
+			check_extrapower();
 
 		// faster next round when distortion
 		if (distortion && (wait > 10))

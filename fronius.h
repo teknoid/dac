@@ -1,21 +1,23 @@
-#define CHUNK_SIZE 		2048
+#define CHUNK_SIZE 				2048
 
-#define	HEATERS			"plug9"
-#define HEATER_WATT		600
+#define	HEATERS					"plug9"
+#define HEATER_WATT				600
 
-#define BOILERS			"boiler1", "boiler2", "boiler3"
-#define BOILER_WATT		2000
-#define BOILER_STANDBY	20
+#define BOILERS					"boiler1", "boiler2", "boiler3"
+#define BOILER_WATT				2000
+#define BOILER_STANDBY			20
 
 // Fronius API is slow --> timings <5s make no sense
-#define WAIT_OFFLINE	900
-#define WAIT_STANDBY	300
-#define WAIT_KEEP		60
-#define WAIT_NEXT		5
+#define WAIT_OFFLINE			900
+#define WAIT_STANDBY			300
+#define WAIT_KEEP				60
+#define WAIT_NEXT				5
 
-#define STANDBY_EXPIRE	3600 / WAIT_STANDBY
+#define STANDBY_EXPIRE			3600 / WAIT_STANDBY
 
-#define PV_HISTORY		16
+#define CHARGE_EXTRA_POWER		75
+
+#define PV_HISTORY				16
 
 #define PHASE_ANGLES_BOILER1 \
 0, 2340, 2350, 2370, 2410, 2450, 2510, 2560, 2620, 2660, 2710, \
