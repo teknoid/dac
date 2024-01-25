@@ -136,18 +136,57 @@ static int api() {
 	return 0;
 }
 
-static void set_active(int index, int active) {
-	device_t *d = device[index];
+static void check_active() {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
 
-	if (d->active == active)
-		return; // no state change -> nothing to do
+		if (pv < 0)
+			d->active = 0;
+		else if (d->adjustable)
+			d->active = 1;
+		else {
+			if (pv > d->pv_minimum)
+				d->active = 1;
+			else
+				d->active = 0;
+		}
+	}
+}
 
-	d->active = active;
+// enable secondary devices when we have extra power from additional inverters
+// normally load < 0 but if secondary inverters are active we have positive load
+static void check_extrapower() {
+	int extra;
 
-	// trigger update
-	int power = d->power;
-	(d->set_function)(index, 0);
-	(d->set_function)(index, power);
+	if (load < 200 || grid > 200)
+		extra = 0; // no reasonable extra power available
+	else
+		extra = grid * -1; // extra == inverted grid
+
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = device[i];
+
+		// only possible when set in config
+		if (!d->extra_power)
+			continue;
+
+		int extra_percent = extra / percent / 2 / 2;
+		if (extra_percent > 100)
+			extra_percent = 100; // max 100
+
+		if (extra_percent) {
+
+			// enable
+			xlog("FRONIUS enabling extra power on %s %d percent %d", d->name, extra, extra_percent);
+			(d->set_function)(i, extra_percent);
+
+		} else {
+
+			// disable
+			(d->set_function)(i, 0);
+
+		}
+	}
 }
 
 static int all_devices_max() {
@@ -158,7 +197,7 @@ static int all_devices_max() {
 			continue;
 
 		if (d->adjustable) {
-			if (d->standby == 0 || device[i]->power != 100)
+			if (d->standby == 0 || d->power != 100)
 				return 0;
 		} else {
 			if (!d->power)
@@ -176,7 +215,7 @@ static int all_devices_off() {
 		if (!d->active)
 			continue;
 
-		if (device[i]->power)
+		if (d->power)
 			return 0;
 	}
 
@@ -343,35 +382,22 @@ static void calculate_pv_distortion() {
 static void calculate_step() {
 	surplus = (grid + akku) * -1;
 
-	// single step to avoid swinging if surplus is very small
-	if (-50 < surplus && surplus < 0) {
+	// single step to avoid swinging if surplus is between 0 1nd 100
+	if (-25 < surplus && surplus < 25) {
 		step = -1;
 		return;
-	} else if (0 <= surplus && surplus < 50) {
+	} else if (25 <= surplus && surplus < 75) {
 		step = 0;
 		return;
-	} else if (50 <= surplus && surplus < 100) {
+	} else if (75 <= surplus && surplus < 100) {
 		step = 1;
 		return;
 	}
 
-	calculate_pv_distortion();
-	if (surplus <= 0)
-		// overload - normal steps
-		step = surplus / percent;
-	else if (surplus > BOILER_WATT / 2)
-		// big surplus - normal steps
-		step = surplus / percent;
-	else if (distortion)
-		// small surplus and distortion - very small steps
-		step = surplus / percent / 2 / 2;
-	else
-		// small surplus - small steps
-		step = surplus / percent / 2;
-
+	// next step
+	step = surplus / percent;
 	if (step < -100)
 		step = -100; // min -100
-
 	if (step > 100)
 		step = 100; // max 100
 }
@@ -408,10 +434,13 @@ static void rampup() {
 		if (d->standby)
 			continue;
 
+		if (d->extra_power)
+			continue; // controlled via extra power logic
+
 		if (d->adjustable) {
 
 			// check if boiler is ramped up to 100% but do not consume power
-			if (d->power == 100 && (abs(load) < (BOILER_WATT / 2))) {
+			if (d->power == 100 && (BOILER_WATT / 2 * -1) < load) {
 				d->standby = 1;
 				set_boiler(i, BOILER_STANDBY);
 				continue;
@@ -530,14 +559,17 @@ static void* fronius(void *arg) {
 		// default wait for next round
 		wait = WAIT_KEEP;
 
-		// enable secondary devices only if akku charging is almost complete or if we have grid upload
-		// (das ist die Leistung die vom Fronius7 eingespeist wird und nicht in die Batterie geht)
-		int active = (charge > 95 || grid < -200) ? 1 : 0;
-		for (int i = 1; i < ARRAY_SIZE(devices); i++)
-			set_active(i, active);
+		// check device active state depending on pv availability
+		check_active();
 
 		// convert surplus power into ramp up / ramp down percent steps
 		calculate_step();
+
+		// smaller steps if we have distortion
+		calculate_pv_distortion();
+		if (distortion)
+			step /= 2;
+
 		if (step < 0)
 			// consuming grid power or discharging akku: ramp down
 			rampdown();
@@ -547,6 +579,9 @@ static void* fronius(void *arg) {
 		else
 			// keep current state
 			keep();
+
+		// check if we have surplus power from additional inverters
+		check_extrapower();
 
 		// faster next round when distortion
 		if (distortion && (wait > 10))
@@ -730,7 +765,6 @@ static int init() {
 
 		d->name = devices[i];
 		d->addr = resolve_ip(d->name);
-		d->active = 1;
 		d->power = -1;
 
 		switch (i) {
@@ -748,9 +782,11 @@ static int init() {
 			d->adjustable = 1;
 			d->phase_angle = phase_angle3;
 			d->set_function = &set_boiler;
+			d->extra_power = 1;
 			break;
 		case 3:
 			d->set_function = &set_heater;
+			d->pv_minimum = 5000;
 			break;
 		}
 
