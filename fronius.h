@@ -15,7 +15,7 @@
 
 #define STANDBY_EXPIRE			3600 / WAIT_STANDBY
 
-#define CHARGE_EXTRA_POWER		75
+#define CHARGE_EXTRA_POWER		80
 
 #define PV_HISTORY				16
 
