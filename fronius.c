@@ -477,10 +477,10 @@ static void extrapower() {
 
 	if (grid < (BOILER_WATT / 2 * -1))
 		// akku will not be charged anymore with maximum pv
-		x = grid * -1;
-	else if (load > 200 && grid < -100)
+		x = grid * -1 - 100;
+	else if (load > 0 && grid < -100)
 		// extra power from Fronius7
-		x = load - 200;
+		x = grid * -1 - 100;
 	else
 		// not enough extra power available
 		x = 0;
