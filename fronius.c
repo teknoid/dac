@@ -478,9 +478,9 @@ static void extrapower() {
 	if (grid < (BOILER_WATT / 2 * -1))
 		// akku will not be charged anymore with maximum pv
 		x = grid * -1;
-	else if (load > 200 && grid < -200)
+	else if (load > 200 && grid < -100)
 		// extra power from Fronius7
-		x = load;
+		x = load - 200;
 	else
 		// not enough extra power available
 		x = 0;
@@ -497,10 +497,12 @@ static void extrapower() {
 			continue;
 
 		if (xp) {
-			xlog("FRONIUS spending extra power %d watt to %s --> %d%%", d->name, x, xp);
+			xlog("FRONIUS spending extra power %d watt to %s --> %d", x, d->name, xp);
 			(d->set_function)(i, xp);
-		} else
+		} else {
+			xlog("FRONIUS disabling extra power on %s", d->name);
 			(d->set_function)(i, 0);
+		}
 	}
 }
 
