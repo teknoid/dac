@@ -253,11 +253,15 @@ static int set_boiler(int index, int power) {
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
 
-	if (boiler->standby && power != 0)
+	if (boiler->standby)
 		power = BOILER_STANDBY;
 
 	if (!boiler->active)
 		power = 0;
+
+	// zero resets standby
+	if (power == 0)
+		boiler->standby = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
