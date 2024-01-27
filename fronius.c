@@ -28,7 +28,7 @@ static const char *devices[] = { BOILERS, HEATERS };
 static device_t **device;
 
 // actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, step, distortion;
+static int charge, akku, grid, load, pv, surplus, extra, step, xstep, distortion;
 
 // PV history values to calculate distortion
 static int pv_history[PV_HISTORY];
@@ -250,6 +250,10 @@ static int set_boiler(int index, int power) {
 	if (boiler->power == power)
 		return 0;
 
+	// standby: only update if smaller
+	if (boiler->standby && power > BOILER_STANDBY)
+		return 0;
+
 	// count down override and set power to 100%
 	if (boiler->override) {
 		boiler->override--;
@@ -260,8 +264,6 @@ static int set_boiler(int index, int power) {
 			power = 0;
 		if (power == 0)
 			boiler->standby = 0; // zero resets standby
-		if (boiler->standby)
-			power = BOILER_STANDBY;
 	}
 
 	// create a socket if not yet done
@@ -346,9 +348,9 @@ static void calculate_pv_distortion() {
 
 // Akku < 0	--> charge
 // Akku > 0	--> discharge
+static void calculate_steps() {
 
-// 100% == 2000 watt --> 1% == 20W
-static void calculate_step() {
+	// akku charge + grid upload
 	surplus = (grid + akku) * -1;
 
 	// single step to avoid swinging if surplus is between 0 1nd 100
@@ -375,6 +377,25 @@ static void calculate_step() {
 		step = -100; // min -100
 	if (step > 100)
 		step = 100; // max 100
+
+	// grid upload - extra power from secondary inverters
+	extra = grid * -1;
+
+	// extra power steps (allow 50 watt upload, rest is extra power)
+	xstep = (extra - 50) / percent;
+
+	if (xstep < -100)
+		xstep = -100; // min -100
+	if (xstep > 100)
+		xstep = 100; // max 100
+
+	// smaller steps when we have distortion
+	if (distortion && (xstep > 0))
+		xstep /= 2;
+
+	// discharge when akku not full --> stop extra power
+	if (charge < 99 && akku > 50)
+		xstep = -100;
 }
 
 static void offline() {
@@ -408,34 +429,43 @@ static void rampup() {
 		if (d->standby)
 			continue;
 
-		// controlled via extra power logic
-		if (d->extra_power)
+		// dumb devices can only be switched on or off
+		if (!d->adjustable) {
+
+			// switch on if enough power available
+			if (!d->power && (extra > HEATER_WATT)) {
+				(d->set_function)(i, 1);
+				return;
+			}
+
 			continue;
+		}
 
-		if (d->adjustable) {
+		// check if device is ramped up to 100% but do not consume power
+		if (d->power == 100 && (BOILER_WATT / 2 * -1) < load) {
+			d->standby = 1;
+			(d->set_function)(i, BOILER_STANDBY);
+			continue;
+		}
 
-			// check if boiler is ramped up to 100% but do not consume power
-			if (d->power == 100 && (BOILER_WATT / 2 * -1) < load) {
-				d->standby = 1;
-				set_boiler(i, BOILER_STANDBY);
-				continue;
-			}
+		// ramp up each device separately
+		if (d->power != 100) {
 
-			// ramp up each boiler separately
-			if (d->power != 100) {
-				set_boiler(i, d->power + step);
-				return;
-			}
+			if (d->greedy) {
 
-		} else {
-
-			// not enough surplus power for heater
-			if (surplus < HEATER_WATT)
+				// allow consuming akku charge + grid upload power
+				(d->set_function)(i, d->power + step);
 				return;
 
-			// switch on heater
-			set_heater(i, 1);
-			return;
+			} else {
+
+				// allow only grid upload power
+				if (xstep) {
+					xlog("FRONIUS adjusting extra power %d watt on %s step %d", extra, d->name, xstep);
+					(d->set_function)(i, d->power + xstep);
+					return;
+				}
+			}
 		}
 	}
 }
@@ -454,60 +484,20 @@ static void rampdown() {
 	for (int i = ARRAY_SIZE(devices) - 1; i >= 0; i--) {
 		device_t *d = device[i];
 
-		if (!d->active)
-			continue;
+		// dumb devices can only be switched on or off
+		if (!d->adjustable) {
 
-		if (d->adjustable) {
-
-			// lowering all boilers - as we don't know which one consumes power
-			if (d->power != 0)
-				set_boiler(i, d->power + step);
-
-		} else {
-
-			// switch off heater
+			// switch off
 			if (d->power) {
-				set_heater(i, 0);
+				(d->set_function)(i, 0);
 				return;
 			}
 
-		}
-	}
-}
-
-// enable configured devices when we have extra power from additional inverters
-// normally load < 0 but if secondary inverters are active we have positive load
-static void extrapower() {
-	// allow 50 watt upload, rest is extrapower
-	int x = grid * -1 - 50;
-	int xp = x / percent;
-	if (xp > 100)
-		xp = 100; // max 100
-	if (xp < -100)
-		xp = -100; // min -100
-
-	// smaller ramp up steps when we have distortion
-	if (distortion && (xp > 0))
-		xp /= 2;
-
-	// discharge when akku not full --> stop extrapower
-	if (charge < 100 && akku > 25)
-		xp = -100;
-
-	for (int i = 1; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
-
-		// preconditions:
-		// device adjustable + enabled for extrapower
-		// previous device is in standby (otherwise standby detection logic will not work)
-		if (!d->adjustable || !d->extra_power || !device[i - 1]->standby)
 			continue;
-
-		if (xp) {
-			xlog("FRONIUS adjusting extra power %d watt on %s step %d", x, d->name, xp);
-			(d->set_function)(i, d->power + xp);
-			return;
 		}
+
+		// lowering all devices - as we don't know which one consumes power
+		(d->set_function)(i, d->power + step);
 	}
 }
 
@@ -573,8 +563,8 @@ static void* fronius(void *arg) {
 		// check device active state depending on pv availability
 		check_active();
 
-		// convert surplus power into ramp up / ramp down percent steps
-		calculate_step();
+		// convert extra+surplus power into ramp up / ramp down percent steps
+		calculate_steps();
 
 		if (step < 0)
 			// consuming grid power or discharging akku: ramp down
@@ -585,9 +575,6 @@ static void* fronius(void *arg) {
 		else
 			// keep current state
 			keep();
-
-		// check if we have surplus power from additional inverters
-		extrapower();
 
 		// faster next round when distortion
 		if (distortion && (wait > 10))
@@ -776,11 +763,13 @@ static int init() {
 		switch (i) {
 		case 0:
 			d->adjustable = 1;
+			d->greedy = 1;
 			d->phase_angle = phase_angle1;
 			d->set_function = &set_boiler;
 			break;
 		case 1:
 			d->adjustable = 1;
+			d->greedy = 1;
 			d->phase_angle = phase_angle2;
 			d->set_function = &set_boiler;
 			break;
@@ -788,7 +777,6 @@ static int init() {
 			d->adjustable = 1;
 			d->phase_angle = phase_angle3;
 			d->set_function = &set_boiler;
-			d->extra_power = 1;
 			break;
 		case 3:
 			d->set_function = &set_heater;
