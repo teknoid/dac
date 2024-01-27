@@ -198,19 +198,19 @@ static void set_devices(int power) {
 static int set_heater(int index, int power) {
 	device_t *heater = device[index];
 
-	// check if update is necessary
-	if (heater->power == power)
-		return 0;
-
-	// can we send a message
-	if (heater->addr == NULL)
-		return xerr("No address to send HTTP message");
-
 	// fix power value if out of range
 	if (power < 0)
 		power = 0;
 	if (power > 1)
 		power = 1;
+
+	// can we send a message
+	if (heater->addr == NULL)
+		return xerr("No address to send HTTP message");
+
+	// check if update is necessary
+	if (heater->power == power)
+		return 0;
 
 	if (!heater->active)
 		power = 0;
@@ -236,19 +236,19 @@ static int set_heater(int index, int power) {
 static int set_boiler(int index, int power) {
 	device_t *boiler = device[index];
 
-	// check if update is necessary
-	if (boiler->power == power)
-		return 0;
-
-	// can we send a message
-	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
-
 	// fix power value if out of range
 	if (power < 0)
 		power = 0;
 	if (power > 100)
 		power = 100;
+
+	// can we send a message
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
+
+	// check if update is necessary
+	if (boiler->power == power)
+		return 0;
 
 	// count down override and set power to 100%
 	if (boiler->override) {
