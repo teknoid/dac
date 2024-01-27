@@ -15,8 +15,6 @@
 
 #define STANDBY_EXPIRE			3600 / WAIT_STANDBY
 
-#define CHARGE_EXTRA_POWER		80
-
 #define PV_HISTORY				16
 
 #define PHASE_ANGLES_BOILER1 \

@@ -404,7 +404,7 @@ static void rampup() {
 			continue;
 
 		// controlled via extra power logic
-		if (d->extra_power && charge < CHARGE_EXTRA_POWER)
+		if (d->extra_power)
 			continue;
 
 		if (d->adjustable) {
@@ -473,35 +473,35 @@ static void rampdown() {
 // enable configured devices when we have extra power from additional inverters
 // normally load < 0 but if secondary inverters are active we have positive load
 static void extrapower() {
-	int x;
-
-	if (grid < (BOILER_WATT / 2 * -1))
-		// akku will not be charged anymore with maximum pv
-		x = grid * -1 - 100;
-	else if (load > 0 && grid < -100)
-		// extra power from Fronius7
-		x = grid * -1 - 100;
-	else
-		// not enough extra power available
-		x = 0;
-
-	// smaller steps to avoid swinging
-	int xp = x / percent / 2;
+	// allow 50 watt upload, rest is extrapower
+	int x = grid * -1 - 50;
+	int xp = x / percent;
 	if (xp > 100)
 		xp = 100; // max 100
+	if (xp < -100)
+		xp = -100; // min -100
 
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+	// consuming from akku -> disable
+	if (akku > 10)
+		xp = -100;
+
+	// smaller ramp up steps when we have distortion
+	if (distortion && (xp > 0))
+		xp /= 2;
+
+	for (int i = 1; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
 
-		if (!d->extra_power)
+		// preconditions:
+		// device adjustable + enabled for extrapower
+		// previous device is in standby (otherwise standby detection logic will not work)
+		if (!d->adjustable || !d->extra_power || !device[i - 1]->standby)
 			continue;
 
 		if (xp) {
-			xlog("FRONIUS spending extra power %d watt to %s --> %d", x, d->name, xp);
-			(d->set_function)(i, xp);
-		} else {
-			xlog("FRONIUS disabling extra power on %s", d->name);
-			(d->set_function)(i, 0);
+			xlog("FRONIUS adjusting extra power %d watt to %s --> %d", x, d->name, xp);
+			(d->set_function)(i, d->power + xp);
+			return;
 		}
 	}
 }
@@ -554,7 +554,7 @@ static void* fronius(void *arg) {
 			last_hour = now->tm_hour;
 			xlog("FRONIUS clearing all standby states");
 			for (int i = 0; i < ARRAY_SIZE(devices); i++)
-				device[i]->standby = device[i]->power = 0;
+				device[i]->standby = 0;
 		}
 
 		// update PV history
@@ -581,9 +581,8 @@ static void* fronius(void *arg) {
 			// keep current state
 			keep();
 
-		// as long as akku is not full check if we have surplus power from additional inverters
-		if (charge < CHARGE_EXTRA_POWER)
-			extrapower();
+		// check if we have surplus power from additional inverters
+		extrapower();
 
 		// faster next round when distortion
 		if (distortion && (wait > 10))
