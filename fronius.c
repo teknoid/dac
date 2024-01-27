@@ -504,7 +504,7 @@ static void extrapower() {
 			continue;
 
 		if (xp) {
-			xlog("FRONIUS adjusting extra power %d watt to %s --> %d", x, d->name, xp);
+			xlog("FRONIUS adjusting extra power %d watt on %s step %d", x, d->name, xp);
 			(d->set_function)(i, d->power + xp);
 			return;
 		}
@@ -792,7 +792,7 @@ static int init() {
 			break;
 		case 3:
 			d->set_function = &set_heater;
-			d->minimum_grid = -3000;
+			d->minimum_grid = HEATER_WATT * -2;
 			break;
 		}
 
