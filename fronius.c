@@ -253,7 +253,7 @@ static int set_boiler(int index, int power) {
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
 	}
 
-	if (boiler->standby)
+	if (boiler->standby && power != 0)
 		power = BOILER_STANDBY;
 
 	if (!boiler->active)
@@ -481,13 +481,13 @@ static void extrapower() {
 	if (xp < -100)
 		xp = -100; // min -100
 
-	// consuming from akku -> disable
-	if (akku > 10)
-		xp = -100;
-
 	// smaller ramp up steps when we have distortion
 	if (distortion && (xp > 0))
 		xp /= 2;
+
+	// consuming from akku -> disable
+	if (akku > 10)
+		xp = -100;
 
 	for (int i = 1; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
