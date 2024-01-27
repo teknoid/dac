@@ -150,6 +150,10 @@ static void check_active() {
 			else
 				d->active = 0;
 		}
+
+		// if not active then switch off
+		if (!d->active)
+			(d->set_function)(i, 0);
 	}
 }
 
