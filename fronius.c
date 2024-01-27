@@ -255,17 +255,14 @@ static int set_boiler(int index, int power) {
 		boiler->override--;
 		power = 100;
 		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
+	} else {
+		if (!boiler->active)
+			power = 0;
+		if (power == 0)
+			boiler->standby = 0; // zero resets standby
+		if (boiler->standby)
+			power = BOILER_STANDBY;
 	}
-
-	// zero resets standby
-	if (power == 0)
-		boiler->standby = 0;
-
-	if (boiler->standby)
-		power = BOILER_STANDBY;
-
-	if (!boiler->active)
-		power = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -493,8 +490,8 @@ static void extrapower() {
 	if (distortion && (xp > 0))
 		xp /= 2;
 
-	// consuming from akku -> disable
-	if (akku > 10)
+	// this is noise when akku is full
+	if (akku > 50)
 		xp = -100;
 
 	for (int i = 1; i < ARRAY_SIZE(devices); i++) {
