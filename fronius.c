@@ -490,8 +490,8 @@ static void extrapower() {
 	if (distortion && (xp > 0))
 		xp /= 2;
 
-	// this is noise when akku is full
-	if (akku > 50)
+	// discharge when akku not full --> stop extrapower
+	if (charge < 100 && akku > 25)
 		xp = -100;
 
 	for (int i = 1; i < ARRAY_SIZE(devices); i++) {
