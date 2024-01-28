@@ -31,8 +31,8 @@ static device_t **device;
 static int charge, akku, grid, load, pv, surplus, extra, step, xstep, distortion;
 
 // PV history values to calculate distortion
-static int pv_history[PV_HISTORY];
-static int pv_history_ptr = 0;
+static int history[PV_HISTORY];
+static int history_ptr = 0;
 
 // SSR control voltage for 0..100% power
 // TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
@@ -296,13 +296,13 @@ static void print_status() {
 }
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
-static void calculate_pv_distortion() {
+static void calculate_distortion() {
 	char message[128];
 	char value[8];
 
 	strcpy(message, "[");
 	for (int i = 0; i < PV_HISTORY; i++) {
-		snprintf(value, 8, "%d", pv_history[i]);
+		snprintf(value, 8, "%d", history[i]);
 		if (i > 0 && i < PV_HISTORY)
 			strcat(message, ", ");
 		strcat(message, value);
@@ -311,12 +311,12 @@ static void calculate_pv_distortion() {
 
 	int average = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
-		average += pv_history[i];
+		average += history[i];
 	average /= PV_HISTORY;
 
 	int variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
-		variation += abs(average - pv_history[i]);
+		variation += abs(average - history[i]);
 
 	distortion = variation > average;
 	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
@@ -348,7 +348,7 @@ static void calculate_steps() {
 	step = surplus / percent;
 
 	// smaller ramp up steps when we have distortion
-	calculate_pv_distortion();
+	calculate_distortion();
 	if (distortion && step > 0)
 		step /= 2;
 
@@ -522,14 +522,14 @@ static void* fronius(void *arg) {
 		}
 
 		// update PV history
-		pv_history[pv_history_ptr++] = pv;
-		if (pv_history_ptr == PV_HISTORY)
-			pv_history_ptr = 0;
+		history[history_ptr++] = pv;
+		if (history_ptr == PV_HISTORY)
+			history_ptr = 0;
 
 		// default wait for next round
 		wait = WAIT_KEEP;
 
-		// convert extra+surplus power into ramp up / ramp down percent steps
+		// convert surplus+extra power into ramp up / ramp down percent steps
 		calculate_steps();
 
 		if (step < 0)
@@ -722,10 +722,10 @@ static int init() {
 		device_t *d = malloc(sizeof(device_t));
 		ZERO(d);
 
+		d->active = 1;
+		d->power = -1;
 		d->name = devices[i];
 		d->addr = resolve_ip(d->name);
-		d->power = -1;
-		d->active = -1;
 
 		switch (i) {
 		case 0:
