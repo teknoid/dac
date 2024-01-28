@@ -136,27 +136,6 @@ static int api() {
 	return 0;
 }
 
-static void check_active() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
-
-		if (pv < 0)
-			d->active = 0;
-		else if (d->adjustable)
-			d->active = 1;
-		else {
-			if (grid < d->minimum_grid)
-				d->active = 1;
-			else
-				d->active = 0;
-		}
-
-		// if not active then switch off
-		if (!d->active)
-			(d->set_function)(i, 0);
-	}
-}
-
 static int all_devices_max() {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
@@ -370,7 +349,7 @@ static void calculate_steps() {
 
 	// smaller ramp up steps when we have distortion
 	calculate_pv_distortion();
-	if (distortion && (step > 0))
+	if (distortion && step > 0)
 		step /= 2;
 
 	if (step < -100)
@@ -390,7 +369,7 @@ static void calculate_steps() {
 		xstep = 100; // max 100
 
 	// smaller ramp up steps when we have distortion
-	if (distortion && (xstep > 0))
+	if (distortion && xstep > 0)
 		xstep /= 2;
 
 	// discharge when akku not full --> stop extra power
@@ -433,7 +412,7 @@ static void rampup() {
 		if (!d->adjustable) {
 
 			// switch on if enough power available
-			if (!d->power && (extra > HEATER_WATT)) {
+			if (!d->power && extra > HEATER_WATT) {
 				(d->set_function)(i, 1);
 				return;
 			}
@@ -547,7 +526,7 @@ static void* fronius(void *arg) {
 		struct tm *now = localtime(&now_ts);
 		if (last_hour != now->tm_hour) {
 			last_hour = now->tm_hour;
-			xlog("FRONIUS resetting device states");
+			xlog("FRONIUS resetting all device states");
 			set_devices(0);
 		}
 
@@ -558,9 +537,6 @@ static void* fronius(void *arg) {
 
 		// default wait for next round
 		wait = WAIT_KEEP;
-
-		// check device active state depending on pv availability
-		check_active();
 
 		// convert extra+surplus power into ramp up / ramp down percent steps
 		calculate_steps();
@@ -576,7 +552,7 @@ static void* fronius(void *arg) {
 			keep();
 
 		// faster next round when distortion
-		if (distortion && (wait > 10))
+		if (distortion && wait > 10)
 			wait /= 2;
 
 		print_status();
@@ -758,6 +734,7 @@ static int init() {
 		d->name = devices[i];
 		d->addr = resolve_ip(d->name);
 		d->power = -1;
+		d->active = -1;
 
 		switch (i) {
 		case 0:
@@ -779,7 +756,6 @@ static int init() {
 			break;
 		case 3:
 			d->set_function = &set_heater;
-			d->minimum_grid = HEATER_WATT * -2;
 			break;
 		}
 
