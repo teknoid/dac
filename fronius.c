@@ -164,13 +164,13 @@ static int all_devices_max() {
 		if (!d->active)
 			continue;
 
-		if (d->adjustable) {
-			if (d->standby == 0 || d->power != 100)
-				return 0;
-		} else {
-			if (!d->power)
-				return 0;
-		}
+		if (d->standby)
+			continue;
+
+		if (d->adjustable && d->power != 100)
+			return 0;
+		else if (!d->power)
+			return 0;
 	}
 
 	return 1;
