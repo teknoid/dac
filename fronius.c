@@ -377,18 +377,6 @@ static void calculate_steps() {
 		xstep = -100;
 }
 
-static void offline() {
-	xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
-
-	step = surplus = 0;
-	set_devices(0);
-	wait = WAIT_OFFLINE;
-}
-
-static void keep() {
-	xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
-}
-
 static void rampup() {
 	// check if all devices already on
 	if (all_devices_max()) {
@@ -517,7 +505,10 @@ static void* fronius(void *arg) {
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
-			offline();
+			xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
+			step = surplus = 0;
+			set_devices(0);
+			wait = WAIT_OFFLINE;
 			continue;
 		}
 
@@ -549,7 +540,7 @@ static void* fronius(void *arg) {
 			rampup();
 		else
 			// keep current state
-			keep();
+			xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
 
 		// faster next round when distortion
 		if (distortion && wait > 10)
@@ -850,4 +841,3 @@ int main(int argc, char **argv) {
 #else
 MCP_REGISTER(fronius, 7, &init, &stop);
 #endif
-
