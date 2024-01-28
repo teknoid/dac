@@ -368,9 +368,9 @@ static void calculate_steps() {
 	// next step
 	step = surplus / percent;
 
-	// smaller steps if we have distortion
+	// smaller ramp up steps when we have distortion
 	calculate_pv_distortion();
-	if (distortion)
+	if (distortion && (step > 0))
 		step /= 2;
 
 	if (step < -100)
@@ -389,7 +389,7 @@ static void calculate_steps() {
 	if (xstep > 100)
 		xstep = 100; // max 100
 
-	// smaller steps when we have distortion
+	// smaller ramp up steps when we have distortion
 	if (distortion && (xstep > 0))
 		xstep /= 2;
 
@@ -542,14 +542,13 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// clear device standby states once per hour
+		// reset device states once per hour
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
 		if (last_hour != now->tm_hour) {
 			last_hour = now->tm_hour;
-			xlog("FRONIUS clearing all standby states");
-			for (int i = 0; i < ARRAY_SIZE(devices); i++)
-				device[i]->standby = 0;
+			xlog("FRONIUS resetting device states");
+			set_devices(0);
 		}
 
 		// update PV history
