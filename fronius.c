@@ -70,6 +70,36 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	return realsize;
 }
 
+static int forecast() {
+	char line[32];
+	int yesterday_h, yesterday_s, today_h, today_s, tomorrow_h, tomorrow_s;
+
+	FILE *fp = popen("cat /tmp/SunD.txt", "r");
+	if (fp == NULL)
+		return xerr("FRONIUS no forecast data available");
+
+	if (fgets(line, 32, fp) != NULL)
+		if (sscanf(line, "%d=%d", &yesterday_h, &yesterday_s) != 2)
+			return xerr("FRONIUS forecast yesterday parse error %s", line);
+
+	if (fgets(line, 32, fp) != NULL)
+		if (sscanf(line, "%d=%d", &today_h, &today_s) != 2)
+			return xerr("FRONIUS forecast today parse error %s", line);
+
+	if (fgets(line, 32, fp) != NULL)
+		if (sscanf(line, "%d=%d", &tomorrow_h, &tomorrow_s) != 2)
+			return xerr("FRONIUS forecast tomorrow parse error %s", line);
+
+	pclose(fp);
+
+	float yesterday_sun = (float) yesterday_s / 3600;
+	float today_sun = (float) today_s / 3600;
+	float tomorrow_sun = (float) tomorrow_s / 3600;
+	xlog("FRONIUS sunshine forecast hours: yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
+//	xlog("FRONIUS choosing program from weather forecast");
+	return today_sun;
+}
+
 static int parse() {
 	float p_charge, p_akku, p_grid, p_load, p_pv;
 	char *c;
@@ -500,6 +530,9 @@ static void* fronius(void *arg) {
 		return (void*) 0;
 	}
 
+	// do sunshine duration forecast and choose program
+	forecast();
+
 	// switch off all
 	set_devices(0);
 
@@ -547,12 +580,10 @@ static void* fronius(void *arg) {
 			set_devices(0);
 		}
 
-		// TODO
-		// do weather forecast for tody and choose program
+		// do sunshine duration forecast for new day and choose program
 		if (day != now->tm_mday) {
 			day = now->tm_mday;
-			xlog("FRONIUS choosing program from weather forecast");
-			// forecast();
+			forecast();
 		}
 
 		// update PV history
