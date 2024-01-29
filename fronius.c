@@ -24,11 +24,16 @@ static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
 // device status for boilers and heaters
-static const char *devices[] = { BOILERS, HEATERS };
+// static const char *devices[] = { BOILERS, HEATERS };
+static const char *devices[] = { HEATERS, BOILERS };
 static device_t **device;
 
+// TODO
+// config_sunny
+// config_cloudy
+
 // actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, extra, step, xstep, distortion;
+static int charge, akku, grid, load, pv, surplus, surplus_step, extra, extra_step, distortion;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -334,58 +339,60 @@ static void calculate_steps() {
 
 	// single step to avoid swinging if surplus is between 0 1nd 100
 	if (-25 < surplus && surplus < 25) {
-		step = -1;
+		surplus_step = -1;
 		return;
 	} else if (25 <= surplus && surplus < 75) {
-		step = 0;
+		surplus_step = 0;
 		return;
 	} else if (75 <= surplus && surplus < 100) {
-		step = 1;
+		surplus_step = 1;
 		return;
 	}
 
 	// next step
-	step = surplus / percent;
+	surplus_step = surplus / percent;
 
 	// smaller ramp up steps when we have distortion
 	calculate_distortion();
-	if (distortion && step > 0)
-		step /= 2;
+	if (distortion && surplus_step > 0)
+		surplus_step /= 2;
 
-	if (step < -100)
-		step = -100; // min -100
-	if (step > 100)
-		step = 100; // max 100
+	if (surplus_step < -100)
+		surplus_step = -100; // min -100
+	if (surplus_step > 100)
+		surplus_step = 100; // max 100
 
 	// grid upload - extra power from secondary inverters
 	extra = grid * -1;
+	if (-50 < extra && extra < 10)
+		extra = 0;
 
-	// extra power steps (allow 50 watt upload, rest is extra power)
-	xstep = (extra - 50) / percent;
+	// extra power steps
+	extra_step = extra / percent;
 
-	if (xstep < -100)
-		xstep = -100; // min -100
-	if (xstep > 100)
-		xstep = 100; // max 100
+	if (extra_step < -100)
+		extra_step = -100; // min -100
+	if (extra_step > 100)
+		extra_step = 100; // max 100
 
 	// smaller ramp up steps when we have distortion
-	if (distortion && xstep > 0)
-		xstep /= 2;
+	if (distortion && extra_step > 0)
+		extra_step /= 2;
 
 	// discharge when akku not full --> stop extra power
 	if (charge < 99 && akku > 50)
-		xstep = -100;
+		extra_step = -100;
 }
 
 static void rampup() {
 	// check if all devices already on
 	if (all_devices_max()) {
-		xlog(FRONIUSLOG" --> ramp↑ standby", charge, akku, grid, load, pv, surplus, step);
+		xlog(FRONIUSLOG" --> ramp↑ standby", charge, akku, grid, load, pv, surplus, surplus_step);
 		wait = WAIT_STANDBY;
 		return;
 	}
 
-	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, surplus_step);
 
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = device[i];
@@ -399,16 +406,31 @@ static void rampup() {
 		// dumb devices can only be switched on or off
 		if (!d->adjustable) {
 
-			// switch on if enough power available
-			if (!d->power && extra > HEATER_WATT) {
-				(d->set_function)(i, 1);
-				return;
-			}
+			if (d->power)
+				continue; // already on
 
+			if (d->greedy) {
+
+				// grid upload power + steal akku charge power
+				if (surplus > HEATER_WATT) {
+					(d->set_function)(i, 1);
+					return;
+				}
+
+			} else {
+
+				// allow only grid upload power
+				if (extra > HEATER_WATT) {
+					(d->set_function)(i, 1);
+					return;
+				}
+
+			}
 			continue;
 		}
 
 		// check if device is ramped up to 100% but do not consume power
+		// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
 		if (d->power == 100 && (BOILER_WATT / 2 * -1) < load) {
 			d->standby = 1;
 			(d->set_function)(i, BOILER_STANDBY);
@@ -420,16 +442,18 @@ static void rampup() {
 
 			if (d->greedy) {
 
-				// allow consuming akku charge + grid upload power
-				(d->set_function)(i, d->power + step);
-				return;
+				// grid upload power + steal akku charge power
+				if (surplus_step) {
+					(d->set_function)(i, d->power + surplus_step);
+					return;
+				}
 
 			} else {
 
 				// allow only grid upload power
-				if (xstep) {
-					xlog("FRONIUS adjusting extra power %d watt on %s step %d", extra, d->name, xstep);
-					(d->set_function)(i, d->power + xstep);
+				if (extra_step) {
+					xlog("FRONIUS adjusting extra power %d watt on %s step %d", extra, d->name, extra_step);
+					(d->set_function)(i, d->power + extra_step);
 					return;
 				}
 			}
@@ -440,12 +464,12 @@ static void rampup() {
 static void rampdown() {
 	// check if all devices already off
 	if (all_devices_off()) {
-		xlog(FRONIUSLOG" --> ramp↓ standby", charge, akku, grid, load, pv, surplus, step);
+		xlog(FRONIUSLOG" --> ramp↓ standby", charge, akku, grid, load, pv, surplus, surplus_step);
 		wait = WAIT_STANDBY;
 		return;
 	}
 
-	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, step);
+	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, surplus_step);
 
 	// reverse order
 	for (int i = ARRAY_SIZE(devices) - 1; i >= 0; i--) {
@@ -464,12 +488,12 @@ static void rampdown() {
 		}
 
 		// lowering all devices - as we don't know which one consumes power
-		(d->set_function)(i, d->power + step);
+		(d->set_function)(i, d->power + surplus_step);
 	}
 }
 
 static void* fronius(void *arg) {
-	int ret, last_hour = -1;
+	int ret, day = -1, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -505,20 +529,30 @@ static void* fronius(void *arg) {
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
-			xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, step);
-			step = surplus = 0;
+			xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, surplus_step);
+			surplus_step = surplus = 0;
 			set_devices(0);
 			wait = WAIT_OFFLINE;
 			continue;
 		}
 
-		// reset device states once per hour
+		// get actual date and time
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
-		if (last_hour != now->tm_hour) {
-			last_hour = now->tm_hour;
+
+		// reset device states once per hour
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
 			xlog("FRONIUS resetting all device states");
 			set_devices(0);
+		}
+
+		// TODO
+		// do weather forecast for tody and choose program
+		if (day != now->tm_mday) {
+			day = now->tm_mday;
+			xlog("FRONIUS choosing program from weather forecast");
+			// forecast();
 		}
 
 		// update PV history
@@ -532,15 +566,15 @@ static void* fronius(void *arg) {
 		// convert surplus+extra power into ramp up / ramp down percent steps
 		calculate_steps();
 
-		if (step < 0)
+		if (surplus_step < 0)
 			// consuming grid power or discharging akku: ramp down
 			rampdown();
-		else if (step > 0)
+		else if (surplus_step > 0)
 			// uploading grid power or charging akku: ramp up
 			rampup();
 		else
 			// keep current state
-			xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, step);
+			xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, surplus_step);
 
 		// faster next round when distortion
 		if (distortion && wait > 10)
@@ -729,24 +763,25 @@ static int init() {
 
 		switch (i) {
 		case 0:
+			d->greedy = 1;
+			d->set_function = &set_heater;
+			break;
+		case 1:
 			d->adjustable = 1;
 			d->greedy = 1;
 			d->phase_angle = phase_angle1;
 			d->set_function = &set_boiler;
 			break;
-		case 1:
+		case 2:
 			d->adjustable = 1;
 			d->greedy = 1;
 			d->phase_angle = phase_angle2;
 			d->set_function = &set_boiler;
 			break;
-		case 2:
+		case 3:
 			d->adjustable = 1;
 			d->phase_angle = phase_angle3;
 			d->set_function = &set_boiler;
-			break;
-		case 3:
-			d->set_function = &set_heater;
 			break;
 		}
 
