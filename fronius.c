@@ -542,6 +542,16 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
+		// get actual date and time
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
+
+		// do sunshine duration forecast for new day and choose program
+		if (day != now->tm_mday) {
+			day = now->tm_mday;
+			forecast();
+		}
+
 		// make Fronius API call
 		ret = api();
 		if (ret != 0) {
@@ -569,21 +579,11 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// get actual date and time
-		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
-
 		// reset device states once per hour
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
 			xlog("FRONIUS resetting all device states");
 			set_devices(0);
-		}
-
-		// do sunshine duration forecast for new day and choose program
-		if (day != now->tm_mday) {
-			day = now->tm_mday;
-			forecast();
 		}
 
 		// update PV history
