@@ -36,14 +36,14 @@ rm -rf "$V.txt"
 case $V in *1h)
   TS=`cat mosmix-timestamps.json | jq .[0]`
   OFFSET=`date +%H -u -d "@$TS"`
-  EOD=$((24 - $OFFSET + 1))
+  EOD=$((24 - $OFFSET))
   X1=0
-  X2=$((X1 + EOD))
-  Y1=$((X2 + 1))
-  Y2=$((Y1 + 23))
-  Z1=$((Y2 + 1))
-  Z2=$((Z1 + 23))
-    
+  X2=$EOD
+  Y1=$EOD
+  Y2=$(($Y1+24))
+  Z1=$Y2
+  Z2=$(($Z1+24))
+
   S1=".$S.$V[$X1:$X2]"
   S2=".$S.$V[$Y1:$Y2]"
   S3=".$S.$V[$Z1:$Z2]"
