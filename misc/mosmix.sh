@@ -32,8 +32,11 @@ fi
 
 rm -rf "$V.txt"
 
+case $V in
+
+*1|*1h)
 # hourly values - sum up for one day
-case $V in *1|*1h)
+
   TS=`cat mosmix-timestamps.json | jq .[0]`
   OFFSET=`date +%H -u -d "@$TS"`
   EOD=$((24 - $OFFSET))
@@ -55,18 +58,21 @@ case $V in *1|*1h)
   echo $R1 > "$V.txt"
   echo $R2 >> "$V.txt"
   echo $R3 >> "$V.txt"
+  ;;
 
-  exit
-esac
-
+*)
 # other values - print the daily 06:00 value
-for i in `seq 0 72`; do
-  X=`cat mosmix-forecasts.json | jq .$S.$V[$i]`
-  if [ "$X" != "null" ]; then
-     Y=`cat mosmix-timestamps.json | jq .[$i]`
-     Z=`date +%H -u -d "@$Y"`
-     if [ "$Z" -eq "06" ]; then
-       echo $Z=$X >> "$V.txt"
+
+  for i in `seq 0 72`; do
+    X=`cat mosmix-forecasts.json | jq .$S.$V[$i]`
+    if [ "$X" != "null" ]; then
+       Y=`cat mosmix-timestamps.json | jq .[$i]`
+       Z=`date +%H -u -d "@$Y"`
+       if [ "$Z" -eq "06" ]; then
+         echo $Z=$X >> "$V.txt"
+       fi
      fi
-   fi
-done
+  done
+  ;;
+
+esac
