@@ -70,7 +70,7 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	return realsize;
 }
 
-static int forecast() {
+static int forecast_SunD() {
 	char line[32];
 	int yesterday_h, yesterday_s, today_h, today_s, tomorrow_h, tomorrow_s;
 
@@ -95,9 +95,36 @@ static int forecast() {
 	float yesterday_sun = (float) yesterday_s / 3600;
 	float today_sun = (float) today_s / 3600;
 	float tomorrow_sun = (float) tomorrow_s / 3600;
-	xlog("FRONIUS sunshine forecast hours: yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
+	xlog("FRONIUS sunshine hours forecast for yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
 //	xlog("FRONIUS choosing program from weather forecast");
 	return today_sun;
+}
+
+static int forecast_Rad1h() {
+	char line[8];
+	int today, tomorrow, datomorrow;
+
+	FILE *fp = popen("cat /tmp/Rad1h.txt", "r");
+	if (fp == NULL)
+		return xerr("FRONIUS no forecast data available");
+
+	if (fgets(line, 8, fp) != NULL)
+		if (sscanf(line, "%d", &today) != 1)
+			return xerr("FRONIUS forecast parse error %s", line);
+
+	if (fgets(line, 8, fp) != NULL)
+		if (sscanf(line, "%d", &tomorrow) != 1)
+			return xerr("FRONIUS forecast parse error %s", line);
+
+	if (fgets(line, 8, fp) != NULL)
+		if (sscanf(line, "%d", &datomorrow) != 1)
+			return xerr("FRONIUS forecast parse error %s", line);
+
+	pclose(fp);
+
+	xlog("FRONIUS sunshine radiation forecasts for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
+//	xlog("FRONIUS choosing program from weather forecast");
+	return today;
 }
 
 static int parse() {
@@ -523,7 +550,7 @@ static void rampdown() {
 }
 
 static void* fronius(void *arg) {
-	int ret, day = -1, hour = -1;
+	int ret, errors = 0, hour = -1, hour_forecast = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -531,7 +558,7 @@ static void* fronius(void *arg) {
 	}
 
 	// do sunshine duration forecast and choose program
-	forecast();
+	forecast_Rad1h();
 
 	// switch off all
 	set_devices(0);
@@ -547,28 +574,33 @@ static void* fronius(void *arg) {
 		struct tm *now = localtime(&now_ts);
 
 		// do sunshine duration forecast for new day and choose program
-		if (day != now->tm_mday) {
-			day = now->tm_mday;
-			forecast();
-		}
+		if (now->tm_hour == 5 && hour_forecast == -1) {
+			forecast_Rad1h();
+			hour_forecast = now->tm_hour;
+		} else
+			hour_forecast = -1;
 
 		// make Fronius API call
 		ret = api();
 		if (ret != 0) {
 			xlog("FRONIUS api() returned %d", ret);
-			set_devices(0);
+			if (++errors == 3)
+				set_devices(0);
 			wait = WAIT_KEEP;
 			continue;
-		}
+		} else
+			errors = 0;
 
 		// extract values from Fronius JSON response
 		ret = parse();
 		if (ret != 0) {
 			xlog("FRONIUS parse() returned %d", ret);
-			set_devices(0);
+			if (++errors == 3)
+				set_devices(0);
 			wait = WAIT_KEEP;
 			continue;
-		}
+		} else
+			errors = 0;
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
