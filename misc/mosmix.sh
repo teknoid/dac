@@ -33,7 +33,7 @@ fi
 rm -rf "$V.txt"
 
 # hourly values - sum up for one day
-case $V in *1h)
+case $V in *1|*1h)
   TS=`cat mosmix-timestamps.json | jq .[0]`
   OFFSET=`date +%H -u -d "@$TS"`
   EOD=$((24 - $OFFSET))
