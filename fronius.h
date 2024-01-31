@@ -24,4 +24,3 @@ typedef struct get_response_t {
 } get_response_t;
 
 void fronius_override(const char *name);
-

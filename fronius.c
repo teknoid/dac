@@ -36,11 +36,132 @@ static int history_ptr = 0;
 static int wait = WAIT_NEXT;
 static int sock = 0;
 
+int fronius_set_heater(void *ptr, int power) {
+	device_t *heater = (device_t*) ptr;
+
+	// fix power value if out of range
+	if (power < 0)
+		power = 0;
+	if (power > 1)
+		power = 1;
+
+	// can we send a message
+	if (heater->addr == NULL)
+		return xerr("No address to send HTTP message");
+
+	// check if update is necessary
+	if (heater->power == power)
+		return 0;
+
+	if (!heater->active)
+		power = 0;
+
+	char command[128];
+	if (power) {
+		xlog("FRONIUS switching %s ON", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
+	} else {
+		xlog("FRONIUS switching %s OFF", heater->name);
+		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
+	}
+	// send message to heater
+	system(command);
+
+	// update power value
+	heater->power = power;
+	wait = WAIT_NEXT;
+
+	return 0;
+}
+
+int fronius_set_boiler(void *ptr, int power) {
+	device_t *boiler = (device_t*) ptr;
+
+	// fix power value if out of range
+	if (power < 0)
+		power = 0;
+	if (power > 100)
+		power = 100;
+
+	// can we send a message
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
+
+	// check if update is necessary
+	if (boiler->power == power)
+		return 0;
+
+	// standby: only update if smaller
+	if (boiler->standby && power > boiler->maximum)
+		return 0;
+
+	// count down override and set power to 100%
+	if (boiler->override) {
+		boiler->override--;
+		power = 100;
+		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
+	} else {
+		if (!boiler->active)
+			power = 0;
+		if (power == 0)
+			boiler->standby = 0; // zero resets standby
+	}
+
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	if (sock == 0)
+		return xerr("Error creating socket");
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	// convert 0..100% to 2..10V SSR control voltage
+	char message[16];
+	snprintf(message, 16, "%d:%d", boiler->phase_angle[power], 0);
+
+	// send message to boiler
+	xlog("FRONIUS send %s UDP %s", boiler->name, message);
+	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
+		return xerr("Sendto failed");
+
+	// update power value
+	boiler->power = power;
+	wait = WAIT_NEXT;
+
+	return 0;
+}
+
 static void set_devices(int power) {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
 		(d->set_function)(d, power);
 	}
+}
+
+static void print_status() {
+	char message[128];
+	char value[5];
+
+	strcpy(message, "FRONIUS devices active ");
+	for (int i = 0; i < potd_size; i++)
+		strcat(message, potd[i]->active ? "1" : "0");
+
+	strcat(message, "   power ");
+	for (int i = 0; i < potd_size; i++) {
+		snprintf(value, 5, " %3d", potd[i]->power);
+		strcat(message, value);
+	}
+
+	snprintf(value, 5, "%3d", wait);
+	strcat(message, "   wait ");
+	strcat(message, value);
+	xlog(message);
 }
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
@@ -247,127 +368,6 @@ static int all_devices_off() {
 	}
 
 	return 1;
-}
-
-int fronius_set_heater(void *ptr, int power) {
-	device_t *heater = (device_t*) ptr;
-
-	// fix power value if out of range
-	if (power < 0)
-		power = 0;
-	if (power > 1)
-		power = 1;
-
-	// can we send a message
-	if (heater->addr == NULL)
-		return xerr("No address to send HTTP message");
-
-	// check if update is necessary
-	if (heater->power == power)
-		return 0;
-
-	if (!heater->active)
-		power = 0;
-
-	char command[128];
-	if (power) {
-		xlog("FRONIUS switching %s ON", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
-	} else {
-		xlog("FRONIUS switching %s OFF", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
-	}
-	// send message to heater
-	system(command);
-
-	// update power value
-	heater->power = power;
-	wait = WAIT_NEXT;
-
-	return 0;
-}
-
-int fronius_set_boiler(void *ptr, int power) {
-	device_t *boiler = (device_t*) ptr;
-
-	// fix power value if out of range
-	if (power < 0)
-		power = 0;
-	if (power > 100)
-		power = 100;
-
-	// can we send a message
-	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
-
-	// check if update is necessary
-	if (boiler->power == power)
-		return 0;
-
-	// standby: only update if smaller
-	if (boiler->standby && power > boiler->maximum)
-		return 0;
-
-	// count down override and set power to 100%
-	if (boiler->override) {
-		boiler->override--;
-		power = 100;
-		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
-	} else {
-		if (!boiler->active)
-			power = 0;
-		if (power == 0)
-			boiler->standby = 0; // zero resets standby
-	}
-
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-	if (sock == 0)
-		return xerr("Error creating socket");
-
-	// write IP and port into sockaddr structure
-	struct sockaddr_in sock_addr_in = { 0 };
-	sock_addr_in.sin_family = AF_INET;
-	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
-	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
-
-	// convert 0..100% to 2..10V SSR control voltage
-	char message[16];
-	snprintf(message, 16, "%d:%d", boiler->phase_angle[power], 0);
-
-	// send message to boiler
-	xlog("FRONIUS send %s UDP %s", boiler->name, message);
-	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
-		return xerr("Sendto failed");
-
-	// update power value
-	boiler->power = power;
-	wait = WAIT_NEXT;
-
-	return 0;
-}
-
-static void print_status() {
-	char message[128];
-	char value[5];
-
-	strcpy(message, "FRONIUS devices active ");
-	for (int i = 0; i < potd_size; i++)
-		strcat(message, potd[i]->active ? "1" : "0");
-
-	strcat(message, "   power ");
-	for (int i = 0; i < potd_size; i++) {
-		snprintf(value, 5, " %3d", potd[i]->power);
-		strcat(message, value);
-	}
-
-	snprintf(value, 5, "%3d", wait);
-	strcat(message, "   wait ");
-	strcat(message, value);
-	xlog(message);
 }
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
