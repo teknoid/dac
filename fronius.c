@@ -10,12 +10,11 @@
 #include <arpa/inet.h>
 #include <curl/curl.h>
 
+#include "fronius-config.h"
 #include "fronius.h"
 #include "frozen.h"
 #include "utils.h"
 #include "mcp.h"
-
-#define FRONIUSLOG 			"FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Step:%3d"
 
 static pthread_t thread;
 
@@ -23,33 +22,26 @@ static pthread_t thread;
 static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
-// device status for boilers and heaters
-// static const char *devices[] = { BOILERS, HEATERS };
-static const char *devices[] = { HEATERS, BOILERS };
-static device_t **device;
-
-// TODO
-// config_sunny
-// config_cloudy
+// program of the day - forecast will chose appropriate configuration SUNNY or CLOUDY
+static device_t **potd;
+static int potd_size;
 
 // actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, surplus_step, extra, extra_step, distortion;
+static int charge, akku, grid, load, pv, surplus, extra, distortion;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
 static int history_ptr = 0;
 
-// SSR control voltage for 0..100% power
-// TODO Tabelle in ESP32 integrieren und direktaufruf zusätzlich über prozentuale angabe
-static const unsigned int phase_angle1[] = { PHASE_ANGLES_BOILER1 };
-static const unsigned int phase_angle2[] = { PHASE_ANGLES_BOILER2 };
-static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
-
-// 1% of maximum boiler power
-static const int percent = BOILER_WATT / 100;
-
 static int wait = WAIT_NEXT;
 static int sock = 0;
+
+static void set_devices(int power) {
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+		(d->set_function)(d, power);
+	}
+}
 
 static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	size_t realsize = size * nmemb;
@@ -96,7 +88,10 @@ static int forecast_SunD() {
 	float today_sun = (float) today_s / 3600;
 	float tomorrow_sun = (float) tomorrow_s / 3600;
 	xlog("FRONIUS sunshine hours forecast for yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
-//	xlog("FRONIUS choosing program from weather forecast");
+	// xlog("FRONIUS choosing program from weather forecast");
+
+	// reset all devices
+	set_devices(0);
 	return today_sun;
 }
 
@@ -122,8 +117,31 @@ static int forecast_Rad1h() {
 
 	pclose(fp);
 
-	xlog("FRONIUS sunshine radiation forecasts for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
-//	xlog("FRONIUS choosing program from weather forecast");
+	xlog("FRONIUS forecast() sunshine radiation for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
+	// xlog("FRONIUS choosing program from weather forecast");
+
+	// Datum	Erwartet	Produziert
+	// 31.01.	2980
+	// 01.02.	2870
+	// 02.02.	2500
+
+	// if today > 10 (Eigenverbrauch) + 10 * charge / 100 (zu ladender Akku)
+	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
+	// else
+	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
+
+	if (today < 3000) {
+		xlog("FRONIUS forecast() choosing CLOUDY program for today");
+		potd = CONFIG_CLOUDY;
+		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
+	} else {
+		xlog("FRONIUS forecast() choosing SUNNY program for today");
+		potd = CONFIG_SUNNY;
+		potd_size = ARRAY_SIZE(CONFIG_SUNNY);
+	}
+
+	// reset all devices
+	set_devices(0);
 	return today;
 }
 
@@ -199,8 +217,8 @@ static int api() {
 }
 
 static int all_devices_max() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
 
 		if (!d->active)
 			continue;
@@ -218,8 +236,8 @@ static int all_devices_max() {
 }
 
 static int all_devices_off() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
 
 		if (!d->active)
 			continue;
@@ -231,13 +249,8 @@ static int all_devices_off() {
 	return 1;
 }
 
-static void set_devices(int power) {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++)
-		(device[i]->set_function)(i, power);
-}
-
-static int set_heater(int index, int power) {
-	device_t *heater = device[index];
+int fronius_set_heater(void *ptr, int power) {
+	device_t *heater = (device_t*) ptr;
 
 	// fix power value if out of range
 	if (power < 0)
@@ -274,8 +287,8 @@ static int set_heater(int index, int power) {
 	return 0;
 }
 
-static int set_boiler(int index, int power) {
-	device_t *boiler = device[index];
+int fronius_set_boiler(void *ptr, int power) {
+	device_t *boiler = (device_t*) ptr;
 
 	// fix power value if out of range
 	if (power < 0)
@@ -292,7 +305,7 @@ static int set_boiler(int index, int power) {
 		return 0;
 
 	// standby: only update if smaller
-	if (boiler->standby && power > BOILER_STANDBY)
+	if (boiler->standby && power > boiler->maximum)
 		return 0;
 
 	// count down override and set power to 100%
@@ -342,12 +355,12 @@ static void print_status() {
 	char value[5];
 
 	strcpy(message, "FRONIUS devices active ");
-	for (int i = 0; i < ARRAY_SIZE(devices); i++)
-		strcat(message, device[i]->active ? "1" : "0");
+	for (int i = 0; i < potd_size; i++)
+		strcat(message, potd[i]->active ? "1" : "0");
 
 	strcat(message, "   power ");
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		snprintf(value, 5, " %3d", device[i]->power);
+	for (int i = 0; i < potd_size; i++) {
+		snprintf(value, 5, " %3d", potd[i]->power);
 		strcat(message, value);
 	}
 
@@ -389,163 +402,156 @@ static void calculate_distortion() {
 
 // Akku < 0	--> charge
 // Akku > 0	--> discharge
-static void calculate_steps() {
+static int calculate_steps(device_t *d) {
+	int step = 0;
 
-	// akku charge + grid upload
-	surplus = (grid + akku) * -1;
+	if (d->greedy) {
 
-	// single step to avoid swinging if surplus is between 0 1nd 100
-	if (-25 < surplus && surplus < 25) {
-		surplus_step = -1;
-		return;
-	} else if (25 <= surplus && surplus < 75) {
-		surplus_step = 0;
-		return;
-	} else if (75 <= surplus && surplus < 100) {
-		surplus_step = 1;
-		return;
+		// single step to avoid swinging if surplus is around FROM and TO
+		if ((KEEP_FROM - 50) < surplus && surplus < KEEP_FROM)
+			return -1;
+		else if (KEEP_FROM <= surplus && surplus < KEEP_TO)
+			return 0;
+		else if (KEEP_TO <= surplus && surplus < (KEEP_TO + 50))
+			return 1;
+
+		// surplus power steps
+		step = surplus / (d->maximum / 100);
+
+		if (distortion && step > 0)
+			step /= 2;
+
+		if (step < -100)
+			step = -100; // min -100
+		if (step > 100)
+			step = 100; // max 100
+
+	} else {
+
+		// extra power steps
+		step = extra / (d->maximum / 100);
+
+		if (step < -100)
+			step = -100; // min -100
+		if (step > 100)
+			step = 100; // max 100
+
+		// smaller ramp up steps when we have distortion
+		if (distortion && step > 0)
+			step /= 2;
+
+		// discharge when akku not full --> stop extra power
+		if (charge < 99 && akku > 50)
+			step = -100;
 	}
 
-	// next step
-	surplus_step = surplus / percent;
+	return step;
+}
 
-	// smaller ramp up steps when we have distortion
-	calculate_distortion();
-	if (distortion && surplus_step > 0)
-		surplus_step /= 2;
+static int rampup_device(device_t *d) {
+	if (!d->active)
+		return 0; // continue loop
 
-	if (surplus_step < -100)
-		surplus_step = -100; // min -100
-	if (surplus_step > 100)
-		surplus_step = 100; // max 100
+	if (d->standby)
+		return 0; // continue loop
 
-	// grid upload - extra power from secondary inverters
-	extra = grid * -1;
-	if (-50 < extra && extra < 10)
-		extra = 0;
+	int step = calculate_steps(d);
 
-	// extra power steps
-	extra_step = extra / percent;
+	// dumb devices can only be switched on or off
+	if (!d->adjustable) {
 
-	if (extra_step < -100)
-		extra_step = -100; // min -100
-	if (extra_step > 100)
-		extra_step = 100; // max 100
+		if (d->power)
+			return 0; // already on - continue loop
 
-	// smaller ramp up steps when we have distortion
-	if (distortion && extra_step > 0)
-		extra_step /= 2;
+		if (d->greedy) {
 
-	// discharge when akku not full --> stop extra power
-	if (charge < 99 && akku > 50)
-		extra_step = -100;
+			// grid upload power + steal akku charge power
+			if (surplus > d->maximum) {
+				(d->set_function)(d, 1);
+				return 1; // loop done
+			}
+
+		} else {
+
+			// allow only grid upload power
+			if (extra > d->maximum) {
+				(d->set_function)(d, 1);
+				return 1; // loop done
+			}
+		}
+	}
+
+	// check if device is ramped up to 100% but do not consume power
+	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
+	if (d->power == 100 && (d->maximum / 2 * -1) < load) {
+		d->standby = 1;
+		(d->set_function)(d, STANDBY);
+		return 0; // continue loop
+	}
+
+	if (d->power == 100)
+		return 0; // already full up - continue loop
+
+	if (step) {
+		xlog("FRONIUS ramp↑ %s step %d", d->name, step);
+		(d->set_function)(d, d->power + step);
+		return 1; // loop done
+	}
+
+	return 0; // continue loop
+}
+
+static int rampdown_device(device_t *d) {
+	int step = calculate_steps(d);
+
+	// dumb devices can only be switched on or off
+	if (!d->adjustable) {
+		// switch off
+		if (d->power) {
+			(d->set_function)(d, 0);
+			return 1; // loop done
+		} else
+			return 0; // already off - continue loop
+	} else {
+		xlog("FRONIUS ramp↓ %s step %d", d->name, step);
+		(d->set_function)(d, d->power + step);
+		return 0; // continue loop - as we don't know which one consumes power
+	}
 }
 
 static void rampup() {
 	// check if all devices already on
 	if (all_devices_max()) {
-		xlog(FRONIUSLOG" --> ramp↑ standby", charge, akku, grid, load, pv, surplus, surplus_step);
+		xlog("FRONIUS ramp↑ standby");
 		wait = WAIT_STANDBY;
 		return;
 	}
 
-	xlog(FRONIUSLOG" --> ramp↑", charge, akku, grid, load, pv, surplus, surplus_step);
-
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
-
-		if (!d->active)
+	// ramp up devices
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+		if (rampup_device(d))
+			return;
+		else
 			continue;
-
-		if (d->standby)
-			continue;
-
-		// dumb devices can only be switched on or off
-		if (!d->adjustable) {
-
-			if (d->power)
-				continue; // already on
-
-			if (d->greedy) {
-
-				// grid upload power + steal akku charge power
-				if (surplus > HEATER_WATT) {
-					(d->set_function)(i, 1);
-					return;
-				}
-
-			} else {
-
-				// allow only grid upload power
-				if (extra > HEATER_WATT) {
-					(d->set_function)(i, 1);
-					return;
-				}
-
-			}
-			continue;
-		}
-
-		// check if device is ramped up to 100% but do not consume power
-		// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
-		if (d->power == 100 && (BOILER_WATT / 2 * -1) < load) {
-			d->standby = 1;
-			(d->set_function)(i, BOILER_STANDBY);
-			continue;
-		}
-
-		// ramp up each device separately
-		if (d->power != 100) {
-
-			if (d->greedy) {
-
-				// grid upload power + steal akku charge power
-				if (surplus_step) {
-					(d->set_function)(i, d->power + surplus_step);
-					return;
-				}
-
-			} else {
-
-				// allow only grid upload power
-				if (extra_step) {
-					xlog("FRONIUS adjusting extra power %d watt on %s step %d", extra, d->name, extra_step);
-					(d->set_function)(i, d->power + extra_step);
-					return;
-				}
-			}
-		}
 	}
 }
 
 static void rampdown() {
 	// check if all devices already off
 	if (all_devices_off()) {
-		xlog(FRONIUSLOG" --> ramp↓ standby", charge, akku, grid, load, pv, surplus, surplus_step);
+		xlog("FRONIUS ramp↓ standby");
 		wait = WAIT_STANDBY;
 		return;
 	}
 
-	xlog(FRONIUSLOG" --> ramp↓", charge, akku, grid, load, pv, surplus, surplus_step);
-
-	// reverse order
-	for (int i = ARRAY_SIZE(devices) - 1; i >= 0; i--) {
-		device_t *d = device[i];
-
-		// dumb devices can only be switched on or off
-		if (!d->adjustable) {
-
-			// switch off
-			if (d->power) {
-				(d->set_function)(i, 0);
-				return;
-			}
-
+	// ramp down devices in reverse order
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+		if (rampdown_device(d))
+			return;
+		else
 			continue;
-		}
-
-		// lowering all devices - as we don't know which one consumes power
-		(d->set_function)(i, d->power + surplus_step);
 	}
 }
 
@@ -557,7 +563,7 @@ static void* fronius(void *arg) {
 		return (void*) 0;
 	}
 
-	// do sunshine duration forecast and choose program
+	// do sunshine duration forecast and choose start program
 	forecast_Rad1h();
 
 	// switch off all
@@ -586,7 +592,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS api() returned %d", ret);
 			if (++errors == 3)
 				set_devices(0);
-			wait = WAIT_KEEP;
+			wait = WAIT_NEXT;
 			continue;
 		} else
 			errors = 0;
@@ -597,15 +603,15 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS parse() returned %d", ret);
 			if (++errors == 3)
 				set_devices(0);
-			wait = WAIT_KEEP;
+			wait = WAIT_NEXT;
 			continue;
 		} else
 			errors = 0;
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
-			xlog(FRONIUSLOG" --> offline", charge, akku, grid, load, pv, surplus, surplus_step);
-			surplus_step = surplus = 0;
+			xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d --> offline", charge, akku, grid, load, pv);
+			surplus = extra = 0;
 			set_devices(0);
 			wait = WAIT_OFFLINE;
 			continue;
@@ -626,18 +632,25 @@ static void* fronius(void *arg) {
 		// default wait for next round
 		wait = WAIT_KEEP;
 
-		// convert surplus+extra power into ramp up / ramp down percent steps
-		calculate_steps();
+		// akku charge + grid upload
+		surplus = (grid + akku) * -1;
 
-		if (surplus_step < 0)
+		// grid upload - extra power from secondary inverters
+		extra = grid * -1;
+		if (extra < 25)
+			extra = 0;
+
+		// do smaller steps when we have distortion
+		calculate_distortion();
+
+		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
+
+		if (surplus < KEEP_FROM)
 			// consuming grid power or discharging akku: ramp down
 			rampdown();
-		else if (surplus_step > 0)
+		else if (surplus > KEEP_TO)
 			// uploading grid power or charging akku: ramp up
 			rampup();
-		else
-			// keep current state
-			xlog(FRONIUSLOG" --> keep", charge, akku, grid, load, pv, surplus, surplus_step);
 
 		// faster next round when distortion
 		if (distortion && wait > 10)
@@ -812,48 +825,23 @@ static void calibrate(char *name) {
 }
 
 static int init() {
-	// create device structures for boilers and heaters
-	device = malloc(ARRAY_SIZE(devices));
-
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = malloc(sizeof(device_t));
-		ZERO(d);
-
+	// initialize all devices with start values
+	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
+		device_t *d = CONFIG_CLOUDY[i];
 		d->active = 1;
 		d->power = -1;
-		d->name = devices[i];
 		d->addr = resolve_ip(d->name);
-
-		switch (i) {
-		case 0:
-			d->greedy = 1;
-			d->set_function = &set_heater;
-			break;
-		case 1:
-			d->adjustable = 1;
-			d->greedy = 1;
-			d->phase_angle = phase_angle1;
-			d->set_function = &set_boiler;
-			break;
-		case 2:
-			d->adjustable = 1;
-			d->greedy = 1;
-			d->phase_angle = phase_angle2;
-			d->set_function = &set_boiler;
-			break;
-		case 3:
-			d->adjustable = 1;
-			d->phase_angle = phase_angle3;
-			d->set_function = &set_boiler;
-			break;
-		}
-
-		device[i] = d;
+	}
+	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY); i++) {
+		device_t *d = CONFIG_SUNNY[i];
+		d->active = 1;
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
 	}
 
 	// debug phase angle edges
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = device[i];
+	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
+		device_t *d = CONFIG_CLOUDY[i];
 		if (d->phase_angle != NULL)
 			xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", d->name, d->phase_angle[0], d->phase_angle[1], d->phase_angle[50], d->phase_angle[100]);
 	}
@@ -891,17 +879,18 @@ static void stop() {
 		close(sock);
 }
 
-void fronius_override(int index) {
-	if (index < 0 || index >= ARRAY_SIZE(devices))
-		return;
+void fronius_override(const char *name) {
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
 
-	device_t *d = device[index];
-	d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
-	d->active = 1;
-	d->standby = 0;
-
-	xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
-	(d->set_function)(index, 100);
+		if (!strcmp(d->name, name)) {
+			d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
+			d->active = 1;
+			d->standby = 0;
+			xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
+			(d->set_function)(d, 100);
+		}
+	}
 }
 
 int fronius_main(int argc, char **argv) {

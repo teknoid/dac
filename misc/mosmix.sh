@@ -23,8 +23,10 @@ cd /tmp
 if [ $RELOAD -eq 1 ]; then
   rm -rf mosmix*json
   rm -rf MOSMIX*kmz
+#  rm -rf MOSMIX*kml
 
   wget -q http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/10577/kml/$F
+  unzip -q -o $F
 
   mosmix.py --in-file $F --out-file mosmix-timestamps.json timestamps
   mosmix.py --in-file $F --out-file mosmix-forecasts.json forecasts
