@@ -528,13 +528,9 @@ static void rampup() {
 	}
 
 	// ramp up devices
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-		if (rampup_device(d))
+	for (int i = 0; i < potd_size; i++)
+		if (rampup_device(potd[i]))
 			return;
-		else
-			continue;
-	}
 }
 
 static void rampdown() {
@@ -546,13 +542,9 @@ static void rampdown() {
 	}
 
 	// ramp down devices in reverse order
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-		if (rampdown_device(d))
+	for (int i = potd_size - 1; i >= 0; i--)
+		if (rampdown_device(potd[i]))
 			return;
-		else
-			continue;
-	}
 }
 
 static void* fronius(void *arg) {
