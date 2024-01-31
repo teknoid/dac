@@ -120,8 +120,8 @@ static int forecast_Rad1h() {
 	xlog("FRONIUS forecast() sunshine radiation for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
 	// xlog("FRONIUS choosing program from weather forecast");
 
-	// Datum	Erwartet	Produziert
-	// 31.01.	2980
+	// Datum	Erwartet	Produziert	Akku
+	// 31.01.	2980		6110		43
 	// 01.02.	2870
 	// 02.02.	2500
 
@@ -580,7 +580,7 @@ static void* fronius(void *arg) {
 		struct tm *now = localtime(&now_ts);
 
 		// do sunshine duration forecast for new day and choose program
-		if (now->tm_hour == 5 && hour_forecast == -1) {
+		if (now->tm_hour == 6 && hour_forecast == -1) {
 			forecast_Rad1h();
 			hour_forecast = now->tm_hour;
 		} else
