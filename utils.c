@@ -385,3 +385,19 @@ int round100(int n) {
 	else
 		return (x + 1) * 100;
 }
+
+int maximum(int count, ...) {
+	int max = 0;
+	int i;
+
+	va_list valist;
+	va_start(valist, count);
+	for (i = 0; i < count; i++) {
+		int x = va_arg(valist, int);
+		if (x > max)
+			max = x;
+	}
+	va_end(valist);
+
+	return max;
+}

@@ -40,3 +40,5 @@ char* resolve_ip(const char *hostname);
 
 int round10(int n);
 int round100(int n);
+
+int maximum(int, ...);
