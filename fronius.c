@@ -569,6 +569,7 @@ static void* fronius(void *arg) {
 	// switch off all
 	set_devices(0);
 
+	// the FRONIUS main loop
 	while (1) {
 
 		sleep(1);
@@ -617,20 +618,20 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
-		// reset device states once per hour
-		if (hour != now->tm_hour) {
-			hour = now->tm_hour;
-			xlog("FRONIUS resetting all device states");
-			set_devices(0);
-		}
+		// default wait for next round
+		wait = WAIT_KEEP;
 
 		// update PV history
 		history[history_ptr++] = pv;
 		if (history_ptr == PV_HISTORY)
 			history_ptr = 0;
 
-		// default wait for next round
-		wait = WAIT_KEEP;
+		// reset device states once per hour
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			xlog("FRONIUS resetting all device states");
+			set_devices(0);
+		}
 
 		// akku charge + grid upload
 		surplus = (grid + akku) * -1;
