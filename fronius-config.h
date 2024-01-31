@@ -60,15 +60,15 @@ static const unsigned int phase_angle2[] = { PHASE_ANGLES_BOILER2 };
 static const unsigned int phase_angle3[] = { PHASE_ANGLES_BOILER3 };
 
 // configuration for cloudy weather: priority is warm water in boiler1+2 and then akku charging
-static device_t c1 = { .name = "boiler1", .maximum = 2000, .set_function = &fronius_set_boiler, .greedy = 1, .adjustable = 1, .phase_angle = phase_angle1 };
-static device_t c2 = { .name = "boiler2", .maximum = 2000, .set_function = &fronius_set_boiler, .greedy = 1, .adjustable = 1, .phase_angle = phase_angle2 };
+static device_t c1 = { .name = "boiler1", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle1, .greedy = 1 };
+static device_t c2 = { .name = "boiler2", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle2, .greedy = 1 };
 static device_t c3 = { .name = "boiler3", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle3 };
 static device_t c4 = { .name = "plug9", .maximum = 600, .set_function = &fronius_set_heater };
 static device_t *CONFIG_CLOUDY[] = { &c1, &c2, &c3, &c4 };
 
 // configuration for sunny weather: akku will be fully anyway at the end of day
 static device_t s1 = { .name = "plug9", .maximum = 600, .set_function = &fronius_set_heater, .greedy = 1 };
-static device_t s2 = { .name = "boiler1", .maximum = 2000, .set_function = &fronius_set_boiler, .greedy = 1, .adjustable = 1, .phase_angle = phase_angle1 };
-static device_t s3 = { .name = "boiler2", .maximum = 2000, .set_function = &fronius_set_boiler, .greedy = 1, .adjustable = 1, .phase_angle = phase_angle2 };
-static device_t s4 = { .name = "boiler3", .maximum = 2000, .set_function = &fronius_set_boiler, .greedy = 1, .adjustable = 1, .phase_angle = phase_angle3 };
+static device_t s2 = { .name = "boiler1", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle1, .greedy = 1 };
+static device_t s3 = { .name = "boiler2", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle2, .greedy = 1 };
+static device_t s4 = { .name = "boiler3", .maximum = 2000, .set_function = &fronius_set_boiler, .adjustable = 1, .phase_angle = phase_angle3, .greedy = 1 };
 static device_t *CONFIG_SUNNY[] = { &s1, &s2, &s3, &s4 };
