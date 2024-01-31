@@ -397,12 +397,7 @@ static void calculate_distortion() {
 	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
 }
 
-// Grid < 0	--> upload
-// Grid > 0	--> download
-
-// Akku < 0	--> charge
-// Akku > 0	--> discharge
-static int calculate_steps(device_t *d) {
+static int calculate_step(device_t *d) {
 	int step = 0;
 
 	if (d->greedy) {
@@ -455,7 +450,7 @@ static int rampup_device(device_t *d) {
 	if (d->standby)
 		return 0; // continue loop
 
-	int step = calculate_steps(d);
+	int step = calculate_step(d);
 
 	// dumb devices can only be switched on or off
 	if (!d->adjustable) {
@@ -502,7 +497,10 @@ static int rampup_device(device_t *d) {
 }
 
 static int rampdown_device(device_t *d) {
-	int step = calculate_steps(d);
+	if (d->power == 0)
+		return 0; // already off - continue loop
+
+	int step = calculate_step(d);
 
 	// dumb devices can only be switched on or off
 	if (!d->adjustable) {
@@ -625,10 +623,16 @@ static void* fronius(void *arg) {
 			set_devices(0);
 		}
 
-		// akku charge + grid upload
+		// grid < 0	--> upload
+		// grid > 0	--> download
+
+		// akku < 0	--> charge
+		// akku > 0	--> discharge
+
+		// surplus = akku charge + grid upload
 		surplus = (grid + akku) * -1;
 
-		// grid upload - extra power from secondary inverters
+		// extra = grid upload (e.g. extra power from secondary inverters)
 		extra = grid * -1;
 		if (extra < 25)
 			extra = 0;
