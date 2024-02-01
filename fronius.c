@@ -238,13 +238,13 @@ static int forecast_Rad1h() {
 
 	pclose(fp);
 
-	xlog("FRONIUS forecast() sunshine radiation for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
+	xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
 	// xlog("FRONIUS choosing program from weather forecast");
 
 	// Datum	Erwartet	Produziert	Akku
 	// 31.01.	2980		6110		43
-	// 01.02.	2870
-	// 02.02.	2500
+	// 01.02.	3250
+	// 02.02.
 
 	// if today > 10 (Eigenverbrauch) + 10 * charge / 100 (zu ladender Akku)
 	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
@@ -252,11 +252,11 @@ static int forecast_Rad1h() {
 	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
 
 	if (today < 3000) {
-		xlog("FRONIUS forecast() choosing CLOUDY program for today");
+		xlog("FRONIUS forecast: choosing CLOUDY program for today");
 		potd = CONFIG_CLOUDY;
 		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
 	} else {
-		xlog("FRONIUS forecast() choosing SUNNY program for today");
+		xlog("FRONIUS forecast: choosing SUNNY program for today");
 		potd = CONFIG_SUNNY;
 		potd_size = ARRAY_SIZE(CONFIG_SUNNY);
 	}
@@ -394,7 +394,7 @@ static void calculate_distortion() {
 		variation += abs(average - history[i]);
 
 	distortion = variation > average;
-	xlog("FRONIUS calculate_pv_distortion() %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
+	xlog("FRONIUS %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
 }
 
 static int calculate_step(device_t *d) {
@@ -474,6 +474,8 @@ static int rampup_device(device_t *d) {
 				return 1; // loop done
 			}
 		}
+
+		return 0; // continue loop
 	}
 
 	// check if device is ramped up to 100% but do not consume power
