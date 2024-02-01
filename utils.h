@@ -18,6 +18,7 @@ int elevate_realtime(int cpu);
 void xlog_close();
 void xlog(const char *format, ...);
 int xerr(const char *format, ...);
+int xerrr(int ret, const char *format, ...);
 
 // WARNING strings are malloc'd - take care of freeing them after usage
 char* printbits64(uint64_t code, uint64_t spacemask);

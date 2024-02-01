@@ -127,6 +127,11 @@ int xerr(const char *format, ...) {
 	return -1;
 }
 
+int xerrr(int ret, const char *format, ...) {
+	xlog(format);
+	return ret;
+}
+
 char* printbits64(uint64_t value, uint64_t spacemask) {
 	uint64_t mask = 0x8000000000000000;
 	char *out = malloc(sizeof(value) * 8 * 2 + 1);

@@ -308,24 +308,18 @@ static int api() {
 	res.len = 0;
 
 	CURLcode ret = curl_easy_perform(curl);
-	if (ret != CURLE_OK) {
-		xerr("FRONIUS Error calling API: %d", ret);
-		return -1;
-	}
+	if (ret != CURLE_OK)
+		return xerrr(-1, "FRONIUS Error calling API: %d", ret);
 
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-	if (http_code != 200) {
-		xerr("FRONIUS API returned %d", http_code);
-		return -2;
-	}
+	if (http_code != 200)
+		return xerrr(-2, "FRONIUS API returned %d", http_code);
 
 	struct curl_header *header;
 	CURLHcode hret = curl_easy_header(curl, "Content-Type", 0, CURLH_HEADER, -1, &header);
-	if (hret != CURLHE_OK) {
-		xerr("FRONIUS No Content-Type header from API: %d", hret);
-		return -3;
-	}
+	if (hret != CURLHE_OK)
+		return xerrr(-3, "FRONIUS No Content-Type header from API: %d", hret);
 
 	// TODO validate application/json
 	//	xlog("CURLHcode header value %s", header->value);
