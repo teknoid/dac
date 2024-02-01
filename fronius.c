@@ -579,6 +579,15 @@ static void* fronius(void *arg) {
 		} else
 			hour_forecast = -1;
 
+		// reset device states once per hour
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			xlog("FRONIUS resetting all device states");
+			set_devices(0);
+			wait = WAIT_NEXT;
+			continue;
+		}
+
 		// make Fronius API call
 		ret = api();
 		if (ret != 0) {
@@ -617,13 +626,6 @@ static void* fronius(void *arg) {
 		history[history_ptr++] = pv;
 		if (history_ptr == PV_HISTORY)
 			history_ptr = 0;
-
-		// reset device states once per hour
-		if (hour != now->tm_hour) {
-			hour = now->tm_hour;
-			xlog("FRONIUS resetting all device states");
-			set_devices(0);
-		}
 
 		// grid < 0	--> upload
 		// grid > 0	--> download
