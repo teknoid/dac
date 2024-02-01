@@ -1,14 +1,23 @@
 #!/bin/sh
 #
-# using mosmix.py from https://www.hackitu.de/dwd_mosmix/
-# value descriptions https://www.dwd.de/DE/leistungen/opendata/help/schluessel_datenformate/kml/mosmix_elemente_xls.xlsx
+# mosmix.py 	https://www.hackitu.de/dwd_mosmix/
+# descriptions 	https://www.dwd.de/DE/leistungen/opendata/help/schluessel_datenformate/kml/mosmix_elemente_xls.xlsx
+# stations 		https://wettwarn.de/mosmix/mosmix.html
 #
 # crontab:
-# 15 4	* * *	hje	/usr/local/bin/mosmix.sh Rad1h
+# 55 5	* * *	hje	/usr/local/bin/mosmix.sh Rad1h
 #
 
-F=MOSMIX_L_LATEST_10577.kmz
-S=CHEMNITZ
+#ID=10577
+#NAME=CHEMNITZ
+
+ID=10579
+NAME=MARIENBERG
+
+#ID=N4464
+#NAME=BRAUNSDORF
+
+F=MOSMIX_L_LATEST_$ID.kmz
 V=$1
 
 RELOAD=1
@@ -23,14 +32,14 @@ cd /tmp
 if [ $RELOAD -eq 1 ]; then
   rm -rf mosmix*json
   rm -rf MOSMIX*kmz
-#  rm -rf MOSMIX*kml
+  rm -rf MOSMIX*kml
 
-  wget -q http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/10577/kml/$F
+  wget -q http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/$ID/kml/$F
   unzip -q -o $F
-
-  mosmix.py --in-file $F --out-file mosmix-timestamps.json timestamps
-  mosmix.py --in-file $F --out-file mosmix-forecasts.json forecasts
 fi
+
+mosmix.py --in-file $F --out-file mosmix-timestamps.json timestamps
+mosmix.py --in-file $F --out-file mosmix-forecasts.json forecasts
 
 rm -rf "$V.txt"
 
@@ -44,14 +53,14 @@ case $V in
   EOD=$((24 - $OFFSET))
   X1=0
   X2=$EOD
-  Y1=$EOD
+  Y1=$X2
   Y2=$(($Y1+24))
   Z1=$Y2
   Z2=$(($Z1+24))
 
-  S1=".$S.$V[$X1:$X2]"
-  S2=".$S.$V[$Y1:$Y2]"
-  S3=".$S.$V[$Z1:$Z2]"
+  S1=".$NAME.$V[$X1:$X2]"
+  S2=".$NAME.$V[$Y1:$Y2]"
+  S3=".$NAME.$V[$Z1:$Z2]"
 
   R1=`cat mosmix-forecasts.json | jq $S1' | add'`
   R2=`cat mosmix-forecasts.json | jq $S2' | add'`
@@ -66,7 +75,7 @@ case $V in
 # other values - print the daily 06:00 value
 
   for i in `seq 0 72`; do
-    X=`cat mosmix-forecasts.json | jq .$S.$V[$i]`
+    X=`cat mosmix-forecasts.json | jq .$NAME.$V[$i]`
     if [ "$X" != "null" ]; then
        Y=`cat mosmix-timestamps.json | jq .[$i]`
        Z=`date +%H -u -d "@$Y"`

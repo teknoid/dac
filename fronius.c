@@ -218,7 +218,7 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 
 static int forecast_Rad1h() {
 	char line[8];
-	int today, tomorrow, datomorrow;
+	int today, tomorrow, tomorrowplus1;
 
 	FILE *fp = popen("cat /tmp/Rad1h.txt", "r");
 	if (fp == NULL)
@@ -233,14 +233,14 @@ static int forecast_Rad1h() {
 			return xerr("FRONIUS forecast parse error %s", line);
 
 	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &datomorrow) != 1)
+		if (sscanf(line, "%d", &tomorrowplus1) != 1)
 			return xerr("FRONIUS forecast parse error %s", line);
 
 	pclose(fp);
 
-	// Datum	Erwartet	Produziert	Akku max	Upload
-	// 31.01.	2980		6110		43			0
-	// 01.02.	3250		10800		46			0
+	// Datum	Erwartet	Produziert	Akku max	Upload	Faktor
+	// 31.01.	2980		6110		43			0		2,1
+	// 01.02.	3250		10800		46			0		3,3
 	// 02.02.
 
 	// if today > 10 (Eigenverbrauch) + 10 * charge / 100 (zu ladender Akku)
@@ -248,16 +248,16 @@ static int forecast_Rad1h() {
 	// else
 	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
 
-	if (today < 3000) {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing CLOUDY program for today", today, tomorrow, datomorrow);
+	if (today < 5000) {
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing CLOUDY program for today", today, tomorrow, tomorrowplus1);
 		potd = CONFIG_CLOUDY;
 		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
-	} else if (3000 < today && today < 5000) {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY50 program for today", today, tomorrow, datomorrow);
+	} else if (5000 < today && today < 10000) {
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing SUNNY50 program for today", today, tomorrow, tomorrowplus1);
 		potd = CONFIG_SUNNY50;
 		potd_size = ARRAY_SIZE(CONFIG_SUNNY50);
 	} else {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY100 program for today", today, tomorrow, datomorrow);
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing SUNNY100 program for today", today, tomorrow, tomorrowplus1);
 		potd = CONFIG_SUNNY100;
 		potd_size = ARRAY_SIZE(CONFIG_SUNNY100);
 	}
@@ -390,7 +390,7 @@ static int calculate_step(device_t *d) {
 
 		// extra power steps
 
-// TODO extra power rampdown : (grid * -1) geht ja nicht wieder runter ???
+		// TODO extra power rampdown : (grid * -1) geht ja nicht wieder runter ???
 
 		step = extra / (d->maximum / 100);
 
@@ -555,17 +555,6 @@ static void* fronius(void *arg) {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
 
-		// reset program of the day and device states once per hour
-		if (potd == NULL || hour != now->tm_hour) {
-			xlog("FRONIUS resetting all device states");
-			set_devices(0);
-			forecast_Rad1h();
-			set_devices(0); // program might be changed
-			hour = now->tm_hour;
-			wait = WAIT_NEXT;
-			continue;
-		}
-
 		// make Fronius API call
 		ret = api();
 		if (ret != 0) {
@@ -594,6 +583,17 @@ static void* fronius(void *arg) {
 			surplus = extra = 0;
 			set_devices(0);
 			wait = WAIT_OFFLINE;
+			continue;
+		}
+
+		// reset program of the day and device states once per hour
+		if (potd == NULL || hour != now->tm_hour) {
+			xlog("FRONIUS resetting all device states");
+			set_devices(0);
+			forecast_Rad1h();
+			set_devices(0); // program might be changed
+			hour = now->tm_hour;
+			wait = WAIT_NEXT;
 			continue;
 		}
 
