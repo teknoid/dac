@@ -141,9 +141,6 @@ int fronius_set_boiler(void *ptr, int power) {
 }
 
 static void set_devices(int power) {
-	if (potd == NULL)
-		return;
-
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
 		(d->set_function)(d, power);
@@ -241,9 +238,9 @@ static int forecast_Rad1h() {
 
 	pclose(fp);
 
-	// Datum	Erwartet	Produziert	Akku
-	// 31.01.	2980		6110		43
-	// 01.02.	3250
+	// Datum	Erwartet	Produziert	Akku max	Upload
+	// 31.01.	2980		6110		43			0
+	// 01.02.	3250		10800		46			0
 	// 02.02.
 
 	// if today > 10 (Eigenverbrauch) + 10 * charge / 100 (zu ladender Akku)
@@ -338,39 +335,6 @@ static int api() {
 	return 0;
 }
 
-static int all_devices_max() {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-
-		if (!d->active)
-			continue;
-
-		if (d->standby)
-			continue;
-
-		if (d->adjustable && d->power != 100)
-			return 0;
-		else if (!d->power)
-			return 0;
-	}
-
-	return 1;
-}
-
-static int all_devices_off() {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-
-		if (!d->active)
-			continue;
-
-		if (d->power)
-			return 0;
-	}
-
-	return 1;
-}
-
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 static void calculate_distortion() {
 	char message[PV_HISTORY * 5 + 10];
@@ -425,6 +389,9 @@ static int calculate_step(device_t *d) {
 	} else {
 
 		// extra power steps
+
+// TODO extra power rampdown : (grid * -1) geht ja nicht wieder runter ???
+
 		step = extra / (d->maximum / 100);
 
 		if (step < -100)
@@ -479,7 +446,7 @@ static int rampup_device(device_t *d) {
 		return 0; // continue loop
 	}
 
-	// check if device is ramped up to 100% but do not consume power
+	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
 	if (d->power == 100 && (d->maximum / 2 * -1) < load) {
 		d->standby = 1;
@@ -518,7 +485,22 @@ static int rampdown_device(device_t *d) {
 
 static void rampup() {
 	// check if all devices already on
-	if (all_devices_max()) {
+	int max = 1;
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+
+		if (!d->active)
+			continue;
+
+		if (d->standby)
+			continue;
+
+		if (d->adjustable && d->power != 100)
+			max = 0;
+		else if (!d->power)
+			max = 0;
+	}
+	if (max) {
 		xlog("FRONIUS ramp↑ standby");
 		wait = WAIT_STANDBY;
 		return;
@@ -532,7 +514,17 @@ static void rampup() {
 
 static void rampdown() {
 	// check if all devices already off
-	if (all_devices_off()) {
+	int min = 1;
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+
+		if (!d->active)
+			continue;
+
+		if (d->power)
+			min = 0;
+	}
+	if (min) {
 		xlog("FRONIUS ramp↓ standby");
 		wait = WAIT_STANDBY;
 		return;
