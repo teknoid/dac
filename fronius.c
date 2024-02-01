@@ -141,6 +141,9 @@ int fronius_set_boiler(void *ptr, int power) {
 }
 
 static void set_devices(int power) {
+	if (potd == NULL)
+		return;
+
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
 		(d->set_function)(d, power);
@@ -238,9 +241,6 @@ static int forecast_Rad1h() {
 
 	pclose(fp);
 
-	xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d", today, tomorrow, datomorrow);
-	// xlog("FRONIUS choosing program from weather forecast");
-
 	// Datum	Erwartet	Produziert	Akku
 	// 31.01.	2980		6110		43
 	// 01.02.	3250
@@ -252,11 +252,11 @@ static int forecast_Rad1h() {
 	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
 
 	if (today < 3000) {
-		xlog("FRONIUS forecast: choosing CLOUDY program for today");
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing CLOUDY program for today", today, tomorrow, datomorrow);
 		potd = CONFIG_CLOUDY;
 		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
 	} else {
-		xlog("FRONIUS forecast: choosing SUNNY program for today");
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY program for today", today, tomorrow, datomorrow);
 		potd = CONFIG_SUNNY;
 		potd_size = ARRAY_SIZE(CONFIG_SUNNY);
 	}
