@@ -369,7 +369,7 @@ static int all_devices_off() {
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 static void calculate_distortion() {
-	char message[128];
+	char message[PV_HISTORY * 5 + 10];
 	char value[8];
 
 	strcpy(message, "[");
@@ -391,7 +391,7 @@ static void calculate_distortion() {
 		variation += abs(average - history[i]);
 
 	distortion = variation > average;
-	xlog("FRONIUS %s average:%d variation:%d --> distortion:%d", message, average, variation, distortion);
+	xlog("FRONIUS %s avg:%d var:%d --> distortion:%d", message, average, variation, distortion);
 }
 
 static int calculate_step(device_t *d) {
