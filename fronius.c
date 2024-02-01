@@ -564,6 +564,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS resetting all device states");
 			set_devices(0);
 			forecast_Rad1h();
+			set_devices(0); // program might be changed
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
 			continue;
