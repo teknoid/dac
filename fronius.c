@@ -43,16 +43,16 @@ int fronius_set_heater(void *ptr, int power) {
 	if (power > 1)
 		power = 1;
 
-	// can we send a message
-	if (heater->addr == NULL)
-		return xerr("No address to send HTTP message");
-
 	// check if update is necessary
 	if (heater->power == power)
 		return 0;
 
 	if (!heater->active)
 		power = 0;
+
+	// can we send a message
+	if (heater->addr == NULL)
+		return xerr("No address to send HTTP message");
 
 	char command[128];
 	if (power) {
@@ -81,10 +81,6 @@ int fronius_set_boiler(void *ptr, int power) {
 	if (power > 100)
 		power = 100;
 
-	// can we send a message
-	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
-
 	// check if update is necessary
 	if (boiler->power == power)
 		return 0;
@@ -92,6 +88,10 @@ int fronius_set_boiler(void *ptr, int power) {
 	// standby: only update if smaller
 	if (boiler->standby && power > boiler->maximum)
 		return 0;
+
+	// can we send a message
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
 
 	// count down override and set power to 100%
 	if (boiler->override) {
