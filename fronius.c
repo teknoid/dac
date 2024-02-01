@@ -10,7 +10,7 @@
 #include <arpa/inet.h>
 #include <curl/curl.h>
 
-#include "fronius-config.h"
+#include "fronius-static.h"
 #include "fronius.h"
 #include "frozen.h"
 #include "utils.h"
