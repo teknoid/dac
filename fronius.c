@@ -34,7 +34,7 @@ static int history_ptr = 0;
 static int wait = 0, sock = 0;
 static pthread_t thread;
 
-int fronius_set_heater(void *ptr, int power) {
+int set_heater(void *ptr, int power) {
 	device_t *heater = (device_t*) ptr;
 
 	// fix power value if out of range
@@ -72,7 +72,7 @@ int fronius_set_heater(void *ptr, int power) {
 	return 0;
 }
 
-int fronius_set_boiler(void *ptr, int power) {
+int set_boiler(void *ptr, int power) {
 	device_t *boiler = (device_t*) ptr;
 
 	// fix power value if out of range
