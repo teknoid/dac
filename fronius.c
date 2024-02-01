@@ -381,12 +381,12 @@ static void calculate_distortion() {
 	}
 	strcat(message, "]");
 
-	int average = 0;
+	long average = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		average += history[i];
 	average /= PV_HISTORY;
 
-	int variation = 0;
+	long variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - history[i]);
 
