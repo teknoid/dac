@@ -561,10 +561,10 @@ static void* fronius(void *arg) {
 
 		// reset program of the day and device states once per hour
 		if (potd == NULL || hour != now->tm_hour) {
-			forecast_Rad1h();
-			hour = now->tm_hour;
 			xlog("FRONIUS resetting all device states");
 			set_devices(0);
+			forecast_Rad1h();
+			hour = now->tm_hour;
 			wait = WAIT_NEXT;
 			continue;
 		}
