@@ -347,7 +347,7 @@ char* resolve_ip(const char *hostname) {
 	struct addrinfo *addr;
 
 	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
-		xerr("Could not resolve inetAddr for %s\n", hostname);
+		xlog("Could not resolve inetAddr for %s\n", hostname);
 		return NULL;
 	}
 
