@@ -240,10 +240,10 @@ static int forecast_Rad1h() {
 
 	// Datum	Erwartet	Produziert	Akku max	Upload	Faktor
 	// 31.01.	2980		6110		43			0		2,1
-	// 01.02.	3250		10800		46			0		3,3
+	// 01.02.	3250		10860		46			0		3,3
 	// 02.02.
 
-	// if today > 10 (Eigenverbrauch) + 10 * charge / 100 (zu ladender Akku)
+	// if today > 10 Eigenverbrauch + (10 - charge / 10) zu ladender Akku
 	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
 	// else
 	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
@@ -331,7 +331,7 @@ static int api() {
 
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 static void calculate_distortion() {
-	char message[PV_HISTORY * 5 + 10];
+	char message[PV_HISTORY * 8 + 2];
 	char value[8];
 
 	strcpy(message, "[");
@@ -608,15 +608,15 @@ static void* fronius(void *arg) {
 		// surplus = akku charge + grid upload
 		surplus = (grid + akku) * -1;
 
-		// extra = grid upload (e.g. extra power from secondary inverters)
+		// extra = grid upload (not going into akku or from secondary inverters)
 		extra = grid * -1;
-		if (extra < 25)
+		if (extra < 25) // noise
 			extra = 0;
+
+		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
 
 		// do smaller steps when we have distortion
 		calculate_distortion();
-
-		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
 
 		if (surplus < KEEP_FROM)
 			// consuming grid power or discharging akku: ramp down
@@ -625,7 +625,7 @@ static void* fronius(void *arg) {
 			// uploading grid power or charging akku: ramp up
 			rampup();
 
-		// faster next round when distortion
+		// faster next round on distortion
 		if (distortion && wait > 10)
 			wait /= 2;
 
@@ -640,13 +640,11 @@ static void* fronius(void *arg) {
 // - Heizung aus
 // - Rechner aus
 static void calibrate(char *name) {
+	const char *addr = resolve_ip(name);
 	char message[16];
 	float p_power;
 	int voltage, closest, target, offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
-
-	// create a dummy device
-	device_t boiler = { .name = name, .addr = resolve_ip(name) };
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -656,7 +654,7 @@ static void calibrate(char *name) {
 	struct sockaddr_in sock_addr_in = { 0 };
 	sock_addr_in.sin_family = AF_INET;
 	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(boiler.addr);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 	curl = curl_easy_init();
@@ -670,7 +668,7 @@ static void calibrate(char *name) {
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
-	printf("starting calibration on %s (%s)\n", boiler.name, boiler.addr);
+	printf("starting calibration on %s (%s)\n", name, addr);
 	snprintf(message, 16, "0:0");
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);

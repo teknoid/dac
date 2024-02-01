@@ -337,7 +337,7 @@ uint64_t mac2uint64(char *mac) {
 	return x;
 }
 
-char* resolve_ip(const char *hostname) {
+const char* resolve_ip(const char *hostname) {
 	struct addrinfo hints = { 0 };
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
