@@ -16,14 +16,12 @@
 #include "utils.h"
 #include "mcp.h"
 
-static pthread_t thread;
-
 // curl response buffer
 static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
 // program of the day - forecast will chose appropriate configuration SUNNY or CLOUDY
-static device_t **potd;
+static device_t **potd = NULL;
 static int potd_size;
 
 // actual Fronius power flow data + calculations
@@ -33,8 +31,8 @@ static int charge, akku, grid, load, pv, surplus, extra, distortion;
 static int history[PV_HISTORY];
 static int history_ptr = 0;
 
-static int wait = WAIT_NEXT;
-static int sock = 0;
+static int wait = 0, sock = 0;
+static pthread_t thread;
 
 int fronius_set_heater(void *ptr, int power) {
 	device_t *heater = (device_t*) ptr;
@@ -126,9 +124,14 @@ int fronius_set_boiler(void *ptr, int power) {
 	snprintf(message, 16, "%d:%d", boiler->phase_angle[power], 0);
 
 	// send message to boiler
-	xlog("FRONIUS send %s UDP %s", boiler->name, message);
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
 		return xerr("Sendto failed");
+
+	int step = power - boiler->power;
+	if (step > 0)
+		xlog("FRONIUS ramp↑ %s step %d UDP %s", boiler->name, step, message);
+	else
+		xlog("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
 
 	// update power value
 	boiler->power = power;
@@ -210,9 +213,6 @@ static int forecast_SunD() {
 	float tomorrow_sun = (float) tomorrow_s / 3600;
 	xlog("FRONIUS sunshine hours forecast for yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
 	// xlog("FRONIUS choosing program from weather forecast");
-
-	// reset all devices
-	set_devices(0);
 	return today_sun;
 }
 
@@ -260,9 +260,6 @@ static int forecast_Rad1h() {
 		potd = CONFIG_SUNNY;
 		potd_size = ARRAY_SIZE(CONFIG_SUNNY);
 	}
-
-	// reset all devices
-	set_devices(0);
 	return today;
 }
 
@@ -490,7 +487,6 @@ static int rampup_device(device_t *d) {
 		return 0; // already full up - continue loop
 
 	if (step) {
-		xlog("FRONIUS ramp↑ %s step %d", d->name, step);
 		(d->set_function)(d, d->power + step);
 		return 1; // loop done
 	}
@@ -499,24 +495,21 @@ static int rampup_device(device_t *d) {
 }
 
 static int rampdown_device(device_t *d) {
-	if (d->power == 0)
+	if (!d->power)
 		return 0; // already off - continue loop
 
 	int step = calculate_step(d);
 
 	// dumb devices can only be switched on or off
 	if (!d->adjustable) {
-		// switch off
-		if (d->power) {
-			(d->set_function)(d, 0);
-			return 1; // loop done
-		} else
-			return 0; // already off - continue loop
-	} else {
-		xlog("FRONIUS ramp↓ %s step %d", d->name, step);
+		(d->set_function)(d, 0);
+		return 1; // loop done
+	} else if (step) {
 		(d->set_function)(d, d->power + step);
-		return 0; // continue loop - as we don't know which one consumes power
+		return 1; // loop done
 	}
+
+	return 0; // continue loop
 }
 
 static void rampup() {
@@ -548,18 +541,12 @@ static void rampdown() {
 }
 
 static void* fronius(void *arg) {
-	int ret, errors = 0, hour = -1, hour_forecast = -1;
+	int ret, errors = 0, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
-
-	// do sunshine duration forecast and choose start program
-	forecast_Rad1h();
-
-	// switch off all
-	set_devices(0);
 
 	// the FRONIUS main loop
 	while (1) {
@@ -572,15 +559,9 @@ static void* fronius(void *arg) {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
 
-		// do sunshine duration forecast for new day and choose program
-		if (now->tm_hour == 6 && hour_forecast == -1) {
+		// reset program of the day and device states once per hour
+		if (potd == NULL || hour != now->tm_hour) {
 			forecast_Rad1h();
-			hour_forecast = now->tm_hour;
-		} else
-			hour_forecast = -1;
-
-		// reset device states once per hour
-		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
 			xlog("FRONIUS resetting all device states");
 			set_devices(0);
