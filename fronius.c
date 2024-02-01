@@ -255,10 +255,14 @@ static int forecast_Rad1h() {
 		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing CLOUDY program for today", today, tomorrow, datomorrow);
 		potd = CONFIG_CLOUDY;
 		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
+	} else if (3000 < today && today < 5000) {
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY50 program for today", today, tomorrow, datomorrow);
+		potd = CONFIG_SUNNY50;
+		potd_size = ARRAY_SIZE(CONFIG_SUNNY50);
 	} else {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY program for today", today, tomorrow, datomorrow);
-		potd = CONFIG_SUNNY;
-		potd_size = ARRAY_SIZE(CONFIG_SUNNY);
+		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d day after tomorrow %d --> choosing SUNNY100 program for today", today, tomorrow, datomorrow);
+		potd = CONFIG_SUNNY100;
+		potd_size = ARRAY_SIZE(CONFIG_SUNNY100);
 	}
 	return today;
 }
@@ -808,15 +812,21 @@ static void calibrate(char *name) {
 }
 
 static int init() {
-	// initialize all devices with start values
+	// initialize all programs with start values
 	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
 		device_t *d = CONFIG_CLOUDY[i];
 		d->active = 1;
 		d->power = -1;
 		d->addr = resolve_ip(d->name);
 	}
-	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY); i++) {
-		device_t *d = CONFIG_SUNNY[i];
+	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY50); i++) {
+		device_t *d = CONFIG_SUNNY50[i];
+		d->active = 1;
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
+	}
+	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY100); i++) {
+		device_t *d = CONFIG_SUNNY100[i];
 		d->active = 1;
 		d->power = -1;
 		d->addr = resolve_ip(d->name);
