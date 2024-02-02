@@ -121,7 +121,7 @@ int set_boiler(void *ptr, int power) {
 
 	// convert 0..100% to 2..10V SSR control voltage
 	char message[16];
-	snprintf(message, 16, "%d:%d", boiler->phase_angle[power], 0);
+	snprintf(message, 16, "p:%d:%d", power, 0);
 
 	// send message to boiler
 	if (sendto(sock, message, strlen(message), 0, sa, sizeof(*sa)) < 0)
@@ -683,7 +683,7 @@ static void calibrate(char *name) {
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void* ) &res);
 
 	printf("starting calibration on %s (%s)\n", name, addr);
-	snprintf(message, 16, "0:0");
+	snprintf(message, 16, "v:0:0");
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
@@ -701,7 +701,7 @@ static void calibrate(char *name) {
 	printf(" --> average %d\n", offset_start);
 
 	printf("waiting for heat up 100%%...\n");
-	snprintf(message, 16, "10000:0");
+	snprintf(message, 16, "v:10000:0");
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
@@ -718,7 +718,7 @@ static void calibrate(char *name) {
 	for (int i = 0; i < 1000; i++) {
 		voltage = 10000 - (i * 10);
 
-		snprintf(message, 16, "%d:%d", voltage, 0);
+		snprintf(message, 16, "v:%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 
 		// give SSR time to set voltage and smart meter to measure
@@ -809,18 +809,36 @@ static void calibrate(char *name) {
 	curl_easy_cleanup(curl);
 }
 
+static void test() {
+	device_t *d = &c1;
+
+	d->active = 1;
+	d->power = -1;
+	d->addr = resolve_ip(d->name);
+
+	// 2 x blink
+	set_boiler(d, 100);
+	sleep(1);
+	set_boiler(d, 0);
+	sleep(1);
+	set_boiler(d, 100);
+	sleep(1);
+	set_boiler(d, 0);
+	sleep(1);
+
+	// full ramp up 0..100
+	for (int i = 0; i <= 100; i++) {
+		set_boiler(d, i);
+		usleep(200 * 1000);
+	}
+	set_boiler(d, 0);
+}
+
 static int init() {
 	// initialize all programs with start values
 	init_devices(CONFIG_CLOUDY, ARRAY_SIZE(CONFIG_CLOUDY));
 	init_devices(CONFIG_SUNNY50, ARRAY_SIZE(CONFIG_SUNNY50));
 	init_devices(CONFIG_SUNNY100, ARRAY_SIZE(CONFIG_SUNNY100));
-
-	// debug phase angle edges
-	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
-		device_t *d = CONFIG_CLOUDY[i];
-		if (d->phase_angle != NULL)
-			xlog("FRONIUS %s 0=%d, 1=%d, 50=%d, 100=%d", d->name, d->phase_angle[0], d->phase_angle[1], d->phase_angle[50], d->phase_angle[100]);
-	}
 
 	curl = curl_easy_init();
 	if (curl == NULL)
@@ -879,12 +897,15 @@ int fronius_main(int argc, char **argv) {
 		return 0;
 	}
 
-	int i;
+	int i, t = 0;
 	char *c = NULL;
-	while ((i = getopt(argc, argv, "c:")) != -1) {
+	while ((i = getopt(argc, argv, "c:t")) != -1) {
 		switch (i) {
 		case 'c':
 			c = optarg;
+			break;
+		case 't':
+			t = 1;
 			break;
 		}
 	}
@@ -893,6 +914,9 @@ int fronius_main(int argc, char **argv) {
 	//   stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
 	if (c != NULL)
 		calibrate(c);
+
+	if (t)
+		test();
 
 	return 0;
 }
