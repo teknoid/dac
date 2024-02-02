@@ -415,8 +415,6 @@ static int rampup_device(device_t *d) {
 	if (d->standby)
 		return 0; // continue loop
 
-	int step = calculate_step(d);
-
 	// dumb devices can only be switched on or off
 	if (!d->adjustable) {
 
@@ -454,6 +452,7 @@ static int rampup_device(device_t *d) {
 	if (d->power == 100)
 		return 0; // already full up - continue loop
 
+	int step = calculate_step(d);
 	if (step) {
 		(d->set_function)(d, d->power + step);
 		return 1; // loop done
@@ -466,15 +465,19 @@ static int rampdown_device(device_t *d) {
 	if (!d->power)
 		return 0; // already off - continue loop
 
-	int step = calculate_step(d);
-
 	// dumb devices can only be switched on or off
 	if (!d->adjustable) {
+
 		(d->set_function)(d, 0);
 		return 1; // loop done
-	} else if (step) {
-		(d->set_function)(d, d->power + step);
-		return 1; // loop done
+
+	} else {
+
+		int step = calculate_step(d);
+		if (step) {
+			(d->set_function)(d, d->power + step);
+			return 1; // loop done
+		}
 	}
 
 	return 0; // continue loop
