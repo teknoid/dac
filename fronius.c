@@ -241,7 +241,7 @@ static int forecast_Rad1h() {
 	// Datum	Erwartet	Produziert	Akku max	Upload	Faktor
 	// 31.01.	2980		6110		43			0		2,1
 	// 01.02.	3250		10860		46			0		3,3
-	// 02.02.
+	// 02.02.	2570
 
 	// if today > 10 Eigenverbrauch + (10 - charge / 10) zu ladender Akku
 	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
@@ -382,14 +382,17 @@ static int calculate_step(device_t *d) {
 
 	} else {
 
+		// single step to avoid swinging if surplus is around FROM and TO
+		if (extra < KEEP_FROM)
+			return -1;
+		else if (KEEP_FROM <= extra && extra < KEEP_TO)
+			return 0;
+		else if (KEEP_TO <= extra && extra < (KEEP_TO + 50))
+			return 1;
+
 		// extra power steps
-
-		// TODO extra power rampdown : (grid * -1) geht ja nicht wieder runter ???
-
 		step = extra / (d->maximum / 100);
 
-		if (step < -100)
-			step = -100; // min -100
 		if (step > 100)
 			step = 100; // max 100
 
@@ -609,9 +612,7 @@ static void* fronius(void *arg) {
 		surplus = (grid + akku) * -1;
 
 		// extra = grid upload (not going into akku or from secondary inverters)
-		extra = grid * -1;
-		if (extra < 25) // noise
-			extra = 0;
+		extra = grid < 0 ? grid * -1 : 0;
 
 		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
 
