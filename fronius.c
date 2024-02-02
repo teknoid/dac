@@ -22,7 +22,7 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
 // program of the day - forecast will chose appropriate configuration SUNNY or CLOUDY
 static device_t **potd = NULL;
-static int potd_size;
+static size_t potd_size;
 
 // actual Fronius power flow data + calculations
 static int charge, akku, grid, load, pv, surplus, extra, distortion;
@@ -140,6 +140,15 @@ int set_boiler(void *ptr, int power) {
 	return 0;
 }
 
+static void init_devices(device_t **p, size_t s) {
+	for (int i = 0; i < s; i++) {
+		device_t *d = p[i];
+		d->active = 1;
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
+	}
+}
+
 static void set_devices(int power) {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
@@ -241,7 +250,8 @@ static int forecast_Rad1h() {
 	// Datum	Erwartet	Produziert	Akku max	Upload	Faktor
 	// 31.01.	2980		6110		43			0		2,1
 	// 01.02.	3250		10860		46			0		3,3
-	// 02.02.	2570
+	// 02.02.	2570		7550		45			0		2,9
+	// 03.02.
 
 	// if today > 10 Eigenverbrauch + (10 - charge / 10) zu ladender Akku
 	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
@@ -801,24 +811,9 @@ static void calibrate(char *name) {
 
 static int init() {
 	// initialize all programs with start values
-	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
-		device_t *d = CONFIG_CLOUDY[i];
-		d->active = 1;
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
-	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY50); i++) {
-		device_t *d = CONFIG_SUNNY50[i];
-		d->active = 1;
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
-	for (int i = 0; i < ARRAY_SIZE(CONFIG_SUNNY100); i++) {
-		device_t *d = CONFIG_SUNNY100[i];
-		d->active = 1;
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
+	init_devices(CONFIG_CLOUDY, ARRAY_SIZE(CONFIG_CLOUDY));
+	init_devices(CONFIG_SUNNY50, ARRAY_SIZE(CONFIG_SUNNY50));
+	init_devices(CONFIG_SUNNY100, ARRAY_SIZE(CONFIG_SUNNY100));
 
 	// debug phase angle edges
 	for (int i = 0; i < ARRAY_SIZE(CONFIG_CLOUDY); i++) {
