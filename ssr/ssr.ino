@@ -128,17 +128,13 @@ int set_volt(uint8_t channel, uint16_t volt) {
 }
 
 int set_percent(uint8_t channel, uint16_t percent) {
-  if (percent < 0 || percent > 100) {
+  if (percent > 100) {
     Sprint("GP8403 illegal percent: ");
     Sprintln(percent);
     return 0;
   }
 
   uint16_t volt = phase_angle[percent];
-  Sprint("GP8403 percent ");
-  Sprint(percent);
-  Sprint(" --> volt ");
-  Sprintln(volt);
   return set_volt(channel, volt);
 }
 
@@ -255,8 +251,9 @@ void udp_handle_packet(AsyncUDPPacket packet) {
     if (i != len)
       set_percent(1, (uint16_t)atoi(buf + i + 1));
 
-  } else
+  } else {
     Sprintln("invalid UDP command received");
+  }
 
 #ifdef DEBUG
   log();
