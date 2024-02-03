@@ -14,6 +14,10 @@
 
 #define PV_HISTORY			24
 
+#define MOSMIX_FACTOR		3
+#define AKKU_CAPACITY		11000
+#define SELF_CONSUMING		5000
+
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW			"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
@@ -41,23 +45,23 @@ typedef struct device_t {
 int set_heater(void *ptr, int power);
 int set_boiler(void *ptr, int power);
 
-// configuration for cloudy weather: priority is warm water in boiler1 and then akku
-static device_t c1 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
-static device_t c2 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t c3 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t c4 = { .name = "plug9", .maximum = 700, .set_function = &set_heater };
-static device_t *CONFIG_CLOUDY[] = { &c1, &c2, &c3, &c4 };
+// program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
+static device_t c11 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t c12 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t c13 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t c14 = { .name = "plug9", .maximum = 700, .set_function = &set_heater };
+static device_t *POTD_CLOUDY_EMPTY[] = { &c11, &c12, &c13, &c14 };
 
-// configuration for 50% sunny weather: priority is heater and then akku, boilers only from extra power
-static device_t s501 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1 };
-static device_t s502 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t s503 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t s504 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t *CONFIG_SUNNY50[] = { &s501, &s502, &s503, &s504 };
+// program of the day for cloudy weather with akku full: priority is heater, then akku, then rest only when extra power
+static device_t c21 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1 };
+static device_t c22 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t c23 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t c24 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t *POTD_CLOUDY_FULL[] = { &c21, &c22, &c23, &c24 };
 
-// configuration for 100% sunny weather: akku will be full anyway at the end of day
-static device_t s1001 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1 };
-static device_t s1002 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
-static device_t s1003 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
-static device_t s1004 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
-static device_t *CONFIG_SUNNY100[] = { &s1001, &s1002, &s1003, &s1004 };
+// program of the day for sunny weather: akku will be full anyway at the end of day
+static device_t s1 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1 };
+static device_t s2 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t s3 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t s4 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t *POTD_SUNNY[] = { &s1, &s2, &s3, &s4 };

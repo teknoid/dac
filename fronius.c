@@ -140,7 +140,7 @@ int set_boiler(void *ptr, int power) {
 	return 0;
 }
 
-static void init_devices(device_t **p, size_t s) {
+static void init_program(device_t **p, size_t s) {
 	for (int i = 0; i < s; i++) {
 		device_t *d = p[i];
 		d->active = 1;
@@ -247,30 +247,27 @@ static int forecast_Rad1h() {
 
 	pclose(fp);
 
-	// Datum	Erwartet	Produziert	Akku max	Upload	Faktor
-	// 31.01.	2980		6110		43			0		2,1
-	// 01.02.	3250		10860		46			0		3,3
-	// 02.02.	2570		7550		45			0		2,9
-	// 03.02.
+	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
+	int expected = today * MOSMIX_FACTOR;
 
-	// if today > 10 Eigenverbrauch + (10 - charge / 10) zu ladender Akku
-	// SUNNY  Programm: heaterX (g), boiler1 (g), boiler2 (g), boiler3
-	// else
-	// CLOUDY Programm: boiler1 (g), boiler2, boiler3, heaterX
+	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected %d", today, tomorrow, tomorrowplus1, needed, expected);
 
-	if (today < 5000) {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing CLOUDY program for today", today, tomorrow, tomorrowplus1);
-		potd = CONFIG_CLOUDY;
-		potd_size = ARRAY_SIZE(CONFIG_CLOUDY);
-	} else if (5000 < today && today < 10000) {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing SUNNY50 program for today", today, tomorrow, tomorrowplus1);
-		potd = CONFIG_SUNNY50;
-		potd_size = ARRAY_SIZE(CONFIG_SUNNY50);
+	if (expected < needed) {
+		if (charge < 50) {
+			xlog("FRONIUS choosing CLOUDY_EMPTY program for today");
+			potd = POTD_CLOUDY_EMPTY;
+			potd_size = ARRAY_SIZE(POTD_CLOUDY_EMPTY);
+		} else {
+			xlog("FRONIUS choosing CLOUDY_FULL program for today");
+			potd = POTD_CLOUDY_FULL;
+			potd_size = ARRAY_SIZE(POTD_CLOUDY_FULL);
+		}
 	} else {
-		xlog("FRONIUS forecast: solar radiation for today %d tomorrow %d tomorrow+1 %d --> choosing SUNNY100 program for today", today, tomorrow, tomorrowplus1);
-		potd = CONFIG_SUNNY100;
-		potd_size = ARRAY_SIZE(CONFIG_SUNNY100);
+		xlog("FRONIUS choosing SUNNY program for today");
+		potd = POTD_SUNNY;
+		potd_size = ARRAY_SIZE(POTD_SUNNY);
 	}
+
 	return today;
 }
 
@@ -363,7 +360,7 @@ static void calculate_distortion() {
 		variation += abs(average - history[i]);
 
 	distortion = variation > average;
-	xlog("FRONIUS %s avg:%d var:%d --> distortion:%d", message, average, variation, distortion);
+	xlog("FRONIUS %s avg:%d var:%d dist:%d", message, average, variation, distortion);
 }
 
 static int calculate_step(device_t *d) {
@@ -810,7 +807,7 @@ static void calibrate(char *name) {
 }
 
 static void test() {
-	device_t *d = &c1;
+	device_t *d = &c11;
 
 	d->active = 1;
 	d->power = -1;
@@ -836,9 +833,9 @@ static void test() {
 
 static int init() {
 	// initialize all programs with start values
-	init_devices(CONFIG_CLOUDY, ARRAY_SIZE(CONFIG_CLOUDY));
-	init_devices(CONFIG_SUNNY50, ARRAY_SIZE(CONFIG_SUNNY50));
-	init_devices(CONFIG_SUNNY100, ARRAY_SIZE(CONFIG_SUNNY100));
+	init_program(POTD_CLOUDY_EMPTY, ARRAY_SIZE(POTD_CLOUDY_EMPTY));
+	init_program(POTD_CLOUDY_FULL, ARRAY_SIZE(POTD_CLOUDY_FULL));
+	init_program(POTD_SUNNY, ARRAY_SIZE(POTD_SUNNY));
 
 	curl = curl_easy_init();
 	if (curl == NULL)
