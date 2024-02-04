@@ -129,7 +129,7 @@ int set_boiler(void *ptr, int power) {
 
 	int step = power - boiler->power;
 	if (step > 0)
-		xlog("FRONIUS ramp↑ %s step %d UDP %s", boiler->name, step, message);
+		xlog("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 	else
 		xlog("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
 

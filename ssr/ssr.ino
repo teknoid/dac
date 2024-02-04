@@ -1,6 +1,10 @@
 //
 // Target Board: Doit ESP32 DevKit V1
 //
+// TODO
+// - WiFi connection lost when FritzBox reboots
+// - integrate into Tasmota
+//
 
 #include <WiFi.h>
 #include <Wire.h>
