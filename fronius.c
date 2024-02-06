@@ -253,14 +253,14 @@ static int forecast_Rad1h() {
 	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected %d", today, tomorrow, tomorrowplus1, needed, expected);
 
 	if (expected < needed) {
-		if (charge < 50) {
-			xlog("FRONIUS choosing CLOUDY_EMPTY program for today");
-			potd = POTD_CLOUDY_EMPTY;
-			potd_size = ARRAY_SIZE(POTD_CLOUDY_EMPTY);
-		} else {
+		if (charge > CLOUDY_FULL_CHARGE) {
 			xlog("FRONIUS choosing CLOUDY_FULL program for today");
 			potd = POTD_CLOUDY_FULL;
 			potd_size = ARRAY_SIZE(POTD_CLOUDY_FULL);
+		} else {
+			xlog("FRONIUS choosing CLOUDY_EMPTY program for today");
+			potd = POTD_CLOUDY_EMPTY;
+			potd_size = ARRAY_SIZE(POTD_CLOUDY_EMPTY);
 		}
 	} else {
 		xlog("FRONIUS choosing SUNNY program for today");
@@ -363,103 +363,42 @@ static void calculate_distortion() {
 	xlog("FRONIUS %s avg:%d var:%d dist:%d", message, average, variation, distortion);
 }
 
-static int calculate_step(device_t *d) {
+static int calculate_step(device_t *d, int power) {
 	int step = 0;
 
-	if (d->greedy) {
+	// single step to avoid swinging if power is around FROM and TO
+	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
+		return -1;
+	else if (KEEP_FROM <= power && power < KEEP_TO)
+		return 0;
+	else if (KEEP_TO <= power && power < (KEEP_TO + 50))
+		return 1;
 
-		// single step to avoid swinging if surplus is around FROM and TO
-		if ((KEEP_FROM - 50) < surplus && surplus < KEEP_FROM)
-			return -1;
-		else if (KEEP_FROM <= surplus && surplus < KEEP_TO)
-			return 0;
-		else if (KEEP_TO <= surplus && surplus < (KEEP_TO + 50))
-			return 1;
+	// power steps
+	step = power / (d->maximum / 100);
 
-		// surplus power steps
-		step = surplus / (d->maximum / 100);
+	if (distortion && step > 0)
+		step /= 2;
 
-		if (distortion && step > 0)
-			step /= 2;
-
-		if (step < -100)
-			step = -100; // min -100
-		if (step > 100)
-			step = 100; // max 100
-
-	} else {
-
-		// single step to avoid swinging if surplus is around FROM and TO
-		if (extra < KEEP_FROM)
-			return -1;
-		else if (KEEP_FROM <= extra && extra < KEEP_TO)
-			return 0;
-		else if (KEEP_TO <= extra && extra < (KEEP_TO + 50))
-			return 1;
-
-		// extra power steps
-		step = extra / (d->maximum / 100);
-
-		if (step > 100)
-			step = 100; // max 100
-
-		// smaller ramp up steps when we have distortion
-		if (distortion && step > 0)
-			step /= 2;
-
-		// discharge when akku not full --> stop extra power
-		if (charge < 99 && akku > 50)
-			step = -100;
-	}
+	if (step < -100)
+		step = -100; // min -100
+	if (step > 100)
+		step = 100; // max 100
 
 	return step;
 }
 
-static int rampup_device(device_t *d) {
-	if (!d->active)
-		return 0; // continue loop
-
-	if (d->standby)
-		return 0; // continue loop
-
-	// dumb devices can only be switched on or off
-	if (!d->adjustable) {
-
-		if (d->power)
-			return 0; // already on - continue loop
-
-		if (d->greedy) {
-
-			// grid upload power + steal akku charge power
-			if (surplus > d->maximum) {
-				(d->set_function)(d, 1);
-				return 1; // loop done
-			}
-
-		} else {
-
-			// allow only grid upload power
-			if (extra > d->maximum) {
-				(d->set_function)(d, 1);
-				return 1; // loop done
-			}
-		}
-
-		return 0; // continue loop
-	}
+static int ramp_adjustable(device_t *d, int power) {
+	int step = calculate_step(d, power);
 
 	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
-	if (d->power == 100 && (d->maximum / 2 * -1) < load) {
+	if (step > 0 && d->power == 100 && (d->maximum / 2 * -1) < load) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
 		return 0; // continue loop
 	}
 
-	if (d->power == 100)
-		return 0; // already full up - continue loop
-
-	int step = calculate_step(d);
 	if (step) {
 		(d->set_function)(d, d->power + step);
 		return 1; // loop done
@@ -468,78 +407,111 @@ static int rampup_device(device_t *d) {
 	return 0; // continue loop
 }
 
-static int rampdown_device(device_t *d) {
-	if (!d->power)
-		return 0; // already off - continue loop
-
-	// dumb devices can only be switched on or off
-	if (!d->adjustable) {
-
-		(d->set_function)(d, 0);
+static int ramp_dumb(device_t *d, int power) {
+	// keep on as long as we have enough power and device is already on
+	if (power > 0 && d->power)
 		return 1; // loop done
 
-	} else {
+	// switch on when enough power is available
+	if (power > d->maximum && !d->power) {
+		// switch on
+		(d->set_function)(d, 1);
+		return 1; // loop done
+	}
 
-		int step = calculate_step(d);
-		if (step) {
-			(d->set_function)(d, d->power + step);
-			return 1; // loop done
-		}
+	// switch off
+	if (d->power) {
+		(d->set_function)(d, 0);
+		return 1; // loop done
 	}
 
 	return 0; // continue loop
 }
 
-static void rampup() {
-	// check if all devices already on
-	int max = 1;
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
+static int rampup_device(device_t *d, int power) {
+	if (!d->active)
+		return 0; // continue loop
 
-		if (!d->active)
-			continue;
+	if (d->standby)
+		return 0; // continue loop
 
-		if (d->standby)
-			continue;
-
-		if (d->adjustable && d->power != 100)
-			max = 0;
-		else if (!d->power)
-			max = 0;
-	}
-	if (max) {
-		xlog("FRONIUS ramp↑ standby");
-		wait = WAIT_STANDBY;
-		return;
-	}
-
-	// ramp up devices
-	for (int i = 0; i < potd_size; i++)
-		if (rampup_device(potd[i]))
-			return;
+	if (d->adjustable)
+		return ramp_adjustable(d, power);
+	else
+		return ramp_dumb(d, power);
 }
 
-static void rampdown() {
-	// check if all devices already off
-	int min = 1;
+static int rampdown_device(device_t *d, int power) {
+	if (!d->power)
+		return 0; // already off - continue loop
+
+	if (d->adjustable)
+		return ramp_adjustable(d, power);
+	else
+		return ramp_dumb(d, power);
+}
+
+static int rampup_surplus() {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
-
-		if (!d->active)
-			continue;
-
-		if (d->power)
-			min = 0;
+		if (d->greedy)
+			if (rampup_device(d, surplus))
+				return 1;
 	}
-	if (min) {
-		xlog("FRONIUS ramp↓ standby");
-		wait = WAIT_STANDBY;
-		return;
-	}
+	return 0; // next priority
+}
 
-	// ramp down devices in reverse order
-	for (int i = potd_size - 1; i >= 0; i--)
-		if (rampdown_device(potd[i]))
+static int rampdown_surplus() {
+	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
+		device_t *d = potd[i];
+		if (d->greedy)
+			if (rampdown_device(d, surplus))
+				return 1;
+	}
+	return 0; // next priority
+}
+
+static int rampup_extra() {
+	for (int i = 0; i < potd_size; i++) {
+		device_t *d = potd[i];
+		if (!d->greedy)
+			if (rampup_device(d, extra))
+				return 1;
+	}
+	return 0; // next priority
+}
+
+static int rampdown_extra() {
+	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
+		device_t *d = potd[i];
+		if (!d->greedy)
+			if (rampdown_device(d, extra))
+				return 1;
+	}
+	return 0; // next priority
+}
+
+// do device adjustments in sequence of priority
+static void ramp() {
+
+	// 1. no extra power available: ramp down non-greedy devices
+	if (extra < KEEP_FROM)
+		if (rampdown_extra())
+			return;
+
+	// 2. consuming grid power or discharging akku: ramp down only greedy devices
+	if (surplus < KEEP_FROM)
+		if (rampdown_surplus())
+			return;
+
+	// 3. uploading grid power or charging akku: ramp up only greedy devices
+	if (surplus > KEEP_TO)
+		if (rampup_surplus())
+			return;
+
+	// 4. extra power available: ramp up non-greedy devices
+	if (extra > KEEP_TO)
+		if (rampup_extra())
 			return;
 }
 
@@ -621,20 +593,23 @@ static void* fronius(void *arg) {
 		// surplus = akku charge + grid upload
 		surplus = (grid + akku) * -1;
 
-		// extra = grid upload (not going into akku or from secondary inverters)
-		extra = grid < 0 ? grid * -1 : 0;
+		// extra = grid upload - not going into akku or from secondary inverters
+		if (charge < 99 && akku > 50)
+			// discharge when akku not full --> stop extra power
+			extra = 0;
+		else if (grid > 0)
+			// grid download --> stop extra power
+			extra = 0;
+		else
+			extra = grid * -1;
 
 		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
 
 		// do smaller steps when we have distortion
 		calculate_distortion();
 
-		if (surplus < KEEP_FROM)
-			// consuming grid power or discharging akku: ramp down
-			rampdown();
-		else if (surplus > KEEP_TO)
-			// uploading grid power or charging akku: ramp up
-			rampup();
+		// ramp up /ramp down devices depending on surplus + extra power
+		ramp();
 
 		// faster next round on distortion
 		if (distortion && wait > 10)
