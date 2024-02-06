@@ -42,7 +42,7 @@ mosmix.py --in-file $F --out-file $FORECASTS forecasts
 
 NAME=`jq -r 'keys[] as $k | $k' $FORECASTS`
 
-OUT="$V-$NAME.txt"
+OUT=$V-$NAME.txt
 rm -rf $OUT
 
 case $V in
@@ -78,7 +78,7 @@ case $V in
        Y=`jq .[$i] $TIMESTAMPS`
        Z=`date +%H -u -d "@$Y"`
        if [ "$Z" -eq "06" ]; then
-         echo $Z=$X >> "$V.txt"
+         echo $Z=$X >> $OUT
        fi
      fi
   done
