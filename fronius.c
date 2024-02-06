@@ -25,7 +25,7 @@ static device_t **potd = NULL;
 static size_t potd_size;
 
 // actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, extra, distortion;
+static int charge, akku, grid, load, pv, surplus, extra, distortion, tendence;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -336,6 +336,15 @@ static int api() {
 	return 0;
 }
 
+static int get_history(int offset) {
+	int i = history_ptr + offset;
+	if (i < 0)
+		i += PV_HISTORY;
+	if (i >= PV_HISTORY)
+		i -= PV_HISTORY;
+	return history[i];
+}
+
 // if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
 static void calculate_distortion() {
 	char message[PV_HISTORY * 8 + 2];
@@ -359,20 +368,29 @@ static void calculate_distortion() {
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - history[i]);
 
-	distortion = variation > average;
-	xlog("FRONIUS %s avg:%d var:%d dist:%d", message, average, variation, distortion);
+	int h0 = get_history(-1);
+	int h1 = get_history(-2);
+	int h2 = get_history(-3);
+	if (h2 < h1 && h1 < h0)
+		tendence = 1; // pv is raising
+	else if (h2 > h1 && h1 > h0)
+		tendence = -1; // pv is falling
+	else
+		tendence = 0;
+
+	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d", message, average, variation, distortion, tendence);
 }
 
 static int calculate_step(device_t *d, int power) {
 	int step = 0;
 
-	// single step to avoid swinging if power is around FROM and TO
+	// fixed steps to avoid swinging if power is around FROM and TO
 	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
-		return -1;
+		return tendence < 0 ? -2 : -1;
 	else if (KEEP_FROM <= power && power < KEEP_TO)
 		return 0;
 	else if (KEEP_TO <= power && power < (KEEP_TO + 50))
-		return 1;
+		return tendence > 0 ? 2 : 1;
 
 	// power steps
 	step = power / (d->maximum / 100);
