@@ -4,8 +4,8 @@
 #include <linux/input-event-codes.h>
 
 #include "dac.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 #include "gpio.h"
 #include "utils.h"
 #include "dac-es9018.h"
@@ -47,9 +47,8 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
 	gpio_set(GPIO_VOL_UP, 1);
 	msleep(100);
@@ -59,9 +58,8 @@ void dac_volume_up() {
 }
 
 void dac_volume_down() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		return;
-	}
 
 	gpio_set(GPIO_VOL_DOWN, 1);
 	msleep(100);

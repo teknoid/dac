@@ -12,8 +12,8 @@
 #include "display-menu.h"
 
 #include "dac.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 #include "i2c.h"
 #include "gpio.h"
 #include "utils.h"
@@ -164,6 +164,8 @@ static void dac_off() {
 void dac_power() {
 	if (!mcp->dac_power) {
 		dac_on();
+		// wait for DAC init
+		msleep(1000);
 		mpdclient_handle(KEY_PLAY);
 	} else {
 		mpdclient_handle(KEY_STOP);

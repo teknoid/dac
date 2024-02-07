@@ -21,8 +21,8 @@
 #include "utils.h"
 #include "dac.h"
 #include "i2c.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 
 #ifndef I2C
 #define I2C				"/dev/i2c-3"

@@ -14,8 +14,8 @@
 #include "display-sysfont.h"
 #include "display-menu.h"
 #include "utils.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 
 #include "dac.h"
 #include "dac-es9028.h"

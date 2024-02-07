@@ -1,13 +1,15 @@
+#include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 
 #include <linux/input-event-codes.h>
 
 #include "dac.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 #include "utils.h"
 
-int current_value;
+int dummy_status;
 
 static void dac_on() {
 #ifdef GPIO_POWER
@@ -28,6 +30,8 @@ static void dac_off() {
 void dac_power() {
 	if (!mcp->dac_power) {
 		dac_on();
+		// wait for DAC init
+		msleep(1000);
 		mpdclient_handle(KEY_PLAY);
 	} else {
 		mpdclient_handle(KEY_STOP);
@@ -36,35 +40,39 @@ void dac_power() {
 }
 
 void dac_volume_up() {
+	system("/usr/bin/amixer -q set Master 2%+");
 	xlog("VOL++");
 }
 
 void dac_volume_down() {
+	system("/usr/bin/amixer -q set Master 2%-");
 	xlog("VOL--");
 }
 
 void dac_mute() {
+	system("/usr/bin/amixer -q set Master mute");
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
 
 void dac_unmute() {
+	system("/usr/bin/amixer -q set Master unmute");
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
 
 void dac_source(int source) {
-	xlog("SOURCE");
+	xlog("dac_source");
 }
 
-int dac_config_get(const void *ptr) {
+int dac_status_get(const void *p1, const void *p2) {
 	xlog("dac_config_get");
-	return current_value;
+	return dummy_status;
 }
 
-void dac_config_set(const void *ptr, int value) {
+void dac_status_set(const void *p1, const void *p2, int value) {
 	xlog("dac_config_set");
-	current_value = value;
+	dummy_status = value;
 }
 
 void dac_handle(int c) {
@@ -81,10 +89,11 @@ static int init() {
 	}
 
 #endif
+
 	return 0;
 }
 
 static void stop() {
 }
 
-MCP_REGISTER(dac, 3, &init, &stop);
+MCP_REGISTER(dac_alsa, 3, &init, &stop);

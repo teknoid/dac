@@ -21,8 +21,8 @@
 #include "replaygain.h"
 #include "utils.h"
 #include "dac.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 
 static int current_song = -1;
 static int playlist_mode = 1;

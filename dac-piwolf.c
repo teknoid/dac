@@ -7,8 +7,8 @@
 #include <linux/input-event-codes.h>
 
 #include "dac.h"
-#include "mpd.h"
 #include "mcp.h"
+#include "mpd.h"
 #include "gpio.h"
 #include "utils.h"
 
@@ -62,6 +62,8 @@ static void dac_off() {
 void dac_power() {
 	if (!mcp->dac_power) {
 		dac_on();
+		// wait for DAC init
+		msleep(1000);
 		mpdclient_handle(KEY_PLAY);
 	} else {
 		mpdclient_handle(KEY_STOP);
@@ -70,11 +72,17 @@ void dac_power() {
 }
 
 void dac_volume_up() {
+	if (!mcp->dac_power)
+		return;
+
 	xlog("VOL++");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
 }
 
 void dac_volume_down() {
+	if (!mcp->dac_power)
+		return;
+
 	xlog("VOL--");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
 }
@@ -133,11 +141,10 @@ static int init() {
 	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);
 
 	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
-	if (mcp->dac_power) {
-		xlog("DAC  power is ON");
-	} else {
-		xlog("DAC  power is OFF");
-	}
+	if (mcp->dac_power)
+		xlog("DAC power is ON");
+	else
+		xlog("DAC power is OFF");
 
 	return 0;
 }
