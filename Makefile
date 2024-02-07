@@ -73,7 +73,7 @@ gpio-sunxi: gpio-sunxi.o
 
 gpio-bcm2835: gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
-	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o
+	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o utils.o
 	
 switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c
