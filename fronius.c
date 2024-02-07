@@ -24,8 +24,8 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static device_t **potd = NULL;
 static size_t potd_size;
 
-// actual Fronius power flow data + calculations
-static int charge, akku, grid, load, pv, surplus, extra, distortion, tendence;
+// actual Fronius power flow data
+static int charge, akku, grid, load, pv;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -345,8 +345,39 @@ static int get_history(int offset) {
 	return history[i];
 }
 
-// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production
-static void calculate_distortion() {
+static int calculate_average() {
+	long average = 0;
+
+	for (int i = 0; i < PV_HISTORY; i++)
+		average += history[i];
+	average /= PV_HISTORY;
+
+	return average;
+}
+
+static int calculate_variation(int average) {
+	long variation = 0;
+
+	for (int i = 0; i < PV_HISTORY; i++)
+		variation += abs(average - history[i]);
+
+	return variation;
+}
+
+static int calculate_tendence() {
+	int h0 = get_history(-1);
+	int h1 = get_history(-2);
+	int h2 = get_history(-3);
+
+	if (h2 < h1 && h1 < h0)
+		return 1; // pv is raising
+	else if (h2 > h1 && h1 > h0)
+		return -1; // pv is falling
+	else
+		return 0;
+}
+
+static int calculate_step(device_t *d, int power) {
 	char message[PV_HISTORY * 8 + 2];
 	char value[8];
 
@@ -359,30 +390,12 @@ static void calculate_distortion() {
 	}
 	strcat(message, "]");
 
-	long average = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		average += history[i];
-	average /= PV_HISTORY;
+	int average = calculate_average();
+	int variation = calculate_variation(average);
+	int tendence = calculate_tendence();
+	int distortion = variation > average;
 
-	long variation = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		variation += abs(average - history[i]);
-
-	int h0 = get_history(-1);
-	int h1 = get_history(-2);
-	int h2 = get_history(-3);
-	if (h2 < h1 && h1 < h0)
-		tendence = 1; // pv is raising
-	else if (h2 > h1 && h1 > h0)
-		tendence = -1; // pv is falling
-	else
-		tendence = 0;
-
-	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d", message, average, variation, distortion, tendence);
-}
-
-static int calculate_step(device_t *d, int power) {
-	int step = 0;
+	xlog("FRONIUS %s avg:%d var:%d tend:%d dist:%d", message, average, variation, tendence, distortion);
 
 	// fixed steps to avoid swinging if power is around FROM and TO
 	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
@@ -393,10 +406,15 @@ static int calculate_step(device_t *d, int power) {
 		return tendence > 0 ? 2 : 1;
 
 	// power steps
-	step = power / (d->maximum / 100);
+	int step = power / (d->maximum / 100);
 
+	// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production -> do smaller up steps
 	if (distortion && step > 0)
 		step /= 2;
+
+	// faster next round on distortion
+	if (distortion && wait > 10)
+		wait /= 2;
 
 	if (step < -100)
 		step = -100; // min -100
@@ -469,72 +487,52 @@ static int rampdown_device(device_t *d, int power) {
 		return ramp_dumb(d, power);
 }
 
-static int rampup_surplus() {
+static int rampup(int power) {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
 		if (d->greedy)
-			if (rampup_device(d, surplus))
+			if (rampup_device(d, power))
 				return 1;
 	}
 	return 0; // next priority
 }
 
-static int rampdown_surplus() {
-	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
-		device_t *d = potd[i];
-		if (d->greedy)
-			if (rampdown_device(d, surplus))
-				return 1;
-	}
-	return 0; // next priority
-}
-
-static int rampup_extra() {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-		if (!d->greedy)
-			if (rampup_device(d, extra))
-				return 1;
-	}
-	return 0; // next priority
-}
-
-static int rampdown_extra() {
+static int rampdown(int power) {
 	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
 		device_t *d = potd[i];
 		if (!d->greedy)
-			if (rampdown_device(d, extra))
+			if (rampdown_device(d, power))
 				return 1;
 	}
 	return 0; // next priority
 }
 
 // do device adjustments in sequence of priority
-static void ramp() {
+static void ramp(int surplus, int extra) {
 
 	// 1. no extra power available: ramp down non-greedy devices
 	if (extra < KEEP_FROM)
-		if (rampdown_extra())
+		if (rampdown(extra))
 			return;
 
 	// 2. consuming grid power or discharging akku: ramp down only greedy devices
 	if (surplus < KEEP_FROM)
-		if (rampdown_surplus())
+		if (rampdown(surplus))
 			return;
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (surplus > KEEP_TO)
-		if (rampup_surplus())
+		if (rampup(surplus))
 			return;
 
 	// 4. extra power available: ramp up non-greedy devices
 	if (extra > KEEP_TO)
-		if (rampup_extra())
+		if (rampup(extra))
 			return;
 }
 
 static void* fronius(void *arg) {
-	int ret, errors = 0, hour = -1;
+	int ret, surplus, extra, errors = 0, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -577,7 +575,6 @@ static void* fronius(void *arg) {
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
 			xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d --> offline", charge, akku, grid, load, pv);
-			surplus = extra = 0;
 			set_devices(0);
 			wait = WAIT_OFFLINE;
 			continue;
@@ -593,9 +590,6 @@ static void* fronius(void *arg) {
 			wait = WAIT_NEXT;
 			continue;
 		}
-
-		// default wait for next round
-		wait = WAIT_KEEP;
 
 		// update PV history
 		history[history_ptr++] = pv;
@@ -623,15 +617,11 @@ static void* fronius(void *arg) {
 
 		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
 
-		// do smaller steps when we have distortion
-		calculate_distortion();
+		// default wait for next round
+		wait = WAIT_KEEP;
 
 		// ramp up /ramp down devices depending on surplus + extra power
-		ramp();
-
-		// faster next round on distortion
-		if (distortion && wait > 10)
-			wait /= 2;
+		ramp(surplus, extra);
 
 		print_status();
 	}
