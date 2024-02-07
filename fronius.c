@@ -510,12 +510,12 @@ static int rampdown(int power) {
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
 
-	// 1. no extra power available: ramp down non-greedy devices
+	// 1. no extra power available: ramp down devices
 	if (extra < KEEP_FROM)
 		if (rampdown(extra))
 			return;
 
-	// 2. consuming grid power or discharging akku: ramp down only greedy devices
+	// 2. consuming grid power or discharging akku: ramp down also greedy devices
 	if (surplus < KEEP_FROM)
 		if (rampdown(surplus))
 			return;
@@ -525,7 +525,7 @@ static void ramp(int surplus, int extra) {
 		if (rampup(surplus))
 			return;
 
-	// 4. extra power available: ramp up non-greedy devices
+	// 4. extra power available: ramp up all other devices
 	if (extra > KEEP_TO)
 		if (rampup(extra))
 			return;
