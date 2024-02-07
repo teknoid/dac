@@ -336,6 +336,7 @@ int flamingo_main(int argc, char *argv[]) {
 }
 
 #ifdef FLAMINGO_MAIN
+// gpio-bcm2835.c needs mcp_register()
 typedef int (*init_t)();
 void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
 	xlog("call init() for  %s", name);
