@@ -122,7 +122,10 @@ static void read_bmp085() {
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
 	char subtopic[64];
 	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", "sensor", sensor, name);
+
+#ifndef SENSORS_MAIN
 	publish(subtopic, value);
+#endif
 }
 
 static void publish_sensors() {
