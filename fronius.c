@@ -487,22 +487,24 @@ static int rampdown_device(device_t *d, int power) {
 		return ramp_dumb(d, power);
 }
 
-static int rampup(int power) {
+static int rampup(int power, int only_greedy) {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
-		if (d->greedy)
-			if (rampup_device(d, power))
-				return 1;
+		if (only_greedy && !d->greedy)
+			continue; // skip non-greedy devices
+		if (rampup_device(d, power))
+			return 1;
 	}
 	return 0; // next priority
 }
 
-static int rampdown(int power) {
+static int rampdown(int power, int skip_greedy) {
 	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
 		device_t *d = potd[i];
-		if (!d->greedy)
-			if (rampdown_device(d, power))
-				return 1;
+		if (skip_greedy && d->greedy)
+			continue; // skip greedy devices
+		if (rampdown_device(d, power))
+			return 1;
 	}
 	return 0; // next priority
 }
@@ -510,24 +512,24 @@ static int rampdown(int power) {
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
 
-	// 1. no extra power available: ramp down devices
+	// 1. no extra power available: ramp down devices but skip greedy
 	if (extra < KEEP_FROM)
-		if (rampdown(extra))
+		if (rampdown(extra, 1))
 			return;
 
-	// 2. consuming grid power or discharging akku: ramp down also greedy devices
+	// 2. consuming grid power or discharging akku: ramp down all devices
 	if (surplus < KEEP_FROM)
-		if (rampdown(surplus))
+		if (rampdown(surplus, 0))
 			return;
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (surplus > KEEP_TO)
-		if (rampup(surplus))
+		if (rampup(surplus, 1))
 			return;
 
-	// 4. extra power available: ramp up all other devices
+	// 4. extra power available: ramp up all devices
 	if (extra > KEEP_TO)
-		if (rampup(extra))
+		if (rampup(extra, 0))
 			return;
 }
 
