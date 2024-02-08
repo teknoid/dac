@@ -395,7 +395,7 @@ static int calculate_step(device_t *d, int power) {
 	int tendence = calculate_tendence();
 	int distortion = variation > average;
 
-	xlog("FRONIUS %s avg:%d var:%d tend:%d dist:%d", message, average, variation, tendence, distortion);
+	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d ", message, average, variation, distortion, tendence);
 
 	// fixed steps to avoid swinging if power is around FROM and TO
 	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
