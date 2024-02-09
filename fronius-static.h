@@ -16,7 +16,6 @@
 #define MOSMIX_FACTOR		3
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000
-#define CLOUDY_FULL_CHARGE	75
 
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW			"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -58,6 +57,13 @@ static device_t c22 = { .name = "boiler1", .maximum = 2000, .set_function = &set
 static device_t c23 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t c24 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t *POTD_CLOUDY_FULL[] = { &c21, &c22, &c23, &c24 };
+
+// program of the day for cloudy weather but tomorrow sunny: priority is warm water in boiler3, then rest
+static device_t c31 = { .name = "boiler3", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t c32 = { .name = "boiler1", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t c33 = { .name = "boiler2", .maximum = 2000, .set_function = &set_boiler, .adjustable = 1, .greedy = 1 };
+static device_t c34 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1, .greedy = 1 };
+static device_t *POTD_TOMORROW[] = { &c31, &c32, &c33, &c34 };
 
 // program of the day for sunny weather: akku will be full anyway at the end of day
 static device_t s1 = { .name = "plug9", .maximum = 700, .set_function = &set_heater, .greedy = 1 };

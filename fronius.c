@@ -149,6 +149,13 @@ static void init_program(device_t **p, size_t s) {
 	}
 }
 
+static int choose_program(device_t **p, size_t s, const char *name) {
+	xlog("FRONIUS choosing %s program for today", name);
+	potd = p;
+	potd_size = s;
+	return 0;
+}
+
 static void set_devices(int power) {
 	for (int i = 0; i < potd_size; i++) {
 		device_t *d = potd[i];
@@ -248,27 +255,21 @@ static int forecast_Rad1h() {
 	pclose(fp);
 
 	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
-	int expected = today * MOSMIX_FACTOR;
+	int exp_today = today * MOSMIX_FACTOR;
+	int exp_tomorrow = tomorrow * MOSMIX_FACTOR;
 
-	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected %d", today, tomorrow, tomorrowplus1, needed, expected);
+	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected tod %d tom %d", today, tomorrow, tomorrowplus1, needed, exp_today, exp_tomorrow);
 
-	if (expected < needed) {
-		if (charge > CLOUDY_FULL_CHARGE) {
-			xlog("FRONIUS choosing CLOUDY_FULL program for today");
-			potd = POTD_CLOUDY_FULL;
-			potd_size = ARRAY_SIZE(POTD_CLOUDY_FULL);
-		} else {
-			xlog("FRONIUS choosing CLOUDY_EMPTY program for today");
-			potd = POTD_CLOUDY_EMPTY;
-			potd_size = ARRAY_SIZE(POTD_CLOUDY_EMPTY);
-		}
-	} else {
-		xlog("FRONIUS choosing SUNNY program for today");
-		potd = POTD_SUNNY;
-		potd_size = ARRAY_SIZE(POTD_SUNNY);
-	}
+	if (exp_today > needed)
+		return choose_program(POTD_SUNNY, ARRAY_SIZE(POTD_SUNNY), "POTD_SUNNY");
 
-	return today;
+	if (charge > 50 && exp_tomorrow > SELF_CONSUMING)
+		return choose_program(POTD_TOMORROW, ARRAY_SIZE(POTD_TOMORROW), "POTD_TOMORROW");
+
+	if (charge > 75)
+		return choose_program(POTD_CLOUDY_FULL, ARRAY_SIZE(POTD_CLOUDY_FULL), "POTD_CLOUDY_FULL");
+
+	return choose_program(POTD_CLOUDY_EMPTY, ARRAY_SIZE(POTD_CLOUDY_EMPTY), "POTD_CLOUDY_EMPTY");
 }
 
 static int parse() {
@@ -818,6 +819,7 @@ static void test() {
 
 static int init() {
 	// initialize all programs with start values
+	init_program(POTD_TOMORROW, ARRAY_SIZE(POTD_TOMORROW));
 	init_program(POTD_CLOUDY_EMPTY, ARRAY_SIZE(POTD_CLOUDY_EMPTY));
 	init_program(POTD_CLOUDY_FULL, ARRAY_SIZE(POTD_CLOUDY_FULL));
 	init_program(POTD_SUNNY, ARRAY_SIZE(POTD_SUNNY));
