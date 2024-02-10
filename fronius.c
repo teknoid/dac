@@ -24,8 +24,8 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static device_t **potd = NULL;
 static size_t potd_size;
 
-// actual Fronius power flow data
-static int charge, akku, grid, load, pv;
+// actual Fronius power flow data and calculations
+static int charge, akku, grid, load, pv, distortion, tendence;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -202,6 +202,60 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
 	return realsize;
 }
 
+static int get_history(int offset) {
+	int i = history_ptr + offset;
+	if (i < 0)
+		i += PV_HISTORY;
+	if (i >= PV_HISTORY)
+		i -= PV_HISTORY;
+	return history[i];
+}
+
+static void update_history() {
+	char message[PV_HISTORY * 8 + 2];
+	char value[8];
+
+	history[history_ptr++] = pv;
+	if (history_ptr == PV_HISTORY)
+		history_ptr = 0;
+
+	strcpy(message, "[");
+	for (int i = 0; i < PV_HISTORY; i++) {
+		snprintf(value, 8, "%d", history[i]);
+		if (i > 0 && i < PV_HISTORY)
+			strcat(message, ", ");
+		strcat(message, value);
+	}
+	strcat(message, "]");
+
+	// calculate average
+	int average = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		average += history[i];
+	average /= PV_HISTORY;
+
+	// calculate variation
+	long variation = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		variation += abs(average - history[i]);
+
+	// from both we can calculate distortion
+	distortion = variation > average;
+
+	// calculate tendence
+	int h0 = get_history(-1);
+	int h1 = get_history(-2);
+	int h2 = get_history(-3);
+	if (h2 < h1 && h1 < h0)
+		tendence = 1; // pv is raising
+	else if (h2 > h1 && h1 > h0)
+		tendence = -1; // pv is falling
+	else
+		tendence = 0;
+
+	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d ", message, average, variation, distortion, tendence);
+}
+
 //static int forecast_SunD() {
 //	char line[32];
 //	int yesterday_h, yesterday_s, today_h, today_s, tomorrow_h, tomorrow_s;
@@ -337,67 +391,7 @@ static int api() {
 	return 0;
 }
 
-static int get_history(int offset) {
-	int i = history_ptr + offset;
-	if (i < 0)
-		i += PV_HISTORY;
-	if (i >= PV_HISTORY)
-		i -= PV_HISTORY;
-	return history[i];
-}
-
-static int calculate_average() {
-	long average = 0;
-
-	for (int i = 0; i < PV_HISTORY; i++)
-		average += history[i];
-	average /= PV_HISTORY;
-
-	return average;
-}
-
-static int calculate_variation(int average) {
-	long variation = 0;
-
-	for (int i = 0; i < PV_HISTORY; i++)
-		variation += abs(average - history[i]);
-
-	return variation;
-}
-
-static int calculate_tendence() {
-	int h0 = get_history(-1);
-	int h1 = get_history(-2);
-	int h2 = get_history(-3);
-
-	if (h2 < h1 && h1 < h0)
-		return 1; // pv is raising
-	else if (h2 > h1 && h1 > h0)
-		return -1; // pv is falling
-	else
-		return 0;
-}
-
 static int calculate_step(device_t *d, int power) {
-	char message[PV_HISTORY * 8 + 2];
-	char value[8];
-
-	strcpy(message, "[");
-	for (int i = 0; i < PV_HISTORY; i++) {
-		snprintf(value, 8, "%d", history[i]);
-		if (i > 0 && i < PV_HISTORY)
-			strcat(message, ", ");
-		strcat(message, value);
-	}
-	strcat(message, "]");
-
-	int average = calculate_average();
-	int variation = calculate_variation(average);
-	int tendence = calculate_tendence();
-	int distortion = variation > average;
-
-	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d ", message, average, variation, distortion, tendence);
-
 	// fixed steps to avoid swinging if power is around FROM and TO
 	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
 		return tendence < 0 ? -2 : -1;
@@ -412,10 +406,6 @@ static int calculate_step(device_t *d, int power) {
 	// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production -> do smaller up steps
 	if (distortion && step > 0)
 		step /= 2;
-
-	// faster next round on distortion
-	if (distortion && wait > 10)
-		wait /= 2;
 
 	if (step < -100)
 		step = -100; // min -100
@@ -595,9 +585,7 @@ static void* fronius(void *arg) {
 		}
 
 		// update PV history
-		history[history_ptr++] = pv;
-		if (history_ptr == PV_HISTORY)
-			history_ptr = 0;
+		update_history();
 
 		// grid < 0	--> upload
 		// grid > 0	--> download
@@ -625,6 +613,10 @@ static void* fronius(void *arg) {
 
 		// ramp up /ramp down devices depending on surplus + extra power
 		ramp(surplus, extra);
+
+		// faster next round when we have distortion
+		if (distortion && wait > 10)
+			wait /= 2;
 
 		print_status();
 	}
