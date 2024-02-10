@@ -235,7 +235,7 @@ static void update_history() {
 	average /= PV_HISTORY;
 
 	// calculate variation
-	long variation = 0;
+	unsigned long variation = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - history[i]);
 
@@ -253,7 +253,7 @@ static void update_history() {
 	else
 		tendence = 0;
 
-	xlog("FRONIUS %s avg:%d var:%d dist:%d tend:%d ", message, average, variation, distortion, tendence);
+	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d ", message, average, variation, distortion, tendence);
 }
 
 //static int forecast_SunD() {
