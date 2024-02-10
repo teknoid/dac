@@ -14,7 +14,7 @@
 #include "ssr-phase-angles.h"
 #include "ssr-wifi-credentials.h"
 
-#define VERSION "1.2 (02.02.2024)"
+#define VERSION "1.3 (10.02.2024)"
 // #define DEBUG
 
 #define UDP_PORT 1975
@@ -52,12 +52,7 @@ volatile uint16_t channel0, channel1;
 // current temperature
 volatile float temp;
 
-// Current time
-unsigned long currentTime = millis();
-// Previous time
-unsigned long previousTime = 0;
-// Define timeout time in milliseconds (example: 2000ms = 2s)
-const long timeoutTime = 2000;
+int64_t boot_time;
 
 // Set web server port 80 and an async UDP server
 WiFiServer server(80);
@@ -182,6 +177,8 @@ void response_json(WiFiClient client) {
   client.print(channel1);
   client.print("\", \"temp\":\"");
   client.print(temp);
+  client.print("\", \"boot\":\"");
+  client.print(boot_time);
   client.print("\", \"version\":\"" VERSION);
   client.println("\" }");
 }
@@ -219,21 +216,23 @@ void response(WiFiClient client) {
 }
 
 void udp_handle_packet(AsyncUDPPacket packet) {
-  size_t len = packet.length();
-
   char buf[UDP_BUF + 1];
   uint8_t i;
 
+  size_t len = packet.length();
   if (len == 0 || len > UDP_BUF)
     return;  // ignore invalid packet
 
   for (i = 0; i < len; i++)
     buf[i] = (char)*(packet.data() + i);
   buf[len] = 0x00;  // null-terminate
+
+#ifdef DEBUG
   Sprint("UDP received len ");
   Sprintln(packet.length());
   Sprint("UDP received data ");
   Sprintln(buf);
+#endif
 
   // find second ':'
   i = 2;
@@ -264,7 +263,30 @@ void udp_handle_packet(AsyncUDPPacket packet) {
 #endif
 }
 
+void setup_wifi() {
+  Sprint("Connecting to ");
+  Sprintln(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Sprint(".");
+  }
+
+  // Print local IP address and start web server
+  Sprintln("connected!");
+  Sprint("IP address: ");
+  Sprintln(WiFi.localIP());
+  Sprint("MAC address: ");
+  Sprintln(WiFi.macAddress());
+  Sprint("RSSI: ");
+  Sprintln(WiFi.RSSI());
+}
+
 void setup() {
+  boot_time = esp_timer_get_time();
+
 #ifdef DEBUG
   Serial.begin(115200);
   Sprintln("Firmware version " VERSION);
@@ -321,21 +343,9 @@ void setup() {
   delay(250);
 
   // Connect to Wi-Fi network with SSID and password
-  Sprint("Connecting to ");
-  Sprintln(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Sprint(".");
-  }
+  setup_wifi();
 
-  // Print local IP address and start web server
-  Sprintln("");
-  Sprintln("WiFi connected.");
-  Sprint("IP address: ");
-  Sprintln(WiFi.localIP());
-  Sprint("MAC address: ");
-  Sprintln(WiFi.macAddress());
+  // start HTTP Server
   server.begin();
 
   // setup UDP packet receive handler to accept messages like "v:12345:56789" or "p:50:100"
@@ -355,10 +365,20 @@ void setup() {
 }
 
 void loop() {
-  WiFiClient client = server.available();  // Listen for incoming clients
+  unsigned long currentTime = millis();
+  unsigned long previousTime = 0;
+  const long timeoutTime = 2000;  // 2 seconds
 
-  if (client) {  // If a new client connects,
-    currentTime = millis();
+  // if WiFi is down, try reconnecting
+  if (WiFi.status() != WL_CONNECTED) {
+    Sprintln("Lost WiFi connection, rebooting in 5 seconds.");
+    delay(5000);
+    WiFi.disconnect();
+    ESP.restart();
+  }
+
+  WiFiClient client = server.available();  // Listen for incoming clients
+  if (client) {                            // If a new client connects,
     previousTime = currentTime;
 
     Sprintln("New Client.");  // print a message out in the serial port
