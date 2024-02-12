@@ -406,11 +406,11 @@ static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->maximum / 100);
 
-	// do smaller up steps if cloudy due to alternating lighting conditions and therefore big distortion in PV production
+	// do smaller up steps if cloudy due to alternating lighting conditions and therefore big distortion in pv production
 	if (step > 0 && distortion)
-		step /= distortion;
+		step /= (distortion > 2 ? distortion : 2);
 
-	// do bigger down steps if we have negative tendence
+	// do bigger down steps if we have negative pv production tendence
 	if (step < 0 && tendence < 0)
 		step *= 2;
 
