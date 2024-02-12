@@ -240,7 +240,10 @@ static void update_history() {
 		variation += abs(average - history[i]);
 
 	// from both we can calculate distortion
-	distortion = variation > average;
+	if (variation < average)
+		distortion = 0;
+	else
+		distortion = variation / average;
 
 	// calculate tendence
 	int h0 = get_history(-1);
@@ -403,9 +406,13 @@ static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->maximum / 100);
 
-	// if cloudy then we have alternating lighting conditions and therefore big distortion in PV production -> do smaller up steps
-	if (distortion && step > 0)
-		step /= 2;
+	// do smaller up steps if cloudy due to alternating lighting conditions and therefore big distortion in PV production
+	if (step > 0 && distortion)
+		step /= distortion;
+
+	// do bigger down steps if we have negative tendence
+	if (step < 0 && tendence < 0)
+		step *= 2;
 
 	if (step < -100)
 		step = -100; // min -100
@@ -525,7 +532,7 @@ static void ramp(int surplus, int extra) {
 }
 
 static void* fronius(void *arg) {
-	int ret, surplus, extra, errors = 0, hour = -1;
+	int ret, surplus, extra, sum, errors = 0, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -606,7 +613,8 @@ static void* fronius(void *arg) {
 		else
 			extra = grid * -1;
 
-		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d", charge, akku, grid, load, pv, surplus, extra);
+		sum = grid + akku + load + pv;
+		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d Sum:%d", charge, akku, grid, load, pv, surplus, extra, sum);
 
 		// default wait for next round
 		wait = WAIT_KEEP;
@@ -617,6 +625,10 @@ static void* fronius(void *arg) {
 		// faster next round when we have distortion
 		if (distortion && wait > 10)
 			wait /= 2;
+
+		// inverter values are ambiguous, recalculate
+		if (sum < 0 || sum > 100)
+			wait = WAIT_NEXT;
 
 		print_status();
 	}
