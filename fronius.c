@@ -20,9 +20,8 @@
 static CURL *curl;
 static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 
-// program of the day - forecast will chose appropriate configuration SUNNY or CLOUDY
-static device_t **potd = NULL;
-static size_t potd_size;
+// program of the day - forecast will chose appropriate program
+static potd_t *potd;
 
 // actual Fronius power flow data and calculations
 static int charge, akku, grid, load, pv, distortion, tendence;
@@ -140,41 +139,42 @@ int set_boiler(void *ptr, int power) {
 	return 0;
 }
 
-static void init_program(device_t **p, size_t s) {
-	for (int i = 0; i < s; i++) {
-		device_t *d = p[i];
-		d->active = 1;
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
-}
-
-static int choose_program(device_t **p, size_t s, const char *name) {
-	xlog("FRONIUS choosing %s program for today", name);
-	potd = p;
-	potd_size = s;
+static int choose_program(const potd_t *p) {
+	xlog("FRONIUS choosing %s program for today", p->name);
+	potd = (potd_t*) p;
 	return 0;
 }
 
 static void set_devices(int power) {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
+	if (potd == NULL)
+		return;
+
+	const potd_device_t **ds = potd->devices;
+	while (*ds != NULL) {
+		device_t *d = (*ds)->device;
 		(d->set_function)(d, power);
+		ds++;
 	}
 }
 
 static void print_status() {
+	const potd_device_t **ds;
 	char message[128];
 	char value[5];
 
 	strcpy(message, "FRONIUS devices active ");
-	for (int i = 0; i < potd_size; i++)
-		strcat(message, potd[i]->active ? "1" : "0");
+	ds = potd->devices;
+	while (*ds != NULL) {
+		strcat(message, (*ds)->device->active ? "1" : "0");
+		ds++;
+	}
 
 	strcat(message, "   power ");
-	for (int i = 0; i < potd_size; i++) {
-		snprintf(value, 5, " %3d", potd[i]->power);
+	ds = potd->devices;
+	while (*ds != NULL) {
+		snprintf(value, 5, " %3d", (*ds)->device->power);
 		strcat(message, value);
+		ds++;
 	}
 
 	snprintf(value, 5, "%3d", wait);
@@ -239,11 +239,8 @@ static void update_history() {
 	for (int i = 0; i < PV_HISTORY; i++)
 		variation += abs(average - history[i]);
 
-	// from both we can calculate distortion
-	if (variation < average)
-		distortion = 0;
-	else
-		distortion = variation / average;
+	// grade of alternation in pv production when its cloudy with sunny gaps
+	distortion = variation / average;
 
 	// calculate tendence
 	int h0 = get_history(-1);
@@ -318,15 +315,15 @@ static int forecast_Rad1h() {
 	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected tod %d tom %d", today, tomorrow, tomorrowplus1, needed, exp_today, exp_tomorrow);
 
 	if (exp_today > needed)
-		return choose_program(POTD_SUNNY, ARRAY_SIZE(POTD_SUNNY), "POTD_SUNNY");
+		return choose_program(&SUNNY);
 
 	if (charge > 50 && exp_tomorrow > SELF_CONSUMING)
-		return choose_program(POTD_TOMORROW, ARRAY_SIZE(POTD_TOMORROW), "POTD_TOMORROW");
+		return choose_program(&TOMORROW);
 
 	if (charge > 75)
-		return choose_program(POTD_CLOUDY_FULL, ARRAY_SIZE(POTD_CLOUDY_FULL), "POTD_CLOUDY_FULL");
+		return choose_program(&CLOUDY_FULL);
 
-	return choose_program(POTD_CLOUDY_EMPTY, ARRAY_SIZE(POTD_CLOUDY_EMPTY), "POTD_CLOUDY_EMPTY");
+	return choose_program(&CLOUDY_EMPTY);
 }
 
 static int parse() {
@@ -406,7 +403,7 @@ static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->maximum / 100);
 
-	// do smaller up steps if cloudy due to alternating lighting conditions and therefore big distortion in pv production
+	// do smaller up steps when we have distortion
 	if (step > 0 && distortion)
 		step /= (distortion > 2 ? distortion : 2);
 
@@ -486,24 +483,27 @@ static int rampdown_device(device_t *d, int power) {
 }
 
 static int rampup(int power, int only_greedy) {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-		if (only_greedy && !d->greedy)
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
+		if (only_greedy && !(*ds)->greedy)
 			continue; // skip non-greedy devices
-		if (rampup_device(d, power))
+		if (rampup_device((*ds)->device, power))
 			return 1;
 	}
 	return 0; // next priority
 }
 
 static int rampdown(int power, int skip_greedy) {
-	for (int i = potd_size - 1; i >= 0; i--) { // reverse order
-		device_t *d = potd[i];
-		if (skip_greedy && d->greedy)
+	const potd_device_t **ds = potd->devices;
+	// jump to last entry
+	while (*ds != NULL)
+		ds++;
+	// now go backward - this will give a reverse order
+	do {
+		if (skip_greedy && (*ds)->greedy)
 			continue; // skip greedy devices
-		if (rampdown_device(d, power))
+		if (rampdown_device((*ds)->device, power))
 			return 1;
-	}
+	} while (ds-- != potd->devices);
 	return 0; // next priority
 }
 
@@ -626,7 +626,7 @@ static void* fronius(void *arg) {
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// inverter values are ambiguous, recalculate
+		// faster next round when we got suspicious values from Fronius API
 		if (sum < 0 || sum > 100)
 			wait = WAIT_NEXT;
 
@@ -797,7 +797,7 @@ static void calibrate(char *name) {
 }
 
 static void test() {
-	device_t *d = &c11;
+	device_t *d = &boiler1;
 
 	d->active = 1;
 	d->power = -1;
@@ -822,11 +822,16 @@ static void test() {
 }
 
 static int init() {
-	// initialize all programs with start values
-	init_program(POTD_TOMORROW, ARRAY_SIZE(POTD_TOMORROW));
-	init_program(POTD_CLOUDY_EMPTY, ARRAY_SIZE(POTD_CLOUDY_EMPTY));
-	init_program(POTD_CLOUDY_FULL, ARRAY_SIZE(POTD_CLOUDY_FULL));
-	init_program(POTD_SUNNY, ARRAY_SIZE(POTD_SUNNY));
+	// start with default program
+	potd = (potd_t*) &CLOUDY_EMPTY;
+
+	// initialize all devices with start values
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		d->active = 1;
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
+	}
 
 	curl = curl_easy_init();
 	if (curl == NULL)
@@ -862,15 +867,16 @@ static void stop() {
 }
 
 void fronius_override(const char *name) {
-	for (int i = 0; i < potd_size; i++) {
-		device_t *d = potd[i];
-
+	const potd_device_t **ds = potd->devices;
+	while (*ds != NULL) {
+		device_t *d = (*ds)->device;
 		if (!strcmp(d->name, name)) {
 			d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
 			d->active = 1;
 			d->standby = 0;
 			xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
 			(d->set_function)(d, 100);
+			ds++;
 		}
 	}
 }
