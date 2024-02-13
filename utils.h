@@ -13,12 +13,15 @@
 
 #define msleep(x) usleep(x*1000)
 
-int elevate_realtime(int cpu);
-
+void set_xlog(int output);
+void set_debug(int debug);
 void xlog_close();
 void xlog(const char *format, ...);
+void xdebug(const char *format, ...);
 int xerr(const char *format, ...);
 int xerrr(int ret, const char *format, ...);
+
+int elevate_realtime(int cpu);
 
 // WARNING strings are malloc'd - take care of freeing them after usage
 char* printbits64(uint64_t code, uint64_t spacemask);

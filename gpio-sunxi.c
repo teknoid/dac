@@ -72,19 +72,19 @@ static volatile void *mem;
 static void test_blink() {
 	const char *pio = "PA3";
 
-	printf("configure with initial 0\n");
+	xlog("configure with initial 0\n");
 	gpio_configure(pio, 1, 0, 0);
 	sleep(1);
 
-	printf("configure with initial 1\n");
+	xlog("configure with initial 1\n");
 	gpio_configure(pio, 1, 0, 1);
 	sleep(1);
 
-	printf("configure with initial not set\n");
+	xlog("configure with initial not set\n");
 	gpio_configure(pio, 1, 0, -1);
 	sleep(1);
 
-	printf("blink test\n");
+	xlog("blink test\n");
 	for (int i = 0; i < 3; i++) {
 		gpio_set(pio, 1);
 		gpio_print(pio);
@@ -95,7 +95,7 @@ static void test_blink() {
 	}
 	sleep(1);
 
-	printf("toggle test\n");
+	xlog("toggle test\n");
 	gpio_toggle(pio);
 	gpio_print(pio);
 	sleep(1);
@@ -108,28 +108,28 @@ static void test_timers() {
 	uint32_t *avs1 = TMR_AVS1(mem);
 	*avs1 = *avs0 = 0;
 	usleep(1000);
-	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+	xlog("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
 	usleep(1000);
-	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+	xlog("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
 	usleep(1000);
-	printf("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
+	xlog("AVS0 %08u AVS1 %08u\n", *avs0, *avs1);
 
 	gpio_delay_micros(330);
-	printf("AVS1 330 %08u\n", *avs1);
+	xlog("AVS1 330 %08u\n", *avs1);
 	gpio_delay_micros(188);
-	printf("AVS1 188 %08u\n", *avs1);
+	xlog("AVS1 188 %08u\n", *avs1);
 	gpio_delay_micros(88);
-	printf("AVS1 088 %08u\n", *avs1);
+	xlog("AVS1 088 %08u\n", *avs1);
 	gpio_delay_micros(22);
-	printf("AVS1 022 %08u\n", *avs1);
+	xlog("AVS1 022 %08u\n", *avs1);
 
-	printf("AVS0 %08u\n", *avs0);
+	xlog("AVS0 %08u\n", *avs0);
 	uint32_t delay = 1813594;
 	uint32_t begin = gpio_micros();
 	usleep(delay);
 	uint32_t elapsed = gpio_micros_since(&begin);
-	printf("AVS0 %08u\n", *avs0);
-	printf("usleep %u AVS0 elapsed = %u\n", delay, elapsed);
+	xlog("AVS0 %08u\n", *avs0);
+	xlog("usleep %u AVS0 elapsed = %u\n", delay, elapsed);
 }
 
 static void mem_read(gpio_status_t *pio) {
@@ -210,11 +210,11 @@ void gpio_x() {
 //
 //	addr = I2S0_CLKDIV(mem);
 //	val = *addr;
-//	printf("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
+//	xlog("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
 //
 //	val |= 1 << 9;
 //	val = *addr;
-//	printf("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
+//	xlog("I2S0_CLKDIV 0x%x %s\n", val, printbits(val, SPACEMASK));
 }
 
 void gpio_print(const char *name) {
@@ -225,12 +225,12 @@ void gpio_print(const char *name) {
 	pio.port = *name++ - 'A';
 	pio.pin = atoi(name);
 	mem_read(&pio);
-	printf("P%c%d", 'A' + pio.port, pio.pin);
-	printf("<%x>", pio.func);
-	printf("<%x>", pio.pull);
-	printf("<%x>", pio.trig);
-	printf("<%x>", pio.data);
-	printf("\n");
+	xlog("P%c%d", 'A' + pio.port, pio.pin);
+	xlog("<%x>", pio.func);
+	xlog("<%x>", pio.pull);
+	xlog("<%x>", pio.trig);
+	xlog("<%x>", pio.data);
+	xlog("\n");
 }
 
 int gpio_configure(const char *name, int function, int trigger, int initial) {
@@ -304,7 +304,8 @@ void gpio_delay_micros(uint32_t us) {
 	*ctrl |= 0b10; // run
 	if (us > 100)
 		usleep(us - 90);
-	while (*avs1 < us);
+	while (*avs1 < us)
+		;
 }
 
 uint32_t gpio_micros() {
@@ -330,13 +331,13 @@ static int init() {
 	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
 	if (fd == -1) {
-		printf("/dev/mem failed: %s\n", strerror(errno));
+		xlog("/dev/mem failed: %s\n", strerror(errno));
 		return -2;
 	}
 
 	mem = mmap(NULL, pagesize, PROT_WRITE | PROT_READ, MAP_SHARED, fd, MEM_BASE);
 	if (mem == MAP_FAILED) {
-		printf("mmap gpio failed: %s\n", strerror(errno));
+		xlog("mmap gpio failed: %s\n", strerror(errno));
 		return -4;
 	}
 
@@ -366,8 +367,11 @@ static void stop() {
 }
 
 int gpio_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 	init();
-	printf("mmap OK\n");
+	xlog("mmap OK\n");
 
 	test_timers();
 	test_blink();

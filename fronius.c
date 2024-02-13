@@ -128,9 +128,9 @@ int set_boiler(void *ptr, int power) {
 
 	int step = power - boiler->power;
 	if (step > 0)
-		xlog("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
+		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 	else
-		xlog("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
+		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
 
 	// update power value
 	boiler->power = power;
@@ -402,26 +402,30 @@ static int calculate_step(device_t *d, int power) {
 
 	// power steps
 	int step = power / (d->maximum / 100);
+	xdebug("FRONIUS step1 %d", step);
 
 	// do smaller up steps when we have distortion
 	if (0 < step && step < distortion)
 		step /= (distortion > 2 ? distortion : 2);
+	xdebug("FRONIUS step2 %d", step);
 
 	// do bigger down steps if we have negative pv production tendence
 	if (step < 0 && tendence < 0)
 		step *= 2;
+	xdebug("FRONIUS step3 %d", step);
 
 	if (step < -100)
 		step = -100; // min -100
 	if (step > 100)
 		step = 100; // max 100
+	xdebug("FRONIUS step4 %d", step);
 
 	return step;
 }
 
 static int ramp_adjustable(device_t *d, int power) {
+	xdebug("FRONIUS ramp_adjustable %s %d", d->name, power);
 	int step = calculate_step(d, power);
-	xlog("FRONIUS ramp_adjustable %s %d %d", d->name, power, step);
 
 	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
@@ -440,7 +444,7 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	xlog("FRONIUS ramp_dumb %s %d", d->name, power);
+	xdebug("FRONIUS ramp_dumb %s %d", d->name, power);
 
 	// keep on as long as we have enough power and device is already on
 	if (power > 0 && d->power)
@@ -638,7 +642,7 @@ static void* fronius(void *arg) {
 			wait = WAIT_NEXT;
 
 		// faster next round when we got suspicious values from Fronius API
-		if (sum < 0 || sum > 100)
+		if (sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
 		print_status();
@@ -893,6 +897,8 @@ void fronius_override(const char *name) {
 }
 
 int fronius_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
 
 	// no arguments - main loop
 	if (argc == 1) {

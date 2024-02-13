@@ -18,10 +18,13 @@ void mcp_register(const char *name, const int prio, const void *init, const void
 }
 
 int main(int argc, char **argv) {
-	printf("MCP initializing");
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
+	xlog("MCP initializing");
 
 	int power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
-	printf("DAC power is %s", power ? "ON" : "OFF");
+	xlog("DAC power is %s", power ? "ON" : "OFF");
 
 	gpio_configure(GPIO_DAC_MCLK, 3, 0, -1);
 	gpio_print(GPIO_DAC_MCLK);

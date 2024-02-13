@@ -24,47 +24,17 @@
 // static int output = XLOG_SYSLOG;
 static int output = XLOG_FILE;
 
+static int debug = 0;
+
 static const char *filename = "/var/log/mcp.log";
 static FILE *xlog_file;
 
-//
-// The RT scheduler problem
-//
-// https://www.raspberrypi.org/forums/viewtopic.php?t=228727
-// https://www.codeblueprint.co.uk/2019/10/08/isolcpus-is-deprecated-kinda.html
-// https://www.iot-programmer.com/index.php/books/22-raspberry-pi-and-the-iot-in-c/chapters-raspberry-pi-and-the-iot-in-c/33-raspberry-pi-iot-in-c-almost-realtime-linux
-//
+void set_debug(int d) {
+	debug = d;
+}
 
-int elevate_realtime(int cpu) {
-	// realtime can only done by root
-	if (getuid() != 0)
-		return 0;
-
-	// Set our thread to MAX priority
-	struct sched_param sp;
-	ZERO(&sp);
-	sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
-	if (sched_setscheduler(0, SCHED_FIFO, &sp))
-		return -1;
-
-	// Lock memory to ensure no swapping is done.
-	if (mlockall(MCL_FUTURE | MCL_CURRENT))
-		return -2;
-
-	// pin thread to CPU
-	// add this argument to /boot/cmdline.txt: isolcpus=2,3
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-	if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset))
-		return -3;
-
-	// This permits realtime processes to use 100% of a CPU, but on a
-	// RPi that starves the kernel. Without this there are latencies
-	// up to 50 MILLISECONDS.
-	system("echo -1 >/proc/sys/kernel/sched_rt_runtime_us");
-
-	return 0;
+void set_xlog(int o) {
+	output = o;
 }
 
 void xlog_close() {
@@ -130,6 +100,53 @@ int xerr(const char *format, ...) {
 int xerrr(int ret, const char *format, ...) {
 	xlog(format);
 	return ret;
+}
+
+void xdebug(const char *format, ...) {
+	if (!debug)
+		return;
+
+	xlog(format);
+}
+
+//
+// The RT scheduler problem
+//
+// https://www.raspberrypi.org/forums/viewtopic.php?t=228727
+// https://www.codeblueprint.co.uk/2019/10/08/isolcpus-is-deprecated-kinda.html
+// https://www.iot-programmer.com/index.php/books/22-raspberry-pi-and-the-iot-in-c/chapters-raspberry-pi-and-the-iot-in-c/33-raspberry-pi-iot-in-c-almost-realtime-linux
+//
+
+int elevate_realtime(int cpu) {
+	// realtime can only done by root
+	if (getuid() != 0)
+		return 0;
+
+	// Set our thread to MAX priority
+	struct sched_param sp;
+	ZERO(&sp);
+	sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
+	if (sched_setscheduler(0, SCHED_FIFO, &sp))
+		return -1;
+
+	// Lock memory to ensure no swapping is done.
+	if (mlockall(MCL_FUTURE | MCL_CURRENT))
+		return -2;
+
+	// pin thread to CPU
+	// add this argument to /boot/cmdline.txt: isolcpus=2,3
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(cpu, &cpuset);
+	if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset))
+		return -3;
+
+	// This permits realtime processes to use 100% of a CPU, but on a
+	// RPi that starves the kernel. Without this there are latencies
+	// up to 50 MILLISECONDS.
+	system("echo -1 >/proc/sys/kernel/sched_rt_runtime_us");
+
+	return 0;
 }
 
 char* printbits64(uint64_t value, uint64_t spacemask) {

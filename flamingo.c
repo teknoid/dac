@@ -249,11 +249,11 @@ void flamingo_send_SF500(int remote, uint8_t channel, uint8_t command) {
 }
 
 static int usage() {
-	printf("Usage: flamingo <remote> <channel> <command> [rolling]\n");
-	printf("    <remote>  1, 2, 3, ...\n");
-	printf("    <channel> A, B, C, D\n");
-	printf("    <command> 0 - off, 1 - on\n");
-	printf("    [rolling]  rolling code index, 0...3\n");
+	xlog("Usage: flamingo <remote> <channel> <command> [rolling]\n");
+	xlog("    <remote>  1, 2, 3, ...\n");
+	xlog("    <channel> A, B, C, D\n");
+	xlog("    <command> 0 - off, 1 - on\n");
+	xlog("    [rolling]  rolling code index, 0...3\n");
 	return EXIT_FAILURE;
 }
 
@@ -267,6 +267,9 @@ static void stop() {
 }
 
 int flamingo_main(int argc, char *argv[]) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 	if (argc < 1)
 		return usage();
 
@@ -287,7 +290,7 @@ int flamingo_main(int argc, char *argv[]) {
 		// remote 1, 2, 3, ...
 		int remote = atoi(argv[1]);
 		if (remote < 1 || remote > sizeof(REMOTES)) {
-			printf("unknown remote %i\n", remote);
+			xlog("unknown remote %i\n", remote);
 			usage();
 			return EINVAL;
 		}
@@ -296,7 +299,7 @@ int flamingo_main(int argc, char *argv[]) {
 		char *c = argv[2];
 		char channel = toupper(c[0]);
 		if (channel < 'A' || channel > 'D') {
-			printf("channel not supported %c\n", channel);
+			xlog("channel not supported %c\n", channel);
 			usage();
 			return EINVAL;
 		}
@@ -304,7 +307,7 @@ int flamingo_main(int argc, char *argv[]) {
 		// command 0 = off, 1 = on
 		int command = atoi(argv[3]);
 		if (!(command == 0 || command == 1)) {
-			printf("wrong command %i\n", command);
+			xlog("wrong command %i\n", command);
 			usage();
 			return EINVAL;
 		}
@@ -314,7 +317,7 @@ int flamingo_main(int argc, char *argv[]) {
 		if (argv[4] != NULL) {
 			rolling = atoi(argv[4]);
 			if (rolling < 0 || rolling > 3) {
-				printf("wrong rolling code index %i\n", rolling);
+				xlog("wrong rolling code index %i\n", rolling);
 				usage();
 				return EINVAL;
 			}

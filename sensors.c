@@ -216,6 +216,9 @@ static void stop() {
 }
 
 int sensor_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 	sensors = malloc(sizeof(*sensors));
 	ZERO(sensors);
 
@@ -223,16 +226,16 @@ int sensor_main(int argc, char **argv) {
 	sleep(1);
 
 	while (1) {
-		printf("BH1750 raw  %d\n", sensors->bh1750_raw);
-		printf("BH1750 raw2 %d\n", sensors->bh1750_raw2);
-		printf("BH1750 lux  %d lx\n", sensors->bh1750_lux);
-		printf("BH1750 prc  %d %%\n", sensors->bh1750_prc);
+		xlog("BH1750 raw  %d\n", sensors->bh1750_raw);
+		xlog("BH1750 raw2 %d\n", sensors->bh1750_raw2);
+		xlog("BH1750 lux  %d lx\n", sensors->bh1750_lux);
+		xlog("BH1750 prc  %d %%\n", sensors->bh1750_prc);
 
-		printf("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
-		printf("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
+		xlog("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
+		xlog("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
 
-		printf("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
-		printf("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
+		xlog("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
+		xlog("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
 
 		sleep(10);
 	}

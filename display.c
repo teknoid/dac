@@ -393,6 +393,9 @@ static void stop() {
 }
 
 int display_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 	cfg = malloc(sizeof(*cfg));
 	ZERO(cfg);
 
