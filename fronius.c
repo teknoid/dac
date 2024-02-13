@@ -404,7 +404,7 @@ static int calculate_step(device_t *d, int power) {
 	int step = power / (d->maximum / 100);
 
 	// do smaller up steps when we have distortion
-	if (step > 0 && distortion)
+	if (0 < step && step < distortion)
 		step /= (distortion > 2 ? distortion : 2);
 
 	// do bigger down steps if we have negative pv production tendence
@@ -421,6 +421,7 @@ static int calculate_step(device_t *d, int power) {
 
 static int ramp_adjustable(device_t *d, int power) {
 	int step = calculate_step(d, power);
+	xlog("FRONIUS ramp_adjustable %s %d %d", d->name, power, step);
 
 	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
@@ -439,9 +440,11 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
+	xlog("FRONIUS ramp_dumb %s %d", d->name, power);
+
 	// keep on as long as we have enough power and device is already on
 	if (power > 0 && d->power)
-		return 1; // loop done
+		return 0; // continue loop
 
 	// switch on when enough power is available
 	if (power > d->maximum && !d->power) {
@@ -497,6 +500,7 @@ static int rampdown(int power, int skip_greedy) {
 	// jump to last entry
 	while (*ds != NULL)
 		ds++;
+	ds--;
 	// now go backward - this will give a reverse order
 	do {
 		if (skip_greedy && (*ds)->greedy)
@@ -607,6 +611,9 @@ static void* fronius(void *arg) {
 		if (charge < 99 && akku > 50)
 			// discharge when akku not full --> stop extra power
 			extra = 0;
+		else if (akku < 4500 && pv - akku > 100)
+			// not all possible pv is going into akku --> stop extra power
+			extra = 0;
 		else if (grid > 0)
 			// grid download --> stop extra power
 			extra = 0;
@@ -625,6 +632,10 @@ static void* fronius(void *arg) {
 		// faster next round when we have distortion
 		if (distortion && wait > 10)
 			wait /= 2;
+
+		// faster next round when pv history is not yet completely filled
+		if (distortion > 10)
+			wait = WAIT_NEXT;
 
 		// faster next round when we got suspicious values from Fronius API
 		if (sum < 0 || sum > 100)
