@@ -871,16 +871,14 @@ static void stop() {
 }
 
 void fronius_override(const char *name) {
-	const potd_device_t **ds = potd->devices;
-	while (*ds != NULL) {
-		device_t *d = (*ds)->device;
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
 			d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
 			d->active = 1;
 			d->standby = 0;
 			xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
 			(d->set_function)(d, 100);
-			ds++;
 		}
 	}
 }

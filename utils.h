@@ -11,7 +11,7 @@
 
 #define SWAP(x) ((x<<8) & 0xFF00) | ((x>>8) & 0xFF)
 
-#define msleep(x) usleep(x*1000)
+#define msleep(x) usleep(x * 1000)
 
 void set_xlog(int output);
 void set_debug(int debug);
