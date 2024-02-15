@@ -96,6 +96,7 @@ int set_boiler(void *ptr, int power) {
 	if (boiler->override) {
 		if (time(NULL) > boiler->override) {
 			// expired
+			xlog("FRONIUS Override expired for %s", boiler->name);
 			boiler->override = 0;
 			power = 0;
 		} else {
@@ -886,9 +887,8 @@ void fronius_override(const char *name) {
 			d->override = time(NULL) + 1000 * 1000 * 900; // 15min
 			d->active = 1;
 			d->standby = 0;
-			xlog("FRONIUS Setting Override for %s", d->name);
+			xlog("FRONIUS Activating Override for %s", d->name);
 			(d->set_function)(d, 100);
-			wait = 0;
 		}
 	}
 }
