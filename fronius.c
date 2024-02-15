@@ -145,36 +145,25 @@ static int choose_program(const potd_t *p) {
 	return 0;
 }
 
-static void set_devices(int power) {
-	if (potd == NULL)
-		return;
-
-	const potd_device_t **ds = potd->devices;
-	while (*ds != NULL) {
-		device_t *d = (*ds)->device;
+static void set_all_devices(int power) {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
 		(d->set_function)(d, power);
-		ds++;
 	}
 }
 
 static void print_status() {
-	const potd_device_t **ds;
 	char message[128];
 	char value[5];
 
 	strcpy(message, "FRONIUS devices active ");
-	ds = potd->devices;
-	while (*ds != NULL) {
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
 		strcat(message, (*ds)->device->active ? "1" : "0");
-		ds++;
-	}
 
 	strcat(message, "   power ");
-	ds = potd->devices;
-	while (*ds != NULL) {
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
 		snprintf(value, 5, " %3d", (*ds)->device->power);
 		strcat(message, value);
-		ds++;
 	}
 
 	snprintf(value, 5, "%3d", wait);
@@ -563,7 +552,7 @@ static void* fronius(void *arg) {
 		if (ret != 0) {
 			xlog("FRONIUS api() returned %d", ret);
 			if (++errors == 3)
-				set_devices(0);
+				set_all_devices(0);
 			wait = WAIT_NEXT;
 			continue;
 		} else
@@ -574,7 +563,7 @@ static void* fronius(void *arg) {
 		if (ret != 0) {
 			xlog("FRONIUS parse() returned %d", ret);
 			if (++errors == 3)
-				set_devices(0);
+				set_all_devices(0);
 			wait = WAIT_NEXT;
 			continue;
 		} else
@@ -583,7 +572,7 @@ static void* fronius(void *arg) {
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
 			xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d --> offline", charge, akku, grid, load, pv);
-			set_devices(0);
+			set_all_devices(0);
 			wait = WAIT_OFFLINE;
 			continue;
 		}
@@ -591,9 +580,9 @@ static void* fronius(void *arg) {
 		// reset program of the day and device states once per hour
 		if (potd == NULL || hour != now->tm_hour) {
 			xlog("FRONIUS resetting all device states");
-			set_devices(0);
+			set_all_devices(0);
 			forecast_Rad1h();
-			set_devices(0); // program might be changed
+			set_all_devices(0); // program might be changed
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
 			continue;
