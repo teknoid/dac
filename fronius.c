@@ -94,9 +94,14 @@ int set_boiler(void *ptr, int power) {
 
 	// count down override and set power to 100%
 	if (boiler->override) {
-		boiler->override--;
-		power = 100;
-		xlog("FRONIUS Override active for %s remaining %d loops", boiler->name, boiler->override);
+		if (time(NULL) > boiler->override) {
+			// expired
+			boiler->override = 0;
+			power = 0;
+		} else {
+			xlog("FRONIUS Override active for %s", boiler->name);
+			power = 100;
+		}
 	} else {
 		if (!boiler->active)
 			power = 0;
@@ -149,6 +154,16 @@ static void set_all_devices(int power) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		(d->set_function)(d, power);
+	}
+}
+
+// initialize all devices with start values
+static void init_all_devices() {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		d->active = 1;
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
 	}
 }
 
@@ -826,16 +841,10 @@ static void test() {
 }
 
 static int init() {
+	init_all_devices();
+
 	// start with default program
 	potd = (potd_t*) &CLOUDY_EMPTY;
-
-	// initialize all devices with start values
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		d->active = 1;
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
 
 	curl = curl_easy_init();
 	if (curl == NULL)
@@ -874,11 +883,12 @@ void fronius_override(const char *name) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
-			d->override = pv < 100 ? 1 : 120; // WAIT_OFFLINE x 1 or WAIT_KEEP x 120
+			d->override = time(NULL) + 1000 * 1000 * 900; // 15min
 			d->active = 1;
 			d->standby = 0;
-			xlog("FRONIUS Setting Override for %s loops %d", d->name, d->override);
+			xlog("FRONIUS Setting Override for %s", d->name);
 			(d->set_function)(d, 100);
+			wait = 0;
 		}
 	}
 }
@@ -895,12 +905,17 @@ int fronius_main(int argc, char **argv) {
 		return 0;
 	}
 
-	int i, t = 0;
-	char *c = NULL;
-	while ((i = getopt(argc, argv, "c:t")) != -1) {
+	int i, c, o, t = 0;
+	char *name = NULL;
+	while ((i = getopt(argc, argv, "c:o:t")) != -1) {
 		switch (i) {
 		case 'c':
-			c = optarg;
+			c = 1;
+			name = optarg;
+			break;
+		case 'o':
+			o = 1;
+			name = optarg;
 			break;
 		case 't':
 			t = 1;
@@ -908,10 +923,15 @@ int fronius_main(int argc, char **argv) {
 		}
 	}
 
+	init_all_devices();
+
 	// calibration - execute as
 	//   stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
-	if (c != NULL)
-		calibrate(c);
+	if (c)
+		calibrate(name);
+
+	if (o)
+		fronius_override(name);
 
 	if (t)
 		test();

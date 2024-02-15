@@ -31,8 +31,8 @@ typedef int (*set_function_t)(void*, int);
 typedef struct device_t {
 	const char *name;
 	const char *addr;
+	time_t override;
 	int adjustable;
-	int override;
 	int maximum;
 	int standby;
 	int active;
