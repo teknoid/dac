@@ -13,6 +13,7 @@
 
 #define PV_HISTORY			24
 
+#define OVERRIDE			600
 #define MOSMIX_FACTOR		3
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000

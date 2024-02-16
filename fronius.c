@@ -80,27 +80,18 @@ int set_boiler(void *ptr, int power) {
 	if (power > 100)
 		power = 100;
 
-	// check if update is necessary
-	if (boiler->power == power)
-		return 0;
-
-	// standby: only update if smaller
-	if (boiler->standby && power > boiler->maximum)
-		return 0;
-
 	// can we send a message
 	if (boiler->addr == NULL)
 		return xerr("No address to send UDP message");
 
-	// count down override and set power to 100%
 	if (boiler->override) {
-		if (time(NULL) > boiler->override) {
-			// expired
-			xlog("FRONIUS Override expired for %s", boiler->name);
+		time_t t = time(NULL);
+		if (t > boiler->override) {
+			xdebug("FRONIUS Override expired for %s", boiler->name);
 			boiler->override = 0;
 			power = 0;
 		} else {
-			xlog("FRONIUS Override active for %s", boiler->name);
+			xdebug("FRONIUS Override active for %lu seconds on %s", boiler->override - t, boiler->name);
 			power = 100;
 		}
 	} else {
@@ -109,6 +100,10 @@ int set_boiler(void *ptr, int power) {
 		if (power == 0)
 			boiler->standby = 0; // zero resets standby
 	}
+
+	// no update necessary
+	if (boiler->power == power)
+		return 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -434,9 +429,10 @@ static int ramp_adjustable(device_t *d, int power) {
 
 	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
-	if (step > 0 && d->power == 100 && (d->maximum / 2 * -1) < load) {
+	if (step > 0 && d->power == 100 && (d->maximum / 2 * -1) < load && !d->override) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
+		xdebug("FRONIUS %s entering standby", d->name);
 		return 0; // continue loop
 	}
 
@@ -472,6 +468,8 @@ static int ramp_dumb(device_t *d, int power) {
 }
 
 static int rampup_device(device_t *d, int power) {
+	xdebug("FRONIUS rampup_device %s %d", d->name, power);
+
 	if (!d->active)
 		return 0; // continue loop
 
@@ -485,6 +483,8 @@ static int rampup_device(device_t *d, int power) {
 }
 
 static int rampdown_device(device_t *d, int power) {
+	xdebug("FRONIUS rampdown_device %s %d", d->name, power);
+
 	if (!d->power)
 		return 0; // already off - continue loop
 
@@ -842,6 +842,8 @@ static void test() {
 }
 
 static int init() {
+//	set_debug(1);
+
 	init_all_devices();
 
 	// start with default program
@@ -884,10 +886,10 @@ void fronius_override(const char *name) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
-			d->override = time(NULL) + 1000 * 1000 * 900; // 15min
+			xlog("FRONIUS Activating Override for %d seconds on %s", OVERRIDE, d->name);
+			d->override = time(NULL) + OVERRIDE;
 			d->active = 1;
 			d->standby = 0;
-			xlog("FRONIUS Activating Override for %s", d->name);
 			(d->set_function)(d, 100);
 		}
 	}
