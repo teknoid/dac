@@ -290,7 +290,10 @@ static int forecast_Rad1h() {
 	char line[8];
 	int today, tomorrow, tomorrowplus1;
 
-	FILE *fp = popen("cat /tmp/Rad1h.txt", "r");
+	// default program
+	potd = (potd_t*) &CLOUDY_EMPTY;
+
+	FILE *fp = fopen(FORECAST, "r");
 	if (fp == NULL)
 		return xerr("FRONIUS no forecast data available");
 
@@ -306,7 +309,7 @@ static int forecast_Rad1h() {
 		if (sscanf(line, "%d", &tomorrowplus1) != 1)
 			return xerr("FRONIUS forecast parse error %s", line);
 
-	pclose(fp);
+	fclose(fp);
 
 	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
 	int exp_today = today * MOSMIX_FACTOR;
