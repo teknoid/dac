@@ -141,7 +141,7 @@ int set_boiler(void *ptr, int power) {
 }
 
 static int choose_program(const potd_t *p) {
-	xlog("FRONIUS choosing %s program for today", p->name);
+	xlog("FRONIUS choosing %s program of the day", p->name);
 	potd = (potd_t*) p;
 	return 0;
 }
@@ -283,14 +283,15 @@ static int forecast() {
 
 	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
 	int exp_today = today * MOSMIX_FACTOR;
-	int exp_tomorrow = tomorrow * MOSMIX_FACTOR;
+	int exp_tom = tomorrow * MOSMIX_FACTOR;
+	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
 
-	xlog("FRONIUS forecast today %d tomorrow %d tomorrow+1 %d :: needed %d :: expected tod %d tom %d", today, tomorrow, tomorrowplus1, needed, exp_today, exp_tomorrow);
+	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
 	if (exp_today > needed)
 		return choose_program(&SUNNY);
 
-	if (charge > 50 && exp_tomorrow > SELF_CONSUMING)
+	if (charge > 50 && exp_tom > SELF_CONSUMING)
 		return choose_program(&TOMORROW);
 
 	if (charge > 75)
