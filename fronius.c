@@ -256,37 +256,7 @@ static void update_history() {
 	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d ", message, average, variation, distortion, tendence);
 }
 
-//static int forecast_SunD() {
-//	char line[32];
-//	int yesterday_h, yesterday_s, today_h, today_s, tomorrow_h, tomorrow_s;
-//
-//	FILE *fp = popen("cat /tmp/SunD.txt", "r");
-//	if (fp == NULL)
-//		return xerr("FRONIUS no forecast data available");
-//
-//	if (fgets(line, 32, fp) != NULL)
-//		if (sscanf(line, "%d=%d", &yesterday_h, &yesterday_s) != 2)
-//			return xerr("FRONIUS forecast yesterday parse error %s", line);
-//
-//	if (fgets(line, 32, fp) != NULL)
-//		if (sscanf(line, "%d=%d", &today_h, &today_s) != 2)
-//			return xerr("FRONIUS forecast today parse error %s", line);
-//
-//	if (fgets(line, 32, fp) != NULL)
-//		if (sscanf(line, "%d=%d", &tomorrow_h, &tomorrow_s) != 2)
-//			return xerr("FRONIUS forecast tomorrow parse error %s", line);
-//
-//	pclose(fp);
-//
-//	float yesterday_sun = (float) yesterday_s / 3600;
-//	float today_sun = (float) today_s / 3600;
-//	float tomorrow_sun = (float) tomorrow_s / 3600;
-//	xlog("FRONIUS sunshine hours forecast for yesterday %2.1f today %2.1f tomorrow %2.1f", yesterday_sun, today_sun, tomorrow_sun);
-//	// xlog("FRONIUS choosing program from weather forecast");
-//	return today_sun;
-//}
-
-static int forecast_Rad1h() {
+static int forecast() {
 	char line[8];
 	int today, tomorrow, tomorrowplus1;
 
@@ -600,7 +570,7 @@ static void* fronius(void *arg) {
 		if (potd == NULL || hour != now->tm_hour) {
 			xlog("FRONIUS resetting all device states");
 			set_all_devices(0);
-			forecast_Rad1h();
+			forecast();
 			set_all_devices(0); // program might be changed
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
@@ -848,9 +818,6 @@ static int init() {
 //	set_debug(1);
 
 	init_all_devices();
-
-	// start with default program
-	potd = (potd_t*) &CLOUDY_EMPTY;
 
 	curl = curl_easy_init();
 	if (curl == NULL)
