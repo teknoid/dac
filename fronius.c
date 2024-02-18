@@ -30,6 +30,7 @@ static int charge, akku, grid, load, pv, distortion, tendence;
 static int history[PV_HISTORY];
 static int history_ptr = 0;
 
+static struct tm *now;
 static int wait = 0, sock = 0;
 static pthread_t thread;
 
@@ -281,17 +282,17 @@ static int forecast() {
 
 	fclose(fp);
 
-	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
 	int exp_today = today * MOSMIX_FACTOR;
 	int exp_tom = tomorrow * MOSMIX_FACTOR;
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
+	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
 	if (exp_today > needed)
 		return choose_program(&SUNNY);
 
-	if (charge > 50 && exp_tom > SELF_CONSUMING)
+	if (now->tm_hour > 13 && charge > 50 && exp_tom > SELF_CONSUMING)
 		return choose_program(&TOMORROW);
 
 	if (charge > 75)
@@ -535,7 +536,7 @@ static void* fronius(void *arg) {
 
 		// get actual date and time
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		now = localtime(&now_ts);
 
 		// make Fronius API call
 		ret = api();

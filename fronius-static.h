@@ -5,19 +5,17 @@
 #define WAIT_KEEP			60
 #define WAIT_NEXT			5
 
-#define STANDBY				20
-#define STANDBY_EXPIRE		3600 / WAIT_STANDBY
-
 #define KEEP_FROM			25
 #define KEEP_TO				75
 
 #define PV_HISTORY			24
-
 #define OVERRIDE			600
+#define STANDBY				20
+
+#define FORECAST			"/tmp/Rad1h.txt"
 #define MOSMIX_FACTOR		3
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000
-#define FORECAST			"/tmp/Rad1h.txt"
 
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW			"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -76,13 +74,6 @@ static const potd_device_t CLOUDY_FULL_3 = { .device = &boiler2, .greedy = 0 };
 static const potd_device_t CLOUDY_FULL_4 = { .device = &boiler3, .greedy = 0 };
 static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .devices = { &CLOUDY_FULL_1, &CLOUDY_FULL_2, &CLOUDY_FULL_3, &CLOUDY_FULL_4, NULL } };
 
-// program of the day for cloudy weather but tomorrow sunny: priority is warm water in boiler3, then rest
-static const potd_device_t TOMORROW_1 = { .device = &boiler3, .greedy = 1 };
-static const potd_device_t TOMORROW_2 = { .device = &boiler2, .greedy = 1 };
-static const potd_device_t TOMORROW_3 = { .device = &boiler1, .greedy = 1 };
-static const potd_device_t TOMORROW_4 = { .device = &plug9, .greedy = 1 };
-static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &TOMORROW_1, &TOMORROW_2, &TOMORROW_3, &TOMORROW_4, NULL } };
-
 // program of the day for sunny weather: akku will be full anyway at the end of day
 static const potd_device_t SUNNY_1 = { .device = &plug9, .greedy = 1 };
 static const potd_device_t SUNNY_2 = { .device = &boiler1, .greedy = 1 };
@@ -90,3 +81,9 @@ static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 1 };
 static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 1 };
 static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
 
+// program of the day for cloudy weather but tomorrow sunny: priority is warm water in boiler3, then rest
+static const potd_device_t TOMORROW_1 = { .device = &boiler3, .greedy = 1 };
+static const potd_device_t TOMORROW_2 = { .device = &boiler2, .greedy = 0 };
+static const potd_device_t TOMORROW_3 = { .device = &boiler1, .greedy = 0 };
+static const potd_device_t TOMORROW_4 = { .device = &plug9, .greedy = 0 };
+static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &TOMORROW_1, &TOMORROW_2, &TOMORROW_3, &TOMORROW_4, NULL } };
