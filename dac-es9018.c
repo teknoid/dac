@@ -50,10 +50,11 @@ void dac_volume_up() {
 	if (!mcp->dac_power)
 		return;
 
-	gpio_set(GPIO_VOL_UP, 1);
-	msleep(100);
+	gpio_configure(GPIO_VOL_UP, 1, 0, 1);
+	msleep(50);
 	gpio_set(GPIO_VOL_UP, 0);
-	msleep(100);
+	msleep(50);
+	gpio_configure(GPIO_VOL_UP, 0, 0, 0);
 	xlog("VOL++");
 }
 
@@ -61,10 +62,11 @@ void dac_volume_down() {
 	if (!mcp->dac_power)
 		return;
 
-	gpio_set(GPIO_VOL_DOWN, 1);
-	msleep(100);
+	gpio_configure(GPIO_VOL_DOWN, 1, 0, 1);
+	msleep(50);
 	gpio_set(GPIO_VOL_DOWN, 0);
-	msleep(100);
+	msleep(50);
+	gpio_configure(GPIO_VOL_DOWN, 0, 0, 0);
 	xlog("VOL--");
 }
 
@@ -105,9 +107,6 @@ void dac_handle(int c) {
 }
 
 static int init() {
-	gpio_configure(GPIO_VOL_UP, 1, 0, 0);
-	gpio_configure(GPIO_VOL_DOWN, 1, 0, 0);
-
 	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
 	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
 
