@@ -67,11 +67,11 @@ display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
 
-gpio-sunxi: gpio-sunxi.o
+gpio-sunxi: gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
-	$(CC) $(CFLAGS) -o gpio-sunxi gpio-sunxi.o
+	$(CC) $(CFLAGS) -o gpio-sunxi gpio-sunxi.o utils.o
 
-gpio-bcm2835: gpio-bcm2835.o
+gpio-bcm2835: gpio-bcm2835.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
 	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o utils.o
 	
