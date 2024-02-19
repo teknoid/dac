@@ -376,7 +376,7 @@ static int calculate_step(device_t *d, int power) {
 		return tendence > 0 ? 2 : 1;
 
 	// power steps
-	int step = power / (d->maximum / 100);
+	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
 
 	// do smaller up steps when we have distortion
@@ -404,7 +404,7 @@ static int ramp_adjustable(device_t *d, int power) {
 
 	// check if device is ramped up to 100% but does not consume power
 	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
-	if (step > 0 && d->power == 100 && (d->maximum / 2 * -1) < load && !d->override) {
+	if (step > 0 && d->power == 100 && (d->load / 2 * -1) < load && !d->override) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
 		xdebug("FRONIUS %s entering standby", d->name);
@@ -423,11 +423,11 @@ static int ramp_dumb(device_t *d, int power) {
 	xdebug("FRONIUS ramp_dumb %s %d", d->name, power);
 
 	// keep on as long as we have enough power and device is already on
-	if (power > 0 && d->power)
+	if (d->power && power > 0)
 		return 0; // continue loop
 
 	// switch on when enough power is available
-	if (power > d->maximum && !d->power) {
+	if (!d->power && power > d->load) {
 		// switch on
 		(d->set_function)(d, 1);
 		return 1; // loop done
