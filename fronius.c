@@ -497,24 +497,29 @@ static int rampdown(int power, int skip_greedy) {
 
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
+	// allow more tolerance for big pv production
+	int tolerance = pv / 1000 + 1;
+	int kf = KEEP_FROM * tolerance;
+	int kt = KEEP_TO * tolerance;
+	xdebug("FRONIUS tolerance KEEP_FROM %d KEEP_TO %d", kf, kt);
 
 	// 1. no extra power available: ramp down devices but skip greedy
-	if (extra < KEEP_FROM)
+	if (extra < kf)
 		if (rampdown(extra, 1))
 			return;
 
 	// 2. consuming grid power or discharging akku: ramp down all devices
-	if (surplus < KEEP_FROM)
+	if (surplus < kf)
 		if (rampdown(surplus, 0))
 			return;
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
-	if (surplus > KEEP_TO)
+	if (surplus > kt)
 		if (rampup(surplus, 1))
 			return;
 
 	// 4. extra power available: ramp up all devices
-	if (extra > KEEP_TO)
+	if (extra > kt)
 		if (rampup(extra, 0))
 			return;
 }
