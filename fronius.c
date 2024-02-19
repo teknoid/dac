@@ -285,7 +285,7 @@ static int forecast() {
 	int exp_today = today * MOSMIX_FACTOR;
 	int exp_tom = tomorrow * MOSMIX_FACTOR;
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
-	int needed = SELF_CONSUMING + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
+	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
