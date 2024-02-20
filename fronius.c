@@ -600,9 +600,10 @@ static void* fronius(void *arg) {
 		if (charge < 99 && akku > 50)
 			// discharge when akku not full --> stop extra power
 			extra = 0;
-		else if (akku < 4500 && pv - akku > 100)
-			// not all possible pv is going into akku --> stop extra power
-			extra = 0;
+// TODO check logic
+//		else if (akku > -4500 && akku + pv > 100)
+//			// not all possible pv is going into akku --> stop extra power
+//			extra = 0;
 		else if (grid > 0)
 			// grid download --> stop extra power
 			extra = 0;
