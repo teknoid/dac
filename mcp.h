@@ -11,11 +11,13 @@
 #define TASMOTA
 #define LCD
 #define I2C				"/dev/i2c-3"
+#define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
 #endif
 
 #ifdef ANUS
 #define MUSIC 			"/opt/music/"
 #define DISPLAY			"/dev/tty"
+#define MIXER			"/usr/bin/amixer -q set Master"
 #endif
 
 #ifdef PICAM

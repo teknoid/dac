@@ -12,51 +12,55 @@
 int dummy_status;
 
 static void dac_on() {
+
 #ifdef GPIO_POWER
 	gpio_set(GPIO_POWER, 1);
 #endif
+
 	mcp->dac_power = 1;
 	xlog("switched DAC on");
+
+	// wait for DAC init
+	msleep(1000);
+	mpdclient_handle(KEY_PLAY);
 }
 
 static void dac_off() {
+	mpdclient_handle(KEY_STOP);
+
 #ifdef GPIO_POWER
 	gpio_set(GPIO_POWER, 0);
 #endif
+
 	xlog("switched DAC off");
 	mcp->dac_power = 0;
 }
 
 void dac_power() {
-	if (!mcp->dac_power) {
+	if (!mcp->dac_power)
 		dac_on();
-		// wait for DAC init
-		msleep(1000);
-		mpdclient_handle(KEY_PLAY);
-	} else {
-		mpdclient_handle(KEY_STOP);
+	else
 		dac_off();
-	}
 }
 
 void dac_volume_up() {
-	system("/usr/bin/amixer -q set Master 2%+");
+	system(MIXER" 2%+");
 	xlog("VOL++");
 }
 
 void dac_volume_down() {
-	system("/usr/bin/amixer -q set Master 2%-");
+	system(MIXER" 2%-");
 	xlog("VOL--");
 }
 
 void dac_mute() {
-	system("/usr/bin/amixer -q set Master mute");
+	system(MIXER" mute");
 	mcp->dac_mute = 1;
 	xlog("MUTE");
 }
 
 void dac_unmute() {
-	system("/usr/bin/amixer -q set Master unmute");
+	system(MIXER" unmute");
 	mcp->dac_mute = 0;
 	xlog("UNMUTE");
 }
@@ -82,12 +86,10 @@ void dac_handle(int c) {
 static int init() {
 #ifdef GPIO_POWER
 	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
-	if (mcp->dac_power) {
+	if (mcp->dac_power)
 		xlog("DAC  power is ON");
-	} else {
+	 else
 		xlog("DAC  power is OFF");
-	}
-
 #endif
 
 	return 0;

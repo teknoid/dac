@@ -81,7 +81,7 @@ static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 1 };
 static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 1 };
 static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
 
-// program of the day for cloudy weather but tomorrow sunny: priority is warm water in boiler3, then rest
+// program of the day for cloudy weather but tomorrow sunny: same as sunny but other priority
 static const potd_device_t TOMORROW_1 = { .device = &plug9, .greedy = 1 };
 static const potd_device_t TOMORROW_2 = { .device = &boiler3, .greedy = 1 };
 static const potd_device_t TOMORROW_3 = { .device = &boiler2, .greedy = 1 };
