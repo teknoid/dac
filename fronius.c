@@ -69,7 +69,7 @@ int set_heater(void *ptr, int power) {
 	heater->power = power;
 	wait = WAIT_NEXT;
 
-	return 0;
+	return 1; // loop done
 }
 
 int set_boiler(void *ptr, int power) {
@@ -138,7 +138,7 @@ int set_boiler(void *ptr, int power) {
 	boiler->power = power;
 	wait = WAIT_NEXT;
 
-	return 0;
+	return 1; //loop done
 }
 
 static int choose_program(const potd_t *p) {
@@ -286,10 +286,11 @@ static int forecast() {
 	int exp_tom = tomorrow * MOSMIX_FACTOR;
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
 	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
+	int high_noon = 10 <= now->tm_hour && now->tm_hour <= 13;
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
-	if (exp_today > needed)
+	if (high_noon && exp_today > needed)
 		return choose_program(&SUNNY);
 
 	if (now->tm_hour > 13 && charge > 50 && exp_tom > SELF_CONSUMING)
@@ -411,10 +412,8 @@ static int ramp_adjustable(device_t *d, int power) {
 		return 0; // continue loop
 	}
 
-	if (step) {
-		(d->set_function)(d, d->power + step);
-		return 1; // loop done
-	}
+	if (step)
+		return (d->set_function)(d, d->power + step);
 
 	return 0; // continue loop
 }
@@ -427,17 +426,12 @@ static int ramp_dumb(device_t *d, int power) {
 		return 0; // continue loop
 
 	// switch on when enough power is available
-	if (!d->power && power > d->load) {
-		// switch on
-		(d->set_function)(d, 1);
-		return 1; // loop done
-	}
+	if (!d->power && power > d->load)
+		return (d->set_function)(d, 1);
 
 	// switch off
-	if (d->power) {
-		(d->set_function)(d, 0);
-		return 1; // loop done
-	}
+	if (d->power)
+		return (d->set_function)(d, 0);
 
 	return 0; // continue loop
 }
@@ -497,6 +491,9 @@ static int rampdown(int power, int skip_greedy) {
 
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
+
+// TODO - wenn !adjustable vor adjustable und pv > device load dann reset
+
 	// allow more tolerance for big pv production
 	int tolerance = pv / 1000 + 1;
 	int kf = KEEP_FROM * tolerance;
@@ -601,7 +598,7 @@ static void* fronius(void *arg) {
 			// discharge when akku not full --> stop extra power
 			extra = 0;
 // TODO check logic
-//		else if (akku > -4500 && akku + pv > 100)
+//		else if (akku > -4500 && akku + pv < 100)
 //			// not all possible pv is going into akku --> stop extra power
 //			extra = 0;
 		else if (grid > 0)
@@ -623,12 +620,8 @@ static void* fronius(void *arg) {
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// faster next round when pv history is not yet completely filled
-		if (distortion > 10)
-			wait = WAIT_NEXT;
-
-		// faster next round when we got suspicious values from Fronius API
-		if (sum < 0 || sum > 200)
+		// much faster next round on extreme distortion or suspicious values from Fronius API
+		if (distortion > 10 || sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
 		print_status();
@@ -641,7 +634,7 @@ static void* fronius(void *arg) {
 // - Külschränke aus
 // - Heizung aus
 // - Rechner aus
-static void calibrate(char *name) {
+static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
 	char message[16];
 	float p_power;
@@ -795,9 +788,10 @@ static void calibrate(char *name) {
 	close(sock);
 	free(res.buffer);
 	curl_easy_cleanup(curl);
+	return 0;
 }
 
-static void test() {
+static int test() {
 	device_t *d = &boiler1;
 
 	d->active = 1;
@@ -820,6 +814,7 @@ static void test() {
 		usleep(200 * 1000);
 	}
 	set_boiler(d, 0);
+	return 0;
 }
 
 static int init() {
@@ -860,7 +855,7 @@ static void stop() {
 		close(sock);
 }
 
-void fronius_override(const char *name) {
+int fronius_override(const char *name) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
@@ -871,6 +866,7 @@ void fronius_override(const char *name) {
 			(d->set_function)(d, 100);
 		}
 	}
+	return 0;
 }
 
 int fronius_main(int argc, char **argv) {
@@ -885,36 +881,20 @@ int fronius_main(int argc, char **argv) {
 		return 0;
 	}
 
-	int i, c, o, t = 0;
-	char *name = NULL;
-	while ((i = getopt(argc, argv, "c:o:t")) != -1) {
-		switch (i) {
-		case 'c':
-			c = 1;
-			name = optarg;
-			break;
-		case 'o':
-			o = 1;
-			name = optarg;
-			break;
-		case 't':
-			t = 1;
-			break;
-		}
-	}
-
 	init_all_devices();
 
-	// calibration - execute as
-	//   stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
-	if (c)
-		calibrate(name);
-
-	if (o)
-		fronius_override(name);
-
-	if (t)
-		test();
+	int c;
+	while ((c = getopt(argc, argv, "c:o:t")) != -1) {
+		switch (c) {
+		case 'c':
+			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
+			return calibrate(optarg);
+		case 'o':
+			return fronius_override(optarg);
+		case 't':
+			return test();
+		}
+	}
 
 	return 0;
 }

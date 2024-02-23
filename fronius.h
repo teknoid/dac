@@ -1,1 +1,1 @@
-void fronius_override(const char *name);
+int fronius_override(const char *name);
