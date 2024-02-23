@@ -82,8 +82,8 @@ static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 1 };
 static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
 
 // program of the day for cloudy weather but tomorrow sunny: priority is warm water in boiler3, then rest
-static const potd_device_t TOMORROW_1 = { .device = &boiler3, .greedy = 1 };
-static const potd_device_t TOMORROW_2 = { .device = &boiler2, .greedy = 0 };
-static const potd_device_t TOMORROW_3 = { .device = &boiler1, .greedy = 0 };
-static const potd_device_t TOMORROW_4 = { .device = &plug9, .greedy = 0 };
+static const potd_device_t TOMORROW_1 = { .device = &plug9, .greedy = 1 };
+static const potd_device_t TOMORROW_2 = { .device = &boiler3, .greedy = 1 };
+static const potd_device_t TOMORROW_3 = { .device = &boiler2, .greedy = 1 };
+static const potd_device_t TOMORROW_4 = { .device = &boiler1, .greedy = 1 };
 static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &TOMORROW_1, &TOMORROW_2, &TOMORROW_3, &TOMORROW_4, NULL } };
