@@ -86,10 +86,7 @@ void dac_handle(int c) {
 static int init() {
 #ifdef GPIO_POWER
 	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
-	if (mcp->dac_power)
-		xlog("DAC  power is ON");
-	 else
-		xlog("DAC  power is OFF");
+	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 #endif
 
 	return 0;
