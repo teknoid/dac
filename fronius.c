@@ -290,6 +290,9 @@ static int forecast() {
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
+	if (exp_today > 2 * needed)
+		return choose_program(&SUNNY);
+
 	if (high_noon && exp_today > needed)
 		return choose_program(&SUNNY);
 
