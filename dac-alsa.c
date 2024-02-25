@@ -9,6 +9,10 @@
 #include "mpd.h"
 #include "utils.h"
 
+#ifndef MIXER
+#define MIXER	"/usr/bin/amixer -q set Master"
+#endif
+
 int dummy_status;
 
 static void dac_on() {

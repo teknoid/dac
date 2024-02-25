@@ -17,7 +17,6 @@
 #ifdef ANUS
 #define MUSIC 			"/opt/music/"
 #define DISPLAY			"/dev/tty"
-#define MIXER			"/usr/bin/amixer -q set Master"
 #endif
 
 #ifdef PICAM
