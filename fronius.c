@@ -286,17 +286,13 @@ static int forecast() {
 	int exp_tom = tomorrow * MOSMIX_FACTOR;
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
 	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
-	int high_noon = 10 <= now->tm_hour && now->tm_hour <= 13;
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
-	if (exp_today > 2 * needed)
+	if (exp_today > needed)
 		return choose_program(&SUNNY);
 
-	if (high_noon && exp_today > needed)
-		return choose_program(&SUNNY);
-
-	if (now->tm_hour > 13 && charge > 50 && exp_tom > SELF_CONSUMING)
+	if (charge > 50 && exp_tom > SELF_CONSUMING)
 		return choose_program(&TOMORROW);
 
 	if (charge > 75)

@@ -74,16 +74,16 @@ static const potd_device_t CLOUDY_FULL_3 = { .device = &boiler2, .greedy = 0 };
 static const potd_device_t CLOUDY_FULL_4 = { .device = &boiler3, .greedy = 0 };
 static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .devices = { &CLOUDY_FULL_1, &CLOUDY_FULL_2, &CLOUDY_FULL_3, &CLOUDY_FULL_4, NULL } };
 
-// program of the day for sunny weather: akku will be full anyway at the end of day
+// program of the day for sunny weather: plenty of power
 static const potd_device_t SUNNY_1 = { .device = &plug9, .greedy = 1 };
-static const potd_device_t SUNNY_2 = { .device = &boiler1, .greedy = 1 };
-static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 1 };
-static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 1 };
+static const potd_device_t SUNNY_2 = { .device = &boiler1, .greedy = 0 };
+static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 0 };
+static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 0 };
 static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
 
-// program of the day for cloudy weather but tomorrow sunny: same as sunny but other priority
+// program of the day for cloudy weather but tomorrow sunny: steal all akku charge power
 static const potd_device_t TOMORROW_1 = { .device = &plug9, .greedy = 1 };
-static const potd_device_t TOMORROW_2 = { .device = &boiler3, .greedy = 1 };
+static const potd_device_t TOMORROW_2 = { .device = &boiler1, .greedy = 1 };
 static const potd_device_t TOMORROW_3 = { .device = &boiler2, .greedy = 1 };
-static const potd_device_t TOMORROW_4 = { .device = &boiler1, .greedy = 1 };
+static const potd_device_t TOMORROW_4 = { .device = &boiler3, .greedy = 1 };
 static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &TOMORROW_1, &TOMORROW_2, &TOMORROW_3, &TOMORROW_4, NULL } };
