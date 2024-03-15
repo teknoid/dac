@@ -306,18 +306,19 @@ static int parse() {
 	char *c;
 	int ret;
 
-	// printf("Received data:/n%s\n", req.buffer);
-	// json_scanf(req.buffer, req.len, "{ Body { Data { PowerReal_P_Sum:%f } } }", &grid_power);
-	// printf("Grid Power %f\n", grid_power);
-
 	ret = json_scanf(res.buffer, res.len, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
 	if (ret != 4)
-		return -1;
+		xlog("FRONIUS warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
+
+	akku = p_akku;
+	grid = p_grid;
+	load = p_load;
+	pv = p_pv;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
 	ret = json_scanf(res.buffer, res.len, "{ Body { Data { Inverters:%Q } } }", &c);
 	if (ret != 1)
-		return -2;
+		xlog("FRONIUS warning! parsing Body->Data->Inverters: no result");
 
 	if (c != NULL) {
 		char *p = c;
@@ -326,17 +327,17 @@ static int parse() {
 		p++;
 		while (*p != '{')
 			p++;
-		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
-		free(c);
-		if (ret != 1)
-			return -3;
-	}
 
-	charge = p_charge;
-	akku = p_akku;
-	grid = p_grid;
-	load = p_load;
-	pv = p_pv;
+		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
+		if (ret == 1)
+			charge = p_charge;
+		else {
+			xlog("FRONIUS warning! parsing Body->Data->Inverters->SOC: no result");
+			charge = 0;
+		}
+
+		free(c);
+	}
 
 	return 0;
 }
@@ -535,6 +536,10 @@ static void* fronius(void *arg) {
 		if (wait--)
 			continue;
 
+		// check error counter
+		if (errors == 3)
+			set_all_devices(0);
+
 		// get actual date and time
 		time_t now_ts = time(NULL);
 		now = localtime(&now_ts);
@@ -543,23 +548,19 @@ static void* fronius(void *arg) {
 		ret = api();
 		if (ret != 0) {
 			xlog("FRONIUS api() returned %d", ret);
-			if (++errors == 3)
-				set_all_devices(0);
+			errors++;
 			wait = WAIT_NEXT;
 			continue;
-		} else
-			errors = 0;
+		}
 
 		// extract values from Fronius JSON response
 		ret = parse();
 		if (ret != 0) {
 			xlog("FRONIUS parse() returned %d", ret);
-			if (++errors == 3)
-				set_all_devices(0);
+			errors++;
 			wait = WAIT_NEXT;
 			continue;
-		} else
-			errors = 0;
+		}
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
@@ -623,6 +624,7 @@ static void* fronius(void *arg) {
 			wait = WAIT_NEXT;
 
 		print_status();
+		errors = 0;
 	}
 }
 
