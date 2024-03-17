@@ -20,7 +20,7 @@
 #endif
 
 #ifdef PICAM
-#define I2C				"/dev/i2c-0"
+#define I2C				"/dev/i2c-1"
 #endif
 
 #ifdef PIWOLF
