@@ -34,6 +34,8 @@ static struct tm *now;
 static int wait = 0, sock = 0;
 static pthread_t thread;
 
+static char line[LINEBUF];
+
 int set_heater(void *ptr, int power) {
 	device_t *heater = (device_t*) ptr;
 
@@ -607,7 +609,16 @@ static void* fronius(void *arg) {
 			extra = grid * -1;
 
 		sum = grid + akku + load + pv;
-		xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d Surplus:%5d Extra:%5d Sum:%d", charge, akku, grid, load, pv, surplus, extra, sum);
+		xlogl_start(line, "FRONIUS");
+		xlogl_int(line, 0, 0, "Charge", charge);
+		xlogl_int(line, 0, 0, "Akku", akku);
+		xlogl_int(line, 1, 1, "Grid", grid);
+		xlogl_int(line, 0, 0, "Load", load);
+		xlogl_int(line, 0, 0, "PV", pv);
+		xlogl_int(line, 1, 0, "Surplus", surplus);
+		xlogl_int(line, 1, 0, "Extra", extra);
+		xlogl_int(line, 0, 0, "Sum", sum);
+		xlogl_end(line, NULL);
 
 		// default wait for next round
 		wait = WAIT_KEEP;
@@ -818,7 +829,7 @@ static int test() {
 }
 
 static int init() {
-//	set_debug(1);
+	set_debug(1);
 
 	init_all_devices();
 

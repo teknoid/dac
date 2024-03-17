@@ -13,6 +13,8 @@
 
 #define msleep(x) usleep(x * 1000)
 
+#define LINEBUF 256
+
 void set_xlog(int output);
 void set_debug(int debug);
 void xlog_close();
@@ -20,6 +22,10 @@ void xlog(const char *format, ...);
 void xdebug(const char *format, ...);
 int xerr(const char *format, ...);
 int xerrr(int ret, const char *format, ...);
+
+void xlogl_start(char *line, const char *s);
+void xlogl_int(char *line, int colored, int invers, const char *name, int value);
+void xlogl_end(char *line, const char *s);
 
 int elevate_realtime(int cpu);
 

@@ -9,7 +9,7 @@
 #define SCROLLDELAY			6
 
 #define	WHITE				1
-#define RED					2
+#define RRED				2
 #define YELLOW				3
 #define GREEN				4
 #define YELLOWONBLUE		5

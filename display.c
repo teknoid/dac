@@ -162,7 +162,7 @@ static void songinfo(int line) {
 static void systeminfo(int line) {
 	mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
 	if (mcp->temp >= 60) {
-		color_set(RED, NULL);
+		color_set(RRED, NULL);
 		mvprintw(line, 8, "%2.1f", mcp->temp);
 	} else if (mcp->temp >= 50) {
 		attron(A_BOLD);
@@ -362,7 +362,7 @@ static int init() {
 
 	start_color();
 	init_pair(WHITE, COLOR_WHITE, COLOR_BLACK);
-	init_pair(RED, COLOR_RED, COLOR_BLACK);
+	init_pair(RRED, COLOR_RED, COLOR_BLACK);
 	init_pair(YELLOW, COLOR_YELLOW, COLOR_BLACK);
 	init_pair(GREEN, COLOR_GREEN, COLOR_BLACK);
 	init_pair(YELLOWONBLUE, COLOR_YELLOW, COLOR_BLUE);

@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 
+#include "ansi-color-codes.h"
 #include "keytable.h"
 #include "utils.h"
 
@@ -47,7 +48,7 @@ void xlog_close() {
 }
 
 void xlog(const char *format, ...) {
-	char timestamp[256];
+	char timestamp[26];
 	va_list vargs;
 
 	if (output == XLOG_STDOUT) {
@@ -90,6 +91,41 @@ void xlog(const char *format, ...) {
 		fprintf(xlog_file, "\n");
 		fflush(xlog_file);
 	}
+}
+
+void xlogl_start(char *line, const char *s) {
+	if (s != NULL)
+		strncpy(line, s, LINEBUF);
+	else
+		line[0] = '\0';
+}
+
+void xlogl_int(char *line, int colored, int invers, const char *name, int value) {
+	char pair[32];
+
+	if (colored) {
+		if (invers) {
+			if (value < 0)
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
+			else
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
+		} else {
+			if (value < 0)
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
+			else
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
+		}
+	} else
+		snprintf(pair, 32, " %s:%d", name, value);
+
+	strncat(line, pair, 32);
+}
+
+void xlogl_end(char *line, const char *s) {
+	if (s != NULL)
+		strncat(line, s, LINEBUF);
+
+	xlog(line);
 }
 
 int xerr(const char *format, ...) {
