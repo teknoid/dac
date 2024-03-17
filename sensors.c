@@ -226,16 +226,16 @@ int sensor_main(int argc, char **argv) {
 	sleep(1);
 
 	while (1) {
-		xlog("BH1750 raw  %d\n", sensors->bh1750_raw);
-		xlog("BH1750 raw2 %d\n", sensors->bh1750_raw2);
-		xlog("BH1750 lux  %d lx\n", sensors->bh1750_lux);
-		xlog("BH1750 prc  %d %%\n", sensors->bh1750_prc);
+		xlog("BH1750 raw  %d", sensors->bh1750_raw);
+		xlog("BH1750 raw2 %d", sensors->bh1750_raw2);
+		xlog("BH1750 lux  %d lx", sensors->bh1750_lux);
+		xlog("BH1750 prc  %d %%", sensors->bh1750_prc);
 
-		xlog("BMP085 temp %d (raw)\n", sensors->bmp085_temp_raw);
-		xlog("BMP085 baro %d (raw)\n", sensors->bmp085_baro_raw);
+		xlog("BMP085 temp %d (raw)", sensors->bmp085_temp_raw);
+		xlog("BMP085 baro %d (raw)", sensors->bmp085_baro_raw);
 
-		xlog("BMP085 temp %0.1f °C\n", sensors->bmp085_temp);
-		xlog("BMP085 baro %0.1f hPa\n", sensors->bmp085_baro);
+		xlog("BMP085 temp %0.1f °C", sensors->bmp085_temp);
+		xlog("BMP085 baro %0.1f hPa", sensors->bmp085_baro);
 
 		sleep(10);
 	}
