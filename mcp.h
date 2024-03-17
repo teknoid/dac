@@ -20,7 +20,8 @@
 #endif
 
 #ifdef PICAM
-#define I2C				"/dev/i2c-1"
+// /boot/firmware/config.txt: dtparam=i2c_vc=on
+#define I2C				"/dev/i2c-0"
 #endif
 
 #ifdef PIWOLF
