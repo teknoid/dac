@@ -122,8 +122,10 @@ void xlogl_int(char *line, int colored, int invers, const char *name, int value)
 }
 
 void xlogl_end(char *line, const char *s) {
-	if (s != NULL)
+	if (s != NULL) {
+		strcat(line, " ");
 		strncat(line, s, LINEBUF);
+	}
 
 	xlog(line);
 }

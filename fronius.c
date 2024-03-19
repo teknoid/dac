@@ -24,7 +24,7 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int charge, akku, grid, load, pv, distortion, tendence;
+static int akku, grid, load, pv, chrg, distortion, tendence;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -166,7 +166,23 @@ static void init_all_devices() {
 	}
 }
 
-static void print_status() {
+static void print_power_status(int surplus, int extra, int sum, const char *message) {
+	xlogl_start(line, "FRONIUS");
+	xlogl_int(line, 1, 1, "Grid", grid);
+	xlogl_int(line, 1, 1, "Akku", akku);
+	xlogl_int(line, 0, 0, "Chrg", chrg);
+	xlogl_int(line, 0, 0, "Load", load);
+	xlogl_int(line, 0, 0, "PV", pv);
+	if (surplus != 0)
+		xlogl_int(line, 1, 0, "Surplus", surplus);
+	if (extra != 0)
+		xlogl_int(line, 1, 0, "Extra", extra);
+	if (sum != 0)
+		xlogl_int(line, 0, 0, "Sum", sum);
+	xlogl_end(line, message);
+}
+
+static void print_device_status() {
 	char message[128];
 	char value[5];
 
@@ -287,17 +303,17 @@ static int forecast() {
 	int exp_today = today * MOSMIX_FACTOR;
 	int exp_tom = tomorrow * MOSMIX_FACTOR;
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
-	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * charge / 100;
+	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * chrg / 100;
 
 	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
 	if (exp_today > needed)
 		return choose_program(&SUNNY);
 
-	if (charge > 50 && exp_tom > SELF_CONSUMING)
+	if (chrg > 50 && exp_tom > SELF_CONSUMING)
 		return choose_program(&TOMORROW);
 
-	if (charge > 75)
+	if (chrg > 75)
 		return choose_program(&CLOUDY_FULL);
 
 	return choose_program(&CLOUDY_EMPTY);
@@ -332,10 +348,10 @@ static int parse() {
 
 		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
 		if (ret == 1)
-			charge = p_charge;
+			chrg = p_charge;
 		else {
 			xlog("FRONIUS warning! parsing Body->Data->Inverters->SOC: no result");
-			charge = 0;
+			chrg = 0;
 		}
 
 		free(c);
@@ -566,7 +582,7 @@ static void* fronius(void *arg) {
 
 		// not enough PV production, go into offline mode
 		if (pv < 100) {
-			xlog("FRONIUS Charge:%5d Akku:%5d Grid:%5d Load:%5d PV:%5d --> offline", charge, akku, grid, load, pv);
+			print_power_status(0, 0, 0, "--> offline");
 			set_all_devices(0);
 			wait = WAIT_OFFLINE;
 			continue;
@@ -595,7 +611,7 @@ static void* fronius(void *arg) {
 		surplus = (grid + akku) * -1;
 
 		// extra = grid upload - not going into akku or from secondary inverters
-		if (charge < 99 && akku > 50)
+		if (chrg < 99 && akku > 50)
 			// discharge when akku not full --> stop extra power
 			extra = 0;
 // TODO check logic
@@ -609,16 +625,7 @@ static void* fronius(void *arg) {
 			extra = grid * -1;
 
 		sum = grid + akku + load + pv;
-		xlogl_start(line, "FRONIUS");
-		xlogl_int(line, 0, 0, "Charge", charge);
-		xlogl_int(line, 0, 0, "Akku", akku);
-		xlogl_int(line, 1, 1, "Grid", grid);
-		xlogl_int(line, 0, 0, "Load", load);
-		xlogl_int(line, 0, 0, "PV", pv);
-		xlogl_int(line, 1, 0, "Surplus", surplus);
-		xlogl_int(line, 1, 0, "Extra", extra);
-		xlogl_int(line, 0, 0, "Sum", sum);
-		xlogl_end(line, NULL);
+		print_power_status(surplus, extra, sum, NULL);
 
 		// default wait for next round
 		wait = WAIT_KEEP;
@@ -634,7 +641,7 @@ static void* fronius(void *arg) {
 		if (distortion > 10 || sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
-		print_status();
+		print_device_status();
 		errors = 0;
 	}
 }
