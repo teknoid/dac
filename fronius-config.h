@@ -12,7 +12,10 @@
 #define OVERRIDE			600
 #define STANDBY				20
 
-#define FORECAST			"/tmp/Rad1h.txt"
+#define FORECAST			"/tmp/Rad1h-CHEMNITZ.txt"
+//#define FORECAST			"/tmp/Rad1h-MARIENBERG.txt"
+//#define FORECAST			"/tmp/Rad1h-BRAUNSDORF.txt"
+
 #define MOSMIX_FACTOR		3
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000
