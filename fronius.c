@@ -509,9 +509,7 @@ static int rampdown(int power, int skip_greedy) {
 
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
-
-// TODO - wenn !adjustable vor adjustable und pv > device load dann reset
-
+	// TODO - wenn !adjustable vor adjustable und pv > device load dann reset
 	// allow more tolerance for big pv production
 	int tolerance = pv / 1000 + 1;
 	int kf = KEEP_FROM * tolerance;
@@ -611,18 +609,11 @@ static void* fronius(void *arg) {
 		surplus = (grid + akku) * -1;
 
 		// extra = grid upload - not going into akku or from secondary inverters
-		if (chrg < 99 && akku > 50)
-			// discharge when akku not full --> stop extra power
-			extra = 0;
-// TODO check logic
-//		else if (akku > -4500 && akku + pv < 100)
-//			// not all possible pv is going into akku --> stop extra power
-//			extra = 0;
-		else if (grid > 0)
-			// grid download --> stop extra power
-			extra = 0;
-		else
-			extra = grid * -1;
+		extra = grid * -1;
+
+		// discharging akku is not extra power
+		if (akku > 0)
+			extra -= akku;
 
 		sum = grid + akku + load + pv;
 		print_power_status(surplus, extra, sum, NULL);
