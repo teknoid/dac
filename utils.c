@@ -114,7 +114,7 @@ void xlogl_int(char *line, int colored, int invers, const char *name, int value)
 		} else {
 			if (value < 0)
 				snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
-			if (value > 0)
+			else if (value > 0)
 				snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
 			else
 				snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
