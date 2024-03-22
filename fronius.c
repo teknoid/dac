@@ -628,8 +628,8 @@ static void* fronius(void *arg) {
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// much faster next round on extreme distortion or suspicious values from Fronius API
-		if (distortion > 10 || sum < 0 || sum > 200)
+		// much faster next round on grid load, extreme distortion or suspicious values from Fronius API
+		if (grid > 50 || distortion > 10 || sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
 		print_device_status();
