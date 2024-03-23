@@ -399,7 +399,7 @@ static int calculate_step(device_t *d, int power) {
 	xdebug("FRONIUS step1 %d", step);
 
 	// do smaller up steps when we have distortion
-	if (0 < step && step < distortion)
+	if (distortion && step > 0)
 		step /= (distortion > 2 ? distortion : 2);
 	xdebug("FRONIUS step2 %d", step);
 
@@ -629,7 +629,7 @@ static void* fronius(void *arg) {
 			wait /= 2;
 
 		// much faster next round on grid load, extreme distortion or suspicious values from Fronius API
-		if (grid > 50 || distortion > 10 || sum < 0 || sum > 200)
+		if (grid > 25 || distortion > 5 || sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
 		print_device_status();
