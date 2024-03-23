@@ -24,7 +24,7 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, pv, chrg, distortion, tendence;
+static int akku, grid, load, pv, chrg, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -272,7 +272,12 @@ static void update_history() {
 	else
 		tendence = 0;
 
-	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d ", message, average, variation, distortion, tendence);
+	// allow more tolerance for big pv production
+	int tolerance = pv / 1000 + 1;
+	kf = KEEP_FROM * tolerance;
+	kt = KEEP_TO * tolerance;
+
+	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d", message, average, variation, distortion, tendence, kf, kt);
 }
 
 static int forecast() {
@@ -387,26 +392,30 @@ static int api() {
 
 static int calculate_step(device_t *d, int power) {
 	// fixed steps to avoid swinging if power is around FROM and TO
-	if ((KEEP_FROM - 50) < power && power < KEEP_FROM)
+	if ((kf - 50) < power && power < kt)
 		return tendence < 0 ? -2 : -1;
-	else if (KEEP_FROM <= power && power < KEEP_TO)
+	else if (kf <= power && power < kt)
 		return 0;
-	else if (KEEP_TO <= power && power < (KEEP_TO + 50))
+	else if (kt <= power && power < (kt + 50))
 		return tendence > 0 ? 2 : 1;
 
 	// power steps
 	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
 
-	// do smaller up steps when we have distortion
-	if (distortion && step > 0)
-		step /= (distortion > 2 ? distortion : 2);
+	// invert if lower than KEEP_FROM but positive
+	if (0 < power && power < kf)
+		step *= -1;
 	xdebug("FRONIUS step2 %d", step);
 
-	// do bigger down steps if we have negative pv production tendence
-	if (step < 0 && tendence < 0)
-		step *= 2;
-	xdebug("FRONIUS step3 %d", step);
+	// when we have distortion, do: smaller up steps / bigger down steps
+	if (distortion) {
+		if (step > 0)
+			step /= (distortion + 1);
+		else
+			step *= (distortion + 1);
+		xdebug("FRONIUS step3 %d", step);
+	}
 
 	if (step < -100)
 		step = -100; // min -100
@@ -509,12 +518,8 @@ static int rampdown(int power, int skip_greedy) {
 
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
+
 	// TODO - wenn !adjustable vor adjustable und pv > device load dann reset
-	// allow more tolerance for big pv production
-	int tolerance = pv / 1000 + 1;
-	int kf = KEEP_FROM * tolerance;
-	int kt = KEEP_TO * tolerance;
-	xdebug("FRONIUS tolerance KEEP_FROM %d KEEP_TO %d", kf, kt);
 
 	// 1. no extra power available: ramp down devices but skip greedy
 	if (extra < kf)
