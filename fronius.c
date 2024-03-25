@@ -402,6 +402,8 @@ static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
+	if (!step)
+		return step;
 
 	// invert if lower than KEEP_FROM but positive
 	if (0 < power && power < kf)
