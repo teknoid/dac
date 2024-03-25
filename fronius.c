@@ -392,7 +392,7 @@ static int api() {
 
 static int calculate_step(device_t *d, int power) {
 	// fixed steps to avoid swinging if power is around FROM and TO
-	if ((kf - 50) < power && power < kt)
+	if ((kf - 50) < power && power < kf)
 		return tendence < 0 ? -2 : -1;
 	else if (kf <= power && power < kt)
 		return 0;
