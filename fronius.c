@@ -391,24 +391,11 @@ static int api() {
 }
 
 static int calculate_step(device_t *d, int power) {
-	// fixed steps to avoid swinging if power is around FROM and TO
-	if ((kf - 50) < power && power < kf)
-		return tendence < 0 ? -2 : -1;
-	else if (kf <= power && power < kt)
-		return 0;
-	else if (kt <= power && power < (kt + 50))
-		return tendence > 0 ? 2 : 1;
-
 	// power steps
 	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
 	if (!step)
 		return step;
-
-	// invert if lower than KEEP_FROM but positive
-	if (0 < power && power < kf)
-		step *= -1;
-	xdebug("FRONIUS step2 %d", step);
 
 	// when we have distortion, do: smaller up steps / bigger down steps
 	if (distortion) {
@@ -416,14 +403,14 @@ static int calculate_step(device_t *d, int power) {
 			step /= (distortion + 1);
 		else
 			step *= (distortion + 1);
-		xdebug("FRONIUS step3 %d", step);
+		xdebug("FRONIUS step2 %d", step);
 	}
 
 	if (step < -100)
 		step = -100; // min -100
 	if (step > 100)
 		step = 100; // max 100
-	xdebug("FRONIUS step4 %d", step);
+	xdebug("FRONIUS step3 %d", step);
 
 	return step;
 }
@@ -525,22 +512,22 @@ static void ramp(int surplus, int extra) {
 
 	// 1. no extra power available: ramp down devices but skip greedy
 	if (extra < kf)
-		if (rampdown(extra, 1))
+		if (rampdown(extra - kf, 1))
 			return;
 
 	// 2. consuming grid power or discharging akku: ramp down all devices
 	if (surplus < kf)
-		if (rampdown(surplus, 0))
+		if (rampdown(surplus - kf, 0))
 			return;
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (surplus > kt)
-		if (rampup(surplus, 1))
+		if (rampup(surplus - kt, 1))
 			return;
 
 	// 4. extra power available: ramp up all devices
 	if (extra > kt)
-		if (rampup(extra, 0))
+		if (rampup(extra - kt, 0))
 			return;
 }
 
