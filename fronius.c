@@ -400,9 +400,9 @@ static int calculate_step(device_t *d, int power) {
 	// when we have distortion, do: smaller up steps / bigger down steps
 	if (distortion) {
 		if (step > 0)
-			step /= (distortion + 1);
+			step /= (distortion == 1 ? 2 : distortion);
 		else
-			step *= (distortion + 1);
+			step *= (distortion == 1 ? 2 : distortion);
 		xdebug("FRONIUS step2 %d", step);
 	}
 
