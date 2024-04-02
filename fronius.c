@@ -442,7 +442,7 @@ static int ramp_dumb(device_t *d, int power) {
 		return 0; // continue loop
 
 	// switch on when enough power is available
-	if (!d->power && power > d->load)
+	if (!d->power && power > d->load * 1.5)
 		return (d->set_function)(d, 1);
 
 	// switch off
