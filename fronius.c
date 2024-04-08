@@ -24,7 +24,7 @@ static get_response_t res = { .buffer = NULL, .len = 0, .buflen = CHUNK_SIZE };
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, pv, chrg, distortion, tendence, kf, kt;
+static int akku, grid, load, load_last, pv, chrg, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -172,6 +172,7 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 1, 1, "Akku", akku);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
+	xlogl_int(line, 0, 0, "Load last", load_last);
 	xlogl_int(line, 0, 0, "PV", pv);
 	if (surplus != 0)
 		xlogl_int(line, 1, 0, "Surplus", surplus);
@@ -362,6 +363,9 @@ static int parse() {
 		free(c);
 	}
 
+	// fix Fronius7 pv injection
+	load -= pv / 3.3;
+
 	return 0;
 }
 
@@ -423,23 +427,28 @@ static int calculate_step(device_t *d, int power) {
 	return step;
 }
 
+// check if device is ramped up to 100% but does not consume power
+static int check_standby(device_t *d, int power) {
+	int no_load = (d->load / 2 * -1) < load;
+	int switched_off = load_last - load > d->load / 2; // thermostat switched off: now at least half less load than before
+	if (!d->override && !d->standby && (no_load || switched_off)) {
+		d->standby = 1;
+		(d->set_function)(d, STANDBY);
+		xdebug("FRONIUS %s entering standby", d->name);
+	}
+	return 0; // always continue loop
+}
+
 static int ramp_adjustable(device_t *d, int power) {
 	xdebug("FRONIUS ramp_adjustable %s %d", d->name, power);
 	int step = calculate_step(d, power);
 
-	// check if device is ramped up to 100% but does not consume power
-	// TODO funktioniert im sunny programm dann nicht mehr weil heizer an sind!
-	if (step > 0 && d->power == 100 && (d->load / 2 * -1) < load && !d->override) {
-		d->standby = 1;
-		(d->set_function)(d, STANDBY);
-		xdebug("FRONIUS %s entering standby", d->name);
+	if (step == 0)
 		return 0; // continue loop
-	}
-
-	if (step)
+	else if (step > 0 && d->power == 100)
+		return check_standby(d, power);
+	else
 		return (d->set_function)(d, d->power + step);
-
-	return 0; // continue loop
 }
 
 static int ramp_dumb(device_t *d, int power) {
@@ -634,6 +643,7 @@ static void* fronius(void *arg) {
 		if (grid > 25 || distortion > 5 || sum < 0 || sum > 200)
 			wait = WAIT_NEXT;
 
+		load_last = load;
 		print_device_status();
 		errors = 0;
 	}
