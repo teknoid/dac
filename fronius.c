@@ -363,9 +363,6 @@ static int parse() {
 		free(c);
 	}
 
-	// fix Fronius7 pv injection
-	load -= pv / 3.3;
-
 	return 0;
 }
 
@@ -606,6 +603,13 @@ static void* fronius(void *arg) {
 			wait = WAIT_NEXT;
 			continue;
 		}
+
+		// fix Fronius7 pv injection
+		int xload = load;
+		load -= pv / FIX_FRONIUS7_PV[now->tm_hour];
+		char xx[8];
+		snprintf(xx, 8, "%2.1f", FIX_FRONIUS7_PV[now->tm_hour]);
+		xdebug("FRONIUS Fronius7 hour %d, factor %s, xload %d, load %d", now->tm_hour, xx, xload, load);
 
 		// update PV history
 		update_history();
