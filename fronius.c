@@ -172,7 +172,7 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 1, 1, "Akku", akku);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
-	xlogl_int(line, 0, 0, "Load last", load_last);
+	xlogl_int(line, 0, 0, "last Load", load_last);
 	xlogl_int(line, 0, 0, "PV", pv);
 	if (surplus != 0)
 		xlogl_int(line, 1, 0, "Surplus", surplus);
@@ -429,7 +429,7 @@ static int calculate_step(device_t *d, int power) {
 
 // check if device is ramped up to 100% but does not consume power
 static int check_standby(device_t *d, int power) {
-	int no_load = (d->load / 2 * -1) < load;
+	int no_load = (d->load / 2 * -1) < load; // no load at all
 	int switched_off = load_last - load > d->load / 2; // thermostat switched off: now at least half less load than before
 	if (!d->override && !d->standby && (no_load || switched_off)) {
 		d->standby = 1;
@@ -639,8 +639,8 @@ static void* fronius(void *arg) {
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// much faster next round on grid load, extreme distortion or suspicious values from Fronius API
-		if (grid > 25 || distortion > 5 || sum < 0 || sum > 200)
+		// much faster next round on grid load or extreme distortion
+		if (grid > 25 || distortion > 5)
 			wait = WAIT_NEXT;
 
 		load_last = load;
