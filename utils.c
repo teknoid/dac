@@ -93,6 +93,154 @@ void xlog(const char *format, ...) {
 	}
 }
 
+void xdebug(const char *format, ...) {
+	if (!debug)
+		return;
+
+	// !!! do not call xlog(format) here as varargs won't work correctly
+	char timestamp[26];
+	va_list vargs;
+
+	if (output == XLOG_STDOUT) {
+		va_start(vargs, format);
+		vprintf(format, vargs);
+		va_end(vargs);
+		printf("\n");
+		return;
+	}
+
+	if (output == XLOG_SYSLOG) {
+		va_start(vargs, format);
+		vsyslog(LOG_NOTICE, format, vargs);
+		va_end(vargs);
+		return;
+	}
+
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
+			fprintf(xlog_file, "\nlogging initialized\n");
+			fflush(xlog_file);
+		}
+
+		time_t timer;
+		struct tm *tm_info;
+
+		time(&timer);
+		tm_info = localtime(&timer);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		fprintf(xlog_file, "%s ", timestamp);
+
+		va_start(vargs, format);
+		vfprintf(xlog_file, format, vargs);
+		va_end(vargs);
+		fprintf(xlog_file, "\n");
+		fflush(xlog_file);
+	}
+}
+
+int xerr(const char *format, ...) {
+	// !!! do not call xlog(format) here as varargs won't work correctly
+	char timestamp[26];
+	va_list vargs;
+
+	if (output == XLOG_STDOUT) {
+		va_start(vargs, format);
+		vprintf(format, vargs);
+		va_end(vargs);
+		printf("\n");
+		return -1;
+	}
+
+	if (output == XLOG_SYSLOG) {
+		va_start(vargs, format);
+		vsyslog(LOG_NOTICE, format, vargs);
+		va_end(vargs);
+		return -1;
+	}
+
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
+			fprintf(xlog_file, "\nlogging initialized\n");
+			fflush(xlog_file);
+		}
+
+		time_t timer;
+		struct tm *tm_info;
+
+		time(&timer);
+		tm_info = localtime(&timer);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		fprintf(xlog_file, "%s ", timestamp);
+
+		va_start(vargs, format);
+		vfprintf(xlog_file, format, vargs);
+		va_end(vargs);
+		fprintf(xlog_file, "\n");
+		fflush(xlog_file);
+	}
+
+	return -1;
+}
+
+int xerrr(int ret, const char *format, ...) {
+	// !!! do not call xlog(format) here as varargs won't work correctly
+	char timestamp[26];
+	va_list vargs;
+
+	if (output == XLOG_STDOUT) {
+		va_start(vargs, format);
+		vprintf(format, vargs);
+		va_end(vargs);
+		printf("\n");
+		return ret;
+	}
+
+	if (output == XLOG_SYSLOG) {
+		va_start(vargs, format);
+		vsyslog(LOG_NOTICE, format, vargs);
+		va_end(vargs);
+		return ret;
+	}
+
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0) {
+			xlog_file = fopen(filename, "a");
+			if (xlog_file == 0) {
+				perror("error opening logfile!");
+				exit(EXIT_FAILURE);
+			}
+			fprintf(xlog_file, "\nlogging initialized\n");
+			fflush(xlog_file);
+		}
+
+		time_t timer;
+		struct tm *tm_info;
+
+		time(&timer);
+		tm_info = localtime(&timer);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		fprintf(xlog_file, "%s ", timestamp);
+
+		va_start(vargs, format);
+		vfprintf(xlog_file, format, vargs);
+		va_end(vargs);
+		fprintf(xlog_file, "\n");
+		fflush(xlog_file);
+	}
+
+	return ret;
+}
+
 void xlogl_start(char *line, const char *s) {
 	if (s != NULL)
 		strncpy(line, s, LINEBUF);
@@ -132,23 +280,6 @@ void xlogl_end(char *line, const char *s) {
 	}
 
 	xlog(line);
-}
-
-int xerr(const char *format, ...) {
-	xlog(format);
-	return -1;
-}
-
-int xerrr(int ret, const char *format, ...) {
-	xlog(format);
-	return ret;
-}
-
-void xdebug(const char *format, ...) {
-	if (!debug)
-		return;
-
-	xlog(format);
 }
 
 //

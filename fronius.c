@@ -20,7 +20,7 @@
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, load_last, dumb_load, pv, chrg, distortion, tendence, kf, kt;
+static int akku, grid, load, pv, chrg, last_load, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -57,11 +57,9 @@ int set_heater(void *ptr, int power) {
 	if (power) {
 		xlog("FRONIUS switching %s ON", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
-		dumb_load += heater->load;
 	} else {
 		xlog("FRONIUS switching %s OFF", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
-		dumb_load -= heater->load;
 	}
 	// send message to heater
 	system(command);
@@ -148,6 +146,16 @@ static int choose_program(const potd_t *p) {
 	return 0;
 }
 
+static int collect_dumb_load() {
+	int dumb_load = 0;
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		if (!d->adjustable && d->power)
+			dumb_load += d->load;
+	}
+	return dumb_load;
+}
+
 static void set_all_devices(int power) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
@@ -171,7 +179,7 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 1, 1, "Akku", akku);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
-	xlogl_int(line, 0, 0, "last Load", load_last);
+	xlogl_int(line, 0, 0, "last Load", last_load);
 	xlogl_int(line, 0, 0, "PV", pv);
 	if (surplus != 0)
 		xlogl_int(line, 1, 0, "Surplus", surplus);
@@ -418,7 +426,7 @@ static int calculate_step(device_t *d, int power) {
 // check if device is ramped up to 100% but does not consume power
 static int check_standby(device_t *d, int power) {
 	int threshold = d->load / 2 * -1;
-	int diff = load_last - load;
+	int diff = last_load - load;
 	int no_load = load > threshold; // no load at all
 	int switched_off = diff < threshold; // thermostat switched off: now at least half less load than before
 	if (!d->override && !d->standby && (no_load || switched_off)) {
@@ -582,7 +590,6 @@ static void* fronius(void *arg) {
 		if (potd == NULL || hour != now->tm_hour) {
 			xlog("FRONIUS resetting all device states");
 			set_all_devices(0);
-			dumb_load = 0;
 			forecast();
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
@@ -591,11 +598,10 @@ static void* fronius(void *arg) {
 
 		// recalculate load
 		int raw_load = load;
+		int dumb_load = collect_dumb_load();
 		load += dumb_load; // add load from dumb devices
-		load -= pv / FRONIUS7[now->tm_hour]; // subtract load from Fronius7
-		char xx[8];
-		snprintf(xx, 8, "%2.1f", FRONIUS7[now->tm_hour]);
-		xdebug("FRONIUS recalculate load: hour %d, factor %s, raw_load %d, dumb_load %d, real_load %d", now->tm_hour, xx, raw_load, dumb_load, load);
+		load -= pv / FRONIUS7[now->tm_hour]; // subtract pv from Fronius7
+		xdebug("FRONIUS recalculate load: hour %d, factor %2.1f, raw_load %d, dumb_load %d, real_load %d", now->tm_hour, FRONIUS7[now->tm_hour], raw_load, dumb_load, load);
 
 		// update PV history
 		update_history();
@@ -633,7 +639,7 @@ static void* fronius(void *arg) {
 		if (grid > 25 || distortion > 5)
 			wait = WAIT_NEXT;
 
-		load_last = load;
+		last_load = load;
 		print_device_status();
 		errors = 0;
 	}
