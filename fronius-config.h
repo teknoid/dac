@@ -21,7 +21,8 @@
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW			"http://fronius/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
-static double FIX_FRONIUS7_PV[] = { 0.1, 0.1, 0.1, 0.1, 0.1, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.2, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5 };
+//							   0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23
+static double FRONIUS7[] = { 0.1, 0.1, 0.1, 0.1, 0.1, 0.5, 1.0, 1.5, 2.0, 2.2, 2.5, 3.0, 3.0, 3.5, 4.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5, 9.0, 9.5 };
 
 typedef struct get_response_t {
 	char *buffer;

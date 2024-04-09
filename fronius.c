@@ -20,7 +20,7 @@
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, load_last, pv, chrg, distortion, tendence, kf, kt;
+static int akku, grid, load, load_last, dumb_load, pv, chrg, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -57,9 +57,11 @@ int set_heater(void *ptr, int power) {
 	if (power) {
 		xlog("FRONIUS switching %s ON", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
+		dumb_load += heater->load;
 	} else {
 		xlog("FRONIUS switching %s OFF", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
+		dumb_load -= heater->load;
 	}
 	// send message to heater
 	system(command);
@@ -415,12 +417,14 @@ static int calculate_step(device_t *d, int power) {
 
 // check if device is ramped up to 100% but does not consume power
 static int check_standby(device_t *d, int power) {
-	int no_load = (d->load / 2 * -1) < load; // no load at all
-	int switched_off = load_last - load > d->load / 2; // thermostat switched off: now at least half less load than before
+	int threshold = d->load / 2 * -1;
+	int diff = load_last - load;
+	int no_load = load > threshold; // no load at all
+	int switched_off = diff < threshold; // thermostat switched off: now at least half less load than before
 	if (!d->override && !d->standby && (no_load || switched_off)) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
-		xdebug("FRONIUS %s entering standby", d->name);
+		xdebug("FRONIUS %s: diff %d, threshold %d --> entering standby", d->name, diff, threshold);
 	}
 	return 0; // always continue loop
 }
@@ -578,18 +582,20 @@ static void* fronius(void *arg) {
 		if (potd == NULL || hour != now->tm_hour) {
 			xlog("FRONIUS resetting all device states");
 			set_all_devices(0);
+			dumb_load = 0;
 			forecast();
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
 			continue;
 		}
 
-		// fix Fronius7 pv injection
-		int xload = load;
-		load -= pv / FIX_FRONIUS7_PV[now->tm_hour];
+		// recalculate load
+		int raw_load = load;
+		load += dumb_load; // add load from dumb devices
+		load -= pv / FRONIUS7[now->tm_hour]; // subtract load from Fronius7
 		char xx[8];
-		snprintf(xx, 8, "%2.1f", FIX_FRONIUS7_PV[now->tm_hour]);
-		xdebug("FRONIUS Fronius7 hour %d, factor %s, xload %d, load %d", now->tm_hour, xx, xload, load);
+		snprintf(xx, 8, "%2.1f", FRONIUS7[now->tm_hour]);
+		xdebug("FRONIUS recalculate load: hour %d, factor %s, raw_load %d, dumb_load %d, real_load %d", now->tm_hour, xx, raw_load, dumb_load, load);
 
 		// update PV history
 		update_history();
