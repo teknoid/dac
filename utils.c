@@ -17,7 +17,8 @@
 #include <sys/mman.h>
 #include <arpa/inet.h>
 
-#include "ansi-color-codes.h"
+#include <ansi-color-codes.h>
+
 #include "keytable.h"
 #include "utils.h"
 
