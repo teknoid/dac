@@ -48,6 +48,7 @@ typedef struct potd_t {
 	const potd_device_t *devices[];
 } potd_t;
 
+// set device function signatures
 int set_heater(device_t *device, int power);
 int set_boiler(device_t *device, int power);
 
