@@ -207,8 +207,9 @@ static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
 		curl_easy_setopt(curl, CURLOPT_URL, url);
 		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
 		curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);
 	}
 	return curl;
 }
