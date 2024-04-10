@@ -136,12 +136,6 @@ int set_boiler(device_t *boiler, int power) {
 	return 1; //loop done
 }
 
-static int choose_program(const potd_t *p) {
-	xlog("FRONIUS choosing %s program of the day", p->name);
-	potd = (potd_t*) p;
-	return 0;
-}
-
 static int collect_dumb_load() {
 	int dumb_load = 0;
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
@@ -374,6 +368,12 @@ static void update_history() {
 	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d", message, average, variation, distortion, tendence, kf, kt);
 }
 
+static int choose_program(const potd_t *p) {
+	xlog("FRONIUS choosing %s program of the day", p->name);
+	potd = (potd_t*) p;
+	return 0;
+}
+
 static int forecast() {
 	char line[8];
 	int today, tomorrow, tomorrowplus1;
@@ -381,7 +381,7 @@ static int forecast() {
 	// default program
 	potd = (potd_t*) &CLOUDY_EMPTY;
 
-	FILE *fp = fopen(FORECAST, "r");
+	FILE *fp = fopen(MOSMIX, "r");
 	if (fp == NULL)
 		return xerr("FRONIUS no forecast data available");
 
