@@ -111,46 +111,46 @@ install-local:
 	~hje/bin/mcp
 
 keytable:
-	@if [ ! -f /usr/include/linux/input.h ]; then \
+	@if [ ! -f /usr/include/linux/input-event-codes.h ]; then \
 	  echo "Error you must set KERNEL_DIR to point to an extracted kernel source dir"; \
 	  exit 1; \
 	fi
 	@echo generating keytable.h
-	@printf "struct parse_event {\n\tchar *name;\n\tunsigned int value;\n};\n" > keytable.h
+	@printf "struct parse_event {\n\tchar *name;\n\tunsigned int value;\n};\n" > include/keytable.h
 
-	@printf "struct parse_event events_type[] = {\n" >> keytable.h
-	@more /usr/include/linux/input.h | perl -n \
+	@printf "struct parse_event events_type[] = {\n" >> include/keytable.h
+	@more /usr/include/linux/input-event-codes.h | perl -n \
 	-e 'if (m/^\#define\s+(EV_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2 if ($$1 ne "EV_VERSION"); }' \
-	>> keytable.h
-	@printf "\t{ NULL, 0}\n};\n" >> keytable.h
+	>> include/keytable.h
+	@printf "\t{ NULL, 0}\n};\n" >> include/keytable.h
 
-	@printf "struct parse_event msc_events[] = {\n" >> keytable.h
-	@more /usr/include/linux/input.h | perl -n \
+	@printf "struct parse_event msc_events[] = {\n" >> include/keytable.h
+	@more /usr/include/linux/input-event-codes.h | perl -n \
 	-e 'if (m/^\#define\s+(MSC_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2; }' \
-	>> keytable.h
-	@printf "\t{ NULL, 0}\n};\n" >> keytable.h
+	>> include/keytable.h
+	@printf "\t{ NULL, 0}\n};\n" >> include/keytable.h
 
-	@printf "struct parse_event key_events[] = {\n" >> keytable.h
-	@more /usr/include/linux/input.h | perl -n \
+	@printf "struct parse_event key_events[] = {\n" >> include/keytable.h
+	@more /usr/include/linux/input-event-codes.h | perl -n \
 	-e 'if (m/^\#define\s+(KEY_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2; }' \
 	-e 'if (m/^\#define\s+(BTN_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2; }' \
-	>> keytable.h
-	@printf "\t{ NULL, 0}\n};\n" >> keytable.h
+	>> include/keytable.h
+	@printf "\t{ NULL, 0}\n};\n" >> include/keytable.h
 
-	@printf "struct parse_event rel_events[] = {\n" >> keytable.h
-	@more /usr/include/linux/input.h | perl -n \
+	@printf "struct parse_event rel_events[] = {\n" >> include/keytable.h
+	@more /usr/include/linux/input-event-codes.h | perl -n \
 	-e 'if (m/^\#define\s+(REL_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2; }' \
-	>> keytable.h
-	@printf "\t{ NULL, 0}\n};\n" >> keytable.h
+	>> include/keytable.h
+	@printf "\t{ NULL, 0}\n};\n" >> include/keytable.h
 
-	@printf "struct parse_event abs_events[] = {\n" >> keytable.h
-	@more /usr/include/linux/input.h | perl -n \
+	@printf "struct parse_event abs_events[] = {\n" >> include/keytable.h
+	@more /usr/include/linux/input-event-codes.h | perl -n \
 	-e 'if (m/^\#define\s+(ABS_[^\s]+)\s+(0x[\d\w]+|[\d]+)/) ' \
 	-e '{ printf "\t{\"%s\", %s},\n",$$1,$$2; }' \
-	>> keytable.h
-	@printf "\t{ NULL, 0}\n};\n" >> keytable.h
+	>> include/keytable.h
+	@printf "\t{ NULL, 0}\n};\n" >> include/keytable.h

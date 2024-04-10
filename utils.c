@@ -18,8 +18,8 @@
 #include <arpa/inet.h>
 
 #include <ansi-color-codes.h>
+#include <keytable.h>
 
-#include "keytable.h"
 #include "utils.h"
 
 // static int output = XLOG_STDOUT;
