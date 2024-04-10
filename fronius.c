@@ -20,18 +20,18 @@
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, pv, chrg, last_load, distortion, tendence, kf, kt;
+static int akku, grid, load, pv, chrg, pv7, last_load, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
 static int history_ptr = 0;
 
-static struct tm *now;
+static char line[LINEBUF];
 static int wait = 0, sock = 0;
+
 static pthread_t thread;
 
-static char line[LINEBUF];
-static CURL *curl;
+static struct tm *now;
 
 int set_heater(void *ptr, int power) {
 	device_t *heater = (device_t*) ptr;
@@ -153,7 +153,7 @@ static int collect_dumb_load() {
 		if (!d->adjustable && d->power)
 			dumb_load += d->load;
 	}
-	return dumb_load;
+	return dumb_load * -1;
 }
 
 static void set_all_devices(int power) {
@@ -181,6 +181,7 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
 	xlogl_int(line, 0, 0, "PV", pv);
+	xlogl_int(line, 0, 0, "PV7", pv7);
 	if (surplus != 0)
 		xlogl_int(line, 1, 0, "Surplus", surplus);
 	if (extra != 0)
@@ -210,7 +211,19 @@ static void print_device_status() {
 	xlog(message);
 }
 
-static int api() {
+static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
+	CURL *curl = curl_easy_init();
+	if (curl != NULL) {
+		curl_easy_setopt(curl, CURLOPT_URL, url);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
+		curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30);
+	}
+	return curl;
+}
+
+static int curl_perform(CURL *curl) {
 	CURLcode ret = curl_easy_perform(curl);
 	if (ret != CURLE_OK)
 		return xerrr(-1, "FRONIUS Error calling API: %d", ret);
@@ -223,9 +236,9 @@ static int api() {
 	return 0;
 }
 
-static size_t callback_mainloop(char *ptr, size_t size, size_t nmemb, void *userdata) {
+static size_t callback_fronius10(const char *data, size_t size, size_t nmemb, const void *userdata) {
 	size_t realsize = size * nmemb;
-	xdebug("FRONIUS callback_mainloop() size %d nmemb %d realsize %d", size, nmemb, realsize);
+	xdebug("FRONIUS callback_fronius10() size %d nmemb %d realsize %d", size, nmemb, realsize);
 
 	if (nmemb < 32)
 		return realsize; // noise
@@ -234,9 +247,9 @@ static size_t callback_mainloop(char *ptr, size_t size, size_t nmemb, void *user
 	char *c;
 	int ret;
 
-	ret = json_scanf(ptr, realsize, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
+	ret = json_scanf(data, realsize, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
 	if (ret != 4)
-		xlog("FRONIUS warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
+		xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
 
 	akku = p_akku;
 	grid = p_grid;
@@ -244,7 +257,7 @@ static size_t callback_mainloop(char *ptr, size_t size, size_t nmemb, void *user
 	pv = p_pv;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
-	ret = json_scanf(ptr, realsize, "{ Body { Data { Inverters:%Q } } }", &c);
+	ret = json_scanf(data, realsize, "{ Body { Data { Inverters:%Q } } }", &c);
 	if (ret == 1 && c != NULL) {
 		char *p = c;
 		while (*p != '{')
@@ -257,18 +270,37 @@ static size_t callback_mainloop(char *ptr, size_t size, size_t nmemb, void *user
 		if (ret == 1)
 			chrg = p_charge;
 		else {
-			xlog("FRONIUS warning! parsing Body->Data->Inverters->SOC: no result");
+			xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
 			chrg = 0;
 		}
 
 		free(c);
 	} else
-		xlog("FRONIUS warning! parsing Body->Data->Inverters: no result");
+		xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Inverters: no result");
 
 	return realsize;
 }
 
-static size_t callback_calibrate(char *ptr, size_t size, size_t nmemb, void *userdata) {
+static size_t callback_fronius7(const char *data, size_t size, size_t nmemb, const void *userdata) {
+	size_t realsize = size * nmemb;
+	xdebug("FRONIUS callback_fronius7() size %d nmemb %d realsize %d", size, nmemb, realsize);
+
+	if (nmemb < 32)
+		return realsize; // noise
+
+	float p_pv;
+	int ret = json_scanf(data, realsize, "{ Body { Data { Site { P_PV:%f } } } }", &p_pv);
+	if (ret == 1)
+		pv7 = p_pv;
+	else {
+		xlog("FRONIUS callback_fronius7() warning! parsing Body->Data->Site->P_PV: no result");
+		pv7 = 0;
+	}
+
+	return realsize;
+}
+
+static size_t callback_calibrate(const char *data, size_t size, size_t nmemb, const void *userdata) {
 	size_t realsize = size * nmemb;
 	xdebug("FRONIUS callback_calibrate() size %d nmemb %d realsize %d", size, nmemb, realsize);
 
@@ -276,11 +308,11 @@ static size_t callback_calibrate(char *ptr, size_t size, size_t nmemb, void *use
 		return realsize; // noise
 
 	float p_grid;
-	int ret = json_scanf(ptr, realsize, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_grid);
+	int ret = json_scanf(data, realsize, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_grid);
 	if (ret == 1)
 		grid = p_grid;
 	else {
-		xlog("FRONIUS warning! parsing Body->Data->PowerReal_P_Sum: no result");
+		xlog("FRONIUS callback_calibrate() warning! parsing Body->Data->PowerReal_P_Sum: no result");
 		grid = 0;
 	}
 
@@ -554,6 +586,18 @@ static void* fronius(void *arg) {
 		return (void*) 0;
 	}
 
+	CURL *curl10 = curl_init(URL_FLOW10, callback_fronius10);
+	if (curl10 == NULL) {
+		xlog("Error initializing libcurl");
+		return (void*) 0;
+	}
+
+	CURL *curl7 = curl_init(URL_FLOW7, callback_fronius7);
+	if (curl7 == NULL) {
+		xlog("Error initializing libcurl");
+		return (void*) 0;
+	}
+
 	// the FRONIUS main loop
 	while (1) {
 
@@ -569,10 +613,10 @@ static void* fronius(void *arg) {
 		time_t now_ts = time(NULL);
 		now = localtime(&now_ts);
 
-		// make Fronius API call
-		ret = api();
+		// make Fronius10 API call
+		ret = curl_perform(curl10);
 		if (ret != 0) {
-			xlog("FRONIUS api() returned %d", ret);
+			xlog("FRONIUS Error calling Fronius10 API: %d", ret);
 			errors++;
 			wait = WAIT_NEXT;
 			continue;
@@ -596,12 +640,17 @@ static void* fronius(void *arg) {
 			continue;
 		}
 
+		// make Fronius7 API call
+		ret = curl_perform(curl7);
+		if (ret != 0)
+			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
+
 		// recalculate load
 		int raw_load = load;
 		int dumb_load = collect_dumb_load();
-		load += dumb_load; // add load from dumb devices
-		load -= pv / FRONIUS7[now->tm_hour]; // subtract pv from Fronius7
-		xdebug("FRONIUS recalculate load: hour %d, factor %2.1f, raw_load %d, dumb_load %d, real_load %d", now->tm_hour, FRONIUS7[now->tm_hour], raw_load, dumb_load, load);
+		load -= dumb_load; // subtract load from dumb devices
+		load -= pv7; // subtract PV from Fronius7
+		xdebug("FRONIUS recalculate load: raw_load %d, dumb_load %d, PV7 %d, real_load %d", raw_load, dumb_load, pv7, load);
 
 		// update PV history
 		update_history();
@@ -668,15 +717,9 @@ static int calibrate(char *name) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	curl = curl_easy_init();
+	CURL *curl = curl_init(URL_METER, callback_calibrate);
 	if (curl == NULL)
 		perror("Error initializing libcurl");
-
-	curl_easy_setopt(curl, CURLOPT_URL, URL_METER);
-	curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback_calibrate);
-	curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1);
-	curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30);
 
 	printf("starting calibration on %s (%s)\n", name, addr);
 	snprintf(message, 16, "v:0:0");
@@ -827,16 +870,6 @@ static int init() {
 
 	init_all_devices();
 
-	curl = curl_easy_init();
-	if (curl == NULL)
-		return xerr("Error initializing libcurl");
-
-	curl_easy_setopt(curl, CURLOPT_URL, URL_FLOW);
-	curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback_mainloop);
-	curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1);
-	curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30);
-
 	if (pthread_create(&thread, NULL, &fronius, NULL))
 		return xerr("Error creating fronius thread");
 
@@ -850,9 +883,6 @@ static void stop() {
 
 	if (pthread_join(thread, NULL))
 		xlog("Error joining fronius thread");
-
-	// stop and destroy this module
-	curl_easy_cleanup(curl);
 
 	if (sock != 0)
 		close(sock);
