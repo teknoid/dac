@@ -16,7 +16,7 @@
 #include "utils.h"
 #include "mcp.h"
 
-// program of the day - forecast will chose appropriate program
+// program of the day - mosmix will chose appropriate program
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
@@ -375,7 +375,7 @@ static int choose_program(const potd_t *p) {
 	return 0;
 }
 
-static int forecast() {
+static int mosmix() {
 	char line[8];
 	int today, tomorrow, tomorrowplus1;
 
@@ -384,19 +384,19 @@ static int forecast() {
 
 	FILE *fp = fopen(MOSMIX, "r");
 	if (fp == NULL)
-		return xerr("FRONIUS no forecast data available");
+		return xerr("FRONIUS no mosmix data available");
 
 	if (fgets(line, 8, fp) != NULL)
 		if (sscanf(line, "%d", &today) != 1)
-			return xerr("FRONIUS forecast parse error %s", line);
+			return xerr("FRONIUS mosmix parse error %s", line);
 
 	if (fgets(line, 8, fp) != NULL)
 		if (sscanf(line, "%d", &tomorrow) != 1)
-			return xerr("FRONIUS forecast parse error %s", line);
+			return xerr("FRONIUS mosmix parse error %s", line);
 
 	if (fgets(line, 8, fp) != NULL)
 		if (sscanf(line, "%d", &tomorrowplus1) != 1)
-			return xerr("FRONIUS forecast parse error %s", line);
+			return xerr("FRONIUS mosmix parse error %s", line);
 
 	fclose(fp);
 
@@ -405,7 +405,7 @@ static int forecast() {
 	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
 	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * chrg / 100;
 
-	xlog("FRONIUS forecast needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
+	xlog("FRONIUS mosmix needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
 
 	if (exp_today > needed)
 		return choose_program(&SUNNY);
@@ -461,7 +461,7 @@ static int check_standby(device_t *d, int power) {
 	if (!d->override && !d->standby && (no_load || switched_off)) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
-		xdebug("FRONIUS %s: diff %d, threshold %d --> entering standby", d->name, diff, threshold);
+		xdebug("FRONIUS %s: load %d, diff %d, threshold %d --> entering standby", d->name, load, diff, threshold);
 	}
 	return 0; // always continue loop
 }
@@ -530,15 +530,18 @@ static int rampup(int power, int only_greedy) {
 		if (rampup_device((*ds)->device, power))
 			return 1;
 	}
+
 	return 0; // next priority
 }
 
 static int rampdown(int power, int skip_greedy) {
 	const potd_device_t **ds = potd->devices;
+
 	// jump to last entry
 	while (*ds != NULL)
 		ds++;
 	ds--;
+
 	// now go backward - this will give a reverse order
 	do {
 		if (skip_greedy && (*ds)->greedy)
@@ -546,6 +549,7 @@ static int rampdown(int power, int skip_greedy) {
 		if (rampdown_device((*ds)->device, power))
 			return 1;
 	} while (ds-- != potd->devices);
+
 	return 0; // next priority
 }
 
@@ -631,7 +635,7 @@ static void* fronius(void *arg) {
 		if (potd == NULL || hour != now->tm_hour) {
 			xlog("FRONIUS resetting all device states");
 			set_all_devices(0);
-			forecast();
+			mosmix();
 			hour = now->tm_hour;
 			wait = WAIT_NEXT;
 			continue;
