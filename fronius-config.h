@@ -22,15 +22,11 @@
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 #define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
-typedef struct get_response_t {
-	char *buffer;
-	size_t len;
-	size_t buflen;
-} get_response_t;
+typedef struct _device device_t;
 
-typedef int (*set_function_t)(void*, int);
+typedef int (set_function_t)(device_t*, int);
 
-typedef struct device_t {
+struct _device {
 	const char *name;
 	const char *addr;
 	time_t override;
@@ -39,8 +35,8 @@ typedef struct device_t {
 	int active;
 	int power;
 	int load;
-	set_function_t set_function;
-} device_t;
+	set_function_t *set_function;
+};
 
 typedef struct potd_device_t {
 	const int greedy;
@@ -52,8 +48,8 @@ typedef struct potd_t {
 	const potd_device_t *devices[];
 } potd_t;
 
-int set_heater(void *ptr, int power);
-int set_boiler(void *ptr, int power);
+int set_heater(device_t *device, int power);
+int set_boiler(device_t *device, int power);
 
 // devices
 static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };

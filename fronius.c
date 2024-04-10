@@ -33,9 +33,7 @@ static pthread_t thread;
 
 static struct tm *now;
 
-int set_heater(void *ptr, int power) {
-	device_t *heater = (device_t*) ptr;
-
+int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
 	if (power < 0)
 		power = 0;
@@ -71,9 +69,7 @@ int set_heater(void *ptr, int power) {
 	return 1; // loop done
 }
 
-int set_boiler(void *ptr, int power) {
-	device_t *boiler = (device_t*) ptr;
-
+int set_boiler(device_t *boiler, int power) {
 	// fix power value if out of range
 	if (power < 0)
 		power = 0;
