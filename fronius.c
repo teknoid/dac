@@ -170,8 +170,9 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
-	xlogl_int(line, 0, 0, "PV", pv);
+	xlogl_int(line, 0, 0, "PV10", pv);
 	xlogl_int(line, 0, 0, "PV7", pv7);
+	xlogl_int_b(line, "PV", pv + pv7);
 	if (surplus != 0)
 		xlogl_int(line, 1, 0, "Surplus", surplus);
 	if (extra != 0)

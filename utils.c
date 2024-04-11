@@ -274,6 +274,30 @@ void xlogl_int(char *line, int colored, int invers, const char *name, int value)
 	strncat(line, pair, 32);
 }
 
+void xlogl_int_r(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
+void xlogl_int_y(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BYEL"%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
+void xlogl_int_g(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
+void xlogl_int_b(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BBLU"%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
 void xlogl_end(char *line, const char *s) {
 	if (s != NULL) {
 		strcat(line, " ");

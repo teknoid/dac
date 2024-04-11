@@ -26,6 +26,10 @@ int xerrr(int ret, const char *format, ...);
 void xlogl_start(char *line, const char *s);
 void xlogl_int(char *line, int colored, int invers, const char *name, int value);
 void xlogl_end(char *line, const char *s);
+void xlogl_int_r(char *line, const char *name, int value);
+void xlogl_int_y(char *line, const char *name, int value);
+void xlogl_int_g(char *line, const char *name, int value);
+void xlogl_int_b(char *line, const char *name, int value);
 
 int elevate_realtime(int cpu);
 
