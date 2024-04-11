@@ -165,20 +165,21 @@ static void init_all_devices() {
 
 static void print_power_status(int surplus, int extra, int sum, const char *message) {
 	xlogl_start(line, "FRONIUS");
+	xlogl_int_b(line, "PV", pv + pv7);
 	xlogl_int(line, 1, 1, "Grid", grid);
 	xlogl_int(line, 1, 1, "Akku", akku);
+	if (surplus != 0)
+		xlogl_int(line, 1, 0, "Surplus", surplus);
+	if (extra != 0)
+		xlogl_int(line, 1, 0, "Extra", extra);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
 	xlogl_int(line, 0, 0, "PV10", pv);
 	xlogl_int(line, 0, 0, "PV7", pv7);
-	xlogl_int_b(line, "PV", pv + pv7);
-	if (surplus != 0)
-		xlogl_int(line, 1, 0, "Surplus", surplus);
-	if (extra != 0)
-		xlogl_int(line, 1, 0, "Extra", extra);
 	if (sum != 0)
 		xlogl_int(line, 0, 0, "Sum", sum);
+
 	xlogl_end(line, message);
 }
 
@@ -218,12 +219,12 @@ static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
 static int curl_perform(CURL *curl) {
 	CURLcode ret = curl_easy_perform(curl);
 	if (ret != CURLE_OK)
-		return xerrr(-1, "FRONIUS Error calling API: %d", ret);
+		return xerrr(-1, "FRONIUS curl perform error %d", ret);
 
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (http_code != 200)
-		return xerrr(-2, "FRONIUS API returned %d", http_code);
+		return xerrr(-2, "FRONIUS response code %d", http_code);
 
 	return 0;
 }
@@ -650,8 +651,8 @@ static void* fronius(void *arg) {
 		// recalculate load
 		int raw_load = load;
 		int dumb_load = collect_dumb_load();
-		load -= dumb_load; // subtract load from dumb devices
-		load -= pv7; // subtract PV from Fronius7
+		load -= dumb_load; // subtract load consumed by dumb devices
+		load -= pv7; // subtract PV produced by Fronius7
 		xdebug("FRONIUS recalculate load: raw_load %d, dumb_load %d, PV7 %d, real_load %d", raw_load, dumb_load, pv7, load);
 
 		// update PV history
@@ -690,8 +691,8 @@ static void* fronius(void *arg) {
 		if (grid > 25 || distortion > 5)
 			wait = WAIT_NEXT;
 
-		last_load = load;
 		print_device_status();
+		last_load = load;
 		errors = 0;
 	}
 }
