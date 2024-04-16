@@ -146,6 +146,23 @@ static int collect_dumb_load() {
 	return dumb_load * -1;
 }
 
+static int collect_adjustable_power() {
+	int greedy_dumb_off = 0, adj_power = 0;
+
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if ((*ds)->device->adjustable == 0 && (*ds)->device->power == 0 && (*ds)->greedy)
+			greedy_dumb_off = 1;
+
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if ((*ds)->device->adjustable)
+			adj_power += (*ds)->device->power * (*ds)->device->load / 100;
+
+	// a greedy off dumb device can steal power from an adjustable device which is ramped up
+	int xpower = greedy_dumb_off ? adj_power : 0;
+	xdebug("FRONIUS collect_adjustable_power() %d", xpower);
+	return xpower;
+}
+
 static void set_all_devices(int power) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
@@ -488,7 +505,7 @@ static int ramp_dumb(device_t *d, int power) {
 		return 0; // continue loop
 
 	// switch on when enough power is available
-	if (!d->power && power > d->load * 1.5)
+	if (!d->power && power > d->load)
 		return (d->set_function)(d, 1);
 
 	// switch off
@@ -557,9 +574,6 @@ static int rampdown(int power, int skip_greedy) {
 
 // do device adjustments in sequence of priority
 static void ramp(int surplus, int extra) {
-
-	// TODO - wenn !adjustable vor adjustable und pv > device load dann reset
-
 	// 1. no extra power available: ramp down devices but skip greedy
 	if (extra < kf)
 		if (rampdown(extra - kf, 1))
@@ -569,6 +583,9 @@ static void ramp(int surplus, int extra) {
 	if (surplus < kf)
 		if (rampdown(surplus - kf, 0))
 			return;
+
+	// steal power from ramped adjustable devices for greedy dumb devices
+	surplus += collect_adjustable_power();
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (surplus > kt)
@@ -630,6 +647,7 @@ static void* fronius(void *arg) {
 			print_power_status(0, 0, 0, "--> offline");
 			set_all_devices(0);
 			wait = WAIT_OFFLINE;
+			pv7 = 0;
 			continue;
 		}
 
