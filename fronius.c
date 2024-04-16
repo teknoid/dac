@@ -159,9 +159,9 @@ static int collect_adjustable_power() {
 		if ((*ds)->greedy && !(*ds)->device->adjustable && !(*ds)->device->power)
 			greedy_dumb_off = 1;
 
-	// a greedy off dumb device can steal power from a non greedy adjustable device which is ramped up
+	// a greedy dumb off device can steal power from a non greedy adjustable device which is ramped up
 	int xpower = greedy_dumb_off ? adj_power : 0;
-	xdebug("FRONIUS collect_adjustable_power() %d", xpower);
+	xdebug("FRONIUS collect_adjustable_power() %d (%d)", xpower, adj_power);
 	return xpower;
 }
 
