@@ -20,7 +20,7 @@
 static potd_t *potd;
 
 // actual Fronius power flow data and calculations
-static int akku, grid, load, pv, chrg, pv7, last_load, distortion, tendence, kf, kt;
+static int akku, grid, load, pv, chrg, pv10, pv7, last_load, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -184,7 +184,7 @@ static void init_all_devices() {
 
 static void print_power_status(int surplus, int extra, int sum, const char *message) {
 	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PV", pv + pv7);
+	xlogl_int_b(line, "PV", pv);
 	xlogl_int(line, 1, 1, "Grid", grid);
 	xlogl_int(line, 1, 1, "Akku", akku);
 	if (surplus != 0)
@@ -194,7 +194,7 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
-	xlogl_int(line, 0, 0, "PV10", pv);
+	xlogl_int(line, 0, 0, "PV10", pv10);
 	xlogl_int(line, 0, 0, "PV7", pv7);
 	if (sum != 0)
 		xlogl_int(line, 0, 0, "Sum", sum);
@@ -266,7 +266,7 @@ static size_t callback_fronius10(const char *data, size_t size, size_t nmemb, co
 	akku = p_akku;
 	grid = p_grid;
 	load = p_load;
-	pv = p_pv;
+	pv10 = p_pv;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
 	ret = json_scanf(data, realsize, "{ Body { Data { Inverters:%Q } } }", &c);
@@ -369,7 +369,10 @@ static void update_history() {
 		variation += abs(average - history[i]);
 
 	// grade of alternation in pv production when its cloudy with sunny gaps
-	distortion = variation / average;
+	if (variation > average * 2)
+		distortion = variation / average;
+	else
+		distortion = 0;
 
 	// calculate tendence
 	int h0 = get_history(-1);
@@ -645,7 +648,7 @@ static void* fronius(void *arg) {
 		}
 
 		// not enough PV production, go into offline mode
-		if (pv < 100) {
+		if (pv10 < 100) {
 			print_power_status(0, 0, 0, "--> offline");
 			set_all_devices(0);
 			wait = WAIT_OFFLINE;
@@ -667,6 +670,10 @@ static void* fronius(void *arg) {
 		ret = curl_perform(curl7);
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
+
+		// calculations
+		sum = grid + akku + load + pv10;
+		pv = pv10 + pv7;
 
 		// recalculate load
 		int raw_load = load;
@@ -694,7 +701,6 @@ static void* fronius(void *arg) {
 		if (akku > 0)
 			extra -= akku;
 
-		sum = grid + akku + load + pv;
 		print_power_status(surplus, extra, sum, NULL);
 
 		// default wait for next round
@@ -707,8 +713,8 @@ static void* fronius(void *arg) {
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// much faster next round on grid load or extreme distortion
-		if (grid > 25 || distortion > 5)
+		// much faster next round on grid load or extreme distortion or suspicious values from Fronius API
+		if (grid > 25 || distortion > 5 || sum > 200)
 			wait = WAIT_NEXT;
 
 		print_device_status();
