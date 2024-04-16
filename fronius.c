@@ -147,17 +147,21 @@ static int collect_dumb_load() {
 }
 
 static int collect_adjustable_power() {
-	int greedy_dumb_off = 0, adj_power = 0;
+	int adj_power = 0, greedy_dumb_off = 0;
 
+	// collect non greedy adjustable power
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		if (d->adjustable)
+			adj_power += d->power * d->load / 100;
+	}
+
+	// check if we have greedy dumb off devices
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->device->adjustable == 0 && (*ds)->device->power == 0 && (*ds)->greedy)
+		if ((*ds)->greedy && (*ds)->device->adjustable == 0 && (*ds)->device->power == 0)
 			greedy_dumb_off = 1;
 
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->device->adjustable)
-			adj_power += (*ds)->device->power * (*ds)->device->load / 100;
-
-	// a greedy off dumb device can steal power from an adjustable device which is ramped up
+	// a greedy off dumb device can steal power from a non greedy adjustable device which is ramped up
 	int xpower = greedy_dumb_off ? adj_power : 0;
 	xdebug("FRONIUS collect_adjustable_power() %d", xpower);
 	return xpower;
