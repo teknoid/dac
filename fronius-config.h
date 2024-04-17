@@ -57,7 +57,8 @@ static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &se
 static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t plug9 = { .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0 };
-static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug9 };
+static device_t plug5 = { .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0 };
+static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug9, &plug5 };
 
 // program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
 static const potd_device_t CLOUDY_EMPTY_1 = { .device = &boiler1, .greedy = 1 };
@@ -75,10 +76,11 @@ static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .devices = { &CLOUDY_
 
 // program of the day for sunny weather: plenty of power
 static const potd_device_t SUNNY_1 = { .device = &plug9, .greedy = 1 };
+static const potd_device_t SUNNY_5 = { .device = &plug5, .greedy = 1 };
 static const potd_device_t SUNNY_2 = { .device = &boiler1, .greedy = 0 };
 static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 0 };
 static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 0 };
-static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
+static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_5, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
 
 // program of the day for cloudy weather but tomorrow sunny: steal all akku charge power
 static const potd_device_t TOMORROW_1 = { .device = &plug9, .greedy = 1 };

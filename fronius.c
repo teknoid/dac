@@ -391,8 +391,8 @@ static void calculations() {
 	else
 		tendence = 0;
 
-	// allow more tolerance for big pv production
-	int tolerance = pv / 1000 + 1;
+	// allow more tolerance for bigger pv production
+	int tolerance = pv > 2000 ? pv / 1000 : 1;
 	kf = KEEP_FROM * tolerance;
 	kt = KEEP_TO * tolerance;
 
@@ -904,7 +904,7 @@ static int test() {
 }
 
 static int init() {
-	// set_debug(1);
+	set_debug(1);
 
 	init_all_devices();
 
