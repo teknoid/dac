@@ -19,7 +19,7 @@
 // program of the day - mosmix will chose appropriate program
 static potd_t *potd;
 
-// actual Fronius power flow data and calculations
+// global power flow data and calculations
 static int akku, grid, load, pv, chrg, pv10, pv7, last_load, distortion, tendence, kf, kt;
 
 // PV history values to calculate distortion
@@ -159,8 +159,9 @@ static int collect_adjustable_power() {
 		if ((*ds)->greedy && !(*ds)->device->adjustable && !(*ds)->device->power)
 			greedy_dumb_off = 1;
 
-	// a greedy dumb off device can steal power from a non greedy adjustable device which is ramped up
-	int xpower = greedy_dumb_off ? adj_power : 0;
+	// a greedy dumb off device can steal power from a non greedy adjustable device
+	// which is ramped up and really consuming this power
+	int xpower = (greedy_dumb_off && load < adj_power * -1) ? adj_power : 0;
 	xdebug("FRONIUS collect_adjustable_power() %d (%d)", xpower, adj_power);
 	return xpower;
 }
@@ -187,10 +188,8 @@ static void print_power_status(int surplus, int extra, int sum, const char *mess
 	xlogl_int_b(line, "PV", pv);
 	xlogl_int(line, 1, 1, "Grid", grid);
 	xlogl_int(line, 1, 1, "Akku", akku);
-	if (surplus != 0)
-		xlogl_int(line, 1, 0, "Surplus", surplus);
-	if (extra != 0)
-		xlogl_int(line, 1, 0, "Extra", extra);
+	xlogl_int(line, 1, 0, "Surplus", surplus);
+	xlogl_int(line, 1, 0, "Extra", extra);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
@@ -357,24 +356,31 @@ static void update_history() {
 	}
 	strcat(message, "]");
 
-	// calculate average
-	int average = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		average += history[i];
-	average /= PV_HISTORY;
+	xdebug("FRONIUS PV history %s", message);
+}
 
-	// calculate variation
-	unsigned long variation = 0;
+static void calculations() {
+	// total pv from both inverters
+	pv = pv10 + pv7;
+
+	// pv average
+	int avg = 0;
 	for (int i = 0; i < PV_HISTORY; i++)
-		variation += abs(average - history[i]);
+		avg += history[i];
+	avg /= PV_HISTORY;
+
+	// pv variation
+	unsigned long var = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		var += abs(avg - history[i]);
 
 	// grade of alternation in pv production when its cloudy with sunny gaps
-	if (variation > average * 2)
-		distortion = variation / average;
+	if (var > avg * 2)
+		distortion = var / avg;
 	else
 		distortion = 0;
 
-	// calculate tendence
+	// pv tendence
 	int h0 = get_history(-1);
 	int h1 = get_history(-2);
 	int h2 = get_history(-3);
@@ -390,7 +396,13 @@ static void update_history() {
 	kf = KEEP_FROM * tolerance;
 	kt = KEEP_TO * tolerance;
 
-	xlog("FRONIUS %s avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d", message, average, variation, distortion, tendence, kf, kt);
+	// recalculate load
+	int raw_load = load;
+	int dumb_load = collect_dumb_load();
+	load -= dumb_load; // subtract load consumed by dumb devices
+	load -= pv7; // subtract PV produced by Fronius7
+
+	xlog("FRONIUS avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d raw_load:%d dumb_load:%d load:%d", avg, var, distortion, tendence, kf, kt, raw_load, dumb_load, load);
 }
 
 static int choose_program(const potd_t *p) {
@@ -671,16 +683,11 @@ static void* fronius(void *arg) {
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
-		// calculations
+		// rough value validation
 		sum = grid + akku + load + pv10;
-		pv = pv10 + pv7;
 
-		// recalculate load
-		int raw_load = load;
-		int dumb_load = collect_dumb_load();
-		load -= dumb_load; // subtract load consumed by dumb devices
-		load -= pv7; // subtract PV produced by Fronius7
-		xdebug("FRONIUS recalculate load: raw_load %d, dumb_load %d, PV7 %d, real_load %d", raw_load, dumb_load, pv7, load);
+		// do some global calculations
+		calculations();
 
 		// update PV history
 		update_history();
