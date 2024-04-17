@@ -493,8 +493,10 @@ static int check_standby(device_t *d, int power) {
 	int threshold = d->load / 2 * -1;
 	int diff = last_load - load;
 	int no_load = load > threshold; // no load at all
-	int switched_off = diff < threshold; // thermostat switched off: now at least half less load than before
-	if (!d->override && !d->standby && (no_load || switched_off)) {
+	// int switched_off = diff < threshold; // thermostat switched off: now at least half less load than before
+	// TODO wir wissen aber nicht welcher!
+	// if (!d->override && !d->standby && (no_load || switched_off)) {
+	if (!d->override && !d->standby && no_load) {
 		d->standby = 1;
 		(d->set_function)(d, STANDBY);
 		xdebug("FRONIUS %s: load %d, diff %d, threshold %d --> entering standby", d->name, load, diff, threshold);
