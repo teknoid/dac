@@ -356,7 +356,7 @@ static void update_history() {
 	}
 	strcat(message, "]");
 
-	xdebug("FRONIUS PV history %s", message);
+	xdebug("FRONIUS update_history() %s", message);
 }
 
 static void calculations() {
@@ -375,7 +375,7 @@ static void calculations() {
 		var += abs(avg - history[i]);
 
 	// grade of alternation in pv production when its cloudy with sunny gaps
-	if (var > avg * 2)
+	if (var > avg + avg / 2)
 		distortion = var / avg;
 	else
 		distortion = 0;
@@ -503,7 +503,7 @@ static int check_standby(device_t *d, int power) {
 }
 
 static int ramp_adjustable(device_t *d, int power) {
-	xdebug("FRONIUS ramp_adjustable %s %d", d->name, power);
+	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
 	int step = calculate_step(d, power);
 
 	if (step == 0)
@@ -515,7 +515,7 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	xdebug("FRONIUS ramp_dumb %s %d", d->name, power);
+	xdebug("FRONIUS ramp_dumb() %s %d", d->name, power);
 
 	// keep on as long as we have enough power and device is already on
 	if (d->power && power > 0)
@@ -533,7 +533,7 @@ static int ramp_dumb(device_t *d, int power) {
 }
 
 static int rampup_device(device_t *d, int power) {
-	xdebug("FRONIUS rampup_device %s %d", d->name, power);
+	xdebug("FRONIUS rampup_device() %s %d", d->name, power);
 
 	if (!d->active)
 		return 0; // continue loop
@@ -548,7 +548,7 @@ static int rampup_device(device_t *d, int power) {
 }
 
 static int rampdown_device(device_t *d, int power) {
-	xdebug("FRONIUS rampdown_device %s %d", d->name, power);
+	xdebug("FRONIUS rampdown_device() %s %d", d->name, power);
 
 	if (!d->power)
 		return 0; // already off - continue loop
