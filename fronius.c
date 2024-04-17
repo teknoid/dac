@@ -20,7 +20,7 @@
 static potd_t *potd;
 
 // global power flow data and calculations
-static int akku, grid, load, pv, chrg, pv10, pv7, last_load, distortion, tendence, kf, kt;
+static int akku, grid, load, chrg, pv, pv10, pv7, last_load, distortion, tendence;
 
 // PV history values to calculate distortion
 static int history[PV_HISTORY];
@@ -183,21 +183,18 @@ static void init_all_devices() {
 	}
 }
 
-static void print_power_status(int surplus, int extra, int sum, const char *message) {
+static void print_power_status(int surplus, int delta, const char *message) {
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", pv);
 	xlogl_int(line, 1, 1, "Grid", grid);
 	xlogl_int(line, 1, 1, "Akku", akku);
 	xlogl_int(line, 1, 0, "Surplus", surplus);
-	xlogl_int(line, 1, 0, "Extra", extra);
+	xlogl_int(line, 1, 0, "Delta", delta);
 	xlogl_int(line, 0, 0, "Chrg", chrg);
 	xlogl_int(line, 0, 0, "Load", load);
 	xlogl_int(line, 0, 0, "last Load", last_load);
 	xlogl_int(line, 0, 0, "PV10", pv10);
 	xlogl_int(line, 0, 0, "PV7", pv7);
-	if (sum != 0)
-		xlogl_int(line, 0, 0, "Sum", sum);
-
 	xlogl_end(line, message);
 }
 
@@ -357,52 +354,6 @@ static void update_history() {
 	strcat(message, "]");
 
 	xdebug("FRONIUS update_history() %s", message);
-}
-
-static void calculations() {
-	// total pv from both inverters
-	pv = pv10 + pv7;
-
-	// pv average
-	int avg = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		avg += history[i];
-	avg /= PV_HISTORY;
-
-	// pv variation
-	unsigned long var = 0;
-	for (int i = 0; i < PV_HISTORY; i++)
-		var += abs(avg - history[i]);
-
-	// grade of alternation in pv production when its cloudy with sunny gaps
-	if (var > avg + avg / 2)
-		distortion = var / avg;
-	else
-		distortion = 0;
-
-	// pv tendence
-	int h0 = get_history(-1);
-	int h1 = get_history(-2);
-	int h2 = get_history(-3);
-	if (h2 < h1 && h1 < h0)
-		tendence = 1; // pv is raising
-	else if (h2 > h1 && h1 > h0)
-		tendence = -1; // pv is falling
-	else
-		tendence = 0;
-
-	// allow more tolerance for bigger pv production
-	int tolerance = pv > 2000 ? pv / 1000 : 1;
-	kf = KEEP_FROM * tolerance;
-	kt = KEEP_TO * tolerance;
-
-	// recalculate load
-	int raw_load = load;
-	int dumb_load = collect_dumb_load();
-	load -= dumb_load; // subtract load consumed by dumb devices
-	load -= pv7; // subtract PV produced by Fronius7
-
-	xlog("FRONIUS avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d raw_load:%d dumb_load:%d load:%d", avg, var, distortion, tendence, kf, kt, raw_load, dumb_load, load);
 }
 
 static int choose_program(const potd_t *p) {
@@ -592,33 +543,106 @@ static int rampdown(int power, int skip_greedy) {
 }
 
 // do device adjustments in sequence of priority
-static void ramp(int surplus, int extra) {
+static void ramp(int surplus) {
+
+	// extra = only grid upload: not going into akku or from secondary inverters
+	int extra = surplus - akku;
+	xdebug("FRONIUS extra:%d", extra);
+
 	// 1. no extra power available: ramp down devices but skip greedy
-	if (extra < kf)
-		if (rampdown(extra - kf, 1))
+	if (extra < 0)
+		if (rampdown(extra, 1))
 			return;
 
 	// 2. consuming grid power or discharging akku: ramp down all devices
-	if (surplus < kf)
-		if (rampdown(surplus - kf, 0))
+	if (surplus < 0)
+		if (rampdown(surplus, 0))
 			return;
 
 	// steal power from ramped adjustable devices for greedy dumb devices
 	surplus += collect_adjustable_power();
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
-	if (surplus > kt)
-		if (rampup(surplus - kt, 1))
+	if (surplus > 0)
+		if (rampup(surplus, 1))
 			return;
 
 	// 4. extra power available: ramp up all devices
-	if (extra > kt)
-		if (rampup(extra - kt, 0))
+	if (extra > 0)
+		if (rampup(extra, 0))
 			return;
 }
 
+static int calculate_power_change() {
+	// total pv from both inverters
+	pv = pv10 + pv7;
+
+	// pv average
+	int avg = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		avg += history[i];
+	avg /= PV_HISTORY;
+
+	// pv variation
+	unsigned long var = 0;
+	for (int i = 0; i < PV_HISTORY; i++)
+		var += abs(avg - history[i]);
+
+	// grade of alternation in pv production when its cloudy with sunny gaps
+	if (var > avg + avg / 2)
+		distortion = var / avg;
+	else
+		distortion = 0;
+
+	// pv tendence
+	int h0 = get_history(-1);
+	int h1 = get_history(-2);
+	int h2 = get_history(-3);
+	if (h2 < h1 && h1 < h0)
+		tendence = 1; // pv is raising
+	else if (h2 > h1 && h1 > h0)
+		tendence = -1; // pv is falling
+	else
+		tendence = 0;
+
+	// allow more tolerance for bigger pv production
+	int tolerance = pv > 2000 ? pv / 1000 : 1;
+	int kf = KEEP_FROM * tolerance;
+	int kt = KEEP_TO * tolerance;
+
+	// recalculate load
+	int raw_load = load;
+	int dumb_load = collect_dumb_load();
+	load -= dumb_load; // subtract load consumed by dumb devices
+	load -= pv7; // subtract PV produced by Fronius7
+
+	// grid < 0	--> upload
+	// grid > 0	--> download
+
+	// akku < 0	--> charge
+	// akku > 0	--> discharge
+
+	// surplus is akku charge + grid upload
+	int surplus = (grid + akku) * -1;
+
+	// calculate delta power
+	int delta;
+	if (surplus > kt)
+		delta = surplus - kt;
+	else if (surplus < kf)
+		delta = surplus - kf;
+	else
+		delta = 0;
+
+	char message[256];
+	snprintf(message, 256, " avg:%d var:%lu dist:%d tend:%d kf:%d kt:%d raw_load:%d dumb_load:%d load:%d", avg, var, distortion, tendence, kf, kt, raw_load, dumb_load, load);
+	print_power_status(surplus, delta, message);
+
+	return delta;
+}
+
 static void* fronius(void *arg) {
-	int ret, surplus, extra, sum, errors = 0, hour = -1;
+	int ret, errors = 0, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -663,7 +687,7 @@ static void* fronius(void *arg) {
 
 		// not enough PV production, go into offline mode
 		if (pv10 < 100) {
-			print_power_status(0, 0, 0, "--> offline");
+			print_power_status(0, 0, "--> offline");
 			set_all_devices(0);
 			wait = WAIT_OFFLINE;
 			pv7 = 0;
@@ -685,46 +709,26 @@ static void* fronius(void *arg) {
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
-		// rough value validation
-		sum = grid + akku + load + pv10;
-
-		// do some global calculations
-		calculations();
-
-		// update PV history
-		update_history();
-
-		// grid < 0	--> upload
-		// grid > 0	--> download
-
-		// akku < 0	--> charge
-		// akku > 0	--> discharge
-
-		// surplus = akku charge + grid upload
-		surplus = (grid + akku) * -1;
-
-		// extra = grid upload - not going into akku or from secondary inverters
-		extra = grid * -1;
-
-		// discharging akku is not extra power
-		if (akku > 0)
-			extra -= akku;
-
-		print_power_status(surplus, extra, sum, NULL);
-
 		// default wait for next round
 		wait = WAIT_KEEP;
 
-		// ramp up /ramp down devices depending on surplus + extra power
-		ramp(surplus, extra);
+		// calculate delta power and ramp up/down devices depending on if we have surplus or not
+		int delta = calculate_power_change();
+		if (delta)
+			ramp(delta);
 
 		// faster next round when we have distortion
 		if (distortion && wait > 10)
 			wait /= 2;
 
-		// much faster next round on grid load or extreme distortion or suspicious values from Fronius API
-		if (grid > 25 || distortion > 5 || sum > 200)
+		// much faster next round on extreme distortion or wasting akku->grid power or suspicious values from Fronius API
+		int waste = akku > 25 && grid < -25 && akku + grid < 0;
+		int suspicious = grid + akku + load + pv10 > 200;
+		if (distortion > 5 || waste || suspicious)
 			wait = WAIT_NEXT;
+
+		// update PV history
+		update_history();
 
 		print_device_status();
 		last_load = load;
