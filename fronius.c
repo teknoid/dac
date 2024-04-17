@@ -205,7 +205,7 @@ static void print_device_status() {
 	char message[128];
 	char value[5];
 
-	strcpy(message, "FRONIUS devices active ");
+	strcpy(message, "FRONIUS Device Status: active ");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
 		strcat(message, (*ds)->device->active ? "1" : "0");
 
