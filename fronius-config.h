@@ -6,7 +6,7 @@
 #define KEEP_FROM			25
 #define KEEP_TO				75
 
-#define PV_HISTORY			24
+#define HISTORY				24
 #define OVERRIDE			600
 #define STANDBY				20
 
@@ -25,22 +25,21 @@
 typedef struct _state state_t;
 
 struct _state {
-	int akku;
-	int grid;
-	int load;
-	int chrg;
 	int pv;
-	int pv10;
-	int pv7;
-	int sum;
-	int last_load;
-	int distortion;
-	int tendence;
+	int grid;
+	int akku;
 	int surplus;
 	int greedy;
-	int nongreedy;
+	int modest;
 	int steal;
 	int waste;
+	int sum;
+	int chrg;
+	int load;
+	int pv10;
+	int pv7;
+	int distortion;
+	int tendence;
 };
 
 typedef struct _device device_t;
