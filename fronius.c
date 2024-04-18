@@ -27,7 +27,7 @@ static int history[PV_HISTORY];
 static int history_ptr = 0;
 
 static char line[LINEBUF];
-static int wait = 0, sock = 0;
+static int sock = 0;
 
 static pthread_t thread;
 
@@ -64,8 +64,6 @@ int set_heater(device_t *heater, int power) {
 
 	// update power value
 	heater->power = power;
-	wait = WAIT_NEXT;
-
 	return 1; // loop done
 }
 
@@ -131,8 +129,6 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power value
 	boiler->power = power;
-	wait = WAIT_NEXT;
-
 	return 1; //loop done
 }
 
@@ -198,7 +194,7 @@ static void print_power_status(int surplus, int delta, const char *message) {
 	xlogl_end(line, message);
 }
 
-static void print_device_status() {
+static void print_device_status(int wait) {
 	char message[128];
 	char value[5];
 
@@ -543,21 +539,21 @@ static int rampdown(int power, int skip_greedy) {
 }
 
 // do device adjustments in sequence of priority
-static void ramp(int surplus) {
+static int ramp(int surplus) {
 
 	// extra = only grid upload: not going into akku or from secondary inverters
-	int extra = surplus - akku;
+	int extra = akku < 0 ? surplus + akku : 0;
 	xdebug("FRONIUS extra:%d", extra);
 
 	// 1. no extra power available: ramp down devices but skip greedy
 	if (extra < 0)
 		if (rampdown(extra, 1))
-			return;
+			return 1;
 
 	// 2. consuming grid power or discharging akku: ramp down all devices
 	if (surplus < 0)
 		if (rampdown(surplus, 0))
-			return;
+			return 1;
 
 	// steal power from ramped adjustable devices for greedy dumb devices
 	surplus += collect_adjustable_power();
@@ -565,12 +561,14 @@ static void ramp(int surplus) {
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (surplus > 0)
 		if (rampup(surplus, 1))
-			return;
+			return 1;
 
 	// 4. extra power available: ramp up all devices
 	if (extra > 0)
 		if (rampup(extra, 0))
-			return;
+			return 1;
+
+	return 0;
 }
 
 static int calculate_power_change() {
@@ -642,7 +640,7 @@ static int calculate_power_change() {
 }
 
 static void* fronius(void *arg) {
-	int ret, errors = 0, hour = -1;
+	int ret, wait = 0, errors = 0, hour = -1;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -709,13 +707,17 @@ static void* fronius(void *arg) {
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
+		// for Fronius value validation
+		int sum = grid + akku + load + pv10;
+
 		// default wait for next round
 		wait = WAIT_KEEP;
 
 		// calculate delta power and ramp up/down devices depending on if we have surplus or not
 		int delta = calculate_power_change();
 		if (delta)
-			ramp(delta);
+			if (ramp(delta))
+				wait = WAIT_NEXT;
 
 		// faster next round when we have distortion
 		if (distortion && wait > 10)
@@ -723,14 +725,14 @@ static void* fronius(void *arg) {
 
 		// much faster next round on extreme distortion or wasting akku->grid power or suspicious values from Fronius API
 		int waste = akku > 25 && grid < -25 && akku + grid < 0;
-		int suspicious = grid + akku + load + pv10 > 200;
-		if (distortion > 5 || waste || suspicious)
+		xdebug("FRONIUS waste %d sum %d", waste, sum);
+		if (distortion > 5 || waste || sum > 200)
 			wait = WAIT_NEXT;
 
 		// update PV history
 		update_history();
 
-		print_device_status();
+		print_device_status(wait);
 		last_load = load;
 		errors = 0;
 	}
