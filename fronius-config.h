@@ -22,6 +22,27 @@
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 #define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
+typedef struct _state state_t;
+
+struct _state {
+	int akku;
+	int grid;
+	int load;
+	int chrg;
+	int pv;
+	int pv10;
+	int pv7;
+	int sum;
+	int last_load;
+	int distortion;
+	int tendence;
+	int surplus;
+	int greedy;
+	int nongreedy;
+	int steal;
+	int waste;
+};
+
 typedef struct _device device_t;
 
 typedef int (set_function_t)(device_t*, int);
