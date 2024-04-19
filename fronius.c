@@ -184,17 +184,16 @@ static state_t* get_history(int offset) {
 	return &history[i];
 }
 
-static void dump_history() {
+static void dump_history(int back) {
 	char line[HISTORY * sizeof(state_t) * 8];
 	char value[8];
 
 	strcpy(line, "FRONIUS History index    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend  susp");
 	xdebug(line);
-	for (int i = 0; i < HISTORY; i++) {
-		int *vv = (int*) &history[i];
+	for (int x = 0; x < back; x++) {
+		int *vv = (int*) get_history(x * -1);
 		strcpy(line, "FRONIUS History ");
-		char c = i == history_ptr ? '*' : ' ';
-		snprintf(value, 8, "%c[%2d] ", c, i);
+		snprintf(value, 8, "[%2d] ", x * -1);
 		strcat(line, value);
 		for (int j = 0; j < sizeof(state_t) / sizeof(int); j++) {
 			int v = vv[j];
@@ -753,9 +752,8 @@ static void* fronius(void *arg) {
 		print_device_status(wait);
 
 		// set history pointer to next slot
-		dump_history();
-		history_ptr++;
-		if (history_ptr == HISTORY)
+		dump_history(6);
+		if (++history_ptr == HISTORY)
 			history_ptr = 0;
 
 		errors = 0;
