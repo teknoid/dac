@@ -40,6 +40,7 @@ struct _state {
 	int pv7;
 	int distortion;
 	int tendence;
+	int suspicious;
 };
 
 typedef struct _device device_t;

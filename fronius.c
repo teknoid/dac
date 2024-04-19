@@ -188,7 +188,7 @@ static void dump_history() {
 	char line[HISTORY * sizeof(state_t) * 8];
 	char value[8];
 
-	strcpy(line, "FRONIUS History index    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend");
+	strcpy(line, "FRONIUS History index    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend  susp");
 	xdebug(line);
 	for (int i = 0; i < HISTORY; i++) {
 		int *vv = (int*) &history[i];
@@ -211,7 +211,7 @@ static void print_power_status(const char *message) {
 	xlogl_int_b(line, "PV", state->pv);
 	xlogl_int(line, 1, 1, "Grid", state->grid);
 	xlogl_int(line, 1, 1, "Akku", state->akku);
-	xlogl_int(line, 1, 0, "Surplus", state->surplus);
+	xlogl_int(line, 1, 0, "Surp", state->surplus);
 	xlogl_int(line, 1, 0, "Greedy", state->greedy);
 	xlogl_int(line, 1, 0, "Modest", state->modest);
 	xlogl_int(line, 0, 0, "Steal", state->steal);
@@ -224,8 +224,9 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_int(line, 0, 0, "Tend", state->tendence);
+	xlogl_int(line, 0, 0, "Susp", state->suspicious);
 	xlogl_end(line, message);
-	xdebug("FRONIUS line length %d", strlen(line));
+	xdebug("FRONIUS line length %d socket %d", strlen(line), sock);
 }
 
 static void print_device_status(int wait) {
@@ -514,7 +515,7 @@ static int rampdown_device(device_t *d, int power) {
 }
 
 static int rampup(int power, int only_greedy) {
-	xdebug("FRONIUS rampup() %d %d", power, only_greedy);
+	xdebug("FRONIUS rampup() %d %s", power, only_greedy ? "greedy" : "modest");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
 		if (only_greedy && !(*ds)->greedy)
 			continue; // skip non-greedy devices
@@ -526,7 +527,7 @@ static int rampup(int power, int only_greedy) {
 }
 
 static int rampdown(int power, int skip_greedy) {
-	xdebug("FRONIUS rampup() %d %d", power, skip_greedy);
+	xdebug("FRONIUS rampdown() %d %s", power, skip_greedy ? "modest" : "greedy");
 	const potd_device_t **ds = potd->devices;
 
 	// jump to last entry
@@ -617,7 +618,7 @@ static void calculate_state() {
 	// recalculate load
 	int raw_load = state->load;
 	int dumb_load = collect_dumb_load();
-	state->load -= dumb_load; // subtract load consumed by dumb devices
+	state->load -= dumb_load; // subtract known load consumed by dumb devices
 	state->load -= state->pv7; // subtract PV produced by Fronius7
 
 	// grid < 0	--> upload
@@ -643,10 +644,17 @@ static void calculate_state() {
 	// steal power from ramped adjustable devices for greedy dumb devices
 	state->steal = collect_adjustable_power();
 
+	// much faster next round on
+	// - extreme distortion
+	// - wasting akku->grid power
+	// - suspicious values from Fronius API
+	// - big akku / grid load
+	if (state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
+		state->suspicious = 1;
+
 	char message[128];
-	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d dload:%d sock:%d", avg, var, kf, kt, raw_load, dumb_load, sock);
+	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d dload:%d", avg, var, kf, kt, raw_load, dumb_load);
 	print_power_status(message);
-	xlog("calculate_state() done");
 }
 
 static void* fronius(void *arg) {
@@ -679,8 +687,6 @@ static void* fronius(void *arg) {
 		sleep(1);
 		if (wait--)
 			continue;
-
-		set_boiler(&boiler1, history_ptr);
 
 		// clear slot in history for storing new state
 		state = &history[history_ptr];
@@ -740,8 +746,8 @@ static void* fronius(void *arg) {
 		if (state->distortion && wait > 10)
 			wait /= 2;
 
-		// much faster next round on extreme distortion or wasting akku->grid power or suspicious values from Fronius API
-		if (state->distortion > 5 || state->waste || state->sum > 200)
+		// much faster next round when we have suspicious values
+		if (state->suspicious)
 			wait = WAIT_NEXT;
 
 		print_device_status(wait);
