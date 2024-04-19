@@ -405,24 +405,21 @@ static int calculate_step(device_t *d, int power) {
 	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
 
-	// we need at least one step if power is not null
-	if (step == -1 || step == 0 || step == 1) {
-		if (power < 0)
-			step = state->tendence < 0 ? -2 : -1;
-		else if (power > 0)
-			step = state->tendence > 0 ? 2 : 1;
-		xdebug("FRONIUS step2 %d", step);
-		return step;
-	}
-
 	// when we have distortion, do: smaller up steps / bigger down steps
-	if (state->distortion) {
+	if (state->distortion)
 		if (step > 0)
 			step /= (state->distortion == 1 ? 2 : state->distortion);
 		else
 			step *= (state->distortion == 1 ? 2 : state->distortion);
-		xdebug("FRONIUS step3 %d", step);
-	}
+	xdebug("FRONIUS step2 %d", step);
+
+	// we need at least one step if power is not null
+	if (!step)
+		if (power < 0)
+			step = state->tendence < 0 ? -2 : -1;
+		else if (power > 0)
+			step = state->tendence > 0 ? 2 : 1;
+	xdebug("FRONIUS step3 %d", step);
 
 	if (step < -100)
 		step = -100; // min -100
