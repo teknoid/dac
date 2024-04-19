@@ -185,19 +185,18 @@ static state_t* get_history(int offset) {
 }
 
 static void dump_history(int back) {
-	char line[HISTORY * sizeof(state_t) * 8];
+	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History index    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend  susp");
+	strcpy(line, "FRONIUS History  idx    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend  susp");
 	xdebug(line);
-	for (int x = 0; x < back; x++) {
-		int *vv = (int*) get_history(x * -1);
+	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
-		snprintf(value, 8, "[%2d] ", x * -1);
+		snprintf(value, 8, "[%2d] ", y * -1);
 		strcat(line, value);
-		for (int j = 0; j < sizeof(state_t) / sizeof(int); j++) {
-			int v = vv[j];
-			snprintf(value, 8, "%5d ", v);
+		int *vv = (int*) get_history(y * -1);
+		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
+			snprintf(value, 8, "%5d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
@@ -560,7 +559,7 @@ static int ramp() {
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (state->greedy > 0)
-		if (rampup(state->greedy + state->steal, 1))
+		if (rampup(state->greedy, 1))
 			return 1;
 
 	// 4. extra power available: ramp up all devices
@@ -640,8 +639,9 @@ static void calculate_state() {
 	// only grid load - not going into akku or from secondary inverters
 	state->modest = state->greedy - abs(state->akku);
 
-	// steal power from ramped adjustable devices for greedy dumb devices
+	// steal power from modest ramped adjustable devices for greedy dumb devices
 	state->steal = collect_adjustable_power();
+	state->greedy += state->steal;
 
 	// much faster next round on
 	// - extreme distortion
