@@ -575,7 +575,10 @@ static void calculate_state() {
 	state->pv = state->pv10 + state->pv7;
 
 	// wasting akku->grid power?
-	state->waste = state->akku > 25 && state->grid < -25 ? state->grid + state->akku : 0;
+	if (state->akku > 25 && state->grid < -25) {
+		int g = abs(state->grid);
+		state->waste = g < state->akku ? g : state->akku;
+	}
 
 	// pv average
 	int avg = 0;
