@@ -188,7 +188,7 @@ static void dump_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History  idx    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend  susp");
+	strcpy(line, "FRONIUS History  idx    pv  grid  akku  surp  grdy modst steal waste   sum  chrg  load  pv10   pv7  dist  tend actio  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
@@ -217,17 +217,15 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "Sum", state->sum);
 	xlogl_int(line, 0, 0, "Chrg", state->chrg);
 	xlogl_int(line, 0, 0, "Load", state->load);
-	xlogl_int(line, 0, 0, "LLoad", get_history(-1)->load);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_int(line, 0, 0, "Tend", state->tendence);
-	xlogl_int(line, 0, 0, "Susp", state->suspicious);
 	xlogl_end(line, message);
 	xdebug("FRONIUS line length %d socket %d", strlen(line), sock);
 }
 
-static void print_device_status(int wait) {
+static void print_device_status() {
 	char message[128];
 	char value[5];
 
@@ -240,10 +238,6 @@ static void print_device_status(int wait) {
 		snprintf(value, 5, " %3d", (*ds)->device->power);
 		strcat(message, value);
 	}
-
-	snprintf(value, 5, "%3d", wait);
-	strcat(message, "   wait ");
-	strcat(message, value);
 	xlog(message);
 }
 
@@ -571,6 +565,11 @@ static int ramp() {
 }
 
 static void calculate_state() {
+	// get 3x history back
+	state_t *h1 = get_history(-1);
+	state_t *h2 = get_history(-2);
+	state_t *h3 = get_history(-3);
+
 	// for validation
 	state->sum = state->grid + state->akku + state->load + state->pv10;
 
@@ -598,12 +597,9 @@ static void calculate_state() {
 		state->distortion = 0;
 
 	// pv tendence
-	int h0 = get_history(-1)->pv;
-	int h1 = get_history(-2)->pv;
-	int h2 = get_history(-3)->pv;
-	if (h2 < h1 && h1 < h0)
+	if (h3->pv < h2->pv && h2->pv < h1->pv)
 		state->tendence = 1; // pv is raising
-	else if (h2 > h1 && h1 > h0)
+	else if (h3->pv > h2->pv && h2->pv > h1->pv)
 		state->tendence = -1; // pv is falling
 	else
 		state->tendence = 0;
@@ -645,17 +641,33 @@ static void calculate_state() {
 	state->steal = collect_adjustable_power();
 	state->greedy += state->steal;
 
+	char message[128];
+	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d dload:%d", avg, var, kf, kt, raw_load, dumb_load);
+	print_power_status(message);
+}
+
+static void calculate_next_round() {
+	// get 3x history back
+	state_t *h1 = get_history(-1);
+	state_t *h2 = get_history(-2);
+	state_t *h3 = get_history(-3);
+
+	// state stable when we had no power change now and within last 3 rounds
+	int stable = state->action + h3->action + h2->action + h1->action == 0 ? 1 : 0;
+
+	// determine wait for next round
 	// much faster next round on
+	// - not stable
 	// - extreme distortion
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
-		state->suspicious = 1;
-
-	char message[128];
-	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d dload:%d", avg, var, kf, kt, raw_load, dumb_load);
-	print_power_status(message);
+	if (!stable || state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
+		state->wait = WAIT_NEXT;
+	else if (state->distortion)
+		state->wait = WAIT_KEEP / 2; // faster next round when we have distortion
+	else
+		state->wait = WAIT_KEEP; // state is stable
 }
 
 static void* fronius(void *arg) {
@@ -734,30 +746,21 @@ static void* fronius(void *arg) {
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
-		// default wait for next round
-		wait = WAIT_KEEP;
-
 		// calculate actual state and ramp up/down devices depending on if we have surplus or not
 		calculate_state();
 		if (state->greedy)
-			if (ramp())
-				wait = WAIT_NEXT;
+			state->action = ramp();
 
-		// faster next round when we have distortion
-		if (state->distortion && wait > 10)
-			wait /= 2;
-
-		// much faster next round when we have suspicious values
-		if (state->suspicious)
-			wait = WAIT_NEXT;
-
-		print_device_status(wait);
+		// determine wait for next round
+		calculate_next_round();
+		wait = state->wait;
 
 		// set history pointer to next slot
 		dump_history(6);
 		if (++history_ptr == HISTORY)
 			history_ptr = 0;
 
+		print_device_status();
 		errors = 0;
 	}
 }
