@@ -206,7 +206,7 @@ static void dump_history() {
 }
 
 static void print_power_status(const char *message) {
-	char line[512];
+	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", state->pv);
 	xlogl_int(line, 1, 1, "Grid", state->grid);
@@ -219,12 +219,13 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "Sum", state->sum);
 	xlogl_int(line, 0, 0, "Chrg", state->chrg);
 	xlogl_int(line, 0, 0, "Load", state->load);
-	xlogl_int(line, 0, 0, "LastLoad", get_history(-1)->load);
+	xlogl_int(line, 0, 0, "LLoad", get_history(-1)->load);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
-	xlogl_int(line, 0, 0, "Distortion", state->distortion);
-	xlogl_int(line, 0, 0, "Tendence", state->tendence);
+	xlogl_int(line, 0, 0, "Dist", state->distortion);
+	xlogl_int(line, 0, 0, "Tend", state->tendence);
 	xlogl_end(line, message);
+	xdebug("FRONIUS line length %d", strlen(line));
 }
 
 static void print_device_status(int wait) {
@@ -642,10 +643,10 @@ static void calculate_state() {
 	// steal power from ramped adjustable devices for greedy dumb devices
 	state->steal = collect_adjustable_power();
 
-//	char message[256];
-//	snprintf(message, 256, "avg:%d var:%lu kf:%d kt:%d raw_load:%d dumb_load:%d", avg, var, kf, kt, raw_load, dumb_load);
-//	print_power_status(NULL);
-//	xdebug("FRONIUS calculations avg:%d var:%lu kf:%d kt:%d raw_load:%d dumb_load:%d", avg, var, kf, kt, raw_load, dumb_load);
+	char message[128];
+	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d dload:%d sock:%d", avg, var, kf, kt, raw_load, dumb_load, sock);
+	print_power_status(message);
+	xlog("calculate_state() done");
 }
 
 static void* fronius(void *arg) {
