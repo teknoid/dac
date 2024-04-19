@@ -406,7 +406,7 @@ static int calculate_step(device_t *d, int power) {
 	xdebug("FRONIUS step1 %d", step);
 
 	// we need at least one step if power is not null
-	if (!step) {
+	if (step == -1 || step == 0 || step == 1) {
 		if (power < 0)
 			step = state->tendence < 0 ? -2 : -1;
 		else if (power > 0)
