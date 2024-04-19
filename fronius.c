@@ -221,7 +221,7 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_int(line, 0, 0, "Tend", state->tendence);
-	xlogl_end(line, message);
+	xlogl_end(line, sizeof(line), message);
 	xdebug("FRONIUS line length %d socket %d", strlen(line), sock);
 }
 

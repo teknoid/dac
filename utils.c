@@ -298,11 +298,15 @@ void xlogl_int_b(char *line, const char *name, int value) {
 	strncat(line, pair, 32);
 }
 
-void xlogl_end(char *line, const char *s) {
+void xlogl_end(char *line, size_t len, const char *s) {
 	if (s != NULL) {
 		strcat(line, " ");
 		strncat(line, s, LINEBUF);
 	}
+
+	int l = strlen(line);
+	if (l > len)
+		xerr("!!! Dangling segfault !!! line buffer is too small: strlen %d > sizeof %d", l, len);
 
 	xlog(line);
 }
