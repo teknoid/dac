@@ -460,14 +460,15 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	xdebug("FRONIUS ramp_dumb() %s %d", d->name, power);
+	int min = d->load + d->load * (state->distortion * 0.1);
+	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// keep on as long as we have enough power and device is already on
 	if (d->power && power > 0)
 		return 0; // continue loop
 
 	// switch on when enough power is available
-	if (!d->power && power > d->load)
+	if (!d->power && power > min)
 		return (d->set_function)(d, 1);
 
 	// switch off
@@ -598,9 +599,9 @@ static void calculate_state() {
 		state->distortion = 0;
 
 	// pv tendence
-	if (h3->pv < h2->pv && h2->pv < h1->pv)
+	if (h3->pv < h2->pv && h2->pv < h1->pv && h1->pv < state->pv)
 		state->tendence = 1; // pv is raising
-	else if (h3->pv > h2->pv && h2->pv > h1->pv)
+	else if (h3->pv > h2->pv && h2->pv > h1->pv && h1->pv > state->pv)
 		state->tendence = -1; // pv is falling
 	else
 		state->tendence = 0;
@@ -654,7 +655,7 @@ static void calculate_next_round() {
 	state_t *h3 = get_history(-3);
 
 	// state stable when we had no power change now and within last 3 rounds
-	int stable = state->action + h3->action + h2->action + h1->action == 0 ? 1 : 0;
+	int stable = h3->action + h2->action + h1->action + state->action == 0 ? 1 : 0;
 
 	// determine wait for next round
 	// much faster next round on
