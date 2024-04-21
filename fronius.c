@@ -426,10 +426,11 @@ static int calculate_step(device_t *d, int power) {
 		xdebug("FRONIUS step3 %d", step);
 	}
 
+	// full ramp down if necessary but moderate ramp up: max 25 per round
 	if (step < -100)
-		step = -100; // min -100
-	if (step > 100)
-		step = 100; // max 100
+		step = -100;
+	if (step > 25)
+		step = 25;
 	xdebug("FRONIUS step4 %d", step);
 
 	return step;
@@ -696,7 +697,7 @@ static void calculate_next_round() {
 }
 
 static void* fronius(void *arg) {
-	int ret, wait = 1, errors = 0, hour = -1;
+	int ret, wait = 1, errors = 0, min = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -705,6 +706,7 @@ static void* fronius(void *arg) {
 
 	// initializing
 	init_all_devices();
+	set_all_devices(0);
 	ZERO(history);
 
 	CURL *curl10 = curl_init(URL_FLOW10, callback_fronius10);
@@ -738,12 +740,18 @@ static void* fronius(void *arg) {
 		time_t now_ts = time(NULL);
 		now = localtime(&now_ts);
 
-		// reset program of the day and device states once per hour
-		if (potd == NULL || hour != now->tm_hour) {
-			xlog("FRONIUS resetting all device states");
-			set_all_devices(0);
+		// reset program of the day and standby states every half hour
+		if (potd == NULL || min == now->tm_min) {
+			if (now->tm_min < 30)
+				min = 30;
+			else
+				min = 0;
+
+			xlog("FRONIUS resetting standby states, next reset at %02d:%02d", min == 0 ? now->tm_hour + 1 : now->tm_hour, min);
+			for (int i = 0; i < ARRAY_SIZE(devices); i++)
+				devices[i]->standby = 0;
+
 			mosmix();
-			hour = now->tm_hour;
 			wait = 1;
 			continue;
 		}
