@@ -80,14 +80,22 @@ int set_boiler(device_t *boiler, int power) {
 			xdebug("FRONIUS Override active for %lu seconds on %s", boiler->override - t, boiler->name);
 			power = 100;
 		}
-	} else {
-		if (power == 0)
-			boiler->standby = 0; // zero resets standby
 	}
 
 	// no update necessary
 	if (boiler->power == power)
-		return 0;
+		return 0; // continue loop
+
+	// calculate step
+	int step = power - boiler->power;
+	int loop = 1; // default return is: loop done as we adjusted this device
+
+	// immediately stop all standby devices as we don't know if and which device is actually consuming the power
+	if (step < 0 && boiler->standby) {
+		boiler->standby = 0;
+		power = 0;
+		loop = 0; // continue loop --> will stop all standby devices
+	}
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -103,16 +111,13 @@ int set_boiler(device_t *boiler, int power) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	// convert 0..100% to 2..10V SSR control voltage
+	// send message to boiler
 	char message[16];
 	snprintf(message, 16, "p:%d:%d", power, 0);
-
-	// send message to boiler
 	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	if (ret < 0)
 		return xerr("Sendto failed on %s %s", boiler->addr, strerror(ret));
 
-	int step = power - boiler->power;
 	if (step > 0)
 		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 	else
@@ -120,7 +125,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power value
 	boiler->power = power;
-	return 1; //loop done
+	return loop;
 }
 
 static state_t* get_history(int offset) {
@@ -175,6 +180,10 @@ static void print_power_status(const char *message) {
 static void print_device_status() {
 	char message[128];
 	char value[5];
+
+	strcpy(message, "FRONIUS standby ");
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		strcat(message, (*ds)->device->standby ? "1" : "0");
 
 	strcat(message, "   power ");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
@@ -455,8 +464,8 @@ static int check_standby(device_t *d, int power) {
 	int thermostat_off = !others_ramped && diff < threshold;
 
 	if (no_load || thermostat_off) {
-		d->standby = 1;
 		(d->set_function)(d, STANDBY);
+		d->standby = 1;
 		xdebug("FRONIUS %s: avg last load %d, diff %d, threshold %d, others ramped %d --> entering standby", d->name, avg_last_load, diff, threshold, others_ramped);
 		return 0; // now we can continue loop
 	}
