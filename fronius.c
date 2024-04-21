@@ -361,7 +361,7 @@ static int choose_program(const potd_t *p) {
 
 static int mosmix() {
 	char line[8];
-	int today, tomorrow, tomorrowplus1;
+	int m0, m1, m2;
 
 	// default program
 	potd = (potd_t*) &CLOUDY_EMPTY;
@@ -371,30 +371,32 @@ static int mosmix() {
 		return xerr("FRONIUS no mosmix data available");
 
 	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &today) != 1)
+		if (sscanf(line, "%d", &m0) != 1)
 			return xerr("FRONIUS mosmix parse error %s", line);
 
 	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &tomorrow) != 1)
+		if (sscanf(line, "%d", &m1) != 1)
 			return xerr("FRONIUS mosmix parse error %s", line);
 
 	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &tomorrowplus1) != 1)
+		if (sscanf(line, "%d", &m2) != 1)
 			return xerr("FRONIUS mosmix parse error %s", line);
 
 	fclose(fp);
 
-	int exp_today = today * MOSMIX_FACTOR;
-	int exp_tom = tomorrow * MOSMIX_FACTOR;
-	int exp_tomp1 = tomorrowplus1 * MOSMIX_FACTOR;
-	int needed = SELF_CONSUMING - SELF_CONSUMING * now->tm_hour / 24 + AKKU_CAPACITY - AKKU_CAPACITY * state->chrg / 100;
+	int e0 = m0 * MOSMIX_FACTOR;
+	int e1 = m1 * MOSMIX_FACTOR;
+	int e2 = m2 * MOSMIX_FACTOR;
+	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
+	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
+	int n = na + ns;
 
-	xlog("FRONIUS mosmix needed %d, Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", needed, today, exp_today, tomorrow, exp_tom, tomorrowplus1, exp_tomp1);
+	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
-	if (exp_today > needed)
+	if (e0 > n)
 		return choose_program(&SUNNY);
 
-	if (state->chrg > 50 && exp_tom > SELF_CONSUMING)
+	if (state->chrg > 50 && e1 > SELF_CONSUMING)
 		return choose_program(&TOMORROW);
 
 	if (state->chrg > 75)
@@ -697,7 +699,8 @@ static void calculate_next_round() {
 }
 
 static void* fronius(void *arg) {
-	int ret, wait = 1, errors = 0, min = 0;
+	int ret, wait = 1, errors = 0;
+	time_t next_reset;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -736,25 +739,9 @@ static void* fronius(void *arg) {
 		if (errors == 3)
 			set_all_devices(0);
 
-		// get actual date and time
+		// get actual calendar time
 		time_t now_ts = time(NULL);
 		now = localtime(&now_ts);
-
-		// reset program of the day and standby states every half hour
-		if (potd == NULL || min == now->tm_min) {
-			if (now->tm_min < 30)
-				min = 30;
-			else
-				min = 0;
-
-			xlog("FRONIUS resetting standby states, next reset at %02d:%02d", min == 0 ? now->tm_hour + 1 : now->tm_hour, min);
-			for (int i = 0; i < ARRAY_SIZE(devices); i++)
-				devices[i]->standby = 0;
-
-			mosmix();
-			wait = 1;
-			continue;
-		}
 
 		// make Fronius10 API call
 		ret = curl_perform(curl10);
@@ -771,6 +758,19 @@ static void* fronius(void *arg) {
 			set_all_devices(0);
 			wait = WAIT_OFFLINE;
 			state->pv7 = 0;
+			continue;
+		}
+
+		// reset program of the day and standby states every 30min
+		if (potd == NULL || now_ts > next_reset) {
+			next_reset = now_ts + STANDBY_RESET;
+
+			xlog("FRONIUS resetting standby states");
+			for (int i = 0; i < ARRAY_SIZE(devices); i++)
+				devices[i]->standby = 0;
+
+			mosmix();
+			wait = 1;
 			continue;
 		}
 

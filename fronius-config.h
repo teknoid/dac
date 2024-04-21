@@ -9,6 +9,7 @@
 #define HISTORY				24
 #define OVERRIDE			600
 #define STANDBY				0
+#define STANDBY_RESET		60 * 30
 
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
