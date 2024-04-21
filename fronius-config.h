@@ -54,7 +54,6 @@ struct _device {
 	time_t override;
 	int adjustable;
 	int standby;
-	int active;
 	int power;
 	int load;
 	set_function_t *set_function;

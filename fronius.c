@@ -39,9 +39,6 @@ int set_heater(device_t *heater, int power) {
 	if (heater->power == power)
 		return 0;
 
-	if (!heater->active)
-		power = 0;
-
 	// can we send a message
 	if (heater->addr == NULL)
 		return xerr("No address to send HTTP message");
@@ -84,8 +81,6 @@ int set_boiler(device_t *boiler, int power) {
 			power = 100;
 		}
 	} else {
-		if (!boiler->active)
-			power = 0;
 		if (power == 0)
 			boiler->standby = 0; // zero resets standby
 	}
@@ -181,10 +176,6 @@ static void print_device_status() {
 	char message[128];
 	char value[5];
 
-	strcpy(message, "FRONIUS active ");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		strcat(message, (*ds)->device->active ? "1" : "0");
-
 	strcat(message, "   power ");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
 		snprintf(value, 5, " %3d", (*ds)->device->power);
@@ -239,7 +230,6 @@ static void set_all_devices(int power) {
 static void init_all_devices() {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
-		d->active = 1;
 		d->power = -1;
 		d->addr = resolve_ip(d->name);
 	}
@@ -507,9 +497,6 @@ static int ramp_dumb(device_t *d, int power) {
 
 static int rampup_device(device_t *d, int power) {
 	xdebug("FRONIUS rampup_device() %s %d", d->name, power);
-
-	if (!d->active)
-		return 0; // continue loop
 
 	if (d->standby)
 		return 0; // continue loop
@@ -942,7 +929,6 @@ static int calibrate(char *name) {
 static int test() {
 	device_t *d = &boiler1;
 
-	d->active = 1;
 	d->power = -1;
 	d->addr = resolve_ip(d->name);
 
@@ -992,7 +978,6 @@ int fronius_override(const char *name) {
 		if (!strcmp(d->name, name)) {
 			xlog("FRONIUS Activating Override for %d seconds on %s", OVERRIDE, d->name);
 			d->override = time(NULL) + OVERRIDE;
-			d->active = 1;
 			d->standby = 0;
 			(d->set_function)(d, 100);
 		}
