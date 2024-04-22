@@ -589,7 +589,7 @@ static int get_average_load(int h) {
 	return average_load < 0 ? average_load : 0;
 }
 
-static int get_adjustable_power() {
+static int get_stealable_power() {
 	int adj_power = 0, greedy_dumb_off = 0;
 
 	// collect non greedy adjustable power
@@ -603,9 +603,9 @@ static int get_adjustable_power() {
 			greedy_dumb_off = 1;
 
 	// a greedy dumb off device can steal power from a non greedy adjustable device
-	// which is ramped up and really consuming this power
+	// but only when it's ramped up and really consuming this power
 	int xpower = greedy_dumb_off && state->aload < adj_power * -1 ? adj_power : 0;
-	xdebug("FRONIUS collect_adjustable_power() %d adjpower:%d aload:%d off:%d", xpower, adj_power, state->aload, greedy_dumb_off);
+	xdebug("FRONIUS get_stealable_power() %d adjpower:%d aload:%d off:%d", xpower, adj_power, state->aload, greedy_dumb_off);
 	return xpower;
 }
 
@@ -687,7 +687,7 @@ static void calculate_state() {
 		state->modest = 0;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
-	state->steal = get_adjustable_power();
+	state->steal = get_stealable_power();
 	state->greedy += state->steal;
 
 	char message[128];
@@ -696,13 +696,10 @@ static void calculate_state() {
 }
 
 static void calculate_next_round() {
-	// get 3x history back
-	state_t *h1 = get_history(-1);
-	state_t *h2 = get_history(-2);
-	state_t *h3 = get_history(-3);
-
-	// state stable when we had no power change now and within last 3 rounds
-	int stable = h3->action + h2->action + h1->action + state->action == 0 ? 1 : 0;
+	// state is stable when we had no power change now and within last 3 rounds
+	int instable = state->action;
+	for (int i = 1; i <= 3; i++)
+		instable += get_history(i * -1)->action;
 
 	// determine wait for next round
 	// much faster next round on
@@ -711,7 +708,7 @@ static void calculate_next_round() {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (!stable || state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
+	if (instable || state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
 		state->wait = WAIT_NEXT;
 	else if (state->distortion)
 		state->wait = WAIT_KEEP / 2; // faster next round when we have distortion
