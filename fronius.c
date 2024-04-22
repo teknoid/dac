@@ -659,7 +659,6 @@ static void calculate_state() {
 	int kt = KEEP_TO * tolerance;
 
 	// recalculate load
-	int raw_load = state->load;
 	state->load -= state->pv7; // subtract PV produced by Fronius7
 	state->dload = state->load - h1->load;
 	state->aload = get_average_load(3);
@@ -691,7 +690,7 @@ static void calculate_state() {
 	state->greedy += state->steal;
 
 	char message[128];
-	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d rload:%d", avg, var, kf, kt, raw_load);
+	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d", avg, var, kf, kt);
 	print_power_status(message);
 }
 
