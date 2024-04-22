@@ -559,26 +559,6 @@ static int ramp() {
 	return 0;
 }
 
-static void steal_modest_power() {
-	int apower = 0, greedy_dumb_off = 0;
-
-	// collect non greedy adjustable power
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if (!(*ds)->greedy && (*ds)->device->adjustable && !(*ds)->device->standby)
-			apower += (*ds)->device->power * (*ds)->device->load / 100;
-
-	// check if we have greedy dumb off devices
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->greedy && !(*ds)->device->adjustable && !(*ds)->device->power)
-			greedy_dumb_off = 1;
-
-	// a greedy dumb off device can steal power from a non greedy adjustable device
-	// which is ramped up and consuming at least 50% of provided power
-	state->steal = greedy_dumb_off && state->rload + apower < apower / 2 ? apower : 0;
-	xdebug("FRONIUS get_stealable_power() %d relative load:%d adjustable power:%d off:%d", state->steal, state->rload, apower, greedy_dumb_off);
-	state->greedy += state->steal;
-}
-
 static void recalculate_load() {
 	state_t *h1 = get_history(-1);
 
@@ -622,6 +602,26 @@ static void recalculate_load() {
 	}
 	if (abs(state->rload) < NOISE)
 		state->rload = 0;
+}
+
+static void steal_modest_power() {
+	int apower = 0, greedy_dumb_off = 0;
+
+	// collect non greedy adjustable power
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if (!(*ds)->greedy && (*ds)->device->adjustable && !(*ds)->device->standby)
+			apower += (*ds)->device->power * (*ds)->device->load / 100;
+
+	// check if we have greedy dumb off devices
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if ((*ds)->greedy && !(*ds)->device->adjustable && !(*ds)->device->power)
+			greedy_dumb_off = 1;
+
+	// a greedy dumb off device can steal power from a non greedy adjustable device
+	// which is ramped up and consuming at least 50% of provided power
+	state->steal = greedy_dumb_off && state->rload + apower < apower / 2 ? apower : 0;
+	xdebug("FRONIUS get_stealable_power() %d relative load:%d adjustable power:%d off:%d", state->steal, state->rload, apower, greedy_dumb_off);
+	state->greedy += state->steal;
 }
 
 static void calculate_state() {
