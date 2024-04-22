@@ -45,6 +45,7 @@ struct _state {
 	int distortion;
 	int tendence;
 	int action;
+	int response;
 	int wait;
 };
 

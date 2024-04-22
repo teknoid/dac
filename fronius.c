@@ -48,10 +48,10 @@ int set_heater(device_t *heater, int power) {
 	if (power) {
 		xlog("FRONIUS switching %s ON", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
-		action_power *= -1;
 	} else {
 		xlog("FRONIUS switching %s OFF", heater->name);
 		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
+		action_power *= -1;
 	}
 	// send message to heater
 	system(command);
@@ -144,7 +144,7 @@ static void dump_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History  idx    pv   Δpv  grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload Øload  pv10   pv7  dist  tend actio  wait");
+	strcpy(line, "FRONIUS History  idx    pv   Δpv  grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload Øload  pv10   pv7  dist  tend actio  resp  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
@@ -438,14 +438,8 @@ static int check_standby(device_t *d, int power) {
 	}
 	int noload = thres * -1 < load;
 
-	// check response from last action when it was at least +/- 100 watts
-	state_t *h1 = get_history(-1);
-	int resp = 0;
-	if (abs(h1->action) > 100)
-		resp = abs(h1->action - state->dload) < 25 ? 1 : -1;
-
-	xdebug("FRONIUS check_standby() thres:%d, dload:%d, load:%d, others:%d, noload:%d, thermo:%d resp:%d", thres, state->dload, load, others, noload, thermo, resp);
-	if (noload || thermo || resp == -1) {
+	xdebug("FRONIUS check_standby() thres:%d, load:%d, dload:%d, resp:%d, others:%d, noload:%d, thermo:%d", thres, load, state->dload, state->response, others, noload, thermo);
+	if (noload || thermo || state->response == -1) {
 		xdebug("FRONIUS %s entering standby", d->name);
 		(d->set_function)(d, STANDBY);
 		d->standby = 1;
@@ -608,9 +602,9 @@ static int get_stealable_power() {
 			greedy_dumb_off = 1;
 
 	// a greedy dumb off device can steal power from a non greedy adjustable device
-	// but only when it's ramped up and really consuming this power
-	int xpower = greedy_dumb_off && state->aload < adj_power * -1 ? adj_power : 0;
-	xdebug("FRONIUS get_stealable_power() %d adjpower:%d aload:%d off:%d", xpower, adj_power, state->aload, greedy_dumb_off);
+	// but only when it's ramped up and really consuming this power (250 = base load)
+	int xpower = greedy_dumb_off && (state->load + 250) < adj_power * -1 ? adj_power : 0;
+	xdebug("FRONIUS get_stealable_power() %d adjpower:%d load:%d off:%d", xpower, adj_power, state->load, greedy_dumb_off);
 	return xpower;
 }
 
@@ -693,6 +687,10 @@ static void calculate_state() {
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	state->steal = get_stealable_power();
 	state->greedy += state->steal;
+
+	// we expect at least 50% delta load from a previous action greater than +/- 100 watts
+	if (abs(h1->action) > 100)
+		state->response = h1->action + state->dload < h1->action / 2 ? 1 : -1;
 
 	char message[128];
 	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d", avg, var, kf, kt);
