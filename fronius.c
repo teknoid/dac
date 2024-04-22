@@ -734,6 +734,7 @@ static void* fronius(void *arg) {
 	init_all_devices();
 	set_all_devices(0);
 	ZERO(history);
+	get_history(-1)->bload = BASELOAD;
 
 	CURL *curl10 = curl_init(URL_FLOW10, callback_fronius10);
 	if (curl10 == NULL) {
@@ -746,10 +747,6 @@ static void* fronius(void *arg) {
 		xlog("Error initializing libcurl");
 		return (void*) 0;
 	}
-
-	// intial base load
-	state = &history[history_ptr];
-	state->bload = BASELOAD;
 
 	// the FRONIUS main loop
 	while (1) {
