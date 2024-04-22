@@ -27,6 +27,7 @@ typedef struct _state state_t;
 
 struct _state {
 	int pv;
+	int dpv;
 	int grid;
 	int akku;
 	int surplus;
@@ -37,6 +38,8 @@ struct _state {
 	int sum;
 	int chrg;
 	int load;
+	int dload;
+	int aload;
 	int pv10;
 	int pv7;
 	int distortion;
