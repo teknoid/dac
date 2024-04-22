@@ -68,10 +68,6 @@ int set_boiler(device_t *boiler, int power) {
 	if (power > 100)
 		power = 100;
 
-	// can we send a message
-	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
-
 	if (boiler->override) {
 		time_t t = time(NULL);
 		if (t > boiler->override) {
@@ -87,6 +83,10 @@ int set_boiler(device_t *boiler, int power) {
 	// no update necessary
 	if (boiler->power == power)
 		return 0; // continue loop
+
+	// can we send a message
+	if (boiler->addr == NULL)
+		return xerr("No address to send UDP message");
 
 	// calculate step
 	int step = power - boiler->power;
@@ -418,16 +418,16 @@ static int check_standby(device_t *d, int power) {
 		return 0; // always continue loop
 
 	// 90% device load is trigger criteria
-	int threshold = d->load * 0.9;
+	int thres = d->load * 0.9;
 
 	// check if this device is the only one which is not in standby, then we can set it to standby if thermostat switched off
-	int others_ramped = 0;
+	int others = 0;
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *dd = devices[i];
 		if (dd->adjustable && dd->power > 0 && !dd->standby && dd != d)
-			others_ramped = 1;
+			others = 1;
 	}
-	int thermostat_off = !others_ramped && state->dload > threshold;
+	int thermo = !others && state->dload > thres;
 
 	// no load now (subtract known load consumed by dumb devices)
 	int load = state->load;
@@ -436,11 +436,16 @@ static int check_standby(device_t *d, int power) {
 		if (!d->adjustable && d->power)
 			load -= d->load * -1;
 	}
+	int noload = thres * -1 < load;
 
-	int no_load = load > threshold * -1;
+	// check response from last action when it was at least +/- 100 watts
+	state_t *h1 = get_history(-1);
+	int resp = 0;
+	if (abs(h1->action) > 100)
+		resp = abs(h1->action - state->dload) < 25 ? 1 : -1;
 
-	xdebug("FRONIUS check_standby() thres:%d, dload:%d, load:%d, others:%d, noload:%d, thermo:%d", threshold, state->dload, load, others_ramped, no_load, thermostat_off);
-	if (no_load || thermostat_off) {
+	xdebug("FRONIUS check_standby() thres:%d, dload:%d, load:%d, others:%d, noload:%d, thermo:%d resp:%d", thres, state->dload, load, others, noload, thermo, resp);
+	if (noload || thermo || resp == -1) {
 		xdebug("FRONIUS %s entering standby", d->name);
 		(d->set_function)(d, STANDBY);
 		d->standby = 1;
@@ -707,7 +712,7 @@ static void calculate_next_round() {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (instable || state->distortion > 5 || state->waste || state->sum > 200 || state->grid > 500 || state->akku > 500)
+	if (instable || state->distortion > 5 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
 		state->wait = WAIT_NEXT;
 	else if (state->distortion)
 		state->wait = WAIT_KEEP / 2; // faster next round when we have distortion
