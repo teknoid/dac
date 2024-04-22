@@ -747,6 +747,10 @@ static void* fronius(void *arg) {
 		return (void*) 0;
 	}
 
+	// intial base load
+	state = &history[history_ptr];
+	state->bload = BASELOAD;
+
 	// the FRONIUS main loop
 	while (1) {
 

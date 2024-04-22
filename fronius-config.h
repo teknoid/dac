@@ -18,6 +18,7 @@
 
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000
+#define BASELOAD			250
 #define NOISE				25
 
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
