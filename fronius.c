@@ -144,7 +144,7 @@ static void dump_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History  idx    pv   Δpv  grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload Øload  pv10   pv7  dist  tend actio  resp  wait");
+	strcpy(line, "FRONIUS History  idx    pv   Δpv  grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload rload bload  pv10   pv7  dist  tend actio  resp  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
@@ -175,11 +175,6 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "Load", state->load);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
-	xlogl_int(line, 0, 0, "ΔPV", state->dpv);
-	xlogl_int(line, 0, 0, "ΔLoad", state->dload);
-	xlogl_int(line, 0, 0, "ØLoad", state->aload);
-	xlogl_int(line, 0, 0, "Dist", state->distortion);
-	xlogl_int(line, 0, 0, "Tend", state->tendence);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -412,7 +407,7 @@ static int calculate_step(device_t *d, int power) {
 }
 
 // check if device is ramped up to 100% but does not consume power
-static int check_standby(device_t *d, int power) {
+static int standby(device_t *d, int power) {
 	// override active or already in standby
 	if (d->override || d->standby)
 		return 0; // always continue loop
@@ -430,15 +425,9 @@ static int check_standby(device_t *d, int power) {
 	int thermo = !others && state->dload > thres;
 
 	// no load now (subtract known load consumed by dumb devices)
-	int load = state->load;
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		if (!d->adjustable && d->power)
-			load -= d->load * -1;
-	}
-	int noload = thres * -1 < load;
+	int noload = thres * -1 < state->rload;
 
-	xdebug("FRONIUS check_standby() thres:%d, load:%d, dload:%d, resp:%d, others:%d, noload:%d, thermo:%d", thres, load, state->dload, state->response, others, noload, thermo);
+	xdebug("FRONIUS standby() thres:%d, rload:%d, dload:%d, resp:%d, others:%d, noload:%d, thermo:%d", thres, state->rload, state->dload, state->response, others, noload, thermo);
 	if (noload || thermo || state->response == -1) {
 		xdebug("FRONIUS %s entering standby", d->name);
 		(d->set_function)(d, STANDBY);
@@ -455,7 +444,7 @@ static int ramp_adjustable(device_t *d, int power) {
 	if (step == 0)
 		return 0; // continue loop
 	else if (step > 0 && d->power == 100)
-		return check_standby(d, power);
+		return standby(d, power);
 	else
 		return (d->set_function)(d, d->power + step);
 }
@@ -572,29 +561,13 @@ static int ramp() {
 	return 0;
 }
 
-static int get_average_load(int h) {
-	int average_load = state->load;
-	for (int i = 1; i <= h; i++)
-		average_load += get_history(h * -1)->load;
-	average_load /= h + 1;
-
-	// subtract known load consumed by dumb devices
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		if (!d->adjustable && d->power)
-			average_load -= d->load * -1;
-	}
-
-	return average_load < 0 ? average_load : 0;
-}
-
 static int get_stealable_power() {
-	int adj_power = 0, greedy_dumb_off = 0;
+	int apower = 0, greedy_dumb_off = 0;
 
 	// collect non greedy adjustable power
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
 		if (!(*ds)->greedy && (*ds)->device->adjustable && !(*ds)->device->standby)
-			adj_power += (*ds)->device->power * (*ds)->device->load / 100;
+			apower += (*ds)->device->power * (*ds)->device->load / 100;
 
 	// check if we have greedy dumb off devices
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
@@ -602,9 +575,9 @@ static int get_stealable_power() {
 			greedy_dumb_off = 1;
 
 	// a greedy dumb off device can steal power from a non greedy adjustable device
-	// but only when it's ramped up and really consuming this power (250 = base load)
-	int xpower = greedy_dumb_off && (state->load + 250) < adj_power * -1 ? adj_power : 0;
-	xdebug("FRONIUS get_stealable_power() %d adjpower:%d load:%d off:%d", xpower, adj_power, state->load, greedy_dumb_off);
+	// but only when it's ramped up and consuming at least 50% of this power
+	int xpower = greedy_dumb_off && state->rload + apower < apower / 2 ? apower : 0;
+	xdebug("FRONIUS get_stealable_power() %d relative load:%d adjustable power:%d off:%d", xpower, state->rload, apower, greedy_dumb_off);
 	return xpower;
 }
 
@@ -622,7 +595,7 @@ static void calculate_state() {
 	state->dpv = state->pv - h1->pv;
 
 	// wasting akku->grid power?
-	if (state->akku > 25 && state->grid < -25) {
+	if (state->akku > NOISE && state->grid < NOISE * -1) {
 		int g = abs(state->grid);
 		state->waste = g < state->akku ? g : state->akku;
 	}
@@ -657,10 +630,40 @@ static void calculate_state() {
 	int kf = KEEP_FROM * tolerance;
 	int kt = KEEP_TO * tolerance;
 
-	// recalculate load
+	// recalculate base load when all devices are ramped down
+	int all_ramped_down = 1;
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		if (devices[i]->power)
+			all_ramped_down = 0;
+	if (all_ramped_down) {
+		int no_actions = 1;
+		int new_baseload = 0;
+		for (int i = 0; i < HISTORY; i++) {
+			state_t *h = get_history(i);
+			new_baseload += h->load;
+			if (h->action)
+				no_actions = 0;
+		}
+		new_baseload /= HISTORY;
+		if (no_actions)
+			state->bload = new_baseload;
+		else
+			state->bload = h1->bload;
+	}
+
+	// recalculate load, delta load and relative load
 	state->load -= state->pv7; // subtract PV produced by Fronius7
 	state->dload = state->load - h1->load;
-	state->aload = get_average_load(3);
+	if (abs(state->dload) < NOISE)
+		state->dload = 0;
+	state->rload = state->load - state->bload; // subtract base load
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		if (!d->adjustable && d->power)
+			state->rload -= d->load * -1; // subtract known dumb load
+	}
+	if (abs(state->rload) < NOISE)
+		state->rload = 0;
 
 	// grid < 0	--> upload
 	// grid > 0	--> download
@@ -681,7 +684,7 @@ static void calculate_state() {
 
 	// only grid load - not going into akku or from secondary inverters
 	state->modest = state->greedy - abs(state->akku);
-	if (-25 < state->modest && state->modest < 0)
+	if (NOISE * -1 < state->modest && state->modest < 0)
 		state->modest = 0;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
