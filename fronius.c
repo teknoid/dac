@@ -131,6 +131,22 @@ int set_boiler(device_t *boiler, int power) {
 	return action_power;
 }
 
+static void set_all_devices(int power) {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		(d->set_function)(d, power);
+	}
+}
+
+// initialize all devices with start values
+static void init_all_devices() {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		d->power = -1;
+		d->addr = resolve_ip(d->name);
+	}
+}
+
 static state_t* get_history(int offset) {
 	int i = history_ptr + offset;
 	if (i < 0)
@@ -190,22 +206,6 @@ static void print_device_status() {
 		strcat(message, value);
 	}
 	xlog(message);
-}
-
-static void set_all_devices(int power) {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		(d->set_function)(d, power);
-	}
-}
-
-// initialize all devices with start values
-static void init_all_devices() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		d->power = -1;
-		d->addr = resolve_ip(d->name);
-	}
 }
 
 static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
