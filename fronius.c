@@ -513,23 +513,31 @@ static device_t* ramp() {
 	return 0;
 }
 
-static void steal_modest_power() {
-	int apower = 0, greedy_dumb_off = 0;
-
-	// collect non greedy adjustable power
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if (!(*ds)->greedy && (*ds)->device->adjustable && !(*ds)->device->standby)
-			apower += (*ds)->device->power * (*ds)->device->load / 100;
+static void steal_power() {
+	int dpower = 0, apower = 0, greedy_dumb_off = 0;
 
 	// check if we have greedy dumb off devices
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->greedy && !(*ds)->device->adjustable && !(*ds)->device->power)
+	// collect non greedy adjustable power and greedy dumb power
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
+		device_t *d = (*ds)->device;
+
+		if ((*ds)->greedy && !d->adjustable && !d->power)
 			greedy_dumb_off = 1;
 
-	// a greedy dumb off device can steal power from a non greedy adjustable device
-	// which is ramped up and consuming at least 50% of provided power
-	state->steal = greedy_dumb_off ? apower : 0;
-	xdebug("FRONIUS get_stealable_power() %d relative load:%d adjustable power:%d off:%d", state->steal, apower, greedy_dumb_off);
+		if (!d->power || d->standby)
+			continue;
+
+		if (!(*ds)->greedy && d->adjustable)
+			apower += d->power * d->load / 100;
+
+		if ((*ds)->greedy && !d->adjustable)
+			dpower += d->load;
+	}
+
+	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
+	int stealable_power = state->load * -1 - dpower - BASELOAD;
+	state->steal = apower && greedy_dumb_off && stealable_power > 0 ? stealable_power : 0;
+	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d off:%d", state->steal, state->load, dpower, apower, greedy_dumb_off);
 	state->greedy += state->steal;
 }
 
@@ -613,7 +621,7 @@ static void calculate_state() {
 		state->modest = 0;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
-	steal_modest_power();
+	steal_power();
 
 	char message[128];
 	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d", avg, var, kf, kt);
@@ -623,26 +631,26 @@ static void calculate_state() {
 static int check_device_response(device_t *d) {
 	// response OK
 	if (d->power != -1 && state->dload) {
-		xlog("FRONIUS response OK for %s, delta load is %d", d->name, state->dload);
+		xdebug("FRONIUS response OK for %s, delta load is %d", d->name, state->dload);
 		return 0;
 	}
 
 	// standby check was negative - we got a response -> continue
 	if (d->power == -1 && state->dload) {
-		xlog("FRONIUS standby check negative for %s, delta load is %d", d->name, state->dload);
+		xdebug("FRONIUS standby check negative for %s, delta load is %d", d->name, state->dload);
 		return 0;
 	}
 
 	// standby check was positive set device into standby and continue
 	if (d->power == -1 && !state->dload) {
-		xlog("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
+		xdebug("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
 		(d->set_function)(d, 0);
 		d->standby = 1;
 		return 0;
 	}
 
 	// do the standby check
-	xlog("FRONIUS do standby check for %s", d->name);
+	xdebug("FRONIUS do standby check for %s", d->name);
 	if (d->adjustable) {
 		// adjustable device: do a big ramp and check response again
 		if (d->power > 50) {
@@ -693,8 +701,8 @@ static void calculate_next_round() {
 
 static void* fronius(void *arg) {
 	int ret, wait = 1, errors = 0;
+	device_t *device = 0;
 	time_t next_reset;
-	device_t *device;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
