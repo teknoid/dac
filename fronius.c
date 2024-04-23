@@ -524,7 +524,7 @@ static void steal_power() {
 		if ((*ds)->greedy && !d->adjustable && !d->power)
 			greedy_dumb_off = 1;
 
-		if (!d->power || d->standby)
+		if (!d->power)
 			continue;
 
 		if (!(*ds)->greedy && d->adjustable)
