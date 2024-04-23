@@ -19,7 +19,7 @@
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		10000
 #define BASELOAD			250
-#define NOISE				25
+#define NOISE				10
 
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -41,14 +41,10 @@ struct _state {
 	int chrg;
 	int load;
 	int dload;
-	int rload;
-	int bload;
 	int pv10;
 	int pv7;
 	int distortion;
 	int tendence;
-	int action;
-	int response;
 	int wait;
 };
 
