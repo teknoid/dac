@@ -629,50 +629,42 @@ static void calculate_state() {
 }
 
 static int check_device_response(device_t *d) {
-	// response OK
-	if (d->power != -1 && state->dload) {
+	// response OK -> continue
+	if (d->standby != -1 && state->dload) {
 		xdebug("FRONIUS response OK for %s, delta load is %d", d->name, state->dload);
 		return 0;
 	}
 
 	// standby check was negative - we got a response -> continue
-	if (d->power == -1 && state->dload) {
+	if (d->standby == -1 && state->dload) {
 		xdebug("FRONIUS standby check negative for %s, delta load is %d", d->name, state->dload);
+		d->standby = 0;
 		return 0;
 	}
 
 	// standby check was positive set device into standby and continue
-	if (d->power == -1 && !state->dload) {
+	if (d->standby == -1 && !state->dload) {
 		xdebug("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
 		(d->set_function)(d, 0);
 		d->standby = 1;
 		return 0;
 	}
 
-	// do the standby check
+	// do the standby check in next round
 	xdebug("FRONIUS do standby check for %s", d->name);
+	d->standby = -1;
 	if (d->adjustable) {
-		// adjustable device: do a big ramp and check response again
-		if (d->power > 50) {
-			(d->set_function)(d, 25);
-			d->power = -1;
-			return 1;
-		} else {
-			(d->set_function)(d, 75);
-			d->power = -1;
-			return 1;
-		}
+		// adjustable device - do a big ramp
+		if (d->power > 50)
+			return (d->set_function)(d, 25);
+		else
+			return (d->set_function)(d, 75);
 	} else {
 		// dumb device - toggle
-		if (d->power) {
-			(d->set_function)(d, 0);
-			d->power = -1;
-			return 1;
-		} else {
-			(d->set_function)(d, 1);
-			d->power = -1;
-			return 1;
-		}
+		if (d->power)
+			return (d->set_function)(d, 0);
+		else
+			return (d->set_function)(d, 1);
 	}
 
 	return 0;
