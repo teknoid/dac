@@ -424,8 +424,6 @@ static int ramp_dumb(device_t *d, int power) {
 }
 
 static int rampup_device(device_t *d, int power) {
-	xdebug("FRONIUS rampup_device() %s %d", d->name, power);
-
 	if (d->standby)
 		return 0; // continue loop
 
@@ -436,8 +434,6 @@ static int rampup_device(device_t *d, int power) {
 }
 
 static int rampdown_device(device_t *d, int power) {
-	xdebug("FRONIUS rampdown_device() %s %d", d->name, power);
-
 	if (!d->power)
 		return 0; // already off - continue loop
 
