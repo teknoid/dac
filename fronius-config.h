@@ -58,6 +58,7 @@ struct _device {
 	const char *addr;
 	time_t override;
 	int adjustable;
+	int thermostat;
 	int standby;
 	int power;
 	int load;
@@ -79,11 +80,11 @@ int set_heater(device_t *device, int power);
 int set_boiler(device_t *device, int power);
 
 // devices
-static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t plug9 = { .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug5 = { .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0 };
+static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
+static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
+static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
+static device_t plug9 = { .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
+static device_t plug5 = { .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
 static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug9, &plug5 };
 
 // program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest

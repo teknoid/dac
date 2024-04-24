@@ -545,23 +545,21 @@ static int check_response(device_t *d) {
 	if (!d)
 		return 0;
 
-	int delta = state->load - get_history(-1)->load;
-
 	// response OK -> continue
-	if (d->standby != -1 && delta) {
-		xdebug("FRONIUS response OK for %s, delta load is %d", d->name, delta);
+	if (d->standby != -1 && state->dload) {
+		xdebug("FRONIUS response OK for %s, delta load is %d", d->name, state->dload);
 		return 0;
 	}
 
 	// standby check was negative - we got a response -> continue
-	if (d->standby == -1 && delta) {
-		xdebug("FRONIUS standby check negative for %s, delta load is %d", d->name, delta);
+	if (d->standby == -1 && state->dload) {
+		xdebug("FRONIUS standby check negative for %s, delta load is %d", d->name, state->dload);
 		d->standby = 0;
 		return 0;
 	}
 
 	// standby check was positive set device into standby and continue
-	if (d->standby == -1 && !delta) {
+	if (d->standby == -1 && !state->dload) {
 		xdebug("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
 		(d->set_function)(d, 0);
 		d->standby = 1;
@@ -680,11 +678,6 @@ static int calculate_next_round(device_t *d) {
 	if (d)
 		return WAIT_NEXT;
 
-	// state is stable when we had no power change now and within last 3 rounds
-	int instable = state->dload;
-	for (int i = 1; i <= 3; i++)
-		instable += get_history(i * -1)->dload;
-
 	// determine wait for next round
 	// much faster next round on
 	// - extreme distortion
@@ -694,16 +687,18 @@ static int calculate_next_round(device_t *d) {
 	if (state->distortion > 5 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
 		return WAIT_NEXT;
 
-	// state is stable, but faster next round when we have distortion
-	if (!instable) {
-		if (state->distortion)
-			return WAIT_STABLE / 2;
-		else
-			return WAIT_STABLE;
-	}
+	// state is stable when we had no power change now and within last 3 rounds
+	int instable = state->dload;
+	for (int i = 1; i <= 3; i++)
+		instable += get_history(i * -1)->dload;
+	if (instable)
+		return WAIT_IDLE;
 
-	// not stable and no device ramp performed
-	return WAIT_IDLE;
+	// state is stable, but faster next round when we have distortion
+	if (state->distortion)
+		return WAIT_STABLE / 2;
+	else
+		return WAIT_STABLE;
 }
 
 static void* fronius(void *arg) {
@@ -774,12 +769,16 @@ static void* fronius(void *arg) {
 		if (potd == NULL || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET;
 
-			xlog("FRONIUS resetting standby states");
-			for (int i = 0; i < ARRAY_SIZE(devices); i++)
-				devices[i]->standby = 0;
+			xlog("FRONIUS resetting standby and thermostat devices");
+			for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+				device_t *d = devices[i];
+				d->standby = 0;
+				if (d->thermostat)
+					d->power = 0;
+			}
 
 			mosmix();
-			wait = 1;
+			wait = WAIT_NEXT;
 			continue;
 		}
 
@@ -788,14 +787,14 @@ static void* fronius(void *arg) {
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
+		// calculate actual state
+		calculate_state();
+
 		// check response from previous ramp
 		if (check_response(device)) {
 			wait = WAIT_NEXT;
 			continue;
 		}
-
-		// calculate actual state
-		calculate_state();
 
 		// something switched off which was not initiated by us
 		// TODO do something with that information, e.g. initiate a standby check on all ramped devices
