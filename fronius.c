@@ -535,9 +535,13 @@ static void steal_power() {
 			dpower += d->load;
 	}
 
+	// nothing to steal
+	if (!greedy_dumb_off && !apower)
+		return;
+
 	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
 	int spower = state->load * -1 - dpower - BASELOAD;
-	state->steal = apower && greedy_dumb_off && spower > 0 ? spower : 0;
+	state->steal = spower > 0 ? spower : 0;
 	state->greedy += state->steal;
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
