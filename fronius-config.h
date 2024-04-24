@@ -56,13 +56,13 @@ typedef int (set_function_t)(device_t*, int);
 struct _device {
 	const char *name;
 	const char *addr;
-	time_t override;
-	int adjustable;
-	int thermostat;
+	const int adjustable;
+	const int thermostat;
+	const int load;
 	int standby;
 	int dpower;
 	int power;
-	int load;
+	time_t override;
 	set_function_t *set_function;
 };
 
