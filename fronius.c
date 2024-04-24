@@ -54,7 +54,7 @@ int set_heater(device_t *heater, int power) {
 	// send message to heater
 	system(command);
 
-	// update power value
+	// update power values
 	heater->power = power;
 	heater->dload = power ? heater->load * -1 : heater->load;
 	return 1; // loop done
@@ -118,7 +118,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power values
 	boiler->power = power;
-	boiler->dload += step * boiler->load / 100 * -1;
+	boiler->dload += (boiler->load / -100) * step;
 	return 1; // loop done
 }
 
@@ -408,7 +408,7 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	int min = d->load + d->load * (state->distortion * 0.1);
+	int min = d->load + (state->distortion / 10) * d->load;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// keep on as long as we have enough power and device is already on
@@ -528,7 +528,7 @@ static void steal_power() {
 			continue;
 
 		if (!(*ds)->greedy && d->adjustable)
-			apower += d->power * d->load / 100;
+			apower += (d->load / 100) * d->power;
 
 		if ((*ds)->greedy && !d->adjustable)
 			dpower += d->load;
@@ -572,7 +572,7 @@ static int check_response(device_t *d) {
 	}
 
 	// no response and last delta load was too small (minimum 3%)
-	int min = d->load / 100 * -3;
+	int min = (d->load / -100) * 3;
 	if (!state->dload && min < d->dload) {
 		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, d->dload, min);
 		return 0;
