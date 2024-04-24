@@ -30,6 +30,7 @@ void xlogl_int_r(char *line, const char *name, int value);
 void xlogl_int_y(char *line, const char *name, int value);
 void xlogl_int_g(char *line, const char *name, int value);
 void xlogl_int_b(char *line, const char *name, int value);
+void xlogl_int_B(char *line, const char *name, int value);
 
 int elevate_realtime(int cpu);
 

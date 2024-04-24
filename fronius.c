@@ -176,10 +176,11 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 1, 0, "Surp", state->surplus);
 	xlogl_int(line, 1, 0, "Greedy", state->greedy);
 	xlogl_int(line, 1, 0, "Modest", state->modest);
-	xlogl_int(line, 0, 0, "Chrg", state->chrg);
-	xlogl_int(line, 0, 0, "Load", state->load);
+	xlogl_int_B(line, "Load", state->load);
+	xlogl_int_B(line, "ΔLoad", state->dload);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
+	xlogl_int(line, 0, 0, "Chrg", state->chrg);
 	xlogl_int(line, 0, 0, "Sum", state->sum);
 	xlogl_end(line, sizeof(line), message);
 }

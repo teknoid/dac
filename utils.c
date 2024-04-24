@@ -298,6 +298,12 @@ void xlogl_int_b(char *line, const char *name, int value) {
 	strncat(line, pair, 32);
 }
 
+void xlogl_int_B(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
 void xlogl_end(char *line, size_t len, const char *s) {
 	if (s != NULL) {
 		strcat(line, " ");
