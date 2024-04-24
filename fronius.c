@@ -115,8 +115,9 @@ int set_boiler(device_t *boiler, int power) {
 	} else
 		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 
-	// update power value
+	// update power values
 	boiler->power = power;
+	boiler->dpower = step * boiler->load / 100;
 	return 1; // loop done
 }
 
@@ -537,8 +538,8 @@ static void steal_power() {
 	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
 	int spower = state->load * -1 - dpower - BASELOAD;
 	state->steal = apower && greedy_dumb_off && spower > 0 ? spower : 0;
-	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 	state->greedy += state->steal;
+	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
 static int check_response(device_t *d) {
@@ -563,6 +564,13 @@ static int check_response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
 		(d->set_function)(d, 0);
 		d->standby = 1;
+		return 0;
+	}
+
+	// no response and last delta power was too small (minimum 3%)
+	int min = d->load / 100 * 3;
+	if (!state->dload && d->dpower < min) {
+		xdebug("FRONIUS skipping standby check for %s because delta power was only %d/%d", d->name, d->dpower, min);
 		return 0;
 	}
 

@@ -60,6 +60,7 @@ struct _device {
 	int adjustable;
 	int thermostat;
 	int standby;
+	int dpower;
 	int power;
 	int load;
 	set_function_t *set_function;
