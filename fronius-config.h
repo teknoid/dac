@@ -1,7 +1,8 @@
 // Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE		900
-#define WAIT_KEEP			60
-#define WAIT_NEXT			6
+#define WAIT_STABLE			60
+#define WAIT_IDLE			10
+#define WAIT_NEXT			5
 
 #define KEEP_FROM			25
 #define KEEP_TO				75

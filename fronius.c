@@ -537,11 +537,14 @@ static void steal_power() {
 	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
 	int spower = state->load * -1 - dpower - BASELOAD;
 	state->steal = apower && greedy_dumb_off && spower > 0 ? spower : 0;
-	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%s off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
+	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 	state->greedy += state->steal;
 }
 
 static int check_response(device_t *d) {
+	if (!d)
+		return 0;
+
 	int delta = state->load - get_history(-1)->load;
 
 	// response OK -> continue
@@ -672,7 +675,11 @@ static void calculate_state() {
 	print_power_status(message);
 }
 
-static void calculate_next_round() {
+static int calculate_next_round(device_t *d) {
+	// device ramp - wait for response
+	if (d)
+		return WAIT_NEXT;
+
 	// state is stable when we had no power change now and within last 3 rounds
 	int instable = state->dload;
 	for (int i = 1; i <= 3; i++)
@@ -680,17 +687,23 @@ static void calculate_next_round() {
 
 	// determine wait for next round
 	// much faster next round on
-	// - not stable
 	// - extreme distortion
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (instable || state->distortion > 5 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
-		state->wait = WAIT_NEXT;
-	else if (state->distortion)
-		state->wait = WAIT_KEEP / 2; // faster next round when we have distortion
-	else
-		state->wait = WAIT_KEEP; // state is stable
+	if (state->distortion > 5 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
+		return WAIT_NEXT;
+
+	// state is stable, but faster next round when we have distortion
+	if (!instable) {
+		if (state->distortion)
+			return WAIT_STABLE / 2;
+		else
+			return WAIT_STABLE;
+	}
+
+	// not stable and no device ramp performed
+	return WAIT_IDLE;
 }
 
 static void* fronius(void *arg) {
@@ -776,7 +789,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
 		// check response from previous ramp
-		if (device && check_response(device)) {
+		if (check_response(device)) {
 			wait = WAIT_NEXT;
 			continue;
 		}
@@ -795,8 +808,7 @@ static void* fronius(void *arg) {
 			device = ramp();
 
 		// determine wait for next round
-		calculate_next_round();
-		wait = state->wait;
+		wait = state->wait = calculate_next_round(device);
 
 		// set history pointer to next slot
 		dump_history(6);
