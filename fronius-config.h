@@ -60,8 +60,8 @@ struct _device {
 	const int thermostat;
 	const int load;
 	int standby;
-	int dpower;
 	int power;
+	int dload;
 	time_t override;
 	set_function_t *set_function;
 };

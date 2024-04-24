@@ -56,6 +56,7 @@ int set_heater(device_t *heater, int power) {
 
 	// update power value
 	heater->power = power;
+	heater->dload = power ? heater->load * -1 : heater->load;
 	return 1; // loop done
 }
 
@@ -117,7 +118,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power values
 	boiler->power = power;
-	boiler->dpower = step * boiler->load / 100;
+	boiler->dload += step * boiler->load / 100 * -1;
 	return 1; // loop done
 }
 
@@ -133,6 +134,7 @@ static void init_all_devices() {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		d->power = -1;
+		d->dload = 0;
 		d->addr = resolve_ip(d->name);
 	}
 }
@@ -548,7 +550,8 @@ static int check_response(device_t *d) {
 
 	// response OK -> continue
 	if (d->standby != -1 && state->dload) {
-		xdebug("FRONIUS response OK for %s, delta load is %d", d->name, state->dload);
+		xdebug("FRONIUS response OK for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
+		d->dload = 0;
 		return 0;
 	}
 
@@ -567,10 +570,10 @@ static int check_response(device_t *d) {
 		return 0;
 	}
 
-	// no response and last delta power was too small (minimum 3%)
+	// no response and last delta load was too small (minimum 3%)
 	int min = d->load / 100 * 3;
-	if (!state->dload && d->dpower < min) {
-		xdebug("FRONIUS skipping standby check for %s because delta power was only %d/%d", d->name, d->dpower, min);
+	if (!state->dload && min < d->dload) {
+		xdebug("FRONIUS skipping standby check for %s because delta power was only %d/%d", d->name, d->dload, min);
 		return 0;
 	}
 
