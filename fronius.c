@@ -399,12 +399,17 @@ static int calculate_step(device_t *d, int power) {
 
 static int ramp_adjustable(device_t *d, int power) {
 	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
-	int step = calculate_step(d, power);
 
-	if (step == 0)
-		return 0; // continue loop
-	else
-		return (d->set_function)(d, d->power + step);
+	// already full up
+	if (d->power == 100 && power > 0)
+		return 0;
+
+	// already full down
+	if (!d->power && power < 0)
+		return 0;
+
+	int step = calculate_step(d, power);
+	return (d->set_function)(d, d->power + step);
 }
 
 static int ramp_dumb(device_t *d, int power) {
@@ -574,9 +579,9 @@ static int check_response(device_t *d) {
 	}
 
 	// no response and last delta load was too small (minimum 3%)
-	int min = (d->load / -100) * 3;
-	if (!state->dload && min < d->dload) {
-		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, d->dload, min);
+	int min = d->load * 3 / 100;
+	if (!state->dload && abs(d->dload) < min) {
+		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
 		return 0;
 	}
 
