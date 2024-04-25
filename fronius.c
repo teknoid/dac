@@ -558,7 +558,7 @@ static int check_response(device_t *d) {
 
 	// response OK -> continue
 	if (d->standby != -1 && state->dload) {
-		xdebug("FRONIUS response OK for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
+		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->dload = 0;
 		return 0;
 	}
@@ -586,7 +586,7 @@ static int check_response(device_t *d) {
 	}
 
 	// do the standby check in next round
-	xdebug("FRONIUS do standby check for %s", d->name);
+	xdebug("FRONIUS no response from %s, do standby check", d->name);
 	d->standby = -1;
 	if (d->adjustable) {
 		// adjustable device - do a big ramp
