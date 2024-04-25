@@ -408,7 +408,7 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	int min = d->load + (state->distortion / 10) * d->load;
+	int min = d->load + d->load * state->distortion / 10;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// keep on as long as we have enough power and device is already on
