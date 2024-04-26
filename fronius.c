@@ -590,10 +590,10 @@ static int check_response(device_t *d) {
 	d->standby = -1;
 	if (d->adjustable) {
 		// adjustable device - do a big ramp
-		if (d->power > 50)
-			return (d->set_function)(d, 25);
+		if (d->power < 50)
+			return (d->set_function)(d, d->power + 25);
 		else
-			return (d->set_function)(d, 75);
+			return (d->set_function)(d, d->power - 25);
 	} else {
 		// dumb device - toggle
 		if (d->power)
