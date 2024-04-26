@@ -784,7 +784,7 @@ static void* fronius(void *arg) {
 		if (potd == NULL || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET;
 
-			xlog("FRONIUS resetting standby and thermostat devices");
+			xlog("FRONIUS resetting standby and thermostat states");
 			for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 				device_t *d = devices[i];
 				d->standby = 0;
