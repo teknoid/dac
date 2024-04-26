@@ -185,7 +185,7 @@ static void print_power_status(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_device_status() {
+static void print_device_status(int wait) {
 	char message[128];
 	char value[5];
 
@@ -198,6 +198,11 @@ static void print_device_status() {
 		snprintf(value, 5, " %3d", (*ds)->device->power);
 		strcat(message, value);
 	}
+
+	strcat(message, "   wait ");
+	snprintf(value, 5, "%d", wait);
+	strcat(message, value);
+
 	xlog(message);
 }
 
@@ -824,7 +829,7 @@ static void* fronius(void *arg) {
 		if (++history_ptr == HISTORY)
 			history_ptr = 0;
 
-		print_device_status();
+		print_device_status(wait);
 		errors = 0;
 	}
 }
@@ -1000,7 +1005,7 @@ static int test() {
 }
 
 static int init() {
-	set_debug(1);
+	// set_debug(1);
 
 	if (pthread_create(&thread, NULL, &fronius, NULL))
 		return xerr("Error creating fronius thread");
