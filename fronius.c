@@ -385,15 +385,6 @@ static int calculate_step(device_t *d, int power) {
 		xdebug("FRONIUS step3 %d", step);
 	}
 
-	// full ramp down if necessary but moderate ramp up: max 25 per round
-	if (step < -100)
-		step = -100;
-	if (step > 200)
-		step = 100;
-	else if (step > 25)
-		step = 25;
-	xdebug("FRONIUS step4 %d", step);
-
 	return step;
 }
 
