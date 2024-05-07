@@ -178,6 +178,7 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 1, 0, "Modest", state->modest);
 	xlogl_int_B(line, "Load", state->load);
 	xlogl_int_B(line, "ΔLoad", state->dload);
+	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "Chrg", state->chrg);
