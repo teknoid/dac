@@ -118,7 +118,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power values
 	boiler->power = power;
-	boiler->dload += (boiler->load / -100) * step;
+	boiler->dload += boiler->load * step / -100;
 	return 1; // loop done
 }
 
@@ -178,11 +178,11 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 1, 0, "Modest", state->modest);
 	xlogl_int_B(line, "Load", state->load);
 	xlogl_int_B(line, "ΔLoad", state->dload);
-	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "Chrg", state->chrg);
 	xlogl_int(line, 0, 0, "Sum", state->sum);
+	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -553,23 +553,29 @@ static int check_response(device_t *d) {
 	if (!d)
 		return 0;
 
+	if (state->distortion > 10)
+		return 0;
+
+	// do we have a valid response - at least 50% of expected?
+	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
+
 	// response OK -> continue
-	if (d->standby != -1 && state->dload) {
+	if (d->standby != -1 && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->dload = 0;
 		return 0;
 	}
 
 	// standby check was negative - we got a response -> continue
-	if (d->standby == -1 && state->dload) {
-		xdebug("FRONIUS standby check negative for %s, delta load is %d", d->name, state->dload);
+	if (d->standby == -1 && response) {
+		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->standby = 0;
 		return 0;
 	}
 
 	// standby check was positive set device into standby and continue
-	if (d->standby == -1 && !state->dload) {
-		xdebug("FRONIUS standby check positive for %s, no delta load --> entering standby", d->name);
+	if (d->standby == -1 && !response) {
+		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->standby = 1;
 		return 0;
@@ -1006,7 +1012,7 @@ static int test() {
 }
 
 static int init() {
-	// set_debug(1);
+	set_debug(1);
 
 	if (pthread_create(&thread, NULL, &fronius, NULL))
 		return xerr("Error creating fronius thread");
