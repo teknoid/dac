@@ -49,7 +49,7 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 char* devinput_keyname(unsigned int key);
 int devinput_find_key(const char *name);
 
-uint64_t mac2uint64(char *mac);
+uint64_t mac2uint64(const char *mac);
 
 const char* resolve_ip(const char *hostname);
 
@@ -57,3 +57,5 @@ int round10(int n);
 int round100(int n);
 
 int maximum(int, ...);
+
+void append_timeframe(char *message, int sec);

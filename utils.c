@@ -548,7 +548,7 @@ int devinput_find_key(const char *name) {
 	return 0;
 }
 
-uint64_t mac2uint64(char *mac) {
+uint64_t mac2uint64(const char *mac) {
 	unsigned int u[6]; // %x needs "unsigned int"
 
 	int c = sscanf(mac, "%x:%x:%x:%x:%x:%x", u, u + 1, u + 2, u + 3, u + 4, u + 5);
@@ -630,4 +630,22 @@ int maximum(int count, ...) {
 	va_end(valist);
 
 	return max;
+}
+
+void append_timeframe(char *message, int sec) {
+	int h, m, s;
+	char c[10];
+
+	h = (sec / 3600);
+	m = (sec - (3600 * h)) / 60;
+	s = (sec - (3600 * h) - (m * 60));
+
+	if (h == 0 && m == 0)
+		snprintf(c, 10, "%02d", s);
+	else if (h == 0)
+		snprintf(c, 10, "%02d:%02d", m, s);
+	else
+		snprintf(c, 10, "%02d:%02d:%02d", h, m, s);
+
+	strcat(message, c);
 }

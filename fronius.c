@@ -186,7 +186,7 @@ static void print_power_status(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_device_status(int wait) {
+static void print_device_status(int wait, int next_reset) {
 	char message[128];
 	char value[5];
 
@@ -199,6 +199,9 @@ static void print_device_status(int wait) {
 		snprintf(value, 5, " %3d", (*ds)->device->power);
 		strcat(message, value);
 	}
+
+	strcat(message, "   next reset in ");
+	append_timeframe(message, next_reset);
 
 	strcat(message, "   wait ");
 	snprintf(value, 5, "%d", wait);
@@ -553,7 +556,7 @@ static int check_response(device_t *d) {
 	if (!d)
 		return 0;
 
-	if (state->distortion > 10)
+	if (state->distortion > 5)
 		return 0;
 
 	// do we have a valid response - at least 50% of expected?
@@ -635,22 +638,18 @@ static void calculate_state() {
 		state->waste = g < state->akku ? g : state->akku;
 	}
 
-	// pv average
+	// pv average / variation
 	int avg = 0;
-	for (int i = 0; i < HISTORY; i++)
-		avg += get_history(i)->pv;
+	unsigned long var = 0;
+	for (int i = 0; i < HISTORY; i++) {
+		state_t *h = get_history(i);
+		avg += h->pv;
+		var += abs(h->dpv);
+	}
 	avg /= HISTORY;
 
-	// pv variation
-	unsigned long var = 0;
-	for (int i = 0; i < HISTORY; i++)
-		var += abs(avg - get_history(i)->pv);
-
 	// grade of alternation in pv production when its cloudy with sunny gaps
-	if (var > avg + avg / 2)
-		state->distortion = var / avg;
-	else
-		state->distortion = 0;
+	state->distortion = var / avg;
 
 	// pv tendence
 	if (h3->dpv < 0 && h2->dpv < 0 && h1->dpv < 0 && state->dpv < 0)
@@ -836,7 +835,7 @@ static void* fronius(void *arg) {
 		if (++history_ptr == HISTORY)
 			history_ptr = 0;
 
-		print_device_status(wait);
+		print_device_status(wait, next_reset - now_ts);
 		errors = 0;
 	}
 }
