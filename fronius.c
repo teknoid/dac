@@ -533,7 +533,7 @@ static void steal_power() {
 			continue;
 
 		if (!(*ds)->greedy && d->adjustable)
-			apower += (d->load / 100) * d->power;
+			apower += d->load * d->power / 100;
 
 		if ((*ds)->greedy && !d->adjustable)
 			dpower += d->load;
@@ -573,6 +573,7 @@ static int check_response(device_t *d) {
 	if (d->standby == -1 && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->standby = 0;
+		d->dload = 0;
 		return 0;
 	}
 
@@ -581,6 +582,7 @@ static int check_response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->standby = 1;
+		d->dload = 0;
 		return 0;
 	}
 
