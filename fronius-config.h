@@ -1,5 +1,6 @@
 // Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE		900
+#define WAIT_STANDBY		300
 #define WAIT_STABLE			60
 #define WAIT_IDLE			10
 #define WAIT_NEXT			5
@@ -25,6 +26,10 @@
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 #define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+
+enum dstate {
+	Standby, Active, Standby_Check, Request_Standby_Check
+};
 
 typedef struct _state state_t;
 
@@ -59,7 +64,7 @@ struct _device {
 	const int adjustable;
 	const int thermostat;
 	const int load;
-	int standby;
+	enum dstate state;
 	int power;
 	int dload;
 	time_t override;

@@ -133,6 +133,7 @@ static void set_all_devices(int power) {
 static void init_all_devices() {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
+		d->state = Active;
 		d->power = -1;
 		d->dload = 0;
 		d->addr = resolve_ip(d->name);
@@ -190,9 +191,11 @@ static void print_device_status(int wait, int next_reset) {
 	char message[128];
 	char value[5];
 
-	strcpy(message, "FRONIUS standby ");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		strcat(message, (*ds)->device->standby ? "1" : "0");
+	strcpy(message, "FRONIUS device state ");
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
+		snprintf(value, 5, "%d", (*ds)->device->state);
+		strcat(message, value);
+	}
 
 	strcat(message, "   power ");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
@@ -400,6 +403,16 @@ static int calculate_step(device_t *d, int power) {
 static int ramp_adjustable(device_t *d, int power) {
 	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
 
+	// standby check requested - do a big ramp
+	if (d->state == Request_Standby_Check) {
+		xdebug("FRONIUS starting standby check on %s", d->name);
+		d->state = Standby_Check;
+		if (d->power < 50)
+			return (d->set_function)(d, d->power + 25);
+		else
+			return (d->set_function)(d, d->power - 25);
+	}
+
 	// already full up
 	if (d->power == 100 && power > 0)
 		return 0;
@@ -415,6 +428,16 @@ static int ramp_adjustable(device_t *d, int power) {
 static int ramp_dumb(device_t *d, int power) {
 	int min = d->load + d->load * state->distortion / 10;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
+
+	// standby check requested - toggle
+	if (d->state == Request_Standby_Check) {
+		xdebug("FRONIUS starting standby check on %s", d->name);
+		d->state = Standby_Check;
+		if (d->power)
+			return (d->set_function)(d, 0);
+		else
+			return (d->set_function)(d, 1);
+	}
 
 	// keep on as long as we have enough power and device is already on
 	if (d->power && power > 0)
@@ -432,7 +455,7 @@ static int ramp_dumb(device_t *d, int power) {
 }
 
 static int rampup_device(device_t *d, int power) {
-	if (d->standby)
+	if (d->state == Standby)
 		return 0; // continue loop
 
 	if (d->adjustable)
@@ -552,65 +575,57 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
-static int check_response(device_t *d) {
-	if (!d)
-		return 0;
+static void check_standby() {
+	xdebug("FRONIUS power released by someone: %d", state->dload);
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
+		device_t *d = (*ds)->device;
 
-	if (state->distortion > 5)
-		return 0;
+		if (d->adjustable && d->power) {
+			d->state = Request_Standby_Check;
+			xdebug("FRONIUS requesting standby check for %s", d->name);
+		}
+	}
+}
+
+static void check_response(device_t *d) {
 
 	// do we have a valid response - at least 50% of expected?
 	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
 
-	// response OK -> continue
-	if (d->standby != -1 && response) {
+	// response OK
+	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->dload = 0;
-		return 0;
+		return;
 	}
 
-	// standby check was negative - we got a response -> continue
-	if (d->standby == -1 && response) {
+	// standby check was negative - we got a response
+	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
-		d->standby = 0;
+		d->state = Active;
 		d->dload = 0;
-		return 0;
+		return;
 	}
 
-	// standby check was positive set device into standby and continue
-	if (d->standby == -1 && !response) {
+	// standby check was positive set device into standby
+	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
-		d->standby = 1;
+		d->state = Standby;
 		d->dload = 0;
-		return 0;
+		return;
 	}
 
 	// no response and last delta load was too small (minimum 3%)
 	int min = d->load * 3 / 100;
 	if (!state->dload && abs(d->dload) < min) {
 		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
-		return 0;
+		return;
 	}
 
-	// do the standby check in next round
-	xdebug("FRONIUS no response from %s, do standby check", d->name);
-	d->standby = -1;
-	if (d->adjustable) {
-		// adjustable device - do a big ramp
-		if (d->power < 50)
-			return (d->set_function)(d, d->power + 25);
-		else
-			return (d->set_function)(d, d->power - 25);
-	} else {
-		// dumb device - toggle
-		if (d->power)
-			return (d->set_function)(d, 0);
-		else
-			return (d->set_function)(d, 1);
-	}
-
-	return 0;
+	// initiate a standby check
+	xdebug("FRONIUS no response from %s, requesting standby check", d->name);
+	d->state = Request_Standby_Check;
 }
 
 static void calculate_state() {
@@ -649,9 +664,10 @@ static void calculate_state() {
 		var += abs(h->dpv);
 	}
 	avg /= HISTORY;
+	var /= HISTORY;
 
 	// grade of alternation in pv production when its cloudy with sunny gaps
-	state->distortion = var / avg;
+	state->distortion = var * 10 / avg;
 
 	// pv tendence
 	if (h3->dpv < 0 && h2->dpv < 0 && h1->dpv < 0 && state->dpv < 0)
@@ -716,6 +732,14 @@ static int calculate_next_round(device_t *d) {
 		instable += get_history(i * -1)->dload;
 	if (instable)
 		return WAIT_IDLE;
+
+	// all devices in standby?
+	int all_standby = 1;
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if ((*ds)->device->state == Active)
+			all_standby = 0;
+	if (all_standby)
+		return WAIT_STANDBY;
 
 	// state is stable, but faster next round when we have distortion
 	if (state->distortion)
@@ -795,7 +819,7 @@ static void* fronius(void *arg) {
 			xlog("FRONIUS resetting standby and thermostat states");
 			for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 				device_t *d = devices[i];
-				d->standby = 0;
+				d->state = Active;
 				if (d->thermostat)
 					d->power = 0;
 			}
@@ -814,15 +838,12 @@ static void* fronius(void *arg) {
 		calculate_state();
 
 		// check response from previous ramp
-		if (check_response(device)) {
-			wait = WAIT_NEXT;
-			continue;
-		}
+		if (device)
+			check_response(device);
 
 		// something switched off which was not initiated by us
-		// TODO do something with that information, e.g. initiate a standby check on all ramped devices
 		if (!device && state->dload > BASELOAD)
-			xdebug("FRONIUS power released by someone: %d", state->dload);
+			check_standby();
 
 		// ramp up/down devices depending on if we have surplus or not
 		device = 0;
@@ -1039,7 +1060,7 @@ int fronius_override(const char *name) {
 		if (!strcmp(d->name, name)) {
 			xlog("FRONIUS Activating Override for %d seconds on %s", OVERRIDE, d->name);
 			d->override = time(NULL) + OVERRIDE;
-			d->standby = 0;
+			d->state = Active;
 			(d->set_function)(d, 100);
 		}
 	}
