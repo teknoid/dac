@@ -57,7 +57,7 @@ static void xmas_off_flamingo(const timing_t *timing) {
 }
 
 static void on_sundown(const timing_t *timing) {
-	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux);
+	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux_mean);
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
@@ -71,7 +71,7 @@ static void on_morning(const timing_t *timing) {
 }
 
 static void off_sunrise(const timing_t *timing) {
-	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux);
+	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux_mean);
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
@@ -85,7 +85,7 @@ static void off_evening(const timing_t *timing) {
 }
 
 static int process(struct tm *now, const timing_t *timing) {
-	int lumi = sensors->bh1750_lux;
+	int lumi = sensors->bh1750_lux_mean;
 	int afternoon = now->tm_hour < 12 ? 0 : 1;
 	int curr = now->tm_hour * 60 + now->tm_min;
 	int from = timing->on_h * 60 + timing->on_m;

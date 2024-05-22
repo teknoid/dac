@@ -701,8 +701,6 @@ static void calculate_state() {
 
 	// only grid load - not going into akku or from secondary inverters
 	state->modest = state->greedy - abs(state->akku);
-	if (NOISE * -1 < state->modest && state->modest < NOISE)
-		state->modest = 0;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
