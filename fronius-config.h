@@ -5,8 +5,8 @@
 #define WAIT_IDLE			20
 #define WAIT_NEXT			10
 
-#define KEEP_FROM			25
-#define KEEP_TO				75
+#define KEEP_FROM			20
+#define KEEP_TO				50
 
 #define HISTORY				24
 #define OVERRIDE			600
