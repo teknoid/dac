@@ -2,8 +2,8 @@
 #define WAIT_OFFLINE		900
 #define WAIT_STANDBY		300
 #define WAIT_STABLE			60
-#define WAIT_IDLE			10
-#define WAIT_NEXT			5
+#define WAIT_IDLE			20
+#define WAIT_NEXT			10
 
 #define KEEP_FROM			25
 #define KEEP_TO				75
