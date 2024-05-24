@@ -59,6 +59,7 @@ typedef struct _device device_t;
 typedef int (set_function_t)(device_t*, int);
 
 struct _device {
+	const unsigned int id;
 	const char *name;
 	const char *addr;
 	const int adjustable;
@@ -89,8 +90,8 @@ int set_boiler(device_t *device, int power);
 static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
 static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
 static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
-static device_t plug9 = { .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
-static device_t plug5 = { .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
+static device_t plug9 = { .id = 0x5EEEE8, .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
+static device_t plug5 = { .id = 0xB60A0C, .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
 static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug9, &plug5 };
 
 // program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest

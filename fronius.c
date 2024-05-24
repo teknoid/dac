@@ -14,6 +14,7 @@
 #include "fronius.h"
 #include "frozen.h"
 #include "utils.h"
+#include "mqtt.h"
 #include "mcp.h"
 
 // program of the day - mosmix will chose appropriate program
@@ -46,13 +47,17 @@ int set_heater(device_t *heater, int power) {
 	char command[128];
 	if (power) {
 		xlog("FRONIUS switching %s ON", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
+		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
+		// system(command);
+		snprintf(command, 32, "cmnd/%6X/POWER", heater->id);
+		publish(command, ON);
 	} else {
 		xlog("FRONIUS switching %s OFF", heater->name);
-		snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
+		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
+		// system(command);
+		snprintf(command, 32, "cmnd/%6X/POWER", heater->id);
+		publish(command, ON);
 	}
-	// send message to heater
-	system(command);
 
 	// update power values
 	heater->power = power;

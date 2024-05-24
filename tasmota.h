@@ -1,6 +1,3 @@
-#define ON				"ON"
-#define OFF				"OFF"
-
 // Shelly Plugs
 #define PLUG1			0x810F43
 #define PLUG2			0x81420A
