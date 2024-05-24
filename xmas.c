@@ -56,8 +56,8 @@ static void xmas_off_flamingo(const timing_t *timing) {
 	}
 }
 
-static void on_sundown(const timing_t *timing) {
-	xlog("XMAS reached SUNDOWN at %d", sensors->bh1750_lux_mean);
+static void on_sundown(const timing_t *timing, uint16_t lumi) {
+	xlog("XMAS reached SUNDOWN at %d", lumi);
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
@@ -70,8 +70,8 @@ static void on_morning(const timing_t *timing) {
 	power = 1;
 }
 
-static void off_sunrise(const timing_t *timing) {
-	xlog("XMAS reached SUNRISE at %d", sensors->bh1750_lux_mean);
+static void off_sunrise(const timing_t *timing, uint16_t lumi) {
+	xlog("XMAS reached SUNRISE at %d", lumi);
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
@@ -85,7 +85,7 @@ static void off_evening(const timing_t *timing) {
 }
 
 static int process(struct tm *now, const timing_t *timing) {
-	int lumi = sensors->bh1750_lux_mean;
+	int lumi = sensors->bh1750_lux;
 	int afternoon = now->tm_hour < 12 ? 0 : 1;
 	int curr = now->tm_hour * 60 + now->tm_min;
 	int from = timing->on_h * 60 + timing->on_m;
@@ -104,7 +104,7 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
 			if (lumi < SUNDOWN)
-				on_sundown(timing);
+				on_sundown(timing, lumi);
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
 				return 0;
@@ -122,7 +122,7 @@ static int process(struct tm *now, const timing_t *timing) {
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
 			if (lumi > SUNRISE)
-				off_sunrise(timing);
+				off_sunrise(timing, lumi);
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
 				return 0;
