@@ -8,17 +8,24 @@
 
 #include "mcp.h"
 #include "mqtt.h"
+#include "xmas.h"
 #include "utils.h"
 #include "frozen.h"
 #include "fronius.h"
+#include "flamingo.h"
 #include "tasmota-config.h"
+
+#define MEAN	10
 
 static pthread_t thread;
 
 static tasmota_state_t *tasmota_state = NULL;
 
-// tasmota/B20670/stat/RESULT {"Switch3":{"Action":"OFF"}}
-//         ^^^^^^
+static unsigned int bh1750_lux_mean[MEAN];
+static int mean;
+
+// topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
+//             ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
 
@@ -74,11 +81,11 @@ static tasmota_state_t* get_state(unsigned int id) {
 }
 
 // execute tasmota BACKLOG command via mqtt publish
-static void backlog(unsigned int id, const char *cmd) {
+static int backlog(unsigned int id, const char *cmd) {
 	char topic[32];
 	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
 	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
-	publish(topic, cmd);
+	return publish(topic, cmd);
 }
 
 // update tasmota relay power state
@@ -151,19 +158,119 @@ static void trigger(unsigned int id, int button, int action) {
 	}
 }
 
-// handle a subscribed mqtt message
-void tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+// decode flamingo message
+static void flamingo(unsigned int code) {
+	uint16_t xmitter;
+	uint8_t command, channel, payload, rolling;
+
+	xlog("TASMOTA flamingo");
+	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
+
+	switch (xmitter) {
+	case 0x835a:
+		switch (channel) {
+		case 1:
+			if (command == 2)
+				xmas_on();
+			else if (command == 0)
+				xmas_off();
+			break;
+		}
+		break;
+	}
+}
+
+static void bh1750_calc_mean() {
+	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
+	if (mean == MEAN)
+		mean = 0;
+
+	unsigned long sum = 0;
+	for (int i = 0; i < MEAN; i++)
+		sum += bh1750_lux_mean[i];
+
+	sensors->bh1750_lux_mean = sum / MEAN;
+}
+
+static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char *bh1750 = NULL;
+	char *bmp280 = NULL;
+	char *bmp085 = NULL;
+	char *sht31 = NULL;
+	char *analog = NULL;
+
+	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, ANALOG:%Q}", &bh1750, &bmp280, &bmp085, &sht31, &analog);
+
+	if (bh1750 != NULL) {
+		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
+		bh1750_calc_mean();
+		xdebug("TASMOTA BH1750 %d lux %d lux mean", sensors->bh1750_lux, sensors->bh1750_lux_mean);
+		free(bh1750);
+	}
+
+	if (bmp280 != NULL) {
+		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
+		xdebug("TASMOTA BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+		free(bmp280);
+	}
+
+	if (bmp085 != NULL) {
+		json_scanf(bmp085, strlen(bmp085), "{Temperature:%f, Pressure:%f}", &sensors->bmp085_temp, &sensors->bmp085_baro);
+		xdebug("TASMOTA BMP085 %.1f °C, %.1f hPa", sensors->bmp085_temp, sensors->bmp085_baro);
+		free(bmp085);
+	}
+
+	if (sht31 != NULL) {
+		json_scanf(sht31, strlen(sht31), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->sht31_temp, &sensors->sht31_humi, &sensors->sht31_dew);
+		xdebug("TASMOTA SHT31 %.1f °C, humi %.1f %, dewpoint %.1f °C", sensors->sht31_temp, sensors->sht31_humi, sensors->sht31_dew);
+		free(sht31);
+	}
+
+	if (analog != NULL) {
+		json_scanf(analog, strlen(analog), "{A0:%d}", &sensors->ml8511_uv);
+		xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
+		free(analog);
+	}
+
+	return 0;
+}
+
+static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char *rf = NULL;
+
+	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
+
+	if (rf != NULL) {
+		unsigned int rf_code;
+		int bits;
+		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d}", &rf_code, &bits);
+		if (rf_code == DOORBELL)
+			notify("Ding", "Dong", "ding-dong.wav");
+		else if (bits == 28)
+			flamingo(rf_code);
+		free(rf);
+	}
+
+	return 0;
+}
+
+static int dispatch_tele(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	if (ends_with("SENSOR", topic, tsize))
+		return dispatch_tele_sensor(id, topic, tsize, message, msize);
+
+	if (ends_with("RESULT", topic, tsize))
+		return dispatch_tele_result(id, topic, tsize, message, msize);
+
+	return 0;
+}
+
+static int dispatch_cmnd(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	return 0;
+}
+
+static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char fmt[32], a[5];
 	int i;
-
-	// we are only interested in RESULT messages
-	// licht-haustuer only sends SENSOR messages in switchmode 15 ???
-	if (!ends_with("RESULT", topic, tsize) && !ends_with("SENSOR", topic, tsize))
-		return;
-
-	unsigned int id = get_id(topic, tsize);
-	if (!id)
-		return;
 
 	// scan for button action commands
 	for (int i = 0; i < 8; i++) {
@@ -202,10 +309,39 @@ void tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, si
 			update_shutter(id, i);
 		free(sh);
 	}
+
+	return 0;
+}
+
+// handle a subscribed mqtt message
+int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	unsigned int id = get_id(topic, tsize);
+	if (!id)
+		return 0;
+
+//	char *t = make_string(topic, tsize);
+//	char *m = make_string(message, msize);
+//	xdebug("TASMOTA %06X topic('%s') = %s", id, t, m);
+//	free(t);
+//	free(m);
+
+	// tasmota TELE
+	if (starts_with(TOPIC_TELE, topic, tsize))
+		return dispatch_tele(id, topic, tsize, message, msize);
+
+	// tasmota CMND
+	if (starts_with(TOPIC_CMND, topic, tsize))
+		return dispatch_cmnd(id, topic, tsize, message, msize);
+
+	// tasmota STAT
+	if (starts_with(TOPIC_STAT, topic, tsize))
+		return dispatch_stat(id, topic, tsize, message, msize);
+
+	return 0;
 }
 
 // execute tasmota POWER command via mqtt publish
-void tasmota_power(unsigned int id, int relay, int cmd) {
+int tasmota_power(unsigned int id, int relay, int cmd) {
 	char topic[32];
 
 	if (relay)
@@ -214,9 +350,6 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER", id);
 
 	if (cmd) {
-		xlog("TASMOTA switching %6X %d %s", id, relay, ON);
-		publish(topic, ON);
-
 		// start timer if configured
 		for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 			tasmota_config_t sc = tasmota_config[i];
@@ -227,34 +360,30 @@ void tasmota_power(unsigned int id, int relay, int cmd) {
 					xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
 				}
 		}
+		xlog("TASMOTA switching %6X %d %s", id, relay, ON);
+		return publish(topic, ON);
 	} else {
 		xlog("TASMOTA switching %6X %d %s", id, relay, OFF);
-		publish(topic, OFF);
+		return publish(topic, OFF);
 	}
 }
 
 // execute tasmota shutter up/down
-void tasmota_shutter(unsigned int id, unsigned int target) {
-	if (target == SHUTTER_POS) {
-		backlog(id, "ShutterPosition");
-		return;
-	}
+int tasmota_shutter(unsigned int id, unsigned int target) {
+	if (target == SHUTTER_POS)
+		return backlog(id, "ShutterPosition");
 
 	tasmota_state_t *ss = get_state(id);
-	if (target == SHUTTER_DOWN && ss->position != SHUTTER_DOWN) {
-		backlog(id, "ShutterClose");
-		return;
-	}
+	if (target == SHUTTER_DOWN && ss->position != SHUTTER_DOWN)
+		return backlog(id, "ShutterClose");
 
-	if (target == SHUTTER_UP && ss->position != SHUTTER_UP) {
-		backlog(id, "ShutterOpen");
-		return;
-	}
+	if (target == SHUTTER_UP && ss->position != SHUTTER_UP)
+		return backlog(id, "ShutterOpen");
 
-	if (target == SHUTTER_HALF && ss->position == SHUTTER_UP) {
-		backlog(id, "ShutterPosition 60");
-		return;
-	}
+	if (target == SHUTTER_HALF && ss->position == SHUTTER_UP)
+		return backlog(id, "ShutterPosition 60");
+
+	return 0;
 }
 
 static void* loop(void *arg) {
@@ -286,6 +415,22 @@ static void* loop(void *arg) {
 static int init() {
 	if (pthread_create(&thread, NULL, &loop, NULL))
 		return xerr("Error creating tasmota thread");
+
+	// clear average value buffer
+	ZERO(bh1750_lux_mean);
+	mean = 0;
+
+	// initialize sensor data
+	sensors->bh1750_lux = UINT16_MAX;
+	sensors->bh1750_lux_mean = UINT16_MAX;
+	sensors->bmp085_temp = UINT16_MAX;
+	sensors->bmp085_baro = UINT16_MAX;
+	sensors->bmp280_temp = UINT16_MAX;
+	sensors->bmp280_baro = UINT16_MAX;
+	sensors->sht31_humi = UINT16_MAX;
+	sensors->sht31_temp = UINT16_MAX;
+	sensors->sht31_dew = UINT16_MAX;
+	sensors->ml8511_uv = UINT16_MAX;
 
 	xlog("TASMOTA initialized");
 	return 0;

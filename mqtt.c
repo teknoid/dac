@@ -16,16 +16,12 @@
 #include <posix_sockets.h>
 #include <mqttc.h>
 
-#include "flamingo.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "utils.h"
 #include "mqtt.h"
-#include "xmas.h"
 #include "lcd.h"
 #include "mcp.h"
-
-#define MEAN	10
 
 static pthread_t thread;
 
@@ -41,9 +37,6 @@ static int mqttfd_rx;
 static struct mqtt_client *client_rx;
 static uint8_t sendbuf_rx[4096];
 static uint8_t recvbuf_rx[1024];
-
-static unsigned int bh1750_lux_mean[MEAN];
-static int mean;
 
 static int ready = 0;
 
@@ -78,30 +71,8 @@ static uint64_t get_mac(const char *topic, size_t size) {
 	return 0;
 }
 
-// create null-terminated topic
-static char* topic_string(struct mqtt_response_publish *p) {
-	const char *topic = p->topic_name;
-	uint16_t tsize = p->topic_name_size;
-
-	char *t = (char*) malloc(tsize + 1);
-	memcpy(t, topic, tsize);
-	t[tsize] = '\0';
-	return t;
-}
-
-// create null-terminated message
-static char* message_string(struct mqtt_response_publish *p) {
-	const char *message = p->application_message;
-	size_t msize = p->application_message_size;
-
-	char *m = (char*) malloc(msize + 1);
-	memcpy(m, message, msize);
-	m[msize] = '\0';
-	return m;
-}
-
 // show on LCD display line 1 and 2
-static void lcd(char *line1, char *line2) {
+static void lcd(const char *line1, const char *line2) {
 	if (!mcp->notifications_lcd)
 		return;
 
@@ -111,7 +82,7 @@ static void lcd(char *line1, char *line2) {
 }
 
 // desktop notifications via DBUS
-static void desktop(char *title, char *text) {
+static void desktop(const char *title, const char *text) {
 	if (!mcp->notifications_desktop)
 		return;
 
@@ -124,7 +95,7 @@ static void desktop(char *title, char *text) {
 }
 
 // play sound
-static void play(char *sound) {
+static void play(const char *sound) {
 	if (!mcp->notifications_sound)
 		return;
 
@@ -138,37 +109,6 @@ static void play(char *sound) {
 	free(command);
 }
 
-// special notification doorbell
-static void doorbell() {
-	xlog("MQTT doorbell");
-
-	lcd("Ding", "Dong");
-	desktop("Ding", "Dong");
-	play("ding-dong.wav");
-}
-
-// decode flamingo message
-static void flamingo(unsigned int code) {
-	uint16_t xmitter;
-	uint8_t command, channel, payload, rolling;
-
-	xlog("MQTT flamingo");
-	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
-
-	switch (xmitter) {
-	case 0x835a:
-		switch (channel) {
-		case 1:
-			if (command == 2)
-				xmas_on();
-			else if (command == 0)
-				xmas_off();
-			break;
-		}
-		break;
-	}
-}
-
 static int dispatch_notification(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
@@ -176,65 +116,11 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	char *title = NULL, *text = NULL, *sound = NULL;
 	json_scanf(message, msize, "{title: %Q, text: %Q, sound: %Q}", &title, &text, &sound);
 
-	lcd(title, text);
-	desktop(title, text);
-	play(sound);
+	notify(title, text, sound);
 
 	free(title);
 	free(text);
 	free(sound);
-
-	return 0;
-}
-
-static void bh1750_calc_mean() {
-	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
-	if (mean == MEAN)
-		mean = 0;
-
-	unsigned long sum = 0;
-	for (int i = 0; i < MEAN; i++)
-		sum += bh1750_lux_mean[i];
-
-	sensors->bh1750_lux_mean = sum / MEAN;
-}
-
-static int dispatch_sensor(struct mqtt_response_publish *p) {
-	const char *message = p->application_message;
-	size_t msize = p->application_message_size;
-
-	char *bh1750 = NULL;
-	char *bmp280 = NULL;
-	char *rf = NULL;
-
-	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, RfReceived:%Q}", &bh1750, &bmp280, &rf);
-
-	if (bh1750 != NULL) {
-		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
-		free(bh1750);
-		bh1750_calc_mean();
-	}
-
-	if (bmp280 != NULL) {
-		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
-		free(bmp280);
-	}
-
-	if (rf != NULL) {
-		unsigned int rf_code;
-		int bits;
-		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d}", &rf_code, &bits);
-		if (rf_code == DOORBELL)
-			doorbell();
-		else if (bits == 28)
-			flamingo(rf_code);
-		free(rf);
-	}
-
-//	xlog("MQTT BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
-
-//	xlog("MQTT BH1750 %d lux", sensors->bh1750_lux);
-//	xlog("MQTT BH1750 %d lux mean", sensors->bh1750_lux_mean);
 
 	return 0;
 }
@@ -244,7 +130,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	uint16_t tsize = p->topic_name_size;
 
 	uint64_t mac = get_mac(topic, tsize);
-	char *message = message_string(p);
+	char *message = make_string(p->application_message, p->application_message_size);
 	xlog("MQTT network 0x%lx %s", mac, message);
 	free(message);
 
@@ -259,12 +145,6 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 }
 
 static int dispatch_tasmota(struct mqtt_response_publish *p) {
-	char *topic = topic_string(p);
-	char *message = message_string(p);
-	xlog("MQTT tasmota topic('%s') = %s", topic, message);
-	free(topic);
-	free(message);
-
 #ifdef TASMOTA
 	tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
 #endif
@@ -278,20 +158,24 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(TOPIC_NOTIFICATION, p->topic_name, p->topic_name_size))
 		return dispatch_notification(p);
 
-	// sensors
-	if (starts_with(TOPIC_SENSOR, p->topic_name, p->topic_name_size))
-		return dispatch_sensor(p);
-
 	// network
 	if (starts_with(TOPIC_NETWORK, p->topic_name, p->topic_name_size))
 		return dispatch_network(p);
 
-	// tasmotas
-	if (starts_with(TOPIC_TASMOTA, p->topic_name, p->topic_name_size))
+	// tasmota TELE
+	if (starts_with(TOPIC_TELE, p->topic_name, p->topic_name_size))
 		return dispatch_tasmota(p);
 
-	char *t = topic_string(p);
-	char *m = message_string(p);
+	// tasmota CMND
+	if (starts_with(TOPIC_CMND, p->topic_name, p->topic_name_size))
+		return dispatch_tasmota(p);
+
+	// tasmota STAT
+	if (starts_with(TOPIC_STAT, p->topic_name, p->topic_name_size))
+		return dispatch_tasmota(p);
+
+	char *t = make_string(p->topic_name, p->topic_name_size);
+	char *m = make_string(p->application_message, p->application_message_size);
 	xlog("MQTT no dispatcher for topic('%s'): %s", t, m);
 	free(t);
 	free(m);
@@ -318,18 +202,6 @@ static void* mqtt(void *arg) {
 
 static int init() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-
-	// clear average value buffer
-	ZERO(bh1750_lux_mean);
-	mean = 0;
-
-	// initialize sensor data
-	sensors->bh1750_lux = UINT16_MAX;
-	sensors->bh1750_lux_mean = UINT16_MAX;
-	sensors->bmp085_temp = UINT16_MAX;
-	sensors->bmp085_baro = UINT16_MAX;
-	sensors->bmp280_temp = UINT16_MAX;
-	sensors->bmp280_baro = UINT16_MAX;
 
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));
@@ -374,7 +246,13 @@ static int init() {
 	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_TELE"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, TOPIC_CMND"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (pthread_create(&thread, NULL, &mqtt, NULL))
@@ -397,6 +275,16 @@ static void stop() {
 
 	if (mqttfd_rx > 0)
 		close(mqttfd_rx);
+}
+
+void notify(const char *title, const char *text, const char *sound) {
+	xdebug("MQTT notification %s/%s/%s", title, text, sound);
+
+	lcd(title, text);
+	desktop(title, text);
+
+	if (sound != NULL)
+		play(sound);
 }
 
 int publish(const char *topic, const char *message) {

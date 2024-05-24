@@ -128,6 +128,15 @@ typedef struct mcp_sensors_t {
 	uint16_t bmp280_temp_raw;
 	float bmp280_baro;
 	uint32_t bmp280_baro_raw;
+
+	// SHT31 temperature + humidity
+	float sht31_humi;
+	float sht31_temp;
+	float sht31_dew;
+
+	// ML8511 UV
+	uint16_t ml8511_uv;
+
 } mcp_sensors_t;
 extern mcp_sensors_t *sensors;
 

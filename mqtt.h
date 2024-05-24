@@ -10,11 +10,14 @@
 
 #define MAC_HANDY			0xfc539ea93ac5
 #define DARKNESS			50
-#define	DOORBELL			0x670537
 
 #define TOPIC_NOTIFICATION	"notification"
 #define TOPIC_SENSOR		"sensor"
 #define TOPIC_NETWORK		"network"
-#define TOPIC_TASMOTA		"tasmota"
+#define TOPIC_TELE			"tele"
+#define TOPIC_CMND			"cmnd"
+#define TOPIC_STAT			"stat"
+
+void notify(const char *title, const char *text, const char *sound);
 
 int publish(const char*, const char*);

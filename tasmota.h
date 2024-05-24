@@ -31,6 +31,9 @@
 #define SHUTTER_DOWN	0
 #define SHUTTER_POS		-1
 
+// 433MHz RF Transmitter ID
+#define	DOORBELL		0x670537
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
@@ -54,8 +57,8 @@ typedef struct tasmota_state_t {
 	void *next;
 } tasmota_state_t;
 
-void tasmota_power(unsigned int, int, int);
+int tasmota_power(unsigned int, int, int);
 
-void tasmota_shutter(unsigned int, unsigned int);
+int tasmota_shutter(unsigned int, unsigned int);
 
-void tasmota_dispatch(const char*, uint16_t, const char*, size_t);
+int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize);

@@ -473,6 +473,13 @@ int ends_with(const char *post, const char *str, unsigned int strsize) {
 	return strsize < postsize ? 0 : strncmp(post, str + (strsize - postsize), postsize) == 0;
 }
 
+char* make_string(const char *c, size_t s) {
+	char *str = (char*) malloc(s + 1);
+	memcpy(str, c, s);
+	str[s] = '\0';
+	return str;
+}
+
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
 	const char *p;
 	struct stat st = { 0 };
