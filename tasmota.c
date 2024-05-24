@@ -83,7 +83,7 @@ static tasmota_state_t* get_state(unsigned int id) {
 // execute tasmota BACKLOG command via mqtt publish
 static int backlog(unsigned int id, const char *cmd) {
 	char topic[32];
-	snprintf(topic, 32, "tasmota/%6X/cmnd/Backlog", id);
+	snprintf(topic, 32, "cmnd/%6X/Backlog", id);
 	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
 	return publish(topic, cmd);
 }
@@ -204,31 +204,31 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
 		bh1750_calc_mean();
-		xdebug("TASMOTA BH1750 %d lux %d lux mean", sensors->bh1750_lux, sensors->bh1750_lux_mean);
+		// xdebug("TASMOTA BH1750 %d lux, %d lux mean", sensors->bh1750_lux, sensors->bh1750_lux_mean);
 		free(bh1750);
 	}
 
 	if (bmp280 != NULL) {
 		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
-		xdebug("TASMOTA BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+		// xdebug("TASMOTA BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
 		free(bmp280);
 	}
 
 	if (bmp085 != NULL) {
 		json_scanf(bmp085, strlen(bmp085), "{Temperature:%f, Pressure:%f}", &sensors->bmp085_temp, &sensors->bmp085_baro);
-		xdebug("TASMOTA BMP085 %.1f °C, %.1f hPa", sensors->bmp085_temp, sensors->bmp085_baro);
+		// xdebug("TASMOTA BMP085 %.1f °C, %.1f hPa", sensors->bmp085_temp, sensors->bmp085_baro);
 		free(bmp085);
 	}
 
 	if (sht31 != NULL) {
 		json_scanf(sht31, strlen(sht31), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->sht31_temp, &sensors->sht31_humi, &sensors->sht31_dew);
-		xdebug("TASMOTA SHT31 %.1f °C, humi %.1f %, dewpoint %.1f °C", sensors->sht31_temp, sensors->sht31_humi, sensors->sht31_dew);
+		// xdebug("TASMOTA SHT31 %.1f °C, humidity %.1f %, dewpoint %.1f °C", sensors->sht31_temp, sensors->sht31_humi, sensors->sht31_dew);
 		free(sht31);
 	}
 
 	if (analog != NULL) {
 		json_scanf(analog, strlen(analog), "{A0:%d}", &sensors->ml8511_uv);
-		xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
+		// xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
 		free(analog);
 	}
 
@@ -345,9 +345,9 @@ int tasmota_power(unsigned int id, int relay, int cmd) {
 	char topic[32];
 
 	if (relay)
-		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER%d", id, relay);
+		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
 	else
-		snprintf(topic, 32, "tasmota/%6X/cmnd/POWER", id);
+		snprintf(topic, 32, "cmnd/%6X/POWER", id);
 
 	if (cmd) {
 		// start timer if configured
@@ -445,4 +445,3 @@ static void stop() {
 }
 
 MCP_REGISTER(tasmota, 3, &init, &stop);
-
