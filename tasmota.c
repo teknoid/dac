@@ -24,6 +24,14 @@ static tasmota_state_t *tasmota_state = NULL;
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 
+static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char *t = make_string(topic, tsize);
+	char *m = make_string(message, msize);
+	xlog("%s %06X topic('%s') = %s", id, t, m);
+	free(t);
+	free(m);
+}
+
 // topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
 //             ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
@@ -160,7 +168,7 @@ static void trigger(unsigned int id, int button, int action) {
 }
 
 // decode flamingo message
-static void flamingo(unsigned int code) {
+static int flamingo(unsigned int code) {
 	uint16_t xmitter;
 	uint8_t command, channel, payload, rolling;
 
@@ -179,6 +187,8 @@ static void flamingo(unsigned int code) {
 		}
 		break;
 	}
+
+	return 0;
 }
 
 static void bh1750_calc_mean() {
@@ -277,10 +287,15 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 		unsigned int rf_code;
 		int bits;
 		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d}", &rf_code, &bits);
+
 		if (rf_code == DOORBELL)
-			notify("Ding", "Dong", "ding-dong.wav");
-		else if (bits == 28)
-			flamingo(rf_code);
+			return notify("Ding", "Dong", "ding-dong.wav");
+
+		if (bits == 28)
+			return flamingo(rf_code);
+
+		dump("TASMOTA unknown RF received", id, topic, tsize, message, msize);
+
 		free(rf);
 	}
 
@@ -333,21 +348,17 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	if (!id)
 		return 0;
 
-	// char *t = make_string(topic, tsize);
-	// char *m = make_string(message, msize);
-	// xdebug("TASMOTA %06X topic('%s') = %s", id, t, m);
-	// free(t);
-	// free(m);
+	// dump("TASMOTA", id, topic, tsize, message, msize);
 
-	// tasmota TELE
+	// TELE
 	if (starts_with(TOPIC_TELE, topic, tsize))
 		return dispatch_tele(id, topic, tsize, message, msize);
 
-	// tasmota CMND
+	// CMND
 	if (starts_with(TOPIC_CMND, topic, tsize))
 		return dispatch_cmnd(id, topic, tsize, message, msize);
 
-	// tasmota STAT
+	// STAT
 	if (starts_with(TOPIC_STAT, topic, tsize))
 		return dispatch_stat(id, topic, tsize, message, msize);
 

@@ -18,6 +18,6 @@
 #define TOPIC_CMND			"cmnd"
 #define TOPIC_STAT			"stat"
 
-void notify(const char *title, const char *text, const char *sound);
+int notify(const char *title, const char *text, const char *sound);
 
 int publish(const char*, const char*);

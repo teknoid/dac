@@ -40,6 +40,14 @@ static uint8_t recvbuf_rx[1024];
 
 static int ready = 0;
 
+static void dump(const char *prefix, struct mqtt_response_publish *p) {
+	char *t = make_string(p->topic_name, p->topic_name_size);
+	char *m = make_string(p->application_message, p->application_message_size);
+	xlog("%s topic('%s') = %s", prefix, t, m);
+	free(t);
+	free(m);
+}
+
 // network/dhcp/fc:53:9e:a9:3a:c5 old 192.168.25.83 2023-04-02 13:16:40 (gigaset-hje)
 //              ^^^^^^^^^^^^^^^^^
 static uint64_t get_mac(const char *topic, size_t size) {
@@ -153,6 +161,7 @@ static int dispatch_tasmota(struct mqtt_response_publish *p) {
 }
 
 static int dispatch(struct mqtt_response_publish *p) {
+	// dump("MQTT", p);
 
 	// notifications
 	if (starts_with(TOPIC_NOTIFICATION, p->topic_name, p->topic_name_size))
@@ -174,11 +183,7 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(TOPIC_STAT, p->topic_name, p->topic_name_size))
 		return dispatch_tasmota(p);
 
-	char *t = make_string(p->topic_name, p->topic_name_size);
-	char *m = make_string(p->application_message, p->application_message_size);
-	xlog("MQTT no dispatcher for topic('%s'): %s", t, m);
-	free(t);
-	free(m);
+	dump("MQTT no dispatcher for message", p);
 
 	return 0;
 }
@@ -277,7 +282,7 @@ static void stop() {
 		close(mqttfd_rx);
 }
 
-void notify(const char *title, const char *text, const char *sound) {
+int notify(const char *title, const char *text, const char *sound) {
 	xdebug("MQTT notification %s/%s/%s", title, text, sound);
 
 	lcd(title, text);
@@ -285,6 +290,8 @@ void notify(const char *title, const char *text, const char *sound) {
 
 	if (sound != NULL)
 		play(sound);
+
+	return 0;
 }
 
 int publish(const char *topic, const char *message) {
