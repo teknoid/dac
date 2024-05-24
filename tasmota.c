@@ -192,6 +192,35 @@ static void bh1750_calc_mean() {
 	sensors->bh1750_lux_mean = sum / MEAN;
 }
 
+static void dispatch_button(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char fmt[32], a[5];
+
+	for (int i = 0; i < 8; i++) {
+		snprintf(fmt, 32, "{Switch%d:%%Q}", i);
+		char *sw = NULL;
+
+		if (json_scanf(message, msize, fmt, &sw)) {
+
+			// Shelly1+2
+			if (!strcmp(sw, ON))
+				trigger(id, i, 1);
+			else if (!strcmp(sw, OFF))
+				trigger(id, i, 0);
+			else {
+
+				// Shelly4
+				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
+					if (!strcmp(a, ON))
+						trigger(id, i, 1);
+					else
+						trigger(id, i, 0);
+				}
+			}
+			free(sw);
+		}
+	}
+}
+
 static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
@@ -232,6 +261,9 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 		free(analog);
 	}
 
+	// TASMOTA 2FEFEE topic('tele/2FEFEE/SENSOR') = {"Time":"2024-05-24T14:09:31","Switch1":"OFF","Switch2":"ON","ANALOG":{"Temperature":40.3},"TempUnit":"C"}
+	dispatch_button(id, topic, tsize, message, msize);
+
 	return 0;
 }
 
@@ -269,30 +301,8 @@ static int dispatch_cmnd(unsigned int id, const char *topic, uint16_t tsize, con
 }
 
 static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char fmt[32], a[5];
+	char a[5];
 	int i;
-
-	// scan for button action commands
-	for (int i = 0; i < 8; i++) {
-		snprintf(fmt, 32, "{Switch%d:%%Q}", i);
-		char *sw = NULL;
-		if (json_scanf(message, msize, fmt, &sw)) {
-			if (!strcmp(sw, ON))
-				trigger(id, i, 1); // Shelly1+2
-			else if (!strcmp(sw, OFF))
-				trigger(id, i, 0); // Shelly1+2
-			else {
-				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
-					// Shelly4
-					if (!strcmp(a, ON))
-						trigger(id, i, 1);
-					else
-						trigger(id, i, 0);
-				}
-			}
-			free(sw);
-		}
-	}
 
 	// scan for relay power state results
 	if (json_scanf(message, msize, "{POWER:%s}", &a))
@@ -309,6 +319,9 @@ static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, con
 			update_shutter(id, i);
 		free(sh);
 	}
+
+	// TASMOTA B20670 topic('stat/B20670/RESULT') = {"Switch3":{"Action":"ON"}}
+	dispatch_button(id, topic, tsize, message, msize);
 
 	return 0;
 }
