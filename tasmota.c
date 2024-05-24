@@ -27,7 +27,7 @@ static int mean;
 static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char *t = make_string(topic, tsize);
 	char *m = make_string(message, msize);
-	xlog("%s %06X topic('%s') = %s", id, t, m);
+	xlog("%s %06X topic('%s') = %s", prefix, id, t, m);
 	free(t);
 	free(m);
 }
