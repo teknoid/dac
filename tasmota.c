@@ -333,13 +333,13 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	if (!id)
 		return 0;
 
-//	char *t = make_string(topic, tsize);
-//	char *m = make_string(message, msize);
-//	xdebug("TASMOTA %06X topic('%s') = %s", id, t, m);
-//	free(t);
-//	free(m);
+	// char *t = make_string(topic, tsize);
+	// char *m = make_string(message, msize);
+	// xdebug("TASMOTA %06X topic('%s') = %s", id, t, m);
+	// free(t);
+	// free(m);
 
-// tasmota TELE
+	// tasmota TELE
 	if (starts_with(TOPIC_TELE, topic, tsize))
 		return dispatch_tele(id, topic, tsize, message, msize);
 
