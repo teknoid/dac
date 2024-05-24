@@ -110,11 +110,12 @@ static void update_shutter(unsigned int id, unsigned int position) {
 
 // trigger a button press event
 static void trigger(unsigned int id, int button, int action) {
-	xlog("TASMOTA trigger %6X %d %d", id, button, action);
 
 	// we do not track button 'release', only button 'press'
 	if (!action)
 		return;
+
+	xlog("TASMOTA trigger %6X %d %d", id, button, action);
 
 	if (id == KUECHE && button == 2) {
 		// forcing first boiler to heat up for 10 minutes
@@ -338,7 +339,7 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 //	free(t);
 //	free(m);
 
-	// tasmota TELE
+// tasmota TELE
 	if (starts_with(TOPIC_TELE, topic, tsize))
 		return dispatch_tele(id, topic, tsize, message, msize);
 
