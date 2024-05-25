@@ -12,9 +12,9 @@
 
 #include "fronius-config.h"
 #include "fronius.h"
+#include "tasmota.h"
 #include "frozen.h"
 #include "utils.h"
-#include "mqtt.h"
 #include "mcp.h"
 
 // program of the day - mosmix will chose appropriate program
@@ -44,19 +44,17 @@ int set_heater(device_t *heater, int power) {
 	if (heater->addr == NULL)
 		return xerr("No address to send HTTP message");
 
-	char command[128];
+	// char command[128];
 	if (power) {
-		xlog("FRONIUS switching %s ON", heater->name);
+		// xlog("FRONIUS switching %s ON", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
 		// system(command);
-		snprintf(command, 32, "cmnd/%6X/POWER", heater->id);
-		publish(command, ON);
+		tasmota_power(heater->id, 0, 1);
 	} else {
-		xlog("FRONIUS switching %s OFF", heater->name);
+		// xlog("FRONIUS switching %s OFF", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
 		// system(command);
-		snprintf(command, 32, "cmnd/%6X/POWER", heater->id);
-		publish(command, ON);
+		tasmota_power(heater->id, 0, 0);
 	}
 
 	// update power values
@@ -828,7 +826,7 @@ static void* fronius(void *arg) {
 			}
 
 			mosmix();
-			wait = WAIT_NEXT;
+			wait = 1;
 			continue;
 		}
 
