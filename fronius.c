@@ -620,9 +620,9 @@ static void check_response(device_t *d) {
 		return;
 	}
 
-	// no response and last delta load was too small (minimum 3%)
-	int min = d->load * 3 / 100;
-	if (!state->dload && abs(d->dload) < min) {
+	// last delta load was too small (minimum 5%)
+	int min = d->load * 5 / 100;
+	if (abs(d->dload) < min) {
 		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
 		return;
 	}
