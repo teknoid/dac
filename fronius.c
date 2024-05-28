@@ -605,6 +605,7 @@ static void check_response(device_t *d) {
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
+		(d->set_function)(d, 0);
 		d->state = Active;
 		d->dload = 0;
 		return;
