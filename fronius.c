@@ -579,14 +579,20 @@ static void steal_power() {
 }
 
 static void check_standby() {
-	xdebug("FRONIUS power released by someone: %d", state->dload);
+	if (state->distortion)
+		return;
+
+	if (state->load < BASELOAD * -2)
+		return; // too much overall load
+
+//	if (state->dload && state->dload < BASELOAD)
+//		return; // too less released delta load
+
+	xdebug("FRONIUS requesting global standby check");
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
 		device_t *d = (*ds)->device;
-
-		if (d->adjustable && d->power) {
+		if (d->power)
 			d->state = Request_Standby_Check;
-			xdebug("FRONIUS requesting standby check for %s", d->name);
-		}
 	}
 }
 
@@ -731,15 +737,8 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion > 5 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
+	if (state->distortion > 3 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
 		return WAIT_NEXT;
-
-	// state is stable when we had no power change now and within last 3 rounds
-	int instable = state->dload;
-	for (int i = 1; i <= 3; i++)
-		instable += get_history(i * -1)->dload;
-	if (instable)
-		return WAIT_IDLE;
 
 	// all devices in standby?
 	int all_standby = 1;
@@ -748,6 +747,13 @@ static int calculate_next_round(device_t *d) {
 			all_standby = 0;
 	if (all_standby)
 		return WAIT_STANDBY;
+
+	// state is stable when we had no power change now and within last 3 rounds
+	int instable = state->dload;
+	for (int i = 1; i <= 3; i++)
+		instable += get_history(i * -1)->dload;
+	if (instable)
+		return WAIT_IDLE;
 
 	// state is stable, but faster next round when we have distortion
 	if (state->distortion)
@@ -845,12 +851,10 @@ static void* fronius(void *arg) {
 		// calculate actual state
 		calculate_state();
 
-		// check response from previous ramp
+		// check response from previous ramp or do overall standby check
 		if (device)
 			check_response(device);
-
-		// something switched off which was not initiated by us
-		if (state->dload > BASELOAD && !state->distortion && !device)
+		else
 			check_standby();
 
 		// ramp up/down devices depending on if we have surplus or not
