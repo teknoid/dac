@@ -627,6 +627,12 @@ static void check_response(device_t *d) {
 		return;
 	}
 
+	// distortion - load values are not reliable
+	if (state->distortion) {
+		xdebug("FRONIUS skipping standby check for %s due to distortion %d", d->name, state->distortion);
+		return;
+	}
+
 	// initiate a standby check
 	xdebug("FRONIUS no response from %s, requesting standby check", d->name);
 	d->state = Request_Standby_Check;
