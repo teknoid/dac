@@ -850,7 +850,7 @@ static void* fronius(void *arg) {
 			check_response(device);
 
 		// something switched off which was not initiated by us
-		if (!device && state->dload > BASELOAD)
+		if (state->dload > BASELOAD && !state->distortion && !device)
 			check_standby();
 
 		// ramp up/down devices depending on if we have surplus or not
