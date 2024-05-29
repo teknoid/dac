@@ -582,18 +582,12 @@ static void check_standby() {
 	if (state->distortion)
 		return;
 
-	if (state->load < BASELOAD * -2)
+	if (state->load < BASELOAD * -1)
 		return; // too much overall load
 
-//	if (state->dload && state->dload < BASELOAD)
-//		return; // too less released delta load
-
-	xdebug("FRONIUS requesting global standby check");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-		device_t *d = (*ds)->device;
-		if (d->power)
-			d->state = Request_Standby_Check;
-	}
+	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+		if ((*ds)->device->power)
+			(*ds)->device->state = Request_Standby_Check;
 }
 
 static void check_response(device_t *d) {
