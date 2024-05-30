@@ -582,11 +582,14 @@ static void check_standby() {
 	if (state->distortion)
 		return;
 
-	if (state->load < BASELOAD * -1)
+	if (state->load < BASELOAD * -2)
 		return; // too much overall load
 
+	if (state->dload > BASELOAD)
+		xdebug("FRONIUS power released by someone %d", state->dload);
+
 	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->device->power)
+		if ((*ds)->device->thermostat && (*ds)->device->power)
 			(*ds)->device->state = Request_Standby_Check;
 }
 
@@ -824,9 +827,13 @@ static void* fronius(void *arg) {
 		if (potd == NULL || now_ts > next_reset) {
 			mosmix();
 
-			xlog("FRONIUS resetting standby states");
-			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-				(*ds)->device->state = Active;
+			xlog("FRONIUS resetting standby and thermostat states");
+			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
+				device_t *d = (*ds)->device;
+				d->state = Active;
+				if (d->thermostat)
+					d->power = 0;
+			}
 
 			next_reset = now_ts + STANDBY_RESET;
 			wait = 1;
