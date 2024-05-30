@@ -824,13 +824,9 @@ static void* fronius(void *arg) {
 		if (potd == NULL || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET;
 
-			xlog("FRONIUS resetting standby and thermostat states");
-			for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-				device_t *d = devices[i];
-				d->state = Active;
-				if (d->thermostat)
-					d->power = 0;
-			}
+			xlog("FRONIUS resetting standby states");
+			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+				(*ds)->device->state = Active;
 
 			mosmix();
 			wait = 1;
