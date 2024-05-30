@@ -822,13 +822,13 @@ static void* fronius(void *arg) {
 
 		// reset program of the day and standby states every 30min
 		if (potd == NULL || now_ts > next_reset) {
-			next_reset = now_ts + STANDBY_RESET;
+			mosmix();
 
 			xlog("FRONIUS resetting standby states");
 			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
 				(*ds)->device->state = Active;
 
-			mosmix();
+			next_reset = now_ts + STANDBY_RESET;
 			wait = 1;
 			continue;
 		}
