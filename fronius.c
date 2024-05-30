@@ -582,15 +582,20 @@ static void check_standby() {
 	if (state->distortion)
 		return; // standby check is not reliable
 
-	if (state->load < BASELOAD * -2)
-		return; // too much overall load
+	// force standby check on all devices if we have no load at all
+	if (BASELOAD * -1 < state->load) {
+		for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+			if ((*ds)->device->power)
+				(*ds)->device->state = Request_Standby_Check;
+		return;
+	}
 
-	if (state->dload > BASELOAD)
-		xdebug("FRONIUS power released by someone %d", state->dload);
-
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->device->thermostat && (*ds)->device->power)
-			(*ds)->device->state = Request_Standby_Check;
+	if (state->dload > BASELOAD) {
+		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
+		for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
+			if ((*ds)->device->thermostat && (*ds)->device->power)
+				(*ds)->device->state = Request_Standby_Check;
+	}
 }
 
 static void check_response(device_t *d) {
