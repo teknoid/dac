@@ -580,7 +580,7 @@ static void steal_power() {
 
 static void check_standby() {
 	if (state->distortion)
-		return;
+		return; // standby check is not reliable
 
 	if (state->load < BASELOAD * -2)
 		return; // too much overall load
