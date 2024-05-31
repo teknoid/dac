@@ -121,7 +121,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power values
 	boiler->power = power;
-	boiler->dload += boiler->load * step / -100;
+	boiler->dload = boiler->load * step / -100;
 	return 1; // loop done
 }
 
