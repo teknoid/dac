@@ -103,7 +103,7 @@ void replaygain(const char *filename) {
 	int res, i;
 
 	if (magic == NULL) {
-		magic = magic_open(MAGIC_CONTINUE | MAGIC_MIME);
+		magic = magic_open(MAGIC_CONTINUE | MAGIC_MIME | MAGIC_SYMLINK);
 		magic_load(magic, NULL);
 	}
 
