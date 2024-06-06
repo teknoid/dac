@@ -37,7 +37,7 @@ int set_heater(device_t *heater, int power) {
 		power = 1;
 
 	// check if update is necessary
-	if (heater->power == power)
+	if (heater->power && heater->power == power)
 		return 0;
 
 	// can we send a message
@@ -63,6 +63,7 @@ int set_heater(device_t *heater, int power) {
 	return 1; // loop done
 }
 
+// echo p:0:0 | socat - udp:boiler3:1975
 int set_boiler(device_t *boiler, int power) {
 	// fix power value if out of range
 	if (power < 0)
@@ -83,7 +84,7 @@ int set_boiler(device_t *boiler, int power) {
 	}
 
 	// no update necessary
-	if (boiler->power == power)
+	if (boiler->power && boiler->power == power)
 		return 0; // continue loop
 
 	// can we send a message
