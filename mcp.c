@@ -267,8 +267,11 @@ static void daemonize() {
 
 // loop recursively over module chain and call each module's init() function
 static void module_init(mcp_module_t *m) {
-	if ((m->init)() < 0)
+	int ret = (m->init)();
+	if (ret < 0) {
+		xlog("MCP %s initialization failed: %d", m->name, ret);
 		exit(EXIT_FAILURE);
+	}
 
 	xlog("MCP initialized %s", m->name);
 
