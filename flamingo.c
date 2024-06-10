@@ -260,6 +260,7 @@ static int usage() {
 static int init() {
 	// GPIO pin connected to 433MHz sender module
 	gpio_configure(TX, 1, 0, 0);
+	xlog("FLAMINGO initialized");
 	return 0;
 }
 

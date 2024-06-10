@@ -200,6 +200,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &loop, NULL))
 		xlog("Error creating sensors thread");
 
+	xlog("SENSORS initialized");
 	return 0;
 }
 

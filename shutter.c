@@ -126,6 +126,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &shutter, NULL))
 		xlog("SHUTTER Error creating thread");
 
+	xlog("SHUTTER initialized");
 	return 0;
 }
 

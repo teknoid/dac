@@ -449,6 +449,7 @@ static int init() {
 	}
 
 	close(fd);
+	xlog("GPIO initialized, base address=0x%08x", base);
 	return 0;
 }
 

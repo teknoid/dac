@@ -138,6 +138,7 @@ static int init() {
 	else
 		xlog("DAC power is OFF");
 
+	xlog("PIWOLF initialized");
 	return 0;
 }
 

@@ -115,6 +115,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &rotary, NULL))
 		return xerr("Error creating thread_rotary");
 
+	xlog("ROTARY initialized");
 	return 0;
 }
 

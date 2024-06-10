@@ -354,6 +354,7 @@ static int init() {
 	*ctrl |= 0b11; // run Forest, run...
 
 	close(fd);
+	xlog("GPIO initialized");
 	return 0;
 }
 

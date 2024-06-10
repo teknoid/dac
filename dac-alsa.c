@@ -93,6 +93,7 @@ static int init() {
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 #endif
 
+	xlog("ALSA initialized");
 	return 0;
 }
 
