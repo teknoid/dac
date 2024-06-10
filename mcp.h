@@ -63,15 +63,16 @@ typedef enum {
 typedef int (*init_t)();
 typedef void (*stop_t)();
 typedef void (*loop_t)();
+typedef struct _mcp_module mcp_module_t;
 
-typedef struct mcp_module_t {
+struct _mcp_module {
 	const char *name;
 	init_t init;
 	stop_t stop;
 	loop_t loop;
 	pthread_t thread;
-	void *next;
-} mcp_module_t;
+	mcp_module_t *next;
+};
 
 typedef struct mcp_state_t {
 	dac_signal_t dac_signal;
