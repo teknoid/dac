@@ -84,15 +84,11 @@ static void off_evening(const timing_t *timing) {
 	power = 0;
 }
 
-static int process(struct tm *now, const timing_t *timing) {
-	int lumi = sensors->bh1750_lux;
+static int process(struct tm *now, const timing_t *timing, unsigned int lumi) {
 	int afternoon = now->tm_hour < 12 ? 0 : 1;
 	int curr = now->tm_hour * 60 + now->tm_min;
 	int from = timing->on_h * 60 + timing->on_m;
 	int to = timing->off_h * 60 + timing->off_m;
-
-	if (lumi == INT_MAX)
-		return xerr("XMAS no sensor data");
 
 	if (from <= curr && curr <= to) {
 		// ON time frame
@@ -135,6 +131,8 @@ static int process(struct tm *now, const timing_t *timing) {
 }
 
 static void* xmas(void *arg) {
+	unsigned int lumi;
+
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("XMAS Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -143,6 +141,13 @@ static void* xmas(void *arg) {
 	// elevate realtime priority for flamingo 433MHz transmit
 	if (elevate_realtime(3) < 0) {
 		xlog("XMAS Error elevating realtime");
+		return (void*) 0;
+	}
+
+	sleep(1); // wait for sensors
+	lumi = sensors->bh1750_lux;
+	if (lumi == UINT16_MAX) {
+		xlog("XMAS no sensor data");
 		return (void*) 0;
 	}
 
@@ -160,7 +165,7 @@ static void* xmas(void *arg) {
 				continue;
 
 			// xlog("processing timing[%i]", i);
-			process(now, timing);
+			process(now, timing, lumi);
 		}
 
 		sleep(60);
