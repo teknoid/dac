@@ -316,10 +316,10 @@ void dac_handle(int c) {
 	}
 }
 
-static void* dac(void *arg) {
+static void dac() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	char *s, s_mpd[] = "MPD", s_opt[] = "OPT", s_coax[] = "COAX";

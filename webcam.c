@@ -35,10 +35,10 @@ static void stop_timelapse() {
 	xlog("executed %s", WEBCAM_STOP_TIMELAPSE);
 }
 
-static void* webcam(void *arg) {
+static void webcam() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	// wait till network & nfs available

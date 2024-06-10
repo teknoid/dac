@@ -51,12 +51,12 @@ static void handle_button(unsigned char c) {
 	}
 }
 
-static void* button(void *arg) {
+static void button() {
 	unsigned char c, c_old, hold;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	i2c_get(i2cfd, ADDR, &c_old);

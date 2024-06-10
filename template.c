@@ -7,10 +7,10 @@
 #include "utils.h"
 #include "mcp.h"
 
-static void* loop(void *arg) {
+static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

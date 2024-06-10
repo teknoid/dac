@@ -23,20 +23,20 @@
 
 static int fd_ir;
 
-static void* ir(void *arg) {
+static void ir() {
 	struct input_event ev;
 	int n, seq;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {
 		n = read(fd_ir, &ev, sizeof(ev));
 		if (n == -1) {
 			if (errno == EINTR)
-				return (void*) 0;
+				return;
 			else
 				break;
 		} else if (n != sizeof(ev)) {
@@ -73,7 +73,6 @@ static void* ir(void *arg) {
 	}
 
 	xlog("INFRARED error %s", strerror(errno));
-	return (void*) 0;
 }
 
 static int init() {

@@ -408,10 +408,10 @@ int tasmota_shutter(unsigned int id, unsigned int target) {
 	return 0;
 }
 
-static void* loop(void *arg) {
+static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

@@ -189,10 +189,10 @@ static void callback(void **unused, struct mqtt_response_publish *p) {
 	dispatch(p);
 }
 
-static void* mqtt(void *arg) {
+static void mqtt() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("MQTT Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

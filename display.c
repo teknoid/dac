@@ -312,10 +312,10 @@ void display_menu_mode() {
 	countdown_menu = 30;
 }
 
-static void* display(void *arg) {
+static void display() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	clear_clocktick(); // dummy warning [-Wunused-function]

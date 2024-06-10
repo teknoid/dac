@@ -128,25 +128,23 @@ static int process(struct tm *now, const timing_t *timing, unsigned int lumi) {
 	return 0;
 }
 
-static void* xmas(void *arg) {
-	unsigned int lumi;
-
+static void xmas() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("XMAS Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	// elevate realtime priority for flamingo 433MHz transmit
 	if (elevate_realtime(3) < 0) {
 		xlog("XMAS Error elevating realtime");
-		return (void*) 0;
+		return;
 	}
 
 	sleep(3); // wait for sensors
-	lumi = sensors->bh1750_lux;
+	unsigned int lumi = sensors->bh1750_lux;
 	if (lumi == UINT16_MAX) {
 		xlog("XMAS Error no sensor data");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

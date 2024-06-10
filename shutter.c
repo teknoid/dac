@@ -82,21 +82,18 @@ static int winter(struct tm *now, unsigned int lumi, int temp) {
 	return 0;
 }
 
-static void* shutter(void *arg) {
-	unsigned int lumi;
-	int temp;
-
+static void shutter() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("SHUTTER Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	sleep(3); // wait for sensors
-	lumi = sensors->bh1750_lux_mean;
-	temp = (int) sensors->bmp280_temp;
+	unsigned int lumi = sensors->bh1750_lux_mean;
+	int temp = (int) sensors->bmp280_temp;
 	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
 		xlog("SHUTTER Error no sensor data");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

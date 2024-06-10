@@ -170,10 +170,10 @@ static void write_sysfslike() {
 	create_sysfslike(DIRECTORY, "baro", cvalue, "%s", BMP085);
 }
 
-static void* loop(void *arg) {
+static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

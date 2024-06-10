@@ -62,7 +62,7 @@ typedef enum {
 
 typedef int (*init_t)();
 typedef void (*stop_t)();
-typedef void *(*loop_t)(void*);
+typedef void (*loop_t)();
 
 typedef struct mcp_module_t {
 	const char *name;
@@ -149,4 +149,4 @@ int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);
 void mcp_system_reboot(void);
-void mcp_register(const char*, const int, const void*, const void*, const void*);
+void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);

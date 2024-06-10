@@ -314,10 +314,10 @@ void mpdclient_handle(int key) {
 	}
 }
 
-static void* mpdclient(void *arg) {
+static void mpdclient() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	sleep(1);
@@ -326,7 +326,7 @@ static void* mpdclient(void *arg) {
 	conn = mpdclient_get_connection();
 	if (!conn) {
 		xlog("MPD Error connecting mpd conn");
-		return (void*) 0;
+		return;
 	}
 
 	struct mpd_connection *conn_status = NULL;
@@ -337,7 +337,7 @@ static void* mpdclient(void *arg) {
 			conn_status = mpdclient_get_connection();
 			if (!conn_status) {
 				xlog("MPD Error connecting mpd conn_status");
-				return (void*) 0;
+				return;
 			}
 		}
 
@@ -390,8 +390,6 @@ static void* mpdclient(void *arg) {
 		}
 		mcp->dac_state_changed = 1;
 	}
-
-	return (void*) 0;
 }
 
 static int init() {

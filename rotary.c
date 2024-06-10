@@ -79,10 +79,10 @@ static struct encoder* setupencoder(int pin_a, int pin_b, int pin_s) {
 	return encoder;
 }
 
-static void* rotary(void *arg) {
+static void rotary() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	long old = 0;

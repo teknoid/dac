@@ -184,13 +184,13 @@ void lcd_print(const char *t1, const char *t2) {
 	new_text = 1;
 }
 
-static void* lcd(void *arg) {
+static void lcd() {
 	int overflow, scroll1, scroll2;
 	int counter = 10;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {

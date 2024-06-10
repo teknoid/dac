@@ -763,14 +763,14 @@ static int calculate_next_round(device_t *d) {
 		return WAIT_STABLE;
 }
 
-static void* fronius(void *arg) {
+static void fronius() {
 	int ret, wait = 1, errors = 0;
 	device_t *device = 0;
 	time_t next_reset;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	// initializing
@@ -781,13 +781,13 @@ static void* fronius(void *arg) {
 	CURL *curl10 = curl_init(URL_FLOW10, callback_fronius10);
 	if (curl10 == NULL) {
 		xlog("Error initializing libcurl");
-		return (void*) 0;
+		return;
 	}
 
 	CURL *curl7 = curl_init(URL_FLOW7, callback_fronius7);
 	if (curl7 == NULL) {
 		xlog("Error initializing libcurl");
-		return (void*) 0;
+		return;
 	}
 
 	// the FRONIUS main loop
