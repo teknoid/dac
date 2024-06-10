@@ -14,11 +14,7 @@
 // program of the day - summer or winter
 static potd_t *potd;
 
-//
-// summer mode
-//
-
-static int summer(struct tm *now, unsigned int lumi, int temp) {
+static void summer(struct tm *now, unsigned int lumi, int temp) {
 	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int hot = lumi > potd->lumi && temp > potd->temp;
@@ -42,16 +38,10 @@ static int summer(struct tm *now, unsigned int lumi, int temp) {
 			s->lock_down = 0;
 			continue;
 		}
-
 	}
-	return 0;
 }
 
-//
-// winter mode
-//
-
-static int winter(struct tm *now, unsigned int lumi, int temp) {
+static void winter(struct tm *now, unsigned int lumi, int temp) {
 	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int down = now->tm_hour > 12 && lumi < potd->lumi && temp < potd->temp;
@@ -78,8 +68,6 @@ static int winter(struct tm *now, unsigned int lumi, int temp) {
 			continue;
 		}
 	}
-
-	return 0;
 }
 
 static void shutter() {

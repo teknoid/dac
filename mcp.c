@@ -301,6 +301,7 @@ static void module_loop(mcp_module_t *m) {
 			exit(EXIT_FAILURE);
 
 	xlog("MCP started thread %s", m->name);
+
 	if (m->next != NULL)
 		module_loop(m->next);
 }
