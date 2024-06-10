@@ -144,16 +144,18 @@ static void* xmas(void *arg) {
 		return (void*) 0;
 	}
 
-	sleep(1); // wait for sensors
+	sleep(3); // wait for sensors
 	lumi = sensors->bh1750_lux;
 	if (lumi == UINT16_MAX) {
-		xlog("XMAS no sensor data");
+		xlog("XMAS Error no sensor data");
 		return (void*) 0;
 	}
 
 	while (1) {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
+
+		lumi = sensors->bh1750_lux;
 
 		for (int i = 0; i < ARRAY_SIZE(timings); i++) {
 			const timing_t *timing = &timings[i];

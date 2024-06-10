@@ -14,7 +14,6 @@
 
 // program of the day - summer or winter
 static potd_t *potd;
-static int reset_needed;
 
 static pthread_t thread;
 
@@ -26,23 +25,25 @@ static int summer(struct tm *now, unsigned int lumi, int temp) {
 	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int hot = lumi > potd->lumi && temp > potd->temp;
-	for (shutter_t **ss = potd->shutters; *ss != NULL; ss++) {
-		shutter_t *s = *ss;
+	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
+		shutter_t *s = *potds;
 
 		// down
 		if (!s->lock_down && s->down_from <= now->tm_hour && now->tm_hour < s->down_to && hot) {
-			xlog("SHUTTER trigger %s DOWN at lumi %d temp %d", potd->name, lumi, temp);
+			xlog("SHUTTER trigger %s DOWN %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
 			tasmota_shutter(s->id, s->down);
 			s->lock_down = 1;
-			reset_needed = 1;
+			s->lock_up = 0;
+			continue;
 		}
 
 		// up
 		if (!s->lock_up && s->down_to <= now->tm_hour && now->tm_hour < s->down_from) {
-			xlog("SHUTTER trigger %s UP at lumi %d temp %d", potd->name, lumi, temp);
+			xlog("SHUTTER trigger %s UP %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
-			reset_needed = 1;
+			s->lock_down = 0;
+			continue;
 		}
 
 	}
@@ -56,49 +57,29 @@ static int summer(struct tm *now, unsigned int lumi, int temp) {
 static int winter(struct tm *now, unsigned int lumi, int temp) {
 	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
-	int afternoon = now->tm_hour < 12 ? 0 : 1;
-	if (afternoon) {
+	int down = now->tm_hour > 12 && lumi < potd->lumi && temp < potd->temp;
+	int up = now->tm_hour < 12 && lumi > potd->lumi;
 
-		// evening: check if 1. sundown is reached, 2. temp is below
-		if (lumi < potd->lumi && temp < potd->temp) {
-			xlog("SHUTTER trigger %s DOWN at lumi %d temp %d", potd->name, lumi, temp);
-			for (shutter_t **ss = potd->shutters; *ss != NULL; ss++) {
-				shutter_t *s = *ss;
-				if (!s->lock_down) {
-					tasmota_shutter(s->id, SHUTTER_DOWN);
-					s->lock_down = 1;
-					reset_needed = 1;
-				}
-			}
+	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
+		shutter_t *s = *potds;
+
+		// down
+		if (!s->lock_down && down) {
+			xlog("SHUTTER trigger %s DOWN %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
+			tasmota_shutter(s->id, SHUTTER_DOWN);
+			s->lock_down = 1;
+			s->lock_up = 0;
+			continue;
 		}
 
-	} else {
-
-		// morning: check if sunrise is reached
-		if (lumi > potd->lumi) {
-			xlog("SHUTTER trigger %s UP at lumi %d temp %d", potd->name, lumi, temp);
-			for (shutter_t **ss = potd->shutters; *ss != NULL; ss++) {
-				shutter_t *s = *ss;
-				if (!s->lock_up) {
-					tasmota_shutter(s->id, SHUTTER_UP);
-					s->lock_up = 1;
-					reset_needed = 1;
-				}
-			}
+		// up
+		if (!s->lock_up && up) {
+			xlog("SHUTTER trigger %s UP %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
+			tasmota_shutter(s->id, SHUTTER_UP);
+			s->lock_up = 1;
+			s->lock_down = 0;
+			continue;
 		}
-	}
-
-	return 0;
-}
-
-static int reset() {
-	if (potd == NULL)
-		return 0;
-
-	for (shutter_t **ss = potd->shutters; *ss != NULL; ss++) {
-		shutter_t *s = *ss;
-		s->lock_down = 0;
-		s->lock_up = 0;
 	}
 
 	return 0;
@@ -113,11 +94,11 @@ static void* shutter(void *arg) {
 		return (void*) 0;
 	}
 
-	sleep(1); // wait for sensors
+	sleep(3); // wait for sensors
 	lumi = sensors->bh1750_lux_mean;
 	temp = (int) sensors->bmp280_temp;
 	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
-		xlog("SHUTTER no sensor data");
+		xlog("SHUTTER Error no sensor data");
 		return (void*) 0;
 	}
 
@@ -127,10 +108,6 @@ static void* shutter(void *arg) {
 
 		lumi = sensors->bh1750_lux_mean;
 		temp = (int) sensors->bmp280_temp;
-
-		// reset locks once per day
-		if (now->tm_hour == 0 && reset_needed)
-			reset_needed = reset();
 
 		if (SUMMER.months[now->tm_mon + 1]) {
 			potd = &SUMMER;
