@@ -15,9 +15,10 @@
 static potd_t *potd;
 
 static void summer(struct tm *now, unsigned int lumi, int temp) {
-	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
+	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int hot = lumi > potd->lumi && temp > potd->temp;
+
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
 
@@ -42,7 +43,7 @@ static void summer(struct tm *now, unsigned int lumi, int temp) {
 }
 
 static void winter(struct tm *now, unsigned int lumi, int temp) {
-	xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
+	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int down = now->tm_hour > 12 && lumi < potd->lumi && temp < potd->temp;
 	int up = now->tm_hour < 12 && lumi > potd->lumi;
