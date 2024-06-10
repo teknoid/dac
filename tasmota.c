@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
-#include <pthread.h>
 
 #include "mcp.h"
 #include "mqtt.h"
@@ -16,8 +15,6 @@
 #include "tasmota-config.h"
 
 #define MEAN	10
-
-static pthread_t thread;
 
 static tasmota_state_t *tasmota_state = NULL;
 
@@ -438,9 +435,6 @@ static void* loop(void *arg) {
 }
 
 static int init() {
-	if (pthread_create(&thread, NULL, &loop, NULL))
-		return xerr("Error creating tasmota thread");
-
 	// clear average value buffer
 	ZERO(bh1750_lux_mean);
 	mean = 0;
@@ -457,16 +451,10 @@ static int init() {
 	sensors->sht31_dew = UINT16_MAX;
 	sensors->ml8511_uv = UINT16_MAX;
 
-	xlog("TASMOTA initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling tasmota thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining tasmota thread");
 }
 
-MCP_REGISTER(tasmota, 3, &init, &stop);
+MCP_REGISTER(tasmota, 3, &init, &stop, &loop);

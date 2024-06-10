@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <math.h>
 
 #include <linux/input-event-codes.h>
@@ -24,7 +23,6 @@
 #endif
 
 static int i2c;
-static pthread_t thread;
 
 static dac_signal_t dac_get_signal() {
 	uint8_t value;
@@ -395,26 +393,15 @@ static int init() {
 	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
-	// start dac update thread
-	if (pthread_create(&thread, NULL, &dac, NULL))
-		return xerr("Error creating thread_dac");
-
 	// prepare the menus
 	es9028_prepare_menus();
 
-	xlog("ES9028 initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_display");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_display");
-
 	if (i2c > 0)
 		close(i2c);
 }
 
-MCP_REGISTER(dac_es9028, 3, &init, &stop);
+MCP_REGISTER(dac_es9028, 3, &init, &stop, &dac);

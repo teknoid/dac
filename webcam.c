@@ -4,15 +4,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 
 #include "utils.h"
 #include "webcam.h"
 #include "mcp.h"
 
 static int webcam_on;
-
-static pthread_t thread;
 
 static void webcam_start() {
 	system(WEBCAM_START);
@@ -39,10 +36,6 @@ static void stop_timelapse() {
 }
 
 static void* webcam(void *arg) {
-	time_t now_ts;
-	struct tm *now;
-	int afternoon;
-
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -58,9 +51,9 @@ static void* webcam(void *arg) {
 		webcam_stop();
 
 	while (1) {
-		now_ts = time(NULL);
-		now = localtime(&now_ts);
-		afternoon = now->tm_hour < 12 ? 0 : 1;
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
+		int afternoon = now->tm_hour < 12 ? 0 : 1;
 
 		if (afternoon && webcam_on) {
 			// evening and on --> check if need to switch off
@@ -86,22 +79,11 @@ static void* webcam(void *arg) {
 
 static int init() {
 	webcam_on = 0;
-	if (pthread_create(&thread, NULL, &webcam, NULL))
-		return xerr("Error creating webcam thread");
-
-	xlog("WEBCAM initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling webcam thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining webcam thread");
-
 	webcam_stop();
 }
 
-MCP_REGISTER(webcam, 6, &init, &stop);
-
+MCP_REGISTER(webcam, 6, &init, &stop, &webcam);

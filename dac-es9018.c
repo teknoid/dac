@@ -122,11 +122,10 @@ static int init() {
 	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
 	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
-	xlog("ES9018 initialized");
 	return 0;
 }
 
 static void stop() {
 }
 
-MCP_REGISTER(dac_es9018, 3, &init, &stop);
+MCP_REGISTER(dac_es9018, 3, &init, &stop, NULL);

@@ -260,7 +260,6 @@ static int usage() {
 static int init() {
 	// GPIO pin connected to 433MHz sender module
 	gpio_configure(TX, 1, 0, 0);
-	xlog("FLAMINGO initialized");
 	return 0;
 }
 
@@ -342,7 +341,7 @@ int flamingo_main(int argc, char *argv[]) {
 #ifdef FLAMINGO_MAIN
 // gpio-bcm2835.c needs mcp_register()
 typedef int (*init_t)();
-void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void *loop) {
 	xlog("call init() for  %s", name);
 	init_t xinit = init;
 	(xinit)();
@@ -351,5 +350,5 @@ int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);
 }
 #else
-MCP_REGISTER(flamingo, 2, &init, &stop);
+MCP_REGISTER(flamingo, 2, &init, &stop, NULL);
 #endif

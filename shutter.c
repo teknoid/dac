@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
-#include <pthread.h>
 #include <time.h>
 
 #include "shutter-config.h"
@@ -14,8 +13,6 @@
 
 // program of the day - summer or winter
 static potd_t *potd;
-
-static pthread_t thread;
 
 //
 // summer mode
@@ -123,19 +120,10 @@ static void* shutter(void *arg) {
 }
 
 static int init() {
-	if (pthread_create(&thread, NULL, &shutter, NULL))
-		xlog("SHUTTER Error creating thread");
-
-	xlog("SHUTTER initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("SHUTTER Error canceling thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("SHUTTER Error joining thread");
 }
 
-MCP_REGISTER(shutter, 6, &init, &stop);
+MCP_REGISTER(shutter, 6, &init, &stop, &shutter);

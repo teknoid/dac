@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <math.h>
-#include <pthread.h>
 
 #include "sensors.h"
 #include "utils.h"
@@ -15,7 +14,6 @@
 
 #define SYSFSLIKE	0
 
-static pthread_t thread;
 static int i2cfd;
 
 #ifdef SENSORS_MAIN
@@ -195,23 +193,12 @@ static int init() {
 	// TODO config
 	i2cfd = open(I2CBUS, O_RDWR);
 	if (i2cfd < 0)
-		xlog("I2C BUS error");
+		return xerr("I2C BUS error");
 
-	if (pthread_create(&thread, NULL, &loop, NULL))
-		xlog("Error creating sensors thread");
-
-	xlog("SENSORS initialized");
 	return 0;
 }
 
 static void stop() {
-	if (thread) {
-		if (pthread_cancel(thread))
-			xlog("Error canceling sensors thread");
-		if (pthread_join(thread, NULL))
-			xlog("Error joining sensors thread");
-	}
-
 	if (i2cfd > 0)
 		close(i2cfd);
 }
@@ -249,5 +236,5 @@ int main(int argc, char **argv) {
 	return sensor_main(argc, argv);
 }
 #else
-MCP_REGISTER(sensors, 3, &init, &stop);
+MCP_REGISTER(sensors, 3, &init, &stop, &loop);
 #endif

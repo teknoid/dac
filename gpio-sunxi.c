@@ -330,16 +330,12 @@ static int init() {
 
 	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
-	if (fd == -1) {
-		xlog("/dev/mem failed: %s", strerror(errno));
-		return -2;
-	}
+	if (fd == -1)
+		return xerr("/dev/mem failed: %s", strerror(errno));
 
 	mem = mmap(NULL, pagesize, PROT_WRITE | PROT_READ, MAP_SHARED, fd, MEM_BASE);
-	if (mem == MAP_FAILED) {
-		xlog("mmap gpio failed: %s", strerror(errno));
-		return -4;
-	}
+	if (mem == MAP_FAILED)
+		return xerr("mmap gpio failed: %s", strerror(errno));
 
 	// enable AVS timers clock, set divisor to 12 --> gives 1us
 	uint32_t *avsclk = TMR_AVSCLK(mem);
@@ -354,7 +350,6 @@ static int init() {
 	*ctrl |= 0b11; // run Forest, run...
 
 	close(fd);
-	xlog("GPIO initialized");
 	return 0;
 }
 
@@ -386,5 +381,5 @@ int main(int argc, char **argv) {
 	return gpio_main(argc, argv);
 }
 #else
-MCP_REGISTER(gpio, 1, &init, &stop);
+MCP_REGISTER(gpio, 1, &init, &stop, NULL);
 #endif

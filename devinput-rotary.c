@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <errno.h>
 #include <string.h>
 
@@ -134,7 +133,6 @@ static int init() {
 	if (pthread_create(&thread_rb, NULL, &rotary_button, NULL))
 		return xerr("Error creating thread_rb");
 
-	xlog("ROTARY initialized");
 	return 0;
 }
 
@@ -158,7 +156,7 @@ static void stop() {
 		close(fd_rb);
 }
 
-MCP_REGISTER(rotary, 5, &init, &stop);
+MCP_REGISTER(rotary, 5, &init, &stop, NULL);
 
 #ifdef LOCALMAIN
 

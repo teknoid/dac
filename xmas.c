@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
-#include <pthread.h>
 #include <time.h>
 
 #include "tasmota.h"
@@ -21,7 +20,6 @@ static const unsigned int device[] = { DEVICES };
 // TODO define channel status for each remote control unit
 static char channel_status[128];
 
-static pthread_t thread;
 static int power = -1;
 
 void xmas_on() {
@@ -175,19 +173,10 @@ static void* xmas(void *arg) {
 }
 
 static int init() {
-	if (pthread_create(&thread, NULL, &xmas, NULL))
-		xlog("Error creating xmas thread");
-
-	xlog("XMAS initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling xmas thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining xmas thread");
 }
 
-MCP_REGISTER(xmas, 6, &init, &stop);
+MCP_REGISTER(xmas, 6, &init, &stop, &xmas);

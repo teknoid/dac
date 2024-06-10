@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #include <linux/input-event-codes.h>
 
@@ -29,7 +28,6 @@
 #endif
 
 static int i2cfd;
-static pthread_t thread;
 
 static void handle_button(unsigned char c) {
 	xlog("BUTTON handle %d", c);
@@ -83,22 +81,12 @@ static int init() {
 	if ((i2cfd = open(I2C, O_RDWR)) < 0)
 		return xerr("error opening  %s", I2C);
 
-	if (pthread_create(&thread, NULL, &button, NULL))
-		return xerr("Error creating button thread");
-
-	xlog("BUTTON initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_rb");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_rb");
-
 	if (i2cfd > 0)
 		close(i2cfd);
 }
 
-MCP_REGISTER(button, 5, &init, &stop);
+MCP_REGISTER(button, 5, &init, &stop, &button);

@@ -1,5 +1,4 @@
 #include <ctype.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -42,27 +41,25 @@ static struct plist playlists[] = {
 
 static struct mpd_connection *conn;
 
-static pthread_t thread;
-
 static struct mpd_connection* mpdclient_get_connection() {
 	// wait for mpd connect success
 	int timeout = 10;
 	while (1) {
 		struct mpd_connection *connection = mpd_connection_new(MPD_HOST, MPD_PORT, 1000);
 		if (!connection) {
-			xlog("Out of memory");
+			xlog("MPD out of memory");
 			return NULL;
 		}
 		if (mpd_connection_get_error(connection) == MPD_ERROR_SUCCESS) {
 			const unsigned int *v = mpd_connection_get_server_version(connection);
-			xlog("connected to MPD on %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
+			xlog("MPD connected to %s Version %d.%d.%d", MPD_HOST, v[0], v[1], v[2]);
 			return connection;
 		}
 		if (--timeout == 0) {
-			xlog("error connecting to MPD: %s", mpd_connection_get_error_message(connection));
+			xlog("MPD error connecting to %s %s", MPD_HOST, mpd_connection_get_error_message(connection));
 			return NULL;
 		}
-		xlog("waiting for MPD connection %d", timeout);
+		xlog("MPD waiting for connection %d", timeout);
 		mpd_connection_free(connection);
 		sleep(1);
 	}
@@ -323,6 +320,15 @@ static void* mpdclient(void *arg) {
 		return (void*) 0;
 	}
 
+	sleep(1);
+
+	// get connection for sending events
+	conn = mpdclient_get_connection();
+	if (!conn) {
+		xlog("MPD Error connecting mpd conn");
+		return (void*) 0;
+	}
+
 	struct mpd_connection *conn_status = NULL;
 	while (1) {
 		msleep(500);
@@ -330,7 +336,7 @@ static void* mpdclient(void *arg) {
 		if (!conn_status) {
 			conn_status = mpdclient_get_connection();
 			if (!conn_status) {
-				xlog("!conn_status");
+				xlog("MPD Error connecting mpd conn_status");
 				return (void*) 0;
 			}
 		}
@@ -385,34 +391,16 @@ static void* mpdclient(void *arg) {
 		mcp->dac_state_changed = 1;
 	}
 
-	mpd_connection_free(conn_status);
 	return (void*) 0;
 }
 
 static int init() {
-
-	// get connection for sending events
-	conn = mpdclient_get_connection();
-	if (!conn)
-		return -1;
-
-	// listen for mpd state changes
-	if (pthread_create(&thread, NULL, &mpdclient, NULL))
-		return xerr("Error creating mpd thread");
-
-	xlog("MPD initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling mpd thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining mpd thread");
-
 	if (conn)
 		mpd_connection_free(conn);
 }
 
-MCP_REGISTER(mpd, 4, &init, &stop);
+MCP_REGISTER(mpd, 4, &init, &stop, &mpdclient);

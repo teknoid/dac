@@ -3,14 +3,11 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #include "utils.h"
 #include "mcp.h"
 
-static pthread_t thread;
-
-static void* template(void *arg) {
+static void* loop(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
@@ -29,21 +26,12 @@ static int init() {
 
 	// initialize this module
 
-	if (pthread_create(&thread, NULL, &template, NULL))
-		return xerr("Error creating template thread");
-
-	xlog("TEMPLATE initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling template thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining template thread");
 
 	// stop and destroy this module
 }
 
-MCP_REGISTER(template, 99, &init, &stop);
+MCP_REGISTER(template, 99, &init, &stop, &loop);

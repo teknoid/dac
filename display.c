@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <string.h>
 #include <time.h>
 #include <curses.h>
@@ -34,8 +33,6 @@ static int countdown_fullscreen;
 static int countdown_menu;
 static int scroller_artist = 0;
 static int scroller_title = 0;
-
-static pthread_t thread;
 
 static void check_nightmode() {
 	if (mcp->nightmode)
@@ -356,8 +353,7 @@ static int init() {
 
 	if (has_colors() == FALSE) {
 		endwin();
-		xlog("Your terminal does not support colors");
-		return -1;
+		return xerr("Your terminal does not support colors");
 	}
 
 	start_color();
@@ -374,21 +370,10 @@ static int init() {
 	curs_set(0); /* set cursor to be invisible */
 	keypad(stdscr, TRUE); /* enable keypad */
 
-	// start painter thread
-	if (pthread_create(&thread, NULL, &display, NULL))
-		return xerr("Error creating thread_display");
-
-	xlog("DISPLAY initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_display");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_display");
-
 	endwin();
 }
 
@@ -445,7 +430,7 @@ int display_main(int argc, char **argv) {
 }
 
 #ifdef DISPLAY_MAIN
-void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void *loop) {
 	xlog("call init() for  %s", name);
 	init_t xinit = init;
 	(xinit)();
@@ -466,5 +451,5 @@ int main(int argc, char **argv) {
 	return display_main(argc, argv);
 }
 #else
-MCP_REGISTER(display, 2, &init, &stop);
+MCP_REGISTER(display, 2, &init, &stop, &display);
 #endif

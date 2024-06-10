@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
-#include <pthread.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -26,7 +25,6 @@ static state_t history[HISTORY];
 static int history_ptr = 0;
 
 static struct tm *now;
-static pthread_t thread;
 static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
@@ -1050,21 +1048,10 @@ static int test() {
 
 static int init() {
 	set_debug(1);
-
-	if (pthread_create(&thread, NULL, &fronius, NULL))
-		return xerr("Error creating fronius thread");
-
-	xlog("FRONIUS initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling fronius thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining fronius thread");
-
 	if (sock != 0)
 		close(sock);
 }
@@ -1117,5 +1104,5 @@ int main(int argc, char **argv) {
 	return fronius_main(argc, argv);
 }
 #else
-MCP_REGISTER(fronius, 7, &init, &stop);
+MCP_REGISTER(fronius, 7, &init, &stop, &fronius);
 #endif

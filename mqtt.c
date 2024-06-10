@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
-#include <pthread.h>
 
 #include <posix_sockets.h>
 #include <mqttc.h>
@@ -22,8 +21,6 @@
 #include "mqtt.h"
 #include "lcd.h"
 #include "mcp.h"
-
-static pthread_t thread;
 
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
@@ -260,21 +257,11 @@ static int init() {
 	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (pthread_create(&thread, NULL, &mqtt, NULL))
-		return xerr("MQTT Error creating thread");
-
 	ready = 1;
-	xlog("MQTT initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("MQTT Error canceling thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("MQTT Error joining thread");
-
 	if (mqttfd_tx > 0)
 		close(mqttfd_tx);
 
@@ -310,4 +297,4 @@ int publish(const char *topic, const char *message) {
 	return 0;
 }
 
-MCP_REGISTER(mqtt, 5, &init, &stop);
+MCP_REGISTER(mqtt, 5, &init, &stop, &mqtt);

@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <errno.h>
 #include <string.h>
 
@@ -23,7 +22,6 @@
 // #define LOCALMAIN
 
 static int fd_ir;
-static pthread_t thread;
 
 static void* ir(void *arg) {
 	struct input_event ev;
@@ -83,10 +81,8 @@ static int init() {
 	unsigned int repeat[2];
 
 	// Open Device
-	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1) {
-		xlog("unable to open %s", DEVINPUT_IR);
-		return -1;
-	}
+	if ((fd_ir = open(DEVINPUT_IR, O_RDONLY)) == -1)
+		return xerr("unable to open %s", DEVINPUT_IR);
 
 	// Print Device Name
 	ioctl(fd_ir, EVIOCGNAME(sizeof(name)), name);
@@ -101,28 +97,15 @@ static int init() {
 	ioctl(fd_ir, EVIOCGREP, repeat);
 	xlog("delay = %d; repeat = %d", repeat[REP_DELAY], repeat[REP_PERIOD]);
 
-	// start listener
-	if (pthread_create(&thread, NULL, &ir, NULL)) {
-		xlog("Error creating thread_ir");
-		return -1;
-	}
-
-	xlog("INFARRED initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_ir");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_ir");
-
 	if (fd_ir)
 		close(fd_ir);
 }
 
-MCP_REGISTER(ir, 5, &init, &stop);
+MCP_REGISTER(ir, 5, &init, &stop, &ir);
 
 #ifdef LOCALMAIN
 

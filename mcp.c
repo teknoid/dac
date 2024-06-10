@@ -110,13 +110,14 @@ mcp_sensors_t *sensors = NULL;
 
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
-void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void *loop) {
 	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
 	ZERO(new_module);
 
 	new_module->name = name;
 	new_module->init = init;
 	new_module->stop = stop;
+	new_module->loop = loop;
 	new_module->next = NULL;
 
 	if (module == NULL)
@@ -269,16 +270,39 @@ static void module_init(mcp_module_t *m) {
 	if ((m->init)() < 0)
 		exit(EXIT_FAILURE);
 
+	xlog("MCP initialized %s", m->name);
+
 	if (m->next != NULL)
 		module_init(m->next);
 }
 
-// loop recursively (inverted) over module chain and call each module's stop() function
+// loop recursively (inverted) over module chain, stop loop() threads and call stop() function
 static void module_stop(mcp_module_t *m) {
 	if (m->next != NULL)
 		module_stop(m->next);
 
+	if (m->loop != NULL) {
+		if (pthread_cancel(m->thread))
+			xlog("MCP error canceling thread");
+
+		if (pthread_join(m->thread, NULL))
+			xlog("MCP error joining thread");
+	}
+
 	(m->stop)();
+
+	xlog("MCP stopped %s", m->name);
+}
+
+// loop recursively over module chain and call each module's loop() function in a new thread
+static void module_loop(mcp_module_t *m) {
+	if (m->loop != NULL)
+		if (pthread_create(&m->thread, NULL, m->loop, NULL))
+			exit(EXIT_FAILURE);
+
+	xlog("MCP started thread %s", m->name);
+	if (m->next != NULL)
+		module_loop(m->next);
 }
 
 int main(int argc, char **argv) {
@@ -330,8 +354,11 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	// initialize all registered modules
+	// initialize all modules
 	module_init(module);
+
+	// start main loop of all modules
+	module_loop(module);
 
 	if (cfg->interactive) {
 		xlog("MCP online, waiting for input");
@@ -341,7 +368,7 @@ int main(int argc, char **argv) {
 		pause();
 	}
 
-	// stop all registered modules
+	// stop all modules
 	module_stop(module);
 	xlog("MCP all modules terminated, hasta la vista, baby...");
 

@@ -421,35 +421,26 @@ static int init() {
 		base = 0x3f000000;
 	else if (strstr(buf, "ARMv8"))
 		base = 0x3f000000;
-	else {
-		xlog("Unknown CPU type\n");
-		return -1;
-	}
+	else
+		return xerr("Unknown CPU type\n");
 	fclose(f);
 
 	// access memory
 	int fd = open("/dev/mem", O_RDWR | O_SYNC);
-	if (fd == -1) {
-		xlog("/dev/mem failed: %s\n", strerror(errno));
-		return -2;
-	}
+	if (fd == -1)
+		return xerr("/dev/mem failed: %s\n", strerror(errno));
 
 	// mmap timer
 	timer = (uint32_t*) mmap(NULL, pagesize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fd, base + 0x3000);
-	if (timer == MAP_FAILED) {
-		xlog("mmap timer failed: %s\n", strerror(errno));
-		return -3;
-	}
+	if (timer == MAP_FAILED)
+		return xerr("mmap timer failed: %s\n", strerror(errno));
 
 	// mmap gpio
 	gpio = mmap(NULL, pagesize, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, base + 0x200000);
-	if (gpio == MAP_FAILED) {
-		xlog("mmap gpio failed: %s\n", strerror(errno));
-		return -4;
-	}
+	if (gpio == MAP_FAILED)
+		return xerr("mmap gpio failed: %s\n", strerror(errno));
 
 	close(fd);
-	xlog("GPIO initialized, base address=0x%08x", base);
 	return 0;
 }
 
@@ -480,5 +471,5 @@ int main(int argc, char **argv) {
 	return gpio_main(argc, argv);
 }
 #else
-MCP_REGISTER(gpio, 1, &init, &stop);
+MCP_REGISTER(gpio, 1, &init, &stop, NULL);
 #endif

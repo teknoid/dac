@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <mpd/status.h>
 
 #define TRON
@@ -47,9 +48,9 @@
 #define BUFSIZE			256
 
 // register a module in the MCP's execution context
-#define MCP_REGISTER(name, prio, init, stop) \
+#define MCP_REGISTER(name, prio, init, stop, loop) \
   void __attribute__((constructor(101 + prio))) \
-  register_##name(void) { mcp_register("\""#name"\"", prio, init, stop); };
+  register_##name(void) { mcp_register("\""#name"\"", prio, init, stop, loop); };
 
 typedef enum {
 	nlock, dsd, pcm, spdif, dop
@@ -61,10 +62,14 @@ typedef enum {
 
 typedef int (*init_t)();
 typedef void (*stop_t)();
+typedef void *(*loop_t)(void*);
+
 typedef struct mcp_module_t {
 	const char *name;
 	init_t init;
 	stop_t stop;
+	loop_t loop;
+	pthread_t thread;
 	void *next;
 } mcp_module_t;
 
@@ -144,4 +149,4 @@ int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);
 void mcp_system_reboot(void);
-void mcp_register(const char*, const int, const void*, const void*);
+void mcp_register(const char*, const int, const void*, const void*, const void*);

@@ -127,7 +127,7 @@ static int init() {
 
 	// elevate realtime priority for lirc sending
 	if (elevate_realtime(3) < 0)
-		return -2;
+		return xerr("DAC Error elevating realtime");
 
 	// LIRC TX is low_active
 	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);
@@ -138,11 +138,10 @@ static int init() {
 	else
 		xlog("DAC power is OFF");
 
-	xlog("PIWOLF initialized");
 	return 0;
 }
 
 static void stop() {
 }
 
-MCP_REGISTER(dac_piwolf, 3, &init, &stop);
+MCP_REGISTER(dac_piwolf, 3, &init, &stop, NULL);

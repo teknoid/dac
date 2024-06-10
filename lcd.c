@@ -32,7 +32,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 
 #include "utils.h"
 #include "i2c.h"
@@ -47,8 +46,6 @@
 static const int overflow_mode = LCD_OFLOW_ALTERN;
 
 static int i2cfd;
-
-static pthread_t thread;
 
 static char *text1 = NULL, *text2 = NULL;
 static int new_text = 0;
@@ -188,13 +185,13 @@ void lcd_print(const char *t1, const char *t2) {
 }
 
 static void* lcd(void *arg) {
+	int overflow, scroll1, scroll2;
+	int counter = 10;
+
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
-
-	int overflow, scroll1, scroll2;
-	int counter = 10;
 
 	while (1) {
 		msleep(100);
@@ -276,10 +273,6 @@ static int init() {
 	sleep(1);
 	lcd_backlight_off();
 
-	if (pthread_create(&thread, NULL, &lcd, NULL))
-		return xerr("Error creating lcd thread");
-
-	xlog("LCD initialized");
 	return 0;
 }
 
@@ -287,15 +280,8 @@ static void stop() {
 	lcd_backlight_off();
 	lcd_command(LCD_CLEAR);
 
-	if (pthread_cancel(thread))
-		xlog("Error canceling lcd thread");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining lcd thread");
-
 	if (i2cfd > 0)
 		close(i2cfd);
 }
 
-MCP_REGISTER(lcd, 2, &init, &stop);
-
+MCP_REGISTER(lcd, 2, &init, &stop, &lcd);

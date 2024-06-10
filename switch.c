@@ -11,7 +11,7 @@
 typedef int (*init_t)();
 
 // gpio-bcm2835.c needs mcp_register()
-void mcp_register(const char *name, const int prio, const void *init, const void *stop) {
+void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void* loop) {
 	xlog("call init() for  %s", name);
 	init_t xinit = init;
 	(xinit)();

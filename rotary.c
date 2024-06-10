@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <signal.h>
 #include <unistd.h>
-#include <pthread.h>
 
 #ifdef WIRINGPI
 #include <wiringPi.h>
@@ -36,7 +35,6 @@ struct encoder {
 	volatile int button;
 };
 
-static pthread_t thread;
 static struct encoder *encoder;
 
 #ifdef WIRINGPI
@@ -111,21 +109,10 @@ static void* rotary(void *arg) {
 
 static int init() {
 	encoder = setupencoder(GPIO_ENC_A, GPIO_ENC_B, GPIO_SWITCH);
-
-	if (pthread_create(&thread, NULL, &rotary, NULL))
-		return xerr("Error creating thread_rotary");
-
-	xlog("ROTARY initialized");
 	return 0;
 }
 
 static void stop() {
-	if (pthread_cancel(thread))
-		xlog("Error canceling thread_rotary");
-
-	if (pthread_join(thread, NULL))
-		xlog("Error joining thread_rotary");
 }
 
-MCP_REGISTER(rotary, 5, &init, &stop);
-
+MCP_REGISTER(rotary, 5, &init, &stop, &rotary);
