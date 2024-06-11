@@ -17,13 +17,15 @@ static potd_t *potd;
 static void summer(struct tm *now, unsigned int lumi, int temp) {
 	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
-	int hot = lumi > potd->lumi && temp > potd->temp;
+	int hot = lumi >= potd->lumi && temp >= potd->temp;
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
 
+		int down = s->down_from <= now->tm_hour && now->tm_hour < s->down_to;
+
 		// down
-		if (!s->lock_down && s->down_from <= now->tm_hour && now->tm_hour < s->down_to && hot) {
+		if (!s->lock_down && down && hot) {
 			xlog("SHUTTER trigger %s DOWN %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
 			tasmota_shutter(s->id, s->down);
 			s->lock_down = 1;
@@ -32,7 +34,7 @@ static void summer(struct tm *now, unsigned int lumi, int temp) {
 		}
 
 		// up
-		if (!s->lock_up && s->down_to <= now->tm_hour && now->tm_hour < s->down_from) {
+		if (!s->lock_up && !down) {
 			xlog("SHUTTER trigger %s UP %s at lumi %d temp %d", potd->name, s->name, lumi, temp);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
@@ -45,8 +47,8 @@ static void summer(struct tm *now, unsigned int lumi, int temp) {
 static void winter(struct tm *now, unsigned int lumi, int temp) {
 	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
-	int down = now->tm_hour > 12 && lumi < potd->lumi && temp < potd->temp;
-	int up = now->tm_hour < 12 && lumi > potd->lumi;
+	int down = now->tm_hour > 12 && lumi <= potd->lumi && temp <= potd->temp;
+	int up = !down && lumi >= potd->lumi;
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
