@@ -113,25 +113,25 @@ void replaygain(const char *filename) {
 	} else if (strstr(mime, "mpeg") != NULL) {
 		res = mp3_get_replaygain(filename, &new_replaygain);
 	} else {
-		xlog("replaygain not supported for %s", filename);
+		xlog("REPLAYGAIN not supported for %s", filename);
 		return;
 	}
 
 	if (res < 0) {
-		xlog("no replaygain found in %s", filename);
+		xlog("REPLAYGAIN not found in %s", filename);
 		return;
 	}
 
 	if (new_replaygain < -12.0) {
-		xlog("limiting replaygain to -12 (%f)", new_replaygain);
+		xlog("REPLAYGAIN limiting to -12 (%f)", new_replaygain);
 		new_replaygain = -12;
 	} else if (new_replaygain > 3.0) {
-		xlog("limiting replaygain to +3 (%f)", new_replaygain);
+		xlog("REPLAYGAIN limiting to +3 (%f)", new_replaygain);
 		new_replaygain = 3;
 	}
 
 	double diff = new_replaygain - current_replaygain;
-	xlog("current %5.2f | new %5.2f | adjust %5.2f", current_replaygain, new_replaygain, diff);
+	xlog("REPLAYGAIN current %5.2f | new %5.2f | adjust %5.2f", current_replaygain, new_replaygain, diff);
 
 	int steps = (int) abs(rint(diff));
 	if (steps != 0 && diff < 0) {
