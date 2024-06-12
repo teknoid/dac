@@ -11,8 +11,7 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-static void summer(struct tm *now, unsigned int lumi, int temp) {
-	potd_t *potd = &SUMMER;
+static void summer(struct tm *now, potd_t *potd, unsigned int lumi, int temp) {
 	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int hot = lumi >= potd->lumi && temp >= potd->temp;
@@ -42,8 +41,7 @@ static void summer(struct tm *now, unsigned int lumi, int temp) {
 	}
 }
 
-static void winter(struct tm *now, unsigned int lumi, int temp) {
-	potd_t *potd = &WINTER;
+static void winter(struct tm *now, potd_t *potd, unsigned int lumi, int temp) {
 	// xdebug("SHUTTER %s program lumi %d temp %d", potd->name, lumi, temp);
 
 	int down = now->tm_hour > 12 && lumi <= potd->lumi && temp <= potd->temp;
@@ -94,9 +92,9 @@ static void shutter() {
 		temp = (int) sensors->bmp280_temp;
 
 		if (SUMMER.months[now->tm_mon + 1])
-			summer(now, lumi, temp);
+			summer(now, &SUMMER, lumi, temp);
 		else if (WINTER.months[now->tm_mon + 1])
-			winter(now, lumi, temp);
+			winter(now, &WINTER, lumi, temp);
 
 		sleep(60);
 	}

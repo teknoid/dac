@@ -155,7 +155,7 @@ static void dump_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History  idx    pv   Δpv  grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS History  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
@@ -163,7 +163,7 @@ static void dump_history(int back) {
 		strcat(line, value);
 		int *vv = (int*) get_history(y * -1);
 		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
-			snprintf(value, 8, "%5d ", vv[x]);
+			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
