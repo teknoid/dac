@@ -18,7 +18,7 @@
 // Shelly Shutters
 #define ROLLO_KUECHE	0xA2950C
 #define ROLLO_OMA		0xA0F584
-#define ROLLO_O			0x111111
+#define ROLLO_O			0x897F1C
 #define ROLLO_SO		0x222222
 #define ROLLO_SW		0x333333
 #define ROLLO_W			0x444444
