@@ -402,10 +402,9 @@ int tasmota_shutter(unsigned int id, unsigned int target) {
 	if (target == SHUTTER_UP && ss->position != SHUTTER_UP)
 		return backlog(id, "ShutterOpen");
 
-	if (target == SHUTTER_HALF && ss->position == SHUTTER_UP)
-		return backlog(id, "ShutterPosition 60");
-
-	return 0;
+	char value[20];
+	snprintf(value, 20, "ShutterPosition %d", target);
+	return backlog(id, value);
 }
 
 static void loop() {
