@@ -299,11 +299,11 @@ static void module_stop(mcp_module_t *m) {
 
 // loop recursively over module chain and call each module's loop() function in a new thread
 static void module_loop(mcp_module_t *m) {
-	if (m->loop != NULL)
+	if (m->loop != NULL) {
 		if (pthread_create(&m->thread, NULL, (void* (*)(void*)) m->loop, NULL))
 			exit(EXIT_FAILURE);
-
-	xlog("MCP started thread %s", m->name);
+		xlog("MCP started thread %s", m->name);
+	}
 
 	if (m->next != NULL)
 		module_loop(m->next);

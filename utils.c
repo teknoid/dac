@@ -641,18 +641,18 @@ int maximum(int count, ...) {
 
 void append_timeframe(char *message, int sec) {
 	int h, m, s;
-	char c[10];
+	char c[30];
 
 	h = (sec / 3600);
 	m = (sec - (3600 * h)) / 60;
 	s = (sec - (3600 * h) - (m * 60));
 
 	if (h == 0 && m == 0)
-		snprintf(c, 10, "%02d", s);
+		snprintf(c, 30, "%02d", s);
 	else if (h == 0)
-		snprintf(c, 10, "%02d:%02d", m, s);
+		snprintf(c, 30, "%02d:%02d", m, s);
 	else
-		snprintf(c, 10, "%02d:%02d:%02d", h, m, s);
+		snprintf(c, 30, "%02d:%02d:%02d", h, m, s);
 
 	strcat(message, c);
 }

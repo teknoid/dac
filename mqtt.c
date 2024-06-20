@@ -157,6 +157,11 @@ static int dispatch_tasmota(struct mqtt_response_publish *p) {
 	return 0;
 }
 
+static int dispatch_sensor(struct mqtt_response_publish *p) {
+	// dummy dispatcher for picam sensors
+	return 0;
+}
+
 static int dispatch(struct mqtt_response_publish *p) {
 	// dump("MQTT", p);
 
@@ -167,6 +172,10 @@ static int dispatch(struct mqtt_response_publish *p) {
 	// network
 	if (starts_with(TOPIC_NETWORK, p->topic_name, p->topic_name_size))
 		return dispatch_network(p);
+
+	// sensor
+	if (starts_with(TOPIC_SENSOR, p->topic_name, p->topic_name_size))
+		return dispatch_sensor(p);
 
 	// tasmota TELE
 	if (starts_with(TOPIC_TELE, p->topic_name, p->topic_name_size))

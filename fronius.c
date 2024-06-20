@@ -159,11 +159,11 @@ static void dump_history(int back) {
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS History ");
-		snprintf(value, 8, "[%2d] ", y * -1);
+		snprintf(value, 16, "[%2d] ", y * -1);
 		strcat(line, value);
 		int *vv = (int*) get_history(y * -1);
 		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
-			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
+			snprintf(value, 16, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
