@@ -40,7 +40,7 @@ int set_heater(device_t *heater, int power) {
 
 	// can we send a message
 	if (heater->addr == NULL)
-		return xerr("No address to send HTTP message");
+		return 0; // continue loop
 
 	// char command[128];
 	if (power) {
@@ -87,7 +87,7 @@ int set_boiler(device_t *boiler, int power) {
 
 	// can we send a message
 	if (boiler->addr == NULL)
-		return xerr("No address to send UDP message");
+		return 0; // continue loop
 
 	// calculate step
 	int step = power - boiler->power;

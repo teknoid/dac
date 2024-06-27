@@ -19,13 +19,13 @@ typedef struct potd_t {
 } potd_t;
 
 // east side
-static shutter_t e1 = { .name = "rollo-kueche", .id = ROLLO_KUECHE, .down = 50, .down_from = 7, .down_to = 11 };
-static shutter_t e2 = { .name = "rollo-o", .id = ROLLO_O, .down = 75, .down_from = 7, .down_to = 11 };
+static shutter_t e1 = { .name = "rollo-kueche", .id = ROLLO_KUECHE, .down = 60, .down_from = 7, .down_to = 11 };
+static shutter_t e2 = { .name = "rollo-o", .id = ROLLO_O, .down = 30, .down_from = 7, .down_to = 11 };
 
 // south side
-static shutter_t s1 = { .name = "rollo-oma", .id = ROLLO_OMA, .down = 75, .down_from = 10, .down_to = 17 };
-static shutter_t s2 = { .name = "rollo-so", .id = ROLLO_SO, .down = 75, .down_from = 10, .down_to = 17 };
-static shutter_t s3 = { .name = "rollo-sw", .id = ROLLO_SW, .down = 75, .down_from = 10, .down_to = 17 };
+static shutter_t s1 = { .name = "rollo-oma", .id = ROLLO_OMA, .down = 50, .down_from = 10, .down_to = 17 };
+static shutter_t s2 = { .name = "rollo-so", .id = ROLLO_SO, .down = 50, .down_from = 10, .down_to = 17 };
+static shutter_t s3 = { .name = "rollo-sw", .id = ROLLO_SW, .down = 50, .down_from = 10, .down_to = 17 };
 
 // west side
 static shutter_t w1 = { .name = "rollo-w", .id = ROLLO_W, .down = 50, .down_from = 16, .down_to = 20 };
