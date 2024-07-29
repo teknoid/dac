@@ -31,6 +31,31 @@ enum dstate {
 	Standby, Active, Standby_Check, Request_Standby_Check
 };
 
+// curl response buffer and parser function
+typedef struct _response response_t;
+
+struct _response {
+	char *buffer;
+	size_t buflen;
+	size_t size;
+};
+
+typedef void (parser_t)(response_t *r);
+
+typedef struct _meter meter_t;
+
+struct _meter {
+	int p;
+	int p1;
+	int p2;
+	int p3;
+	int v1;
+	int v2;
+	int v3;
+	long consumed;
+	long produced;
+};
+
 typedef struct _state state_t;
 
 struct _state {

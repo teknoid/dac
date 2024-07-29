@@ -16,13 +16,21 @@
 #include "utils.h"
 #include "mcp.h"
 
+// TODO
+// * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
+
 // program of the day - mosmix will chose appropriate program
 static potd_t *potd;
 
+// global meter values and history
+static meter_t *meter;
+static meter_t meter_history[HISTORY];
+static int meter_history_ptr = 0;
+
 // global state with power flow data and calculations
 static state_t *state;
-static state_t history[HISTORY];
-static int history_ptr = 0;
+static state_t state_history[HISTORY];
+static int state_history_ptr = 0;
 
 static struct tm *now;
 static int sock = 0;
@@ -43,6 +51,7 @@ int set_heater(device_t *heater, int power) {
 		return 0; // continue loop
 
 	// char command[128];
+#ifndef FRONIUS_MAIN
 	if (power) {
 		// xlog("FRONIUS switching %s ON", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
@@ -54,6 +63,7 @@ int set_heater(device_t *heater, int power) {
 		// system(command);
 		tasmota_power(heater->id, 0, 0);
 	}
+#endif
 
 	// update power values
 	heater->power = power;
@@ -142,13 +152,22 @@ static void init_all_devices() {
 	}
 }
 
-static state_t* get_history(int offset) {
-	int i = history_ptr + offset;
+static meter_t* get_meter_history(int offset) {
+	int i = meter_history_ptr + offset;
 	if (i < 0)
 		i += HISTORY;
 	if (i >= HISTORY)
 		i -= HISTORY;
-	return &history[i];
+	return &meter_history[i];
+}
+
+static state_t* get_state_history(int offset) {
+	int i = state_history_ptr + offset;
+	if (i < 0)
+		i += HISTORY;
+	if (i >= HISTORY)
+		i -= HISTORY;
+	return &state_history[i];
 }
 
 static void dump_history(int back) {
@@ -161,7 +180,7 @@ static void dump_history(int back) {
 		strcpy(line, "FRONIUS History ");
 		snprintf(value, 16, "[%2d] ", y * -1);
 		strcat(line, value);
-		int *vv = (int*) get_history(y * -1);
+		int *vv = (int*) get_state_history(y * -1);
 		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
 			snprintf(value, 16, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
@@ -215,11 +234,39 @@ static void print_device_status(int wait, int next_reset) {
 	xlog(message);
 }
 
-static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
+static size_t curl_callback(const char *data, size_t size, size_t nmemb, const void *userdata) {
+	response_t *r = (response_t*) userdata;
+	size_t chunksize = size * nmemb;
+
+	// initial buffer allocation
+	if (r->buffer == NULL) {
+		r->buffer = malloc(chunksize + 1);
+		r->buflen = chunksize + 1;
+		xdebug("FRONIUS callback() malloc %d", r->buflen);
+	}
+
+	// check if we need to extend the buffer
+	if (r->buflen < r->size + chunksize + 1) {
+		r->buffer = realloc(r->buffer, r->buflen + chunksize + 1);
+		r->buflen += chunksize + 1;
+		xdebug("FRONIUS callback() realloc %d", r->buflen);
+	}
+
+	// copy/append chunk data
+	memcpy(&r->buffer[r->size], data, chunksize);
+	r->size += chunksize;
+	r->buffer[r->size] = 0;
+
+	return chunksize;
+}
+
+static CURL* curl_init(const char *url, response_t *memory) {
 	CURL *curl = curl_easy_init();
 	if (curl != NULL) {
 		curl_easy_setopt(curl, CURLOPT_URL, url);
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
+		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_callback);
+		if (memory != NULL)
+			curl_easy_setopt(curl, CURLOPT_WRITEDATA, memory);
 		curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
 		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
 		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
@@ -228,7 +275,10 @@ static CURL* curl_init(const char *url, _curl_write_callback2 cb) {
 	return curl;
 }
 
-static int curl_perform(CURL *curl) {
+static int curl_perform(CURL *curl, response_t *memory, parser_t *parser) {
+	if (memory != NULL)
+		memory->size = 0;
+
 	CURLcode ret = curl_easy_perform(curl);
 	if (ret != CURLE_OK)
 		return xerrr(-1, "FRONIUS curl perform error %d", ret);
@@ -238,23 +288,20 @@ static int curl_perform(CURL *curl) {
 	if (http_code != 200)
 		return xerrr(-2, "FRONIUS response code %d", http_code);
 
+	if (parser != NULL)
+		(parser)(memory);
+
 	return 0;
 }
 
-static size_t callback_fronius10(const char *data, size_t size, size_t nmemb, const void *userdata) {
-	size_t realsize = size * nmemb;
-	xdebug("FRONIUS callback_fronius10() size %d nmemb %d realsize %d", size, nmemb, realsize);
-
-	if (nmemb < 32)
-		return realsize; // noise
-
+static void parse_fronius10(response_t *r) {
 	float p_charge, p_akku, p_grid, p_load, p_pv;
 	char *c;
 	int ret;
 
-	ret = json_scanf(data, realsize, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
+	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
 	if (ret != 4)
-		xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
+		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
 
 	state->akku = p_akku;
 	state->grid = p_grid;
@@ -262,7 +309,7 @@ static size_t callback_fronius10(const char *data, size_t size, size_t nmemb, co
 	state->pv10 = p_pv;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
-	ret = json_scanf(data, realsize, "{ Body { Data { Inverters:%Q } } }", &c);
+	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Inverters:%Q } } }", &c);
 	if (ret == 1 && c != NULL) {
 		char *p = c;
 		while (*p != '{')
@@ -275,62 +322,46 @@ static size_t callback_fronius10(const char *data, size_t size, size_t nmemb, co
 		if (ret == 1)
 			state->chrg = p_charge;
 		else {
-			xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
+			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
 			state->chrg = 0;
 		}
 
 		free(c);
 	} else
-		xlog("FRONIUS callback_fronius10() warning! parsing Body->Data->Inverters: no result");
-
-	return realsize;
+		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters: no result");
 }
 
-static size_t callback_fronius7(const char *data, size_t size, size_t nmemb, const void *userdata) {
-	size_t realsize = size * nmemb;
-	xdebug("FRONIUS callback_fronius7() size %d nmemb %d realsize %d", size, nmemb, realsize);
-
-	if (nmemb < 32)
-		return realsize; // noise
-
+static void parse_fronius7(response_t *r) {
 	float p_pv;
-	int ret = json_scanf(data, realsize, "{ Body { Data { Site { P_PV:%f } } } }", &p_pv);
+	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f } } } }", &p_pv);
 	if (ret == 1)
 		state->pv7 = p_pv;
 	else {
-		xlog("FRONIUS callback_fronius7() warning! parsing Body->Data->Site->P_PV: no result");
+		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site->P_PV: no result");
 		state->pv7 = 0;
 	}
-
-	return realsize;
 }
 
-static size_t callback_calibrate(const char *data, size_t size, size_t nmemb, const void *userdata) {
-	size_t realsize = size * nmemb;
-	xdebug("FRONIUS callback_calibrate() size %d nmemb %d realsize %d", size, nmemb, realsize);
+static void parse_meter(response_t *r) {
+	float p_grid, p_consumed, p_produced;
+	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &p_grid, &p_consumed,
+			&p_produced);
 
-	if (nmemb < 32)
-		return realsize; // noise
+	if (ret != 3)
+		xlog("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got only %d", ret);
 
-	float p_grid;
-	int ret = json_scanf(data, realsize, "{ Body { Data { PowerReal_P_Sum:%f } } }", &p_grid);
-	if (ret == 1)
-		state->grid = p_grid;
-	else {
-		xlog("FRONIUS callback_calibrate() warning! parsing Body->Data->PowerReal_P_Sum: no result");
-		state->grid = 0;
-	}
-
-	return realsize;
+	meter->p = p_grid;
+	meter->consumed = p_consumed;
+	meter->produced = p_produced;
 }
 
-static int choose_program(const potd_t *p) {
+static int choose_program(const potd_t *p, int mosmix) {
 	xlog("FRONIUS choosing %s program of the day", p->name);
 	potd = (potd_t*) p;
-	return 0;
+	return mosmix;
 }
 
-static int mosmix() {
+static int read_mosmix() {
 	char line[8];
 	int m0, m1, m2;
 
@@ -365,15 +396,15 @@ static int mosmix() {
 	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
 	if (e0 > n)
-		return choose_program(&SUNNY);
+		return choose_program(&SUNNY, m0);
 
 	if (state->chrg > 50 && e1 > SELF_CONSUMING)
-		return choose_program(&TOMORROW);
+		return choose_program(&TOMORROW, m0);
 
 	if (state->chrg > 75)
-		return choose_program(&CLOUDY_FULL);
+		return choose_program(&CLOUDY_FULL, m0);
 
-	return choose_program(&CLOUDY_EMPTY);
+	return choose_program(&CLOUDY_EMPTY, m0);
 }
 
 static int calculate_step(device_t *d, int power) {
@@ -644,9 +675,9 @@ static void check_response(device_t *d) {
 
 static void calculate_state() {
 	// get 3x history back
-	state_t *h1 = get_history(-1);
-	state_t *h2 = get_history(-2);
-	state_t *h3 = get_history(-3);
+	state_t *h1 = get_state_history(-1);
+	state_t *h2 = get_state_history(-2);
+	state_t *h3 = get_state_history(-3);
 
 	// for validation
 	state->sum = state->grid + state->akku + state->load + state->pv10;
@@ -673,7 +704,7 @@ static void calculate_state() {
 	int avg = 0;
 	unsigned long var = 0;
 	for (int i = 0; i < HISTORY; i++) {
-		state_t *h = get_history(i);
+		state_t *h = get_state_history(i);
 		avg += h->pv;
 		var += abs(h->dpv);
 	}
@@ -749,7 +780,7 @@ static int calculate_next_round(device_t *d) {
 	// state is stable when we had no power change now and within last 3 rounds
 	int instable = state->dload;
 	for (int i = 1; i <= 3; i++)
-		instable += get_history(i * -1)->dload;
+		instable += get_state_history(i * -1)->dload;
 	if (instable)
 		return WAIT_IDLE;
 
@@ -761,9 +792,10 @@ static int calculate_next_round(device_t *d) {
 }
 
 static void fronius() {
-	int ret, wait = 1, errors = 0;
+	int ret, wait = 1, errors = 0, mday = 0, mosmix = 0;
 	device_t *device = 0;
 	time_t next_reset;
+	response_t memory = { 0 };
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -773,16 +805,22 @@ static void fronius() {
 	// initializing
 	init_all_devices();
 	set_all_devices(0);
-	ZERO(history);
+	ZERO(state_history);
 
-	CURL *curl10 = curl_init(URL_FLOW10, callback_fronius10);
+	CURL *curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL) {
 		xlog("Error initializing libcurl");
 		return;
 	}
 
-	CURL *curl7 = curl_init(URL_FLOW7, callback_fronius7);
+	CURL *curl7 = curl_init(URL_FLOW7, &memory);
 	if (curl7 == NULL) {
+		xlog("Error initializing libcurl");
+		return;
+	}
+
+	CURL *curl_meter = curl_init(URL_METER, &memory);
+	if (curl_meter == NULL) {
 		xlog("Error initializing libcurl");
 		return;
 	}
@@ -795,7 +833,7 @@ static void fronius() {
 			continue;
 
 		// clear slot in history for storing new state
-		state = &history[history_ptr];
+		state = &state_history[state_history_ptr];
 		ZERO(state);
 
 		// check error counter
@@ -806,8 +844,35 @@ static void fronius() {
 		time_t now_ts = time(NULL);
 		now = localtime(&now_ts);
 
+		// calculate daily statistics
+		if (mday != now->tm_mday) {
+			mday = now->tm_mday;
+
+			// clear slot in history for storing new meter data
+			meter = &meter_history[meter_history_ptr];
+			ZERO(meter);
+
+			ret = curl_perform(curl_meter, &memory, &parse_meter);
+			if (ret != 0) {
+				xlog("FRONIUS Error calling Meter API: %d", ret);
+				errors++;
+				wait = WAIT_NEXT;
+				continue;
+			}
+
+			meter_t *yesterday = get_meter_history(-1);
+			long dp = meter->produced - yesterday->produced;
+			long dc = meter->consumed - yesterday->consumed;
+			int expected = mosmix * MOSMIX_FACTOR;
+			xlog("FRONIUS meter: current power %d, daily produced %d, daily consumed %d, mosmix %d", meter->p, dp, dc, expected);
+
+			// set history pointer to next slot
+			if (++meter_history_ptr == HISTORY)
+				meter_history_ptr = 0;
+		}
+
 		// make Fronius10 API call
-		ret = curl_perform(curl10);
+		ret = curl_perform(curl10, &memory, &parse_fronius10);
 		if (ret != 0) {
 			xlog("FRONIUS Error calling Fronius10 API: %d", ret);
 			errors++;
@@ -826,7 +891,7 @@ static void fronius() {
 
 		// reset program of the day and standby states every 30min
 		if (potd == NULL || now_ts > next_reset) {
-			mosmix();
+			mosmix = read_mosmix();
 
 			xlog("FRONIUS resetting standby and thermostat states");
 			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
@@ -842,7 +907,7 @@ static void fronius() {
 		}
 
 		// make Fronius7 API call
-		ret = curl_perform(curl7);
+		ret = curl_perform(curl7, &memory, &parse_fronius7);
 		if (ret != 0)
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
@@ -865,8 +930,8 @@ static void fronius() {
 
 		// set history pointer to next slot
 		dump_history(6);
-		if (++history_ptr == HISTORY)
-			history_ptr = 0;
+		if (++state_history_ptr == HISTORY)
+			state_history_ptr = 0;
 
 		print_device_status(wait, next_reset - now_ts);
 		errors = 0;
@@ -884,6 +949,7 @@ static int calibrate(char *name) {
 	char message[16];
 	int voltage, closest, target, offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
+	response_t memory = { 0 };
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -896,7 +962,7 @@ static int calibrate(char *name) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	CURL *curl = curl_init(URL_METER, callback_calibrate);
+	CURL *curl = curl_init(URL_METER, &memory);
 	if (curl == NULL)
 		perror("Error initializing libcurl");
 
@@ -908,9 +974,9 @@ static int calibrate(char *name) {
 	// average offset power at start
 	printf("calculating offset start");
 	for (int i = 0; i < 10; i++) {
-		curl_easy_perform(curl);
-		offset_start += state->grid;
-		printf(" %d", state->grid);
+		curl_perform(curl, &memory, &parse_meter);
+		offset_start += meter->p;
+		printf(" %d", meter->p);
 		sleep(1);
 	}
 	offset_start /= 10;
@@ -922,8 +988,8 @@ static int calibrate(char *name) {
 	sleep(5);
 
 	// get maximum power
-	curl_easy_perform(curl);
-	int max_power = round100(state->grid - offset_start);
+	curl_perform(curl, &memory, &parse_meter);
+	int max_power = round100(meter->p - offset_start);
 
 	int onepercent = max_power / 100;
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
@@ -941,8 +1007,8 @@ static int calibrate(char *name) {
 		else
 			usleep(1000 * 600);
 
-		curl_easy_perform(curl);
-		measure[i] = state->grid - offset_start;
+		curl_perform(curl, &memory, &parse_meter);
+		measure[i] = meter->p - offset_start;
 		printf("%5d %5d\n", voltage, measure[i]);
 	}
 
@@ -983,9 +1049,9 @@ static int calibrate(char *name) {
 	// average offset power at end
 	printf("calculating offset end");
 	for (int i = 0; i < 10; i++) {
-		curl_easy_perform(curl);
-		offset_end += state->grid;
-		printf(" %d", state->grid);
+		curl_perform(curl, &memory, &parse_meter);
+		offset_end += meter->p;
+		printf(" %d", meter->p);
 		sleep(1);
 	}
 	offset_end /= 10;
@@ -1073,6 +1139,7 @@ int fronius_main(int argc, char **argv) {
 	// no arguments - main loop
 	if (argc == 1) {
 		init();
+		fronius();
 		pause();
 		stop();
 		return 0;
