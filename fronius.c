@@ -7,13 +7,13 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <curl/curl.h>
 
 #include "fronius-config.h"
 #include "fronius.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "utils.h"
+#include "curl.h"
 #include "mcp.h"
 
 // TODO
@@ -234,67 +234,7 @@ static void print_device_status(int wait, int next_reset) {
 	xlog(message);
 }
 
-static size_t curl_callback(const char *data, size_t size, size_t nmemb, const void *userdata) {
-	response_t *r = (response_t*) userdata;
-	size_t chunksize = size * nmemb;
-
-	// initial buffer allocation
-	if (r->buffer == NULL) {
-		r->buffer = malloc(chunksize + 1);
-		r->buflen = chunksize + 1;
-		xdebug("FRONIUS callback() malloc %d", r->buflen);
-	}
-
-	// check if we need to extend the buffer
-	if (r->buflen < r->size + chunksize + 1) {
-		r->buffer = realloc(r->buffer, r->buflen + chunksize + 1);
-		r->buflen += chunksize + 1;
-		xdebug("FRONIUS callback() realloc %d", r->buflen);
-	}
-
-	// copy/append chunk data
-	memcpy(&r->buffer[r->size], data, chunksize);
-	r->size += chunksize;
-	r->buffer[r->size] = 0;
-
-	return chunksize;
-}
-
-static CURL* curl_init(const char *url, response_t *memory) {
-	CURL *curl = curl_easy_init();
-	if (curl != NULL) {
-		curl_easy_setopt(curl, CURLOPT_URL, url);
-		curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_callback);
-		if (memory != NULL)
-			curl_easy_setopt(curl, CURLOPT_WRITEDATA, memory);
-		curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);
-	}
-	return curl;
-}
-
-static int curl_perform(CURL *curl, response_t *memory, parser_t *parser) {
-	if (memory != NULL)
-		memory->size = 0;
-
-	CURLcode ret = curl_easy_perform(curl);
-	if (ret != CURLE_OK)
-		return xerrr(-1, "FRONIUS curl perform error %d", ret);
-
-	long http_code = 0;
-	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-	if (http_code != 200)
-		return xerrr(-2, "FRONIUS response code %d", http_code);
-
-	if (parser != NULL)
-		(parser)(memory);
-
-	return 0;
-}
-
-static void parse_fronius10(response_t *r) {
+static int parse_fronius10(response_t *r) {
 	float p_charge, p_akku, p_grid, p_load, p_pv;
 	char *c;
 	int ret;
@@ -329,30 +269,41 @@ static void parse_fronius10(response_t *r) {
 		free(c);
 	} else
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters: no result");
+
+	return 0;
 }
 
-static void parse_fronius7(response_t *r) {
+static int parse_fronius7(response_t *r) {
 	float p_pv;
 	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f } } } }", &p_pv);
-	if (ret == 1)
-		state->pv7 = p_pv;
-	else {
+	if (ret != 1) {
 		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site->P_PV: no result");
 		state->pv7 = 0;
+		return -1;
 	}
+
+	state->pv7 = p_pv;
+	return 0;
 }
 
-static void parse_meter(response_t *r) {
+static int parse_meter(response_t *r) {
+	// clear slot in history for storing new meter data
+	meter = &meter_history[meter_history_ptr];
+	ZERO(meter);
+
 	float p_grid, p_consumed, p_produced;
 	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &p_grid, &p_consumed,
 			&p_produced);
 
-	if (ret != 3)
+	if (ret != 3) {
 		xlog("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got only %d", ret);
+		return -1;
+	}
 
 	meter->p = p_grid;
 	meter->consumed = p_consumed;
 	meter->produced = p_produced;
+	return 0;
 }
 
 static int choose_program(const potd_t *p, int mosmix) {
@@ -847,10 +798,6 @@ static void fronius() {
 		// calculate daily statistics
 		if (mday != now->tm_mday) {
 			mday = now->tm_mday;
-
-			// clear slot in history for storing new meter data
-			meter = &meter_history[meter_history_ptr];
-			ZERO(meter);
 
 			ret = curl_perform(curl_meter, &memory, &parse_meter);
 			if (ret != 0) {
