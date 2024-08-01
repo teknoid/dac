@@ -91,9 +91,9 @@ static void shutter() {
 		lumi = sensors->bh1750_lux_mean;
 		temp = (int) sensors->bmp280_temp;
 
-		if (SUMMER.months[now->tm_mon + 1])
+		if (SUMMER.months[now->tm_mon])
 			summer(now, &SUMMER, lumi, temp);
-		else if (WINTER.months[now->tm_mon + 1])
+		else if (WINTER.months[now->tm_mon])
 			winter(now, &WINTER, lumi, temp);
 
 		sleep(60);
