@@ -382,10 +382,10 @@ int tasmota_power(unsigned int id, int relay, int cmd) {
 					xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
 				}
 		}
-		xlog("TASMOTA switching %6X %d %s", id, relay, ON);
+		xlog("TASMOTA switching %6X:%d %s", id, relay, ON);
 		return publish(topic, ON);
 	} else {
-		xlog("TASMOTA switching %6X %d %s", id, relay, OFF);
+		xlog("TASMOTA switching %6X:%d %s", id, relay, OFF);
 		return publish(topic, OFF);
 	}
 }

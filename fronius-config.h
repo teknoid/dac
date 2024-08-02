@@ -41,8 +41,8 @@ struct _meter {
 	int v1;
 	int v2;
 	int v3;
-	long consumed;
-	long produced;
+	int consumed;
+	int produced;
 };
 
 typedef struct _state state_t;

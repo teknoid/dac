@@ -23,6 +23,11 @@
 #define ROLLO_SW		0x333333
 #define ROLLO_W			0x444444
 
+// Relais Boards
+#define CARPORT			0xF81A5D
+#define SCHUPPEN		0x555555
+#define AQUA			0x666666
+
 #define SHUTTER_UP		100
 #define SHUTTER_HALF	50
 #define SHUTTER_DOWN	0

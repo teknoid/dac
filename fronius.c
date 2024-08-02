@@ -32,7 +32,6 @@ static state_t *state;
 static state_t state_history[HISTORY];
 static int state_history_ptr = 0;
 
-static struct tm *now;
 static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
@@ -170,19 +169,38 @@ static state_t* get_state_history(int offset) {
 	return &state_history[i];
 }
 
-static void dump_history(int back) {
+static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS History  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
-		strcpy(line, "FRONIUS History ");
-		snprintf(value, 16, "[%2d] ", y * -1);
+		strcpy(line, "FRONIUS state ");
+		snprintf(value, 8, "[%2d] ", y * -1);
 		strcat(line, value);
 		int *vv = (int*) get_state_history(y * -1);
 		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
-			snprintf(value, 16, x == 2 ? "%6d " : "%5d ", vv[x]);
+			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
+			strcat(line, value);
+		}
+		xdebug(line);
+	}
+}
+
+static void dump_meter_history(int back) {
+	char line[sizeof(meter_t) * 10 + 16];
+	char value[10];
+
+	strcpy(line, "FRONIUS meter  idx     p    p1    p2    p3    v1    v2    v3 consumed produced");
+	xdebug(line);
+	for (int y = 0; y < back; y++) {
+		strcpy(line, "FRONIUS meter ");
+		snprintf(value, 10, "[%2d] ", y * -1);
+		strcat(line, value);
+		int *vv = (int*) get_meter_history(y * -1);
+		for (int x = 0; x < sizeof(meter_t) / sizeof(int); x++) {
+			snprintf(value, 10, x < 7 ? "%5d " : "%8d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
@@ -312,7 +330,7 @@ static int choose_program(const potd_t *p, int mosmix) {
 	return mosmix;
 }
 
-static int read_mosmix() {
+static int read_mosmix(struct tm *now) {
 	char line[8];
 	int m0, m1, m2;
 
@@ -791,7 +809,7 @@ static void fronius() {
 
 		// get actual calendar time
 		time_t now_ts = time(NULL);
-		now = localtime(&now_ts);
+		struct tm *now = localtime(&now_ts);
 
 		// calculate daily statistics
 		if (mday != now->tm_mday) {
@@ -812,6 +830,7 @@ static void fronius() {
 			xlog("FRONIUS meter: current power %d, daily produced %d, daily consumed %d, mosmix %d", meter->p, dp, dc, expected);
 
 			// set history pointer to next slot
+			dump_meter_history(6);
 			if (++meter_history_ptr == HISTORY)
 				meter_history_ptr = 0;
 		}
@@ -836,9 +855,9 @@ static void fronius() {
 
 		// reset program of the day and standby states every 30min
 		if (potd == NULL || now_ts > next_reset) {
-			mosmix = read_mosmix();
-
 			xlog("FRONIUS resetting standby and thermostat states");
+
+			mosmix = read_mosmix(now);
 			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
 				device_t *d = (*ds)->device;
 				d->state = Active;
@@ -874,7 +893,7 @@ static void fronius() {
 		wait = state->wait = calculate_next_round(device);
 
 		// set history pointer to next slot
-		dump_history(6);
+		dump_state_history(6);
 		if (++state_history_ptr == HISTORY)
 			state_history_ptr = 0;
 

@@ -11,7 +11,7 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius.o curl.o gpio-dummy.o
+COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius.o aqua.o curl.o gpio-dummy.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
@@ -83,11 +83,15 @@ template: template.o utils.o
 	$(CC) $(CFLAGS) -DTEMPLATE_MAIN -c template.c
 	$(CC) $(CFLAGS) -o template template.o utils.o
 
+aqua: aqua.o utils.o
+	$(CC) $(CFLAGS) -DAQUA_MAIN -c aqua.c
+	$(CC) $(CFLAGS) -o aqua aqua.o utils.o
+
 .PHONY: clean install install-local install-service keytable
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo rotary2uinput test gpio-sunxi gpio-bcm2835
+	rm -f mcp display switch sensors flamingo rotary2uinput test gpio-sunxi gpio-bcm2835 fronius template aqua
 
 install:
 	@echo "[Installing and starting mcp]"
