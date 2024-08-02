@@ -13,7 +13,7 @@ static void set_pump(int value) {
 	xdebug("AQUA set_pump %d", value);
 
 #ifndef AQUA_MAIN
-	tasmota_power(CARPORT, 3, value);
+	tasmota_power(CARPORT, 4, value);
 #endif
 }
 
@@ -21,7 +21,7 @@ static void set_valve(int valve, int value) {
 	xdebug("AQUA set_valve %d %d", valve, value);
 }
 
-static int valve(int valve, int hour, float temp, float humi, uint16_t lumi) {
+static int get_rain(int valve, int hour, float temp, float humi, uint16_t lumi) {
 	int rain = 0;
 
 	for (int i = 0; i < ARRAY_SIZE(POTD); i++) {
@@ -75,22 +75,22 @@ static void process(int hour) {
 #else
 	float temp = sensors->bmp280_temp;
 	float humi = sensors->sht31_humi;
-	uint16_t lumi = sensors->bh1750_lux;
+	uint16_t lumi = sensors->bh1750_lux_mean;
 #endif
 
 	xdebug("AQUA sensors temp=%2.1f humi=%3.1f lumi=%d", temp, humi, lumi);
 
 	if (temp == UINT16_MAX || lumi == UINT16_MAX || humi == UINT16_MAX) {
-		xlog("XMAS Error no sensor data");
+		xlog("AQUA Error no sensor data");
 		return;
 	}
 
-	for (int v = 0; v < 4; v++) {
-		int rain = valve(v, hour, temp, humi, lumi);
+	for (int v = 0; v < VALVES; v++) {
+		int rain = get_rain(v, hour, temp, humi, lumi);
 		if (rain) {
 			set_valve(v, 1);
 			set_pump(1);
-			xlog("AQUA raining valve %d for %d seconds", v, rain);
+			xlog("AQUA raining at valve %d for %d seconds", v, rain);
 			sleep(rain);
 			set_valve(v, 0);
 		}
@@ -109,7 +109,7 @@ static void loop() {
 
 	// stop pump and close all valves
 	set_pump(0);
-	for (int v = 0; v < 4; v++)
+	for (int v = 0; v < VALVES; v++)
 		set_valve(v, 0);
 
 	// wait for sensors
