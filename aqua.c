@@ -22,55 +22,48 @@ static void set_valve(int valve, int value) {
 }
 
 static int valve(int valve, int hour, float temp, float humi, uint16_t lumi) {
+	int rain = 0;
+
 	for (int i = 0; i < ARRAY_SIZE(POTD); i++) {
 		const aqua_t *a = &POTD[i];
 
-		int h = a->h[hour];
+		int h = a->hr[hour];
 		int v = a->v[valve];
 
 		if (!h || !v)
 			continue; // valve not active for this hour
 
-		int humi_ok = humi <= a->humi;
-		int lumi_ok = lumi >= a->lumi;
-		int temp_ok = temp >= a->temp;
+		int temp_ok = temp >= a->t;
+		int humi_ok = humi <= a->h;
+		int lumi_ok = lumi >= a->l;
 
-		// check only humidity
-		if (a->lumi == 0 && a->temp == 0) {
-			xdebug("AQUA potd check for valve %d humi=%d", valve, humi_ok);
+		if (a->l == 0 && a->t == 0) {
+			// check only humidity
+			xdebug("AQUA check potd %s for valve %d humi=%d", a->n, valve, humi_ok);
 			if (humi_ok)
-				return a->rain;
-			else
-				return 0;
-		}
+				rain = a->r > rain ? a->r : rain;
 
-		// check humidity and temperature
-		if (a->lumi == 0) {
-			xdebug("AQUA potd check for valve %d humi=%d temp=%d", valve, humi_ok, temp_ok);
+		} else if (a->l == 0) {
+			// check humidity and temperature
+			xdebug("AQUA check potd %s for valve %d humi=%d temp=%d", a->n, valve, humi_ok, temp_ok);
 			if (humi_ok && temp_ok)
-				return a->rain;
-			else
-				return 0;
-		}
+				rain = a->r > rain ? a->r : rain;
 
-		// check humidity and luminousity
-		if (a->temp == 0) {
-			xdebug("AQUA potd check for valve %d humi=%d lumi=%d", valve, humi_ok, lumi_ok);
+		} else if (a->t == 0) {
+			// check humidity and luminousity
+			xdebug("AQUA check potd %s for valve %d humi=%d lumi=%d", a->n, valve, humi_ok, lumi_ok);
 			if (humi_ok && lumi_ok)
-				return a->rain;
-			else
-				return 0;
-		}
+				rain = a->r > rain ? a->r : rain;
 
-		// check all 3: humidity, temperature and luminousity
-		xdebug("AQUA potd check for valve %d humi=%d lumi=%d temp=%d", valve, humi_ok, lumi_ok, temp_ok);
-		if (humi_ok && lumi_ok && temp_ok)
-			return a->rain;
-		else
-			return 0;
+		} else {
+			// check all 3: humidity, temperature and luminousity
+			xdebug("AQUA check potd %s for valve %d humi=%d lumi=%d temp=%d", a->n, valve, humi_ok, lumi_ok, temp_ok);
+			if (humi_ok && lumi_ok && temp_ok)
+				rain = a->r > rain ? a->r : rain;
+		}
 	}
 
-	return 0;
+	return rain;
 }
 
 static void process(int hour) {
