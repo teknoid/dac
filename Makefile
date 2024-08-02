@@ -54,7 +54,7 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 
 fronius: fronius.o utils.o frozen.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius.c
-	$(CC) $(CFLAGS) -o fronius fronius.o utils.o frozen.o -lpthread -lcurl
+	$(CC) $(CFLAGS) -o fronius fronius.o utils.o frozen.o -lcurl
 
 sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
@@ -62,7 +62,7 @@ sensors: sensors.o utils.o
 
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
-	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lpthread -lncurses -lmenu -lm
+	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
 
 rotary2uinput: rotary2uinput.o
 	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
@@ -78,6 +78,10 @@ gpio-bcm2835: gpio-bcm2835.o utils.o
 switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
+
+template: template.o utils.o
+	$(CC) $(CFLAGS) -DTEMPLATE_MAIN -c template.c
+	$(CC) $(CFLAGS) -o template template.o utils.o
 
 .PHONY: clean install install-local install-service keytable
 
