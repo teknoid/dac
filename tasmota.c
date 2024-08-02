@@ -21,13 +21,13 @@ static tasmota_state_t *tasmota_state = NULL;
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 
-static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char *t = make_string(topic, tsize);
-	char *m = make_string(message, msize);
-	xlog("%s %06X topic('%s') = %s", prefix, id, t, m);
-	free(t);
-	free(m);
-}
+//static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+//	char *t = make_string(topic, tsize);
+//	char *m = make_string(message, msize);
+//	xlog("%s %06X topic('%s') = %s", prefix, id, t, m);
+//	free(t);
+//	free(m);
+//}
 
 // topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
 //             ^^^^^^
@@ -281,19 +281,23 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
 
 	if (rf != NULL) {
-		unsigned int rf_code;
-		int bits;
-		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d}", &rf_code, &bits);
+		unsigned int data, bits, proto, pulse;
 
-		if (rf_code == DOORBELL)
+		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d, Protocol:%d, Pulse:%d}", &data, &bits, &proto, &pulse);
+		free(rf);
+
+		if ((data & 0xffff) == 0xffff) {
+			// xlog("TASMOTA RF noise data=0x%x bits=%d protocol=%d pulse=%d", data, bits, proto, pulse);
+			return 0;
+		}
+
+		if (data == DOORBELL)
 			return notify("Ding", "Dong", "ding-dong.wav");
 
 		if (bits == 28)
-			return flamingo(rf_code);
+			return flamingo(data);
 
-		dump("TASMOTA unknown RF received", id, topic, tsize, message, msize);
-
-		free(rf);
+		xlog("TASMOTA unknown RF received data=0x%x bits=%d protocol=%d pulse=%d", data, bits, proto, pulse);
 	}
 
 	return 0;
