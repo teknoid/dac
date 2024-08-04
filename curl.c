@@ -40,8 +40,9 @@ CURL* curl_init(const char *url, response_t *memory) {
 			curl_easy_setopt(curl, CURLOPT_WRITEDATA, memory);
 		curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096);
 		curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
-		curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 22L);
+		curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 33L);
+		curl_easy_setopt(curl, CURLOPT_MAXAGE_CONN, 333L);
 	}
 	return curl;
 }

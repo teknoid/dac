@@ -286,7 +286,7 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 		json_scanf(rf, strlen(rf), "{Data:%x, Bits:%d, Protocol:%d, Pulse:%d}", &data, &bits, &proto, &pulse);
 		free(rf);
 
-		if ((data & 0xffff) == 0xffff) {
+		if (bits < 16 || (data & 0xffff) == 0xffff) {
 			// xlog("TASMOTA RF noise data=0x%x bits=%d protocol=%d pulse=%d", data, bits, proto, pulse);
 			return 0;
 		}
