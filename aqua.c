@@ -13,7 +13,7 @@ static void set_pump(int value) {
 	xdebug("AQUA set_pump %d", value);
 
 #ifndef AQUA_MAIN
-	tasmota_power(CARPORT, 4, value);
+	tasmota_power(CARPORT, 1, value);
 #endif
 }
 
