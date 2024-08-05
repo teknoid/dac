@@ -121,6 +121,10 @@ static void loop() {
 		time_t now_ts = time(NULL);
 		struct tm *now = localtime(&now_ts);
 
+		// first run on next full hour
+		if (hour == -1)
+			hour = now->tm_hour;
+
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
 			process(hour);
