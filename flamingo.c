@@ -73,7 +73,7 @@ static uint32_t encrypt(uint32_t message) {
 			n[i] = CKEY[idx];					// crypted with predecessor & key
 		}
 	}
-	n[6] = n[6] ^ 9;							// no  encryption
+	n[6] = n[6] ^ 9;							// no encryption
 
 	// build encrypted message
 	code = (n[6] << 24) | (n[5] << 20) | (n[4] << 16) | (n[3] << 12) | (n[2] << 8) | (n[1] << 4) | n[0];
@@ -253,7 +253,7 @@ static int usage() {
 	xlog("    <remote>  1, 2, 3, ...\n");
 	xlog("    <channel> A, B, C, D\n");
 	xlog("    <command> 0 - off, 1 - on\n");
-	xlog("    [rolling]  rolling code index, 0...3\n");
+	xlog("    [rolling] rolling code index, 0...3\n");
 	return EXIT_FAILURE;
 }
 
@@ -342,7 +342,7 @@ int flamingo_main(int argc, char *argv[]) {
 // gpio-bcm2835.c needs mcp_register()
 typedef int (*init_t)();
 void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void *loop) {
-	xlog("call init() for  %s", name);
+	xlog("call init() for %s", name);
 	init_t xinit = init;
 	(xinit)();
 }
