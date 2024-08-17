@@ -17,7 +17,7 @@ static const aqua_t v0h3r2 = { .v = { 1, 0, 0, 0 }, .hr = { 1, 0, 0, 1, 0, 0, 1,
 		"v0h3r2" };
 
 static const aqua_t v0h6r3 = { .v = { 1, 0, 0, 0 }, .hr = { 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0 }, .r = 180, .t = 15, .h = 80, .l = 0, .n =
-		"v0h6r5" };
+		"v0h6r3" };
 
 // program of the day
 static const aqua_t POTD[] = { v0h1r1, v0h3r2, v0h6r3 };
