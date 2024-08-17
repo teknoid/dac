@@ -39,25 +39,25 @@ static int get_rain(int valve, int hour, float temp, float humi, uint16_t lumi) 
 
 		if (a->l == 0 && a->t == 0) {
 			// check only humidity
-			xdebug("AQUA check potd %s for valve %d humi=%d", a->n, valve, humi_ok);
+			xdebug("AQUA check potd %s for valve=%d rain=%d humi=%d", a->n, valve, a->r, humi_ok);
 			if (humi_ok)
 				rain = a->r > rain ? a->r : rain;
 
 		} else if (a->l == 0) {
 			// check humidity and temperature
-			xdebug("AQUA check potd %s for valve %d humi=%d temp=%d", a->n, valve, humi_ok, temp_ok);
+			xdebug("AQUA check potd %s for valve=%d rain=%d humi=%d temp=%d", a->n, valve, a->r, humi_ok, temp_ok);
 			if (humi_ok && temp_ok)
 				rain = a->r > rain ? a->r : rain;
 
 		} else if (a->t == 0) {
 			// check humidity and luminousity
-			xdebug("AQUA check potd %s for valve %d humi=%d lumi=%d", a->n, valve, humi_ok, lumi_ok);
+			xdebug("AQUA check potd %s for valve=%d rain=%d humi=%d lumi=%d", a->n, valve, a->r, humi_ok, lumi_ok);
 			if (humi_ok && lumi_ok)
 				rain = a->r > rain ? a->r : rain;
 
 		} else {
 			// check all 3: humidity, temperature and luminousity
-			xdebug("AQUA check potd %s for valve %d humi=%d lumi=%d temp=%d", a->n, valve, humi_ok, lumi_ok, temp_ok);
+			xdebug("AQUA check potd %s for valve=%d rain=%d humi=%d lumi=%d temp=%d", a->n, valve, a->r, humi_ok, lumi_ok, temp_ok);
 			if (humi_ok && lumi_ok && temp_ok)
 				rain = a->r > rain ? a->r : rain;
 		}
@@ -88,9 +88,9 @@ static void process(int hour) {
 	for (int v = 0; v < VALVES; v++) {
 		int rain = get_rain(v, hour, temp, humi, lumi);
 		if (rain) {
+			xlog("AQUA raining at valve %d for %d seconds", v, rain);
 			set_valve(v, 1);
 			set_pump(1);
-			xlog("AQUA raining at valve %d for %d seconds", v, rain);
 			sleep(rain);
 			set_valve(v, 0);
 		}
