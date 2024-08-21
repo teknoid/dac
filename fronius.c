@@ -733,7 +733,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion > 3 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
+	if (state->distortion > 1 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
 		return WAIT_NEXT;
 
 	// all devices in standby?
