@@ -89,7 +89,7 @@ static tasmota_state_t* get_state(unsigned int id) {
 static int backlog(unsigned int id, const char *cmd) {
 	char topic[32];
 	snprintf(topic, 32, "cmnd/%6X/Backlog", id);
-	xlog("TASMOTA executing backlog command %6X %s", id, cmd);
+	xlog("TASMOTA executing backlog command %6X :: %s", topic, cmd);
 	return publish(topic, cmd);
 }
 
