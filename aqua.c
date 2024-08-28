@@ -21,24 +21,7 @@ static void set_valve(int valve, int value) {
 	xdebug("AQUA set_valve %d %d", valve, value);
 }
 
-static int get_rain(int valve, int hour) {
-#ifdef AQUA_MAIN
-	float temp = 23.2;
-	float humi = 33;
-	uint16_t lumi = 35000;
-#else
-	float temp = sensors->bmp280_temp;
-	float humi = sensors->sht31_humi;
-	uint16_t lumi = sensors->bh1750_lux_mean;
-#endif
-
-	xdebug("AQUA sensors temp=%2.1f humi=%3.1f lumi=%d", temp, humi, lumi);
-
-	if (temp == UINT16_MAX || lumi == UINT16_MAX || humi == UINT16_MAX) {
-		xlog("AQUA Error no sensor data");
-		return 0;
-	}
-
+static int get_rain(int valve, int hour, float temp, float humi, uint16_t lumi) {
 	int rain = 0;
 
 	for (int i = 0; i < ARRAY_SIZE(POTD); i++) {
@@ -84,8 +67,26 @@ static int get_rain(int valve, int hour) {
 }
 
 static void process(int hour) {
+
+#ifdef AQUA_MAIN
+	float temp = 23.2;
+	float humi = 33;
+	uint16_t lumi = 35000;
+#else
+	float temp = sensors->bmp280_temp;
+	float humi = sensors->sht31_humi;
+	uint16_t lumi = sensors->bh1750_lux_mean;
+#endif
+
+	xdebug("AQUA sensors temp=%2.1f humi=%3.1f lumi=%d", temp, humi, lumi);
+
+	if (temp == UINT16_MAX || lumi == UINT16_MAX || humi == UINT16_MAX) {
+		xlog("AQUA Error no sensor data");
+		return;
+	}
+
 	for (int v = 0; v < VALVES; v++) {
-		int rain = get_rain(v, hour);
+		int rain = get_rain(v, hour, temp, humi, lumi);
 		if (rain) {
 			xlog("AQUA raining at valve %d for %d seconds", v, rain);
 			set_valve(v, 1);
