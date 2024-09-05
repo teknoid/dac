@@ -266,6 +266,8 @@ static int init() {
 	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
+	play("mau4.wav");
+
 	ready = 1;
 	return 0;
 }
