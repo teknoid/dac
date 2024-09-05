@@ -3,7 +3,7 @@ UNAME_M := $(shell uname -m)
 INCLUDE = ./include
 LIB = ./lib/$(UNAME_M)
 
-CFLAGS = -I$(INCLUDE) -Wall
+CFLAGS = -I$(INCLUDE) -Wall -Wno-format-truncation
 LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
 SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
