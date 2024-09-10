@@ -362,7 +362,7 @@ static int read_mosmix(struct tm *now) {
 	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
 	int n = na + ns;
 
-	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
+	xlog("FRONIUS mosmix needed %d (%d akku + %d self), SunD1/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
 	if (e0 > n)
 		return choose_program(&SUNNY, m0);
