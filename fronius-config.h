@@ -6,9 +6,9 @@
 #define STANDBY				0
 #define STANDBY_RESET		60 * 30
 
-#define MOSMIX				"/tmp/SunD1-CHEMNITZ.txt"
-//#define MOSMIX			"/tmp/SunD1-MARIENBERG.txt"
-//#define MOSMIX			"/tmp/SunD1-BRAUNSDORF.txt"
+#define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
+//#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
+//#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
 #define MOSMIX_FACTOR		3
 
 #define AKKU_CAPACITY		11000
