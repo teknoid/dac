@@ -16,6 +16,17 @@
 #include "curl.h"
 #include "mcp.h"
 
+#define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
+#define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+#define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+
+// Fronius API is slow --> timings <5s make no sense
+#define WAIT_OFFLINE		900
+#define WAIT_STANDBY		300
+#define WAIT_STABLE			60
+#define WAIT_IDLE			20
+#define WAIT_NEXT			10
+
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
 
@@ -55,12 +66,12 @@ int set_heater(device_t *heater, int power) {
 		// xlog("FRONIUS switching %s ON", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
 		// system(command);
-		tasmota_power(heater->id, 0, 1);
+		tasmota_power(heater->id, heater->r, 1);
 	} else {
 		// xlog("FRONIUS switching %s OFF", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
 		// system(command);
-		tasmota_power(heater->id, 0, 0);
+		tasmota_power(heater->id, heater->r, 0);
 	}
 #endif
 

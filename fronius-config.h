@@ -1,10 +1,3 @@
-// Fronius API is slow --> timings <5s make no sense
-#define WAIT_OFFLINE		900
-#define WAIT_STANDBY		300
-#define WAIT_STABLE			60
-#define WAIT_IDLE			20
-#define WAIT_NEXT			10
-
 #define KEEP_FROM			20
 #define KEEP_TO				50
 
@@ -22,10 +15,6 @@
 #define SELF_CONSUMING		10000
 #define BASELOAD			300
 #define NOISE				20
-
-#define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
-#define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
-#define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
 enum dstate {
 	Standby, Active, Standby_Check, Request_Standby_Check
@@ -74,6 +63,7 @@ typedef int (set_function_t)(device_t*, int);
 
 struct _device {
 	const unsigned int id;
+	const unsigned int r;
 	const char *name;
 	const char *addr;
 	const int adjustable;
@@ -104,35 +94,38 @@ int set_boiler(device_t *device, int power);
 static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
 static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
 static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1, .thermostat = 1 };
-static device_t plug9 = { .id = 0x5EEEE8, .name = "plug9", .load = 700, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
-static device_t plug5 = { .id = 0xB60A0C, .name = "plug5", .load = 1000, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
-static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug9, &plug5 };
+static device_t plug5 = { .id = 0xB60A0C, .r = 0, .name = "plug5", .load = 150, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
+static device_t plug9 = { .id = 0x5EEEE8, .r = 0, .name = "plug9", .load = 450, .set_function = &set_heater, .adjustable = 0, .thermostat = 0 };
+static device_t *devices[] = { &boiler1, &boiler2, &boiler3, &plug5, &plug9 };
 
 // program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
-static const potd_device_t CLOUDY_EMPTY_1 = { .device = &boiler1, .greedy = 1 };
-static const potd_device_t CLOUDY_EMPTY_2 = { .device = &boiler2, .greedy = 0 };
-static const potd_device_t CLOUDY_EMPTY_3 = { .device = &boiler3, .greedy = 0 };
-static const potd_device_t CLOUDY_EMPTY_4 = { .device = &plug9, .greedy = 0 };
-static const potd_t CLOUDY_EMPTY = { .name = "CLOUDY_EMPTY", .devices = { &CLOUDY_EMPTY_1, &CLOUDY_EMPTY_2, &CLOUDY_EMPTY_3, &CLOUDY_EMPTY_4, NULL } };
+static const potd_device_t CE1 = { .device = &boiler1, .greedy = 1 };
+static const potd_device_t CE2 = { .device = &boiler2, .greedy = 0 };
+static const potd_device_t CE3 = { .device = &boiler3, .greedy = 0 };
+static const potd_device_t CE4 = { .device = &plug5, .greedy = 0 };
+static const potd_device_t CE5 = { .device = &plug9, .greedy = 0 };
+static const potd_t CLOUDY_EMPTY = { .name = "CLOUDY_EMPTY", .devices = { &CE1, &CE2, &CE3, &CE4, &CE5, NULL } };
 
 // program of the day for cloudy weather with akku full: priority is heater, then akku, then rest only when extra power
-static const potd_device_t CLOUDY_FULL_1 = { .device = &plug9, .greedy = 1 };
-static const potd_device_t CLOUDY_FULL_2 = { .device = &boiler1, .greedy = 0 };
-static const potd_device_t CLOUDY_FULL_3 = { .device = &boiler2, .greedy = 0 };
-static const potd_device_t CLOUDY_FULL_4 = { .device = &boiler3, .greedy = 0 };
-static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .devices = { &CLOUDY_FULL_1, &CLOUDY_FULL_2, &CLOUDY_FULL_3, &CLOUDY_FULL_4, NULL } };
+static const potd_device_t CF1 = { .device = &plug5, .greedy = 1 };
+static const potd_device_t CF2 = { .device = &plug9, .greedy = 1 };
+static const potd_device_t CF3 = { .device = &boiler1, .greedy = 1 };
+static const potd_device_t CF4 = { .device = &boiler2, .greedy = 0 };
+static const potd_device_t CF5 = { .device = &boiler3, .greedy = 0 };
+static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .devices = { &CF1, &CF2, &CF3, &CF4, &CF5, NULL } };
 
 // program of the day for sunny weather: plenty of power
-static const potd_device_t SUNNY_1 = { .device = &plug9, .greedy = 1 };
-static const potd_device_t SUNNY_5 = { .device = &plug5, .greedy = 1 };
-static const potd_device_t SUNNY_2 = { .device = &boiler1, .greedy = 0 };
-static const potd_device_t SUNNY_3 = { .device = &boiler2, .greedy = 0 };
-static const potd_device_t SUNNY_4 = { .device = &boiler3, .greedy = 0 };
-static const potd_t SUNNY = { .name = "SUNNY", .devices = { &SUNNY_1, &SUNNY_5, &SUNNY_2, &SUNNY_3, &SUNNY_4, NULL } };
+static const potd_device_t S1 = { .device = &plug5, .greedy = 1 };
+static const potd_device_t S2 = { .device = &plug9, .greedy = 1 };
+static const potd_device_t S3 = { .device = &boiler1, .greedy = 1 };
+static const potd_device_t S4 = { .device = &boiler2, .greedy = 0 };
+static const potd_device_t S5 = { .device = &boiler3, .greedy = 0 };
+static const potd_t SUNNY = { .name = "SUNNY", .devices = { &S1, &S2, &S3, &S4, &S5, NULL } };
 
 // program of the day for cloudy weather but tomorrow sunny: steal all akku charge power
-static const potd_device_t TOMORROW_1 = { .device = &plug9, .greedy = 1 };
-static const potd_device_t TOMORROW_2 = { .device = &boiler1, .greedy = 1 };
-static const potd_device_t TOMORROW_3 = { .device = &boiler2, .greedy = 1 };
-static const potd_device_t TOMORROW_4 = { .device = &boiler3, .greedy = 1 };
-static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &TOMORROW_1, &TOMORROW_2, &TOMORROW_3, &TOMORROW_4, NULL } };
+static const potd_device_t T1 = { .device = &plug5, .greedy = 1 };
+static const potd_device_t T2 = { .device = &plug9, .greedy = 1 };
+static const potd_device_t T3 = { .device = &boiler1, .greedy = 1 };
+static const potd_device_t T4 = { .device = &boiler2, .greedy = 1 };
+static const potd_device_t T5 = { .device = &boiler3, .greedy = 1 };
+static const potd_t TOMORROW = { .name = "TOMORROW", .devices = { &T1, &T2, &T3, &T4, &T5, NULL } };
