@@ -53,6 +53,14 @@ static state_t* get_state_history(int offset) {
 static void set_all_devices(int power) {
 }
 
+static void daily() {
+	printf("executing daily tasks...");
+}
+
+static void hourly() {
+	printf("executing hourly tasks...");
+}
+
 static void regulate() {
 	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
 	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
@@ -97,17 +105,41 @@ static int check_delta() {
 }
 
 static void loop() {
+	int hour, day;
+
+	// initialize hourly & daily
+	time_t now_ts = time(NULL);
+	struct tm *now = localtime(&now_ts);
+	hour = now->tm_hour;
+	day = now->tm_wday;
+
 	// wait for threads to produce data
 	sleep(1);
 
-	// do delta check and execute regulator logic if values have changed
 	while (1) {
-		msleep(100);
+		msleep(200);
 
+		// do delta check and execute regulator logic if values have changed
 		int delta = check_delta();
 		if (delta) {
 			takeover();
 			regulate();
+		}
+
+		// update current date+time
+		now_ts = time(NULL);
+		now = localtime(&now_ts);
+
+		// hourly tasks
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			hourly();
+		}
+
+		// daily tasks
+		if (day != now->tm_wday) {
+			day = now->tm_wday;
+			daily();
 		}
 	}
 }
