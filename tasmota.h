@@ -60,6 +60,8 @@ typedef struct tasmota_state_t {
 } tasmota_state_t;
 
 int tasmota_power(unsigned int, int, int);
+int tasmota_power_on(unsigned int id);
+int tasmota_power_off(unsigned int id);
 
 int tasmota_shutter(unsigned int, unsigned int);
 

@@ -8,4 +8,7 @@ static const tasmota_config_t tasmota_config[] = {
 
 	// relay 0 of HOFLICHT is triggered by HOFLICHT buttons 1 & 2, and has a timer of 120 seconds
 	{ HOFLICHT, 0, HOFLICHT, 1, HOFLICHT, 2, 0, 0, 0, 0, 120 },
+
+	// heater 150W has a timer of 1 hour
+	{ PLUG5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 60 * 60 }
 };

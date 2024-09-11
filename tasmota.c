@@ -394,6 +394,14 @@ int tasmota_power(unsigned int id, int relay, int cmd) {
 	}
 }
 
+int tasmota_power_on(unsigned int id) {
+	return tasmota_power(id, 0, 1);
+}
+
+int tasmota_power_off(unsigned int id) {
+	return tasmota_power(id, 0, 0);
+}
+
 // execute tasmota shutter up/down
 int tasmota_shutter(unsigned int id, unsigned int target) {
 	if (target == SHUTTER_POS)
