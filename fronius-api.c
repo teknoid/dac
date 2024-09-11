@@ -1094,17 +1094,21 @@ static void stop() {
 		close(sock);
 }
 
-int fronius_override(const char *name) {
+int fronius_override_seconds(const char *name, int seconds) {
 	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
 		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
-			xlog("FRONIUS Activating Override for %d seconds on %s", OVERRIDE, d->name);
-			d->override = time(NULL) + OVERRIDE;
+			xlog("FRONIUS Activating Override for %d seconds on %s", seconds, d->name);
+			d->override = time(NULL) + seconds;
 			d->state = Active;
 			(d->set_function)(d, 100);
 		}
 	}
 	return 0;
+}
+
+int fronius_override(const char *name) {
+	return fronius_override_seconds(name, OVERRIDE);
 }
 
 int fronius_main(int argc, char **argv) {

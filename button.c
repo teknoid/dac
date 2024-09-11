@@ -17,6 +17,7 @@
 #include <linux/input-event-codes.h>
 
 #include "tasmota.h"
+#include "fronius.h"
 #include "button.h"
 #include "utils.h"
 #include "dac.h"
@@ -50,7 +51,7 @@ static void handle_button(unsigned char c) {
 		system("/m/party.sh");
 		break;
 	case 32:
-		tasmota_power_on(PLUG5);
+		fronius_override_seconds("plug5", 3600);
 		break;
 	}
 }
