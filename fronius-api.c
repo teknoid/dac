@@ -1111,7 +1111,7 @@ int fronius_override_seconds(const char *name, int seconds) {
 		device_t *d = devices[i];
 		if (!strcmp(d->name, name)) {
 			xlog("FRONIUS Activating Override for %d seconds on %s", seconds, d->name);
-			d->override = time(NULL);
+			d->override = time(NULL) + seconds;
 			d->state = Active;
 			(d->set_function)(d, 100);
 		}
