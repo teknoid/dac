@@ -112,7 +112,6 @@ static void loop() {
 
 static void* fronius10(void *arg) {
 	int rc, errors;
-	modbus_t *mb;
 
 	uint16_t inverter_registers[sizeof(sunspec_inverter_t)];
 	inverter10 = (sunspec_inverter_t*) &inverter_registers;
@@ -127,8 +126,12 @@ static void* fronius10(void *arg) {
 		return (void*) 0;
 
 	while (1) {
+		ZERO(inverter_registers);
+		ZERO(storage_registers);
+		ZERO(meter_registers);
+
 		errors = 0;
-		mb = modbus_new_tcp("192.168.25.231", 502);
+		modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);
 
 		modbus_set_response_timeout(mb, 5, 0);
 		modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
@@ -162,20 +165,16 @@ static void* fronius10(void *arg) {
 			errors = 0;
 		}
 
-		ZERO(inverter_registers);
-		ZERO(storage_registers);
-		ZERO(meter_registers);
-
 		set_all_devices(0);
 		modbus_close(mb);
 		modbus_free(mb);
 	}
+
 	return (void*) 0;
 }
 
 static void* fronius7(void *arg) {
 	int rc, errors;
-	modbus_t *mb;
 
 	uint16_t inverter_registers[sizeof(sunspec_inverter_t)];
 	inverter7 = (sunspec_inverter_t*) &inverter_registers;
@@ -184,12 +183,15 @@ static void* fronius7(void *arg) {
 		return (void*) 0;
 
 	while (1) {
+		ZERO(inverter_registers);
+
 		errors = 0;
-		mb = modbus_new_tcp("192.168.25.231", 502);
+		modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);
 
 		modbus_set_response_timeout(mb, 5, 0);
 		modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
 
+		// Fronius7 is secondary unit in installation setup
 		rc = modbus_set_slave(mb, 2);
 		if (rc == -1)
 			fprintf(stderr, "Fronius7 invalid slave ID\n");
@@ -218,11 +220,10 @@ static void* fronius7(void *arg) {
 			errors = 0;
 		}
 
-		ZERO(inverter_registers);
-
 		modbus_close(mb);
 		modbus_free(mb);
 	}
+
 	return (void*) 0;
 }
 
