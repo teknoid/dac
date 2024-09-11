@@ -52,6 +52,18 @@ int set_heater(device_t *heater, int power) {
 	if (power > 1)
 		power = 1;
 
+	if (heater->override) {
+		time_t t = time(NULL);
+		if (t > heater->override) {
+			xdebug("FRONIUS Override expired for %s", heater->name);
+			heater->override = 0;
+			power = 0;
+		} else {
+			xdebug("FRONIUS Override active for %lu seconds on %s", heater->override - t, heater->name);
+			power = 100;
+		}
+	}
+
 	// check if update is necessary
 	if (heater->power && heater->power == power)
 		return 0;
