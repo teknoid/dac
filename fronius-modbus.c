@@ -36,6 +36,20 @@ int set_boiler(device_t *boiler, int power) {
 	return 0;
 }
 
+// initialize all devices with start values
+static void init_all_devices() {
+	printf("known devices:");
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		device_t *d = devices[i];
+		d->state = Active;
+		d->power = -1;
+		d->dload = 0;
+		d->addr = resolve_ip(d->name);
+		printf(" %s", d->name);
+	}
+	printf("\n");
+}
+
 static state_t* get_state_history(int offset) {
 	int i = state_history_ptr + offset;
 	if (i < 0)
@@ -61,7 +75,7 @@ static void hourly() {
 	printf("executing hourly tasks...");
 }
 
-static void regulate() {
+static device_t* ramp() {
 	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
 	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
 	printf("PhVphC %d (%2.1f)\n", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
@@ -70,9 +84,20 @@ static void regulate() {
 	printf("W      %d (%2.1f)\n", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
 
 	printf("PV10=%d PV7=%d\n", state->pv10, state->pv7);
+
+	return 0;
 }
 
-static void takeover() {
+static void check_response(device_t *d) {
+}
+
+static void check_standby() {
+}
+
+static void calculate_state() {
+}
+
+static void update_state() {
 	// clear slot in history for storing new state
 	state = &state_history[state_history_ptr];
 	ZERO(state);
@@ -106,6 +131,7 @@ static int check_delta() {
 
 static void loop() {
 	int hour, day;
+	device_t *device = 0;
 
 	// initialize hourly & daily
 	time_t now_ts = time(NULL);
@@ -119,11 +145,23 @@ static void loop() {
 	while (1) {
 		msleep(200);
 
-		// do delta check and execute regulator logic if values have changed
+		// do delta check and execute ramp up/down logic if values have changed
 		int delta = check_delta();
 		if (delta) {
-			takeover();
-			regulate();
+			// store actual values
+			update_state();
+
+			// calculate actual state
+			calculate_state();
+
+			// check response from previous ramp or do overall standby check
+			if (device)
+				check_response(device);
+			else
+				check_standby();
+
+			// ramp up/down devices
+			device = ramp();
 		}
 
 		// update current date+time
@@ -262,8 +300,7 @@ static void* fronius7(void *arg) {
 }
 
 static int init() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++)
-		printf("%s\n", devices[i]->name);
+	init_all_devices();
 
 	if (pthread_create(&thread_fronius10, NULL, &fronius10, NULL))
 		return -1;
