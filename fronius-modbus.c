@@ -5,6 +5,9 @@
 #include <errno.h>
 #include <math.h>
 
+#include <signal.h>
+#include <pthread.h>
+
 #include <modbus/modbus.h>
 
 #include "fronius-config.h"
@@ -175,6 +178,15 @@ static state_t state_history[HISTORY];
 static state_t *state = state_history;
 static int state_history_ptr = 0;
 
+// Fronius modbus register banks
+static sunspec_inverter_t *inverter10;
+static sunspec_inverter_t *inverter7;
+static sunspec_storage_t *storage;
+static sunspec_meter_t *meter;
+
+// Fronius modbus reader threads
+static pthread_t thread_fronius10, thread_fronius7;
+
 int set_heater(device_t *heater, int power) {
 	return 0;
 }
@@ -200,115 +212,194 @@ static void dump(uint16_t registers[], size_t size) {
 static void set_all_devices(int power) {
 }
 
-static void action() {
-	printf("W %d W\n", state->pv7);
+static void regulate() {
+	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
+	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
+	printf("PhVphC %d (%2.1f)\n", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
+
+	printf("DCW    %d (%2.1f)\n", SFI(inverter10->DCW, inverter7->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
+	printf("W      %d (%2.1f)\n", SFI(inverter10->W, inverter7->W_SF), SFF(inverter10->W, inverter10->W_SF));
+
+	printf("PV7=%d\n", state->pv7);
 }
 
-static void takeover(sunspec_inverter_t *inverter, sunspec_meter_t *meter, sunspec_storage_t *storage) {
+static void takeover() {
 	// clear slot in history for storing new state
 	state = &state_history[state_history_ptr];
 	ZERO(state);
 
-	state->pv7 = SFI(inverter->W, inverter->W_SF);
+	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
 
 	// set history pointer to next slot
 	if (++state_history_ptr == HISTORY)
 		state_history_ptr = 0;
-
-	printf("PhVphA %d (%2.1f)\n", SFI(inverter->PhVphA, inverter->V_SF), SFF(inverter->PhVphA, inverter->V_SF));
-	printf("PhVphB %d (%2.1f)\n", SFI(inverter->PhVphB, inverter->V_SF), SFF(inverter->PhVphB, inverter->V_SF));
-	printf("PhVphC %d (%2.1f)\n", SFI(inverter->PhVphC, inverter->V_SF), SFF(inverter->PhVphC, inverter->V_SF));
-	printf("W      %d (%2.1f)\n", SFI(inverter->W, inverter->W_SF), SFF(inverter->W, inverter->W_SF));
-	printf("DCW    %d (%2.1f)\n", SFI(inverter->DCW, inverter->DCW_SF), SFF(inverter->DCW, inverter->DCW_SF));
 }
 
 static int delta(int v, int v_old, int d_proz) {
 	int v_diff = v - v_old;
 	int v_proz = v == 0 ? 0 : (v_diff * 100) / v;
-	printf("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d\n", v_old, v, v_diff, v_proz, d_proz);
+	// printf("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d\n", v_old, v, v_diff, v_proz, d_proz);
 	if (abs(v_proz) >= d_proz)
 		return 1;
 	return 0;
 }
 
-static int check_delta(sunspec_inverter_t *inverter, sunspec_meter_t *meter, sunspec_storage_t *storage) {
+static int check_delta() {
 	state_t *h1 = get_state_history(-1);
 
-	if (delta(SFI(inverter->W, inverter->W_SF), h1->pv7, 2))
+	if (delta(SFI(inverter7->W, inverter7->W_SF), h1->pv7, 2))
 		return 1;
 
 	return 0;
 }
 
-static void loop(modbus_t *mb) {
-	int rc, errors = 0;
-
-	size_t inverter_size = sizeof(sunspec_inverter_t);
-	printf("sizeof inverter_t %lu\n", inverter_size);
-	uint16_t inverter_registers[inverter_size];
-	sunspec_inverter_t *inverter = (sunspec_inverter_t*) &inverter_registers;
-
-	size_t meter_size = sizeof(sunspec_meter_t);
-	printf("sizeof meter_t %lu\n", meter_size);
-	uint16_t meter_registers[meter_size];
-	sunspec_meter_t *meter = (sunspec_meter_t*) &meter_registers;
-
-	size_t storage_size = sizeof(sunspec_storage_t);
-	printf("sizeof storage_t %lu\n", storage_size);
-	uint16_t storage_registers[storage_size];
-	sunspec_storage_t *storage = (sunspec_storage_t*) &storage_registers;
-
+static void loop() {
 	while (1) {
 		msleep(500);
 
-		// check error counter
-		if (errors == 10)
-			set_all_devices(0);
-
-		rc = modbus_read_registers(mb, INVERTER_OFFSET - 1, inverter_size, inverter_registers);
-		if (rc == -1) {
-			fprintf(stderr, "%s\n", modbus_strerror(errno));
-			errors++;
-			continue;
-		}
-
-		int delta = check_delta(inverter, meter, storage);
+		// do delta check and execute regulator logic
+		int delta = check_delta();
 		if (delta) {
-			takeover(inverter, meter, storage);
-			action();
+			takeover();
+			regulate();
 		}
-
-		errors = 0;
 	}
 }
 
-int main(int argc, char *argv[]) {
+void* fronius10(void *arg) {
+	int rc, errors;
 	modbus_t *mb;
-	int rc;
 
-	// mb = modbus_new_tcp("192.168.25.230", 502);
-	mb = modbus_new_tcp("192.168.25.231", 502);
+	uint16_t inverter_registers[sizeof(sunspec_inverter_t)];
+	inverter10 = (sunspec_inverter_t*) &inverter_registers;
 
-	modbus_set_response_timeout(mb, 5, 0);
-	modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
+	uint16_t meter_registers[sizeof(sunspec_meter_t)];
+	meter = (sunspec_meter_t*) &meter_registers;
 
-	rc = modbus_set_slave(mb, 2);
-	if (rc == -1) {
-		fprintf(stderr, "Invalid slave ID\n");
+	uint16_t storage_registers[sizeof(sunspec_storage_t)];
+	storage = (sunspec_storage_t*) &storage_registers;
+
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
+		return (void*) 0;
+
+	while (1) {
+		errors = 0;
+		mb = modbus_new_tcp("192.168.25.231", 502);
+
+		modbus_set_response_timeout(mb, 5, 0);
+		modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
+
+		// TODO remove
+		rc = modbus_set_slave(mb, 2);
+		if (rc == -1)
+			fprintf(stderr, "Fronius10 invalid slave ID\n");
+
+		if (modbus_connect(mb) == -1) {
+			fprintf(stderr, "Fronius10 connection failed: %s, retry in 60sec...\n", modbus_strerror(errno));
+			modbus_free(mb);
+			sleep(60);
+			continue;
+		}
+
+		while (1) {
+			msleep(500);
+
+			// check error counter
+			if (errors == 10)
+				break;
+
+			rc = modbus_read_registers(mb, INVERTER_OFFSET - 1, ARRAY_SIZE(inverter_registers), inverter_registers);
+			if (rc == -1) {
+				fprintf(stderr, "%s\n", modbus_strerror(errno));
+				errors++;
+				continue;
+			}
+
+			errors = 0;
+		}
+
+		set_all_devices(0);
+		modbus_close(mb);
 		modbus_free(mb);
-		return -1;
 	}
+	return (void*) 0;
+}
 
-	if (modbus_connect(mb) == -1) {
-		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
+void* fronius7(void *arg) {
+	int rc, errors;
+	modbus_t *mb;
+
+	uint16_t inverter_registers[sizeof(sunspec_inverter_t)];
+	inverter7 = (sunspec_inverter_t*) &inverter_registers;
+
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
+		return (void*) 0;
+
+	while (1) {
+		errors = 0;
+		mb = modbus_new_tcp("192.168.25.231", 502);
+
+		modbus_set_response_timeout(mb, 5, 0);
+		modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
+
+		rc = modbus_set_slave(mb, 2);
+		if (rc == -1)
+			fprintf(stderr, "Fronius7 invalid slave ID\n");
+
+		if (modbus_connect(mb) == -1) {
+			fprintf(stderr, "Fronius7 connection failed: %s, retry in 60sec...\n", modbus_strerror(errno));
+			modbus_free(mb);
+			sleep(60);
+			continue;
+		}
+
+		while (1) {
+			msleep(500);
+
+			// check error counter
+			if (errors == 10)
+				break;
+
+			rc = modbus_read_registers(mb, INVERTER_OFFSET - 1, ARRAY_SIZE(inverter_registers), inverter_registers);
+			if (rc == -1) {
+				fprintf(stderr, "%s\n", modbus_strerror(errno));
+				errors++;
+				continue;
+			}
+
+			errors = 0;
+		}
+
+		modbus_close(mb);
 		modbus_free(mb);
-		return -1;
 	}
+	return (void*) 0;
+}
 
-	loop(mb);
+static int init() {
 
-	modbus_close(mb);
-	modbus_free(mb);
+	if (pthread_create(&thread_fronius10, NULL, &fronius10, NULL))
+		return -1;
 
+	if (pthread_create(&thread_fronius7, NULL, &fronius7, NULL))
+		return -1;
+
+	return 0;
+}
+
+static void stop() {
+	printf("terminating...\n");
+
+	pthread_cancel(thread_fronius10);
+	pthread_join(thread_fronius10, NULL);
+
+	pthread_cancel(thread_fronius7);
+	pthread_join(thread_fronius7, NULL);
+}
+
+int main(int argc, char *argv[]) {
+	init();
+	loop();
+	stop();
 	return 0;
 }

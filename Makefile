@@ -58,7 +58,7 @@ fronius-api: fronius-api.o utils.o frozen.o
 
 fronius-modbus: fronius-modbus.c
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c
-	$(CC) $(CFLAGS) -o fronius fronius-modbus.c -lmodbus -lm
+	$(CC) $(CFLAGS) -o fronius fronius-modbus.c -lmodbus -lm -lpthread
 
 sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
