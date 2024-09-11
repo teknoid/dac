@@ -45,10 +45,10 @@ static state_t* get_state_history(int offset) {
 	return &state_history[i];
 }
 
-static void dump(uint16_t registers[], size_t size) {
-	for (int i = 0; i < size; i++)
-		printf("reg[%d]=%05d (0x%04X)\n", i, registers[i], registers[i]);
-}
+//static void dump(uint16_t registers[], size_t size) {
+//	for (int i = 0; i < size; i++)
+//		printf("reg[%d]=%05d (0x%04X)\n", i, registers[i], registers[i]);
+//}
 
 static void set_all_devices(int power) {
 }
@@ -77,6 +77,7 @@ static void takeover() {
 		state_history_ptr = 0;
 }
 
+// TODO performance: make makro
 static int delta(int v, int v_old, int d_proz) {
 	int v_diff = v - v_old;
 	int v_proz = v == 0 ? 0 : (v_diff * 100) / v;
@@ -101,12 +102,13 @@ static void loop() {
 
 	// do delta check and execute regulator logic if values have changed
 	while (1) {
+		msleep(100);
+
 		int delta = check_delta();
 		if (delta) {
 			takeover();
 			regulate();
 		}
-		msleep(100);
 	}
 }
 
@@ -228,6 +230,8 @@ static void* fronius7(void *arg) {
 }
 
 static int init() {
+	for (int i = 0; i < ARRAY_SIZE(devices); i++)
+		printf("%s\n", devices[i]->name);
 
 	if (pthread_create(&thread_fronius10, NULL, &fronius10, NULL))
 		return -1;
