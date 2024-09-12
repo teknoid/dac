@@ -598,8 +598,8 @@ static void steal_power() {
 }
 
 static void check_standby() {
-	if (state->distortion)
-		return; // standby check is not reliable
+	if (state->distortion || state->load > 0)
+		return; // standby check is not reliable or positive load
 
 	// force standby check on all devices if we have no load at all
 	if (BASELOAD * -1 < state->load) {
