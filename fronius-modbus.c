@@ -36,6 +36,36 @@ int set_boiler(device_t *boiler, int power) {
 	return 0;
 }
 
+// get a state history
+static state_t* get_state_history(int offset) {
+	int i = state_history_ptr + offset;
+	if (i < 0)
+		i += HISTORY;
+	if (i >= HISTORY)
+		i -= HISTORY;
+	return &state_history[i];
+}
+
+// dump the state history up to given rows
+static void dump_state_history(int back) {
+	char line[sizeof(state_t) * 8 + 16];
+	char value[8];
+
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
+	xdebug(line);
+	for (int y = 0; y < back; y++) {
+		strcpy(line, "FRONIUS state ");
+		snprintf(value, 8, "[%2d] ", y * -1);
+		strcat(line, value);
+		int *vv = (int*) get_state_history(y * -1);
+		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
+			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
+			strcat(line, value);
+		}
+		xdebug(line);
+	}
+}
+
 // initialize all devices with start values
 static void init_all_devices() {
 	printf("known devices:");
@@ -50,64 +80,12 @@ static void init_all_devices() {
 	printf("\n");
 }
 
-static state_t* get_state_history(int offset) {
-	int i = state_history_ptr + offset;
-	if (i < 0)
-		i += HISTORY;
-	if (i >= HISTORY)
-		i -= HISTORY;
-	return &state_history[i];
-}
-
 //static void dump(uint16_t registers[], size_t size) {
 //	for (int i = 0; i < size; i++)
 //		printf("reg[%d]=%05d (0x%04X)\n", i, registers[i], registers[i]);
 //}
 
 static void set_all_devices(int power) {
-}
-
-static void daily() {
-	printf("executing daily tasks...");
-}
-
-static void hourly() {
-	printf("executing hourly tasks...");
-}
-
-static device_t* ramp() {
-	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
-	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
-	printf("PhVphC %d (%2.1f)\n", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
-
-	printf("DCW    %d (%2.1f)\n", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
-	printf("W      %d (%2.1f)\n", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
-
-	printf("PV10=%d PV7=%d\n", state->pv10, state->pv7);
-
-	return 0;
-}
-
-static void check_response(device_t *d) {
-}
-
-static void check_standby() {
-}
-
-static void calculate_state() {
-}
-
-static void update_state() {
-	// clear slot in history for storing new state
-	state = &state_history[state_history_ptr];
-	ZERO(state);
-
-	state->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
-	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
-
-	// set history pointer to next slot
-	if (++state_history_ptr == HISTORY)
-		state_history_ptr = 0;
 }
 
 // TODO performance: make makro
@@ -120,13 +98,52 @@ static int delta(int v, int v_old, int d_proz) {
 	return 0;
 }
 
-static int check_delta() {
-	state_t *h1 = get_state_history(-1);
+static void daily() {
+	printf("executing daily tasks...");
+}
 
-	if (delta(SFI(inverter7->W, inverter7->W_SF), h1->pv7, 2))
-		return 1;
+static void hourly() {
+	printf("executing hourly tasks...");
+}
+
+static device_t* regulate() {
+//	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
+//	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
+//	printf("PhVphC %d (%2.1f)\n", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
+//
+//	printf("DCW    %d (%2.1f)\n", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
+//	printf("W      %d (%2.1f)\n", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
+//
+//	printf("PV10=%d PV7=%d\n", state->pv10, state->pv7);
+
+// takeover ramp()
 
 	return 0;
+}
+
+static void check_response(device_t *d) {
+}
+
+static void calculate() {
+}
+
+static int update() {
+	// clear slot for current values
+	state = &state_history[state_history_ptr];
+	ZERO(state);
+
+	// slot with previous values
+	state_t *h1 = get_state_history(-1);
+
+	int d = 0;
+
+	state->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
+	d |= delta(state->pv10, h1->pv10, 2);
+
+	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
+	d |= delta(state->pv7, h1->pv7, 2);
+
+	return d;
 }
 
 static void loop() {
@@ -134,7 +151,7 @@ static void loop() {
 	device_t *device = 0;
 
 	// initialize hourly & daily
-	time_t now_ts = time(NULL);
+	time_t last_ts = time(NULL), now_ts = time(NULL);
 	struct tm *now = localtime(&now_ts);
 	hour = now->tm_hour;
 	day = now->tm_wday;
@@ -143,26 +160,23 @@ static void loop() {
 	sleep(1);
 
 	while (1) {
-		msleep(200);
+		if (device)
+			sleep(3); // wait for previous regulator effect
+		else
+			msleep(300); // wait for new values
 
-		// do delta check and execute ramp up/down logic if values have changed
-		int delta = check_delta();
-		if (delta) {
-			// store actual values
-			update_state();
+		// update state from modbus registers
+		int delta = update();
 
-			// calculate actual state
-			calculate_state();
+		// evaluate response
+		if (device)
+			check_response(device);
 
-			// check response from previous ramp or do overall standby check
-			if (device)
-				check_response(device);
-			else
-				check_standby();
+		// calculate new state
+		calculate();
 
-			// ramp up/down devices
-			device = ramp();
-		}
+		// execute regulator logic
+		device = regulate();
 
 		// update current date+time
 		now_ts = time(NULL);
@@ -178,6 +192,15 @@ static void loop() {
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
 			daily();
+		}
+
+		// set history pointer to next slot if we had changes or regulations
+		if (delta || device) {
+			state->wait = now_ts - last_ts;
+			dump_state_history(6);
+			if (++state_history_ptr == HISTORY)
+				state_history_ptr = 0;
+			last_ts = now_ts;
 		}
 	}
 }
@@ -322,6 +345,9 @@ static void stop() {
 }
 
 int main(int argc, char *argv[]) {
+	set_debug(1);
+	set_xlog(XLOG_STDOUT);
+
 	init();
 	loop();
 	stop();
