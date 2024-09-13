@@ -78,7 +78,7 @@ static void init_all_devices() {
 
 //static void dump(uint16_t registers[], size_t size) {
 //	for (int i = 0; i < size; i++)
-//		printf("reg[%d]=%05d (0x%04X)\n", i, registers[i], registers[i]);
+//		xlog("reg[%d]=%05d (0x%04X)", i, registers[i], registers[i]);
 //}
 
 static void set_all_devices(int power) {
@@ -88,29 +88,29 @@ static void set_all_devices(int power) {
 static int delta(int v, int v_old, int d_proz) {
 	int v_diff = v - v_old;
 	int v_proz = v == 0 ? 0 : (v_diff * 100) / v;
-	// printf("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d\n", v_old, v, v_diff, v_proz, d_proz);
+	// xlog("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d", v_old, v, v_diff, v_proz, d_proz);
 	if (abs(v_proz) >= d_proz)
 		return 1;
 	return 0;
 }
 
 static void daily() {
-	printf("executing daily tasks...");
+	xlog("executing daily tasks...");
 }
 
 static void hourly() {
-	printf("executing hourly tasks...");
+	xlog("executing hourly tasks...");
 }
 
 static device_t* regulate() {
-//	printf("PhVphA %d (%2.1f)\n", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
-//	printf("PhVphB %d (%2.1f)\n", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
-//	printf("PhVphC %d (%2.1f)\n", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
+//	xlog("PhVphA %d (%2.1f)", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
+//	xlog("PhVphB %d (%2.1f)", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
+//	xlog("PhVphC %d (%2.1f)", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
 //
-//	printf("DCW    %d (%2.1f)\n", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
-//	printf("W      %d (%2.1f)\n", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
+//	xlog("DCW    %d (%2.1f)", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
+//	xlog("W      %d (%2.1f)", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
 //
-//	printf("PV10=%d PV7=%d\n", state->pv10, state->pv7);
+//	xlog("PV10=%d PV7=%d", state->pv10, state->pv7);
 
 // takeover ramp()
 
@@ -230,10 +230,10 @@ static void* fronius10(void *arg) {
 		// TODO remove
 		rc = modbus_set_slave(mb, 2);
 		if (rc == -1)
-			fprintf(stderr, "Fronius10 invalid slave ID\n");
+			xlog("Fronius10 invalid slave ID");
 
 		if (modbus_connect(mb) == -1) {
-			fprintf(stderr, "Fronius10 connection failed: %s, retry in 60sec...\n", modbus_strerror(errno));
+			xlog("Fronius10 connection failed: %s, retry in 60sec...", modbus_strerror(errno));
 			modbus_free(mb);
 			sleep(60);
 			continue;
@@ -248,7 +248,7 @@ static void* fronius10(void *arg) {
 
 			rc = modbus_read_registers(mb, INVERTER_OFFSET - 1, ARRAY_SIZE(inverter_registers), inverter_registers);
 			if (rc == -1) {
-				fprintf(stderr, "%s\n", modbus_strerror(errno));
+				xlog("%s", modbus_strerror(errno));
 				errors++;
 				continue;
 			}
@@ -285,10 +285,10 @@ static void* fronius7(void *arg) {
 		// Fronius7 is secondary unit in installation setup
 		rc = modbus_set_slave(mb, 2);
 		if (rc == -1)
-			fprintf(stderr, "Fronius7 invalid slave ID\n");
+			xlog("Fronius7 invalid slave ID");
 
 		if (modbus_connect(mb) == -1) {
-			fprintf(stderr, "Fronius7 connection failed: %s, retry in 60sec...\n", modbus_strerror(errno));
+			xlog("Fronius7 connection failed: %s, retry in 60sec...", modbus_strerror(errno));
 			modbus_free(mb);
 			sleep(60);
 			continue;
@@ -303,7 +303,7 @@ static void* fronius7(void *arg) {
 
 			rc = modbus_read_registers(mb, INVERTER_OFFSET - 1, ARRAY_SIZE(inverter_registers), inverter_registers);
 			if (rc == -1) {
-				fprintf(stderr, "%s\n", modbus_strerror(errno));
+				xlog("%s", modbus_strerror(errno));
 				errors++;
 				continue;
 			}
@@ -331,8 +331,6 @@ static int init() {
 }
 
 static void stop() {
-	printf("terminating...\n");
-
 	pthread_cancel(thread_fronius10);
 	pthread_join(thread_fronius10, NULL);
 
