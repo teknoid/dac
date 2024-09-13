@@ -501,8 +501,8 @@ static int rampdown_device(device_t *d, int power) {
 static device_t* rampup(int power, device_t **devices) {
 	xdebug("FRONIUS rampup() %d", power);
 	for (device_t **d = devices; *d != 0; d++) {
-		if (rampup_device((*d), power))
-			return (*d);
+		if (rampup_device(*d, power))
+			return *d;
 	}
 
 	return 0; // next priority
@@ -519,8 +519,8 @@ static device_t* rampdown(int power, device_t **devices) {
 
 	// now go backward - this will give a reverse order
 	do {
-		if (rampdown_device((*d), power))
-			return (*d);
+		if (rampdown_device(*d, power))
+			return *d;
 	} while (d-- != devices);
 
 	return 0; // next priority
