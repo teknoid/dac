@@ -117,7 +117,8 @@ static device_t* regulate() {
 	return 0;
 }
 
-static void check_response(device_t *d) {
+static device_t* check_response(device_t *d) {
+	return 0; // clear device
 }
 
 static void calculate() {
@@ -166,13 +167,15 @@ static void loop() {
 
 		// evaluate response
 		if (device)
-			check_response(device);
+			device = check_response(device);
 
-		// calculate new state
-		calculate();
+		if (delta) {
+			// calculate new state
+			calculate();
 
-		// execute regulator logic
-		device = regulate();
+			// execute regulator logic
+			device = regulate();
+		}
 
 		// update current date+time
 		now_ts = time(NULL);
