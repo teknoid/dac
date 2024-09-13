@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <sched.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <fcntl.h>
 #include <syslog.h>
 #include <time.h>
@@ -31,6 +32,18 @@ static int debug = 0;
 static const char *filename = "/var/log/mcp.log";
 static FILE *xlog_file;
 
+static pthread_mutex_t lock;
+
+static void xlog_open() {
+	xlog_file = fopen(filename, "a");
+	if (xlog_file == 0) {
+		perror("error opening logfile!");
+		exit(EXIT_FAILURE);
+	}
+	fprintf(xlog_file, "\nlogging initialized\n");
+	fflush(xlog_file);
+}
+
 void set_debug(int d) {
 	debug = d;
 }
@@ -49,41 +62,32 @@ void xlog_close() {
 }
 
 void xlog(const char *format, ...) {
-	char timestamp[26];
 	va_list vargs;
+
+	pthread_mutex_lock(&lock);
 
 	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
 		vprintf(format, vargs);
 		va_end(vargs);
 		printf("\n");
-		return;
 	}
 
 	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
 		vsyslog(LOG_NOTICE, format, vargs);
 		va_end(vargs);
-		return;
 	}
 
 	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-			fprintf(xlog_file, "\nlogging initialized\n");
-			fflush(xlog_file);
-		}
+		if (xlog_file == 0)
+			xlog_open();
 
-		time_t timer;
-		struct tm *tm_info;
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
 
-		time(&timer);
-		tm_info = localtime(&timer);
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		char timestamp[26];
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -92,6 +96,8 @@ void xlog(const char *format, ...) {
 		fprintf(xlog_file, "\n");
 		fflush(xlog_file);
 	}
+
+	pthread_mutex_unlock(&lock);
 }
 
 void xdebug(const char *format, ...) {
@@ -99,41 +105,32 @@ void xdebug(const char *format, ...) {
 		return;
 
 	// !!! do not call xlog(format) here as varargs won't work correctly
-	char timestamp[26];
 	va_list vargs;
+
+	pthread_mutex_lock(&lock);
 
 	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
 		vprintf(format, vargs);
 		va_end(vargs);
 		printf("\n");
-		return;
 	}
 
 	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
 		vsyslog(LOG_NOTICE, format, vargs);
 		va_end(vargs);
-		return;
 	}
 
 	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-			fprintf(xlog_file, "\nlogging initialized\n");
-			fflush(xlog_file);
-		}
+		if (xlog_file == 0)
+			xlog_open();
 
-		time_t timer;
-		struct tm *tm_info;
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
 
-		time(&timer);
-		tm_info = localtime(&timer);
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		char timestamp[26];
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -142,45 +139,38 @@ void xdebug(const char *format, ...) {
 		fprintf(xlog_file, "\n");
 		fflush(xlog_file);
 	}
+
+	pthread_mutex_unlock(&lock);
 }
 
 int xerr(const char *format, ...) {
 	// !!! do not call xlog(format) here as varargs won't work correctly
-	char timestamp[26];
 	va_list vargs;
+
+	pthread_mutex_lock(&lock);
 
 	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
 		vprintf(format, vargs);
 		va_end(vargs);
 		printf("\n");
-		return -1;
 	}
 
 	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
 		vsyslog(LOG_NOTICE, format, vargs);
 		va_end(vargs);
-		return -1;
 	}
 
 	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-			fprintf(xlog_file, "\nlogging initialized\n");
-			fflush(xlog_file);
-		}
+		if (xlog_file == 0)
+			xlog_open();
 
-		time_t timer;
-		struct tm *tm_info;
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
 
-		time(&timer);
-		tm_info = localtime(&timer);
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		char timestamp[26];
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -190,13 +180,15 @@ int xerr(const char *format, ...) {
 		fflush(xlog_file);
 	}
 
+	pthread_mutex_unlock(&lock);
 	return -1;
 }
 
 int xerrr(int ret, const char *format, ...) {
 	// !!! do not call xlog(format) here as varargs won't work correctly
-	char timestamp[26];
 	va_list vargs;
+
+	pthread_mutex_lock(&lock);
 
 	if (output == XLOG_STDOUT) {
 		va_start(vargs, format);
@@ -214,22 +206,14 @@ int xerrr(int ret, const char *format, ...) {
 	}
 
 	if (output == XLOG_FILE) {
-		if (xlog_file == 0) {
-			xlog_file = fopen(filename, "a");
-			if (xlog_file == 0) {
-				perror("error opening logfile!");
-				exit(EXIT_FAILURE);
-			}
-			fprintf(xlog_file, "\nlogging initialized\n");
-			fflush(xlog_file);
-		}
+		if (xlog_file == 0)
+			xlog_open();
 
-		time_t timer;
-		struct tm *tm_info;
+		time_t now_ts = time(NULL);
+		struct tm *now = localtime(&now_ts);
 
-		time(&timer);
-		tm_info = localtime(&timer);
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", tm_info);
+		char timestamp[26];
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -239,6 +223,7 @@ int xerrr(int ret, const char *format, ...) {
 		fflush(xlog_file);
 	}
 
+	pthread_mutex_unlock(&lock);
 	return ret;
 }
 
