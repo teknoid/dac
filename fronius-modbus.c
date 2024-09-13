@@ -69,13 +69,12 @@ static void dump_state_history(int back) {
 // initialize all devices with start values
 static void init_all_devices() {
 	printf("known devices:");
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		d->state = Active;
-		d->power = -1;
-		d->dload = 0;
-		d->addr = resolve_ip(d->name);
-		printf(" %s", d->name);
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		(*d)->state = Active;
+		(*d)->power = -1;
+		(*d)->dload = 0;
+		(*d)->addr = resolve_ip((*d)->name);
+		printf(" %s", (*d)->name);
 	}
 	printf("\n");
 }
@@ -161,7 +160,7 @@ static void loop() {
 
 	while (1) {
 		if (device)
-			sleep(3); // wait for previous regulator effect
+			sleep(3); // wait for regulation to take effect
 		else
 			msleep(300); // wait for new values
 

@@ -54,7 +54,7 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 
 fronius-api: fronius-api.o utils.o frozen.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-api.c
-	$(CC) $(CFLAGS) -o fronius fronius-api.o utils.o frozen.o -lcurl
+	$(CC) $(CFLAGS) -o fronius fronius-api.o utils.o frozen.o curl.o -lcurl
 
 fronius-modbus: fronius-modbus.o utils.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c

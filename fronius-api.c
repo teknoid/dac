@@ -31,7 +31,7 @@
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
 
 // program of the day - mosmix will chose appropriate program
-static potd_t *potd;
+static potd_t *potd = 0;
 
 // global meter values and history
 static meter_t *meter;
@@ -157,20 +157,17 @@ int set_boiler(device_t *boiler, int power) {
 }
 
 static void set_all_devices(int power) {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		(d->set_function)(d, power);
-	}
+	for (device_t **d = DEVICES; *d != 0; d++)
+		((*d)->set_function)((*d), power);
 }
 
 // initialize all devices with start values
 static void init_all_devices() {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		d->state = Active;
-		d->power = -1;
-		d->dload = 0;
-		d->addr = resolve_ip(d->name);
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		(*d)->state = Active;
+		(*d)->power = -1;
+		(*d)->dload = 0;
+		(*d)->addr = resolve_ip((*d)->name);
 	}
 }
 
@@ -254,14 +251,17 @@ static void print_device_status(int wait, int next_reset) {
 	char value[5];
 
 	strcpy(message, "FRONIUS device state ");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-		snprintf(value, 5, "%d", (*ds)->device->state);
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->state);
 		strcat(message, value);
 	}
 
 	strcat(message, "   power ");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-		snprintf(value, 5, " %3d", (*ds)->device->power);
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if ((*d)->adjustable)
+			snprintf(value, 5, " %3d", (*d)->power);
+		else
+			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
 		strcat(message, value);
 	}
 
@@ -349,6 +349,11 @@ static int parse_meter(response_t *r) {
 
 static int choose_program(const potd_t *p, int mosmix) {
 	xlog("FRONIUS choosing %s program of the day", p->name);
+	if (potd == p)
+		return mosmix;
+
+	// potd has changed - reset all current devices
+	set_all_devices(0);
 	potd = (potd_t*) p;
 	return mosmix;
 }
@@ -356,9 +361,6 @@ static int choose_program(const potd_t *p, int mosmix) {
 static int read_mosmix(struct tm *now) {
 	char line[8];
 	int m0, m1, m2;
-
-	// default program
-	potd = (potd_t*) &CLOUDY_EMPTY;
 
 	FILE *fp = fopen(MOSMIX, "r");
 	if (fp == NULL)
@@ -496,34 +498,30 @@ static int rampdown_device(device_t *d, int power) {
 		return ramp_dumb(d, power);
 }
 
-static device_t* rampup(int power, int only_greedy) {
-	xdebug("FRONIUS rampup() %d %s", power, only_greedy ? "greedy" : "modest");
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-		if (only_greedy && !(*ds)->greedy)
-			continue; // skip non-greedy devices
-		if (rampup_device((*ds)->device, power))
-			return (*ds)->device;
+static device_t* rampup(int power, device_t **devices) {
+	xdebug("FRONIUS rampup() %d", power);
+	for (device_t **d = devices; *d != 0; d++) {
+		if (rampup_device((*d), power))
+			return (*d);
 	}
 
 	return 0; // next priority
 }
 
-static device_t* rampdown(int power, int skip_greedy) {
-	xdebug("FRONIUS rampdown() %d %s", power, skip_greedy ? "modest" : "greedy");
-	const potd_device_t **ds = potd->devices;
+static device_t* rampdown(int power, device_t **devices) {
+	xdebug("FRONIUS rampdown() %d", power);
+	device_t **d = devices;
 
 	// jump to last entry
-	while (*ds != NULL)
-		ds++;
-	ds--;
+	while (*d != 0)
+		d++;
+	d--;
 
 	// now go backward - this will give a reverse order
 	do {
-		if (skip_greedy && (*ds)->greedy)
-			continue; // skip greedy devices
-		if (rampdown_device((*ds)->device, power))
-			return (*ds)->device;
-	} while (ds-- != potd->devices);
+		if (rampdown_device((*d), power))
+			return (*d);
+	} while (d-- != devices);
 
 	return 0; // next priority
 }
@@ -534,28 +532,28 @@ static device_t* ramp() {
 
 	// 1. no extra power available: ramp down devices but skip greedy
 	if (state->modest < 0) {
-		d = rampdown(state->modest, 1);
+		d = rampdown(state->modest, potd->modest);
 		if (d)
 			return d;
 	}
 
 	// 2. consuming grid power or discharging akku: ramp down all devices
 	if (state->greedy < 0) {
-		d = rampdown(state->greedy, 0);
+		d = rampdown(state->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
 	if (state->greedy > 0) {
-		d = rampup(state->greedy, 1);
+		d = rampup(state->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 4. extra power available: ramp up all devices
 	if (state->modest > 0) {
-		d = rampup(state->modest, 0);
+		d = rampup(state->modest, potd->modest);
 		if (d)
 			return d;
 	}
@@ -566,23 +564,17 @@ static device_t* ramp() {
 static void steal_power() {
 	int dpower = 0, apower = 0, greedy_dumb_off = 0;
 
-	// check if we have greedy dumb off devices
-	// collect non greedy adjustable power and greedy dumb power
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-		device_t *d = (*ds)->device;
-
-		if ((*ds)->greedy && !d->adjustable && !d->power)
+	// collect greedy dumb power and check if we have greedy dumb off devices
+	for (device_t **d = potd->greedy; *d != 0; d++)
+		if (!(*d)->power)
 			greedy_dumb_off = 1;
+		else if (!(*d)->adjustable && (*d)->power)
+			dpower += (*d)->load;
 
-		if (!d->power)
-			continue;
-
-		if (!(*ds)->greedy && d->adjustable)
-			apower += d->load * d->power / 100;
-
-		if ((*ds)->greedy && !d->adjustable)
-			dpower += d->load;
-	}
+	// collect non greedy adjustable
+	for (device_t **d = potd->modest; *d != 0; d++)
+		if ((*d)->adjustable && (*d)->power)
+			apower += (*d)->load * (*d)->power / 100;
 
 	// nothing to steal
 	if (!greedy_dumb_off || !apower)
@@ -603,17 +595,17 @@ static void check_standby() {
 
 	// force standby check on all devices if we have no load at all
 	if (BASELOAD * -1 < state->load) {
-		for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-			if ((*ds)->device->power)
-				(*ds)->device->state = Request_Standby_Check;
+		for (device_t **d = DEVICES; *d != 0; d++)
+			if ((*d)->power)
+				(*d)->state = Request_Standby_Check;
 		return;
 	}
 
 	if (state->dload > BASELOAD) {
 		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
-		for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-			if ((*ds)->device->thermostat && (*ds)->device->power)
-				(*ds)->device->state = Request_Standby_Check;
+		for (device_t **d = DEVICES; *d != 0; d++)
+			if ((*d)->thermostat && (*d)->power)
+				(*d)->state = Request_Standby_Check;
 	}
 }
 
@@ -761,8 +753,8 @@ static int calculate_next_round(device_t *d) {
 
 	// all devices in standby?
 	int all_standby = 1;
-	for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++)
-		if ((*ds)->device->state == Active)
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state == Active)
 			all_standby = 0;
 	if (all_standby)
 		return WAIT_STANDBY;
@@ -877,15 +869,14 @@ static void fronius() {
 		}
 
 		// reset program of the day and standby states every 30min
-		if (potd == NULL || now_ts > next_reset) {
+		if (potd == 0 || now_ts > next_reset) {
 			xlog("FRONIUS resetting standby and thermostat states");
 
 			mosmix = read_mosmix(now);
-			for (const potd_device_t **ds = potd->devices; *ds != NULL; ds++) {
-				device_t *d = (*ds)->device;
-				d->state = Active;
-				if (d->thermostat)
-					d->power = 0;
+			for (device_t **d = DEVICES; *d != 0; d++) {
+				(*d)->state = Active;
+				if ((*d)->thermostat)
+					(*d)->power = 0;
 			}
 
 			next_reset = now_ts + STANDBY_RESET;
@@ -1107,13 +1098,12 @@ static void stop() {
 }
 
 int fronius_override_seconds(const char *name, int seconds) {
-	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
-		device_t *d = devices[i];
-		if (!strcmp(d->name, name)) {
-			xlog("FRONIUS Activating Override for %d seconds on %s", seconds, d->name);
-			d->override = time(NULL) + seconds;
-			d->state = Active;
-			(d->set_function)(d, 100);
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if (!strcmp((*d)->name, name)) {
+			xlog("FRONIUS Activating Override for %d seconds on %s", seconds, (*d)->name);
+			(*d)->override = time(NULL) + seconds;
+			(*d)->state = Active;
+			((*d)->set_function)((*d), 100);
 		}
 	}
 	return 0;
