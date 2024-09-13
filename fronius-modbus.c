@@ -68,15 +68,12 @@ static void dump_state_history(int back) {
 
 // initialize all devices with start values
 static void init_all_devices() {
-	printf("known devices:");
 	for (device_t **d = DEVICES; *d != 0; d++) {
 		(*d)->state = Active;
 		(*d)->power = -1;
 		(*d)->dload = 0;
 		(*d)->addr = resolve_ip((*d)->name);
-		printf(" %s", (*d)->name);
 	}
-	printf("\n");
 }
 
 //static void dump(uint16_t registers[], size_t size) {
