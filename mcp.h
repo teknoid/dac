@@ -1,12 +1,18 @@
 #include <pthread.h>
 #include <mpd/status.h>
 
-#define TRON
 //#define ANUS
+#define TRON
+//#define ODROID
 //#define PIWOLF
 //#define PICAM
 //#define SABRE18
 //#define SABRE28
+
+#ifdef ANUS
+#define MUSIC 			"/opt/music/"
+#define DISPLAY			"/dev/tty"
+#endif
 
 #ifdef TRON
 #define TASMOTA
@@ -15,9 +21,8 @@
 #define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
 #endif
 
-#ifdef ANUS
-#define MUSIC 			"/opt/music/"
-#define DISPLAY			"/dev/tty"
+#ifdef ODROID
+#define TASMOTA
 #endif
 
 #ifdef PICAM

@@ -1,7 +1,6 @@
 #define ON					"ON"
 #define OFF					"OFF"
 
-#define	CLIENT_ID			"tron-mcp"
 #define	HOST				"mqtt"
 #define PORT				"1883"
 

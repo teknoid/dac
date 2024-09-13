@@ -110,7 +110,11 @@ static void play(const char *sound) {
 	else
 		snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 	xlog("MQTT system: %s", command);
+
+#ifdef MIXER
 	system(command);
+#endif
+
 	free(command);
 }
 
@@ -214,10 +218,14 @@ static void mqtt() {
 static int init() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
+	char hostname[128], client_id[128];
+	gethostname(hostname, 128);
+
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));
 	ZERO(client_tx);
 
+	snprintf(client_id, 128, "%s-mcp-tx", hostname);
 	mqttfd_tx = open_nb_socket(HOST, PORT);
 	if (mqttfd_tx == -1)
 		return xerr("MQTT Failed to open socket: ");
@@ -225,7 +233,7 @@ static int init() {
 	if (mqtt_init(client_tx, mqttfd_tx, sendbuf_tx, sizeof(sendbuf_tx), recvbuf_tx, sizeof(recvbuf_tx), NULL) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	if (mqtt_connect(client_tx, CLIENT_ID"-tx", NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+	if (mqtt_connect(client_tx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
 	if (client_tx->error != MQTT_OK)
@@ -235,6 +243,7 @@ static int init() {
 	client_rx = malloc(sizeof(*client_rx));
 	ZERO(client_rx);
 
+	snprintf(client_id, 128, "%s-mcp-rx", hostname);
 	mqttfd_rx = open_nb_socket(HOST, PORT);
 	if (mqttfd_rx == -1)
 		return xerr("MQTT Failed to open socket: ");
@@ -242,7 +251,7 @@ static int init() {
 	if (mqtt_init(client_rx, mqttfd_rx, sendbuf_rx, sizeof(sendbuf_rx), recvbuf_rx, sizeof(recvbuf_rx), callback) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_connect(client_rx, CLIENT_ID"-rx", NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+	if (mqtt_connect(client_rx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (client_rx->error != MQTT_OK)
