@@ -403,16 +403,16 @@ static int read_mosmix(struct tm *now) {
 
 	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
-	if (e0 > n)
-		return choose_program(&SUNNY, m0);
+	if (state->chrg < 25)
+		return choose_program(&CLOUDY_EMPTY, m0);
 
-	if (state->chrg > 50 && e1 > SELF_CONSUMING)
+	if (state->chrg < 75 && e1 > SELF_CONSUMING)
 		return choose_program(&TOMORROW, m0);
 
-	if (state->chrg > 75)
+	if (state->chrg < 90)
 		return choose_program(&CLOUDY_FULL, m0);
 
-	return choose_program(&CLOUDY_EMPTY, m0);
+	return choose_program(&SUNNY, m0);
 }
 
 static int calculate_step(device_t *d, int power) {
