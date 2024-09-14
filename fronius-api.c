@@ -633,7 +633,7 @@ static void check_standby() {
 		}
 }
 
-static void check_response(device_t *d) {
+static device_t* check_response(device_t *d) {
 
 	// do we have a valid response - at least 50% of expected?
 	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
@@ -641,15 +641,14 @@ static void check_response(device_t *d) {
 	// response OK
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
-		d->dload = 0;
-		return;
+		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->state = Active;
-		return;
+		return 0;
 	}
 
 	// standby check was positive -> set device into standby and delete all other standby requests
@@ -657,35 +656,35 @@ static void check_response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
-		d->dload = 0;
 		for (device_t **d = DEVICES; *d != 0; d++)
 			if ((*d)->state == Request_Standby_Check)
 				(*d)->state = Active;
-		return;
+		return 0;
 	}
 
 	// last delta load was too small (minimum 5%)
 	int min = d->load * 5 / 100;
 	if (abs(d->dload) < min) {
 		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
-		return;
+		return 0;
 	}
 
 	// distortion - load values are not reliable
 	if (state->distortion) {
 		xdebug("FRONIUS skipping standby check for %s due to distortion %d", d->name, state->distortion);
-		return;
+		return 0;
 	}
 
 	// ignore standby check when switched off a dumb device
 	if (!d->adjustable && d->dload > 0) {
 		xdebug("FRONIUS skipping standby check for %s: switched off dumb device", d->name);
-		return;
+		return 0;
 	}
 
 	// initiate a standby check
 	xdebug("FRONIUS no response from %s, requesting standby check", d->name);
 	d->state = Request_Standby_Check;
+	return 0;
 }
 
 static void calculate_state() {
@@ -930,14 +929,12 @@ static void fronius() {
 
 		// check response from previous ramp or do overall standby check
 		if (device)
-			check_response(device);
+			device = check_response(device);
 		else
 			check_standby();
 
 		// ramp up/down devices depending on if we have surplus or not
-		device = 0;
-		if (state->greedy)
-			device = ramp();
+		device = ramp();
 
 		// determine wait for next round
 		wait = state->wait = calculate_next_round(device);
