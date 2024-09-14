@@ -593,13 +593,6 @@ static void check_standby() {
 	if (state->distortion || state->load > 0)
 		return; // standby check is not reliable or positive load
 
-	// force standby check on all devices if we have no load at all
-	if (BASELOAD * -1 < state->load) {
-		for (device_t **d = DEVICES; *d != 0; d++)
-			if ((*d)->power)
-				(*d)->state = Request_Standby_Check;
-		return;
-	}
 
 	if (state->dload > BASELOAD) {
 		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);

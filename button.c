@@ -32,6 +32,9 @@
 static int i2cfd;
 
 static void handle_button(unsigned char c) {
+	if (c == 128)
+		return; // this is the shift button
+
 	xlog("BUTTON handle %d", c);
 
 	switch (c) {
@@ -52,6 +55,9 @@ static void handle_button(unsigned char c) {
 		break;
 	case 32:
 		fronius_override_seconds("plug5", 3600);
+		break;
+	case 160:
+		fronius_override_seconds("plug9", 3600);
 		break;
 	}
 }
