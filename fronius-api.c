@@ -26,6 +26,7 @@
 #define WAIT_STABLE			60
 #define WAIT_IDLE			20
 #define WAIT_NEXT			10
+#define WAIT_REGULATE		5
 
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
@@ -676,6 +677,12 @@ static void check_response(device_t *d) {
 		return;
 	}
 
+	// ignore standby check when switched off a dumb device
+	if (!d->adjustable && d->dload > 0) {
+		xdebug("FRONIUS skipping standby check for %s: switched off dumb device", d->name);
+		return;
+	}
+
 	// initiate a standby check
 	xdebug("FRONIUS no response from %s, requesting standby check", d->name);
 	d->state = Request_Standby_Check;
@@ -769,7 +776,7 @@ static void calculate_state() {
 static int calculate_next_round(device_t *d) {
 	// device ramp - wait for response
 	if (d)
-		return WAIT_NEXT;
+		return WAIT_REGULATE;
 
 	// determine wait for next round
 	// much faster next round on
