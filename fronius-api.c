@@ -624,12 +624,12 @@ static void check_standby() {
 	}
 
 	// force standby check on powered devices but load lower than expected
-	// TODO das führt zu einer loop wenn boiler1 noch heizt aber boiler2 abgeschalten hat
+	// TODO das führt aktuell noch zu einer loop wenn boiler1 noch heizt aber boiler2 abgeschalten hat
 	int delta = state->load - state->xload;
 	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->power && delta > (*d)->load / 2) {
+		if ((*d)->thermostat && (*d)->power && delta > (*d)->load / 2) {
 			xdebug("FRONIUS delta load/xload %d is >50%% for %s load, requesting standby check", delta, (*d)->name);
-			// (*d)->state = Request_Standby_Check;
+			(*d)->state = Request_Standby_Check;
 		}
 }
 
