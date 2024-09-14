@@ -171,6 +171,20 @@ static void init_all_devices() {
 	}
 }
 
+static int calculate_xload() {
+	int xload = BASELOAD;
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if (!(*d)->power)
+			continue;
+
+		if ((*d)->adjustable)
+			xload += (*d)->load * (*d)->power / 100;
+		else
+			xload += (*d)->load;
+	}
+	return xload * -1;
+}
+
 static meter_t* get_meter_history(int offset) {
 	int i = meter_history_ptr + offset;
 	if (i < 0)
@@ -193,7 +207,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload  pv10   pv7  dist  tend  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -515,13 +529,12 @@ static device_t* rampdown(int power, device_t **devices) {
 	// jump to last entry
 	while (*d != 0)
 		d++;
-	d--;
 
 	// now go backward - this will give a reverse order
-	do {
+	while (d-- != devices) {
 		if (rampdown_device(*d, power))
 			return *d;
-	} while (d-- != devices);
+	}
 
 	return 0; // next priority
 }
@@ -590,16 +603,33 @@ static void steal_power() {
 }
 
 static void check_standby() {
-	if (state->distortion || state->load > 0)
-		return; // standby check is not reliable or positive load
+	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
+		return; // standby check is not reliable or positive load or no active devices
 
+	if (BASELOAD * -1 < state->load) {
+		xdebug("FRONIUS no load at all, requesting standby check on all devices");
+		for (device_t **d = DEVICES; *d != 0; d++)
+			if ((*d)->power)
+				(*d)->state = Request_Standby_Check;
+		return;
+	}
 
 	if (state->dload > BASELOAD) {
 		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
 		for (device_t **d = DEVICES; *d != 0; d++)
 			if ((*d)->thermostat && (*d)->power)
 				(*d)->state = Request_Standby_Check;
+		return;
 	}
+
+	// force standby check on powered devices but load lower than expected
+	// TODO das führt zu einer loop wenn boiler1 noch heizt aber boiler2 abgeschalten hat
+	int delta = state->load - state->xload;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->power && delta > (*d)->load / 2) {
+			xdebug("FRONIUS delta load/xload %d is >50%% for %s load, requesting standby check", delta, (*d)->name);
+			// (*d)->state = Request_Standby_Check;
+		}
 }
 
 static void check_response(device_t *d) {
@@ -621,12 +651,15 @@ static void check_response(device_t *d) {
 		return;
 	}
 
-	// standby check was positive set device into standby
+	// standby check was positive -> set device into standby and delete all other standby requests
 	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
 		d->dload = 0;
+		for (device_t **d = DEVICES; *d != 0; d++)
+			if ((*d)->state == Request_Standby_Check)
+				(*d)->state = Active;
 		return;
 	}
 
@@ -668,6 +701,9 @@ static void calculate_state() {
 	state->dload = state->load - h1->load;
 	if (abs(state->dload) < NOISE)
 		state->dload = 0;
+
+	// calculate expected load
+	state->xload = calculate_xload();
 
 	// wasting akku->grid power?
 	if (state->akku > NOISE && state->grid < NOISE * -1) {
