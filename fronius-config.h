@@ -52,6 +52,7 @@ struct _state {
 	int chrg;
 	int load;
 	int dload;
+	int xload;
 	int pv10;
 	int pv7;
 	int distortion;
