@@ -378,8 +378,10 @@ static int read_mosmix(struct tm *now) {
 	int m0, m1, m2;
 
 	FILE *fp = fopen(MOSMIX, "r");
-	if (fp == NULL)
-		return xerr("FRONIUS no mosmix data available");
+	if (fp == NULL) {
+		xlog("FRONIUS no mosmix data available");
+		return choose_program(&CLOUDY_EMPTY, m0);
+	}
 
 	if (fgets(line, 8, fp) != NULL)
 		if (sscanf(line, "%d", &m0) != 1)
@@ -407,11 +409,11 @@ static int read_mosmix(struct tm *now) {
 	if (state->chrg < 25)
 		return choose_program(&CLOUDY_EMPTY, m0);
 
-	if (state->chrg < 75 && e1 > SELF_CONSUMING)
-		return choose_program(&TOMORROW, m0);
-
-	if (state->chrg < 90)
+	if (state->chrg > 75)
 		return choose_program(&CLOUDY_FULL, m0);
+
+	if (e0 < SELF_CONSUMING && e1 > SELF_CONSUMING)
+		return choose_program(&TOMORROW, m0);
 
 	return choose_program(&SUNNY, m0);
 }
@@ -514,7 +516,7 @@ static int rampdown_device(device_t *d, int power) {
 }
 
 static device_t* rampup(int power, device_t **devices) {
-	xdebug("FRONIUS rampup() %d", power);
+	// debug("FRONIUS rampup() %d", power);
 	for (device_t **d = devices; *d != 0; d++) {
 		if (rampup_device(*d, power))
 			return *d;
@@ -524,7 +526,7 @@ static device_t* rampup(int power, device_t **devices) {
 }
 
 static device_t* rampdown(int power, device_t **devices) {
-	xdebug("FRONIUS rampdown() %d", power);
+	// xdebug("FRONIUS rampdown() %d", power);
 	device_t **d = devices;
 
 	// jump to last entry
