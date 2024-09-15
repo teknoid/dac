@@ -26,7 +26,8 @@
 #define WAIT_STABLE			60
 #define WAIT_IDLE			20
 #define WAIT_NEXT			10
-#define WAIT_REGULATE		5
+#define WAIT_ADJUSTABLE		5
+#define WAIT_DUMB			10
 
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
@@ -776,8 +777,12 @@ static void calculate_state() {
 
 static int calculate_next_round(device_t *d) {
 	// device ramp - wait for response
-	if (d)
-		return WAIT_REGULATE;
+	if (d) {
+		if (d->adjustable)
+			return WAIT_ADJUSTABLE;
+		else
+			return WAIT_DUMB;
+	}
 
 	// determine wait for next round
 	// much faster next round on
