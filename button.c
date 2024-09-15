@@ -54,10 +54,14 @@ static void handle_button(unsigned char c) {
 		system("/m/party.sh");
 		break;
 	case 32:
+#ifdef FRONIUS
 		fronius_override_seconds("plug5", 3600);
+#endif
 		break;
 	case 160:
+#ifdef FRONIUS
 		fronius_override_seconds("plug9", 3600);
+#endif
 		break;
 	}
 }
