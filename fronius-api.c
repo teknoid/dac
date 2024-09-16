@@ -766,7 +766,7 @@ static void calculate_state() {
 		state->tendence = 0;
 
 	// allow more tolerance for bigger pv production
-	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
+	int tolerance = state->pv / 1000 + 1;
 	int kf = KEEP_FROM * tolerance;
 	int kt = KEEP_TO * tolerance;
 
@@ -778,26 +778,16 @@ static void calculate_state() {
 
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
-
-	// calculate greedy and modest power
-	if (state->surplus > kt)
-		state->greedy = state->surplus - kt;
-	else if (state->surplus < kf)
-		state->greedy = state->surplus - kf;
-	else
+	int keep = abs(state->grid) < kf && abs(state->akku) < kf;
+	if (keep) {
+		// we have a stable state
 		state->greedy = 0;
-
-	// only grid load - not going into akku or from secondary inverters
-	// state->modest = state->greedy - abs(state->akku);
-	int upload = state->grid * -1;
-	if (upload > kt)
-		state->modest = upload - kt;
-	else if (upload < kf)
-		state->modest = upload - kf;
-	else
 		state->modest = 0;
-	if (state->modest > state->greedy)
-		state->modest = state->greedy; // cannot be higher than greedy
+	} else {
+		// calculate greedy and modest power
+		state->greedy = state->surplus - kt;
+		state->modest = (state->grid * -1) - (state->akku > 0 ? state->akku : 0) - kt;
+	}
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
