@@ -407,14 +407,15 @@ static int read_mosmix(struct tm *now) {
 
 	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
-	if (state->chrg < 25)
-		return choose_program(&CLOUDY_EMPTY, m0);
+	if (e0 < SELF_CONSUMING) {
+		if (state->chrg < 33)
+			return choose_program(&CLOUDY_EMPTY, m0);
 
-	if (state->chrg > 75)
-		return choose_program(&CLOUDY_FULL, m0);
-
-	if (e0 < SELF_CONSUMING && e1 > SELF_CONSUMING)
-		return choose_program(&TOMORROW, m0);
+		if (e1 > SELF_CONSUMING)
+			return choose_program(&TOMORROW, m0);
+		else
+			return choose_program(&CLOUDY_FULL, m0);
+	}
 
 	return choose_program(&SUNNY, m0);
 }
@@ -598,7 +599,7 @@ static void steal_power() {
 		return;
 
 	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
-	int spower = state->load * -1 - dpower - BASELOAD;
+	int spower = state->load * -1 - dpower;
 	if (spower < 0)
 		spower = 0;
 	state->steal = spower < apower ? spower : apower;
@@ -607,33 +608,45 @@ static void steal_power() {
 }
 
 static void check_standby() {
+	// standby check is not reliable or positive load or no active devices
 	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
-		return; // standby check is not reliable or positive load or no active devices
-
-	if (BASELOAD * -1 < state->load) {
-		xdebug("FRONIUS no load at all, requesting standby check on all devices");
-		for (device_t **d = DEVICES; *d != 0; d++)
-			if ((*d)->power)
-				(*d)->state = Request_Standby_Check;
 		return;
-	}
 
-	if (state->dload > BASELOAD) {
-		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
-		for (device_t **d = DEVICES; *d != 0; d++)
-			if ((*d)->thermostat && (*d)->power)
-				(*d)->state = Request_Standby_Check;
-		return;
-	}
-
-	// force standby check on powered devices but load lower than expected
-	// TODO das führt aktuell noch zu einer loop wenn boiler1 noch heizt aber boiler2 abgeschalten hat
-	int delta = state->load - state->xload;
+	// stop if we still have active standby checks or requests
 	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->thermostat && (*d)->power && delta > (*d)->load / 2) {
-			xdebug("FRONIUS delta load/xload %d is >50%% for %s load, requesting standby check", delta, (*d)->name);
-			(*d)->state = Request_Standby_Check;
+		if ((*d)->state == Standby_Check || (*d)->state == Request_Standby_Check)
+			return;
+
+	// force standby check on powered devices when difference between load and expected load is more than 50%
+	int diff = state->load - state->xload;
+	int diff_perc = abs((state->load * 100) / state->xload);
+	if (diff_perc < 50) {
+		xdebug("FRONIUS load/xload difference below 50%% (%d = %d%%) , requesting standby check on all powered devices", diff, diff_perc);
+		for (device_t **d = DEVICES; *d != 0; d++) {
+			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
+			if (powered)
+				(*d)->state = Request_Standby_Check;
 		}
+	}
+
+	// not needed anymore?
+//	if (BASELOAD * -1 < state->load) {
+//		xdebug("FRONIUS no load at all, requesting standby check on all powered devices");
+//		for (device_t **d = DEVICES; *d != 0; d++) {
+//			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
+//			if (powered)
+//				(*d)->state = Request_Standby_Check;
+//		}
+//		return;
+//	}
+//
+//	if (state->dload > BASELOAD) {
+//		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
+//		for (device_t **d = DEVICES; *d != 0; d++)
+//			if ((*d)->thermostat && (*d)->power)
+//				(*d)->state = Request_Standby_Check;
+//		return;
+//	}
 }
 
 static device_t* check_response(device_t *d) {
@@ -937,8 +950,9 @@ static void fronius() {
 		// check response from previous ramp or do overall standby check
 		if (device)
 			device = check_response(device);
-		else
-			check_standby();
+
+		// do general standby check
+		check_standby();
 
 		// ramp up/down devices depending on if we have surplus or not
 		device = ramp();
