@@ -209,7 +209,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload cload  pv10   pv7  dist  tend  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -733,6 +733,9 @@ static void calculate_state() {
 
 	// calculate expected load
 	state->xload = calculate_xload();
+
+	// calculate load manually
+	state->cload = (state->pv + state->akku + state->grid) * -1;
 
 	// wasting akku->grid power?
 	if (state->akku > NOISE && state->grid < NOISE * -1) {

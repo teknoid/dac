@@ -53,6 +53,7 @@ struct _state {
 	int load;
 	int dload;
 	int xload;
+	int cload;
 	int pv10;
 	int pv7;
 	int distortion;
