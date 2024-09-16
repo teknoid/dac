@@ -630,7 +630,7 @@ static void check_standby() {
 		for (device_t **d = DEVICES; *d != 0; d++) {
 			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
 			if (powered) {
-				xdebug("FRONIUS load/xload difference below 50%% (%d = %d%%) , requesting standby check on %s", diff, diff_perc, (*d)->name);
+				xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, (*d)->name);
 				(*d)->state = Request_Standby_Check;
 			}
 		}
@@ -785,7 +785,16 @@ static void calculate_state() {
 		state->greedy = 0;
 
 	// only grid load - not going into akku or from secondary inverters
-	state->modest = state->greedy - abs(state->akku);
+	// state->modest = state->greedy - abs(state->akku);
+	int upload = state->grid * -1;
+	if (upload > kt)
+		state->modest = upload - kt;
+	else if (upload < kf)
+		state->modest = upload - kf;
+	else
+		state->modest = 0;
+	if (state->modest > state->greedy)
+		state->modest = state->greedy; // cannot be higher than greedy
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
