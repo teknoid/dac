@@ -381,7 +381,7 @@ static int read_mosmix(struct tm *now) {
 	FILE *fp = fopen(MOSMIX, "r");
 	if (fp == NULL) {
 		xlog("FRONIUS no mosmix data available");
-		return choose_program(&CLOUDY_EMPTY, m0);
+		return choose_program(&EMPTY, m0);
 	}
 
 	if (fgets(line, 8, fp) != NULL)
@@ -408,13 +408,11 @@ static int read_mosmix(struct tm *now) {
 	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
 	if (e0 < SELF_CONSUMING) {
-		if (state->chrg < 40) // survive next night
-			return choose_program(&CLOUDY_EMPTY, m0);
+		if (now->tm_hour > 12 && state->chrg < 40) // emergency load to survive next night
+			return choose_program(&EMPTY, m0);
 
 		if (e1 > SELF_CONSUMING)
 			return choose_program(&TOMORROW, m0);
-		else
-			return choose_program(&CLOUDY_FULL, m0);
 	}
 
 	return choose_program(&SUNNY, m0);
@@ -425,6 +423,9 @@ static int calculate_step(device_t *d, int power) {
 	int step = power / (d->load / 100);
 	xdebug("FRONIUS step1 %d", step);
 
+	if (!step)
+		return 0;
+
 	// when we have distortion, do: smaller up steps / bigger down steps
 	if (state->distortion) {
 		if (step > 0)
@@ -433,9 +434,6 @@ static int calculate_step(device_t *d, int power) {
 			step *= (state->distortion == 1 ? 2 : state->distortion);
 		xdebug("FRONIUS step2 %d", step);
 	}
-
-	if (!step)
-		return 0;
 
 	// adjust step when ramp and tendence is same direction
 	if (state->tendence) {
@@ -626,7 +624,7 @@ static void check_standby() {
 	// force standby check on powered devices when difference between load and expected load is more than 50%
 	int diff = state->load - state->xload;
 	int diff_perc = abs((state->load * 100) / state->xload);
-	if (diff_perc < 50) {
+	if (diff_perc < 50)
 		for (device_t **d = DEVICES; *d != 0; d++) {
 			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
 			if (powered) {
@@ -634,7 +632,6 @@ static void check_standby() {
 				(*d)->state = Request_Standby_Check;
 			}
 		}
-	}
 
 	// not needed anymore?
 //	if (BASELOAD * -1 < state->load) {

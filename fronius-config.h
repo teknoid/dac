@@ -101,13 +101,10 @@ typedef struct potd_t {
 } potd_t;
 
 // program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
-static const potd_t CLOUDY_EMPTY = { .name = "CLOUDY_EMPTY", .greedy = { &boiler1, 0 }, .modest = { &boiler2, &boiler3, &plug5, &plug6, &plug7, &plug8, 0 } };
-
-// program of the day for cloudy weather with akku full: priority is heater, then akku, then rest only when extra power
-static const potd_t CLOUDY_FULL = { .name = "CLOUDY_FULL", .greedy = { &plug5, &plug6, &plug7, &plug8, 0 }, .modest = { &boiler1, &boiler2, &boiler3, 0 } };
+static const potd_t EMPTY = { .name = "EMPTY", .greedy = { &boiler1, 0 }, .modest = { &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
 
 // program of the day for cloudy weather but tomorrow sunny: steal all akku charge power
 static const potd_t TOMORROW = { .name = "TOMORROW", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 }, .modest = { 0 } };
 
 // program of the day for sunny weather: plenty of power
-static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &plug5, &plug6, &plug7, &plug8, &boiler1, 0 }, .modest = { &boiler2, &boiler3, 0 } };
+static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, 0 }, .modest = { &boiler2, &boiler3, 0 } };
