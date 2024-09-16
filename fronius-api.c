@@ -434,12 +434,15 @@ static int calculate_step(device_t *d, int power) {
 		xdebug("FRONIUS step2 %d", step);
 	}
 
-	// we need at least one step if power is not null
-	if (!step) {
-		if (power < 0)
-			step = state->tendence < 0 ? -2 : -1;
-		else if (power > 0)
-			step = state->tendence > 0 ? 2 : 1;
+	if (!step)
+		return 0;
+
+	// adjust step when ramp and tendence is same direction
+	if (state->tendence) {
+		if (power < 0 && state->tendence < 0)
+			step--;
+		if (power > 0 && state->tendence > 0)
+			step++;
 		xdebug("FRONIUS step3 %d", step);
 	}
 
@@ -468,6 +471,9 @@ static int ramp_adjustable(device_t *d, int power) {
 		return 0;
 
 	int step = calculate_step(d, power);
+	if (!step)
+		return 0;
+
 	return (d->set_function)(d, d->power + step);
 }
 
@@ -621,11 +627,12 @@ static void check_standby() {
 	int diff = state->load - state->xload;
 	int diff_perc = abs((state->load * 100) / state->xload);
 	if (diff_perc < 50) {
-		xdebug("FRONIUS load/xload difference below 50%% (%d = %d%%) , requesting standby check on all powered devices", diff, diff_perc);
 		for (device_t **d = DEVICES; *d != 0; d++) {
 			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
-			if (powered)
+			if (powered) {
+				xdebug("FRONIUS load/xload difference below 50%% (%d = %d%%) , requesting standby check on %s", diff, diff_perc, (*d)->name);
 				(*d)->state = Request_Standby_Check;
+			}
 		}
 	}
 
