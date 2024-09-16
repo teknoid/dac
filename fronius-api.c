@@ -408,7 +408,7 @@ static int read_mosmix(struct tm *now) {
 	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 
 	if (e0 < SELF_CONSUMING) {
-		if (state->chrg < 33)
+		if (state->chrg < 40) // survive next night
 			return choose_program(&CLOUDY_EMPTY, m0);
 
 		if (e1 > SELF_CONSUMING)
