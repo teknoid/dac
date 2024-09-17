@@ -653,7 +653,7 @@ static void check_standby() {
 //	}
 }
 
-static device_t* check_response(device_t *d) {
+static int check_response(device_t *d) {
 
 	// do we have a valid response - at least 50% of expected?
 	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
@@ -668,7 +668,7 @@ static device_t* check_response(device_t *d) {
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->state = Active;
-		return 0;
+		return 1;
 	}
 
 	// standby check was positive -> set device into standby and delete all other standby requests
@@ -679,7 +679,7 @@ static device_t* check_response(device_t *d) {
 		for (device_t **d = DEVICES; *d != 0; d++)
 			if ((*d)->state == Request_Standby_Check)
 				(*d)->state = Active;
-		return 0;
+		return 1;
 	}
 
 	// last delta load was too small (minimum 5%)
@@ -763,7 +763,7 @@ static void calculate_state() {
 		state->tendence = 0;
 
 	// allow more tolerance for bigger pv production
-	int tolerance = state->pv / 1000 + 1;
+	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
 	int kf = KEEP_FROM * tolerance;
 	int kt = KEEP_TO * tolerance;
 
@@ -775,16 +775,18 @@ static void calculate_state() {
 
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
-	int keep = abs(state->grid) < kf && abs(state->akku) < kf;
-	if (keep) {
-		// we have a stable state
-		state->greedy = 0;
-		state->modest = 0;
-	} else {
-		// calculate greedy and modest power
+
+	// calculate greedy
+	if (abs(state->akku) < kf)
+		state->greedy = 0; // stable
+	else
 		state->greedy = state->surplus - kt;
+
+	// calculate modest power
+	if (abs(state->grid) < kf)
+		state->modest = 0; // stable
+	else
 		state->modest = (state->grid * -1) - (state->akku > 0 ? state->akku : 0) - kt;
-	}
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
@@ -809,7 +811,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion > 1 || state->waste || state->sum > 250 || state->grid > 500 || state->akku > 500)
+	if (state->distortion > 1 || state->waste || state->grid > 500 || state->akku > 500)
 		return WAIT_NEXT;
 
 	// all devices in standby?
@@ -953,9 +955,19 @@ static void fronius() {
 		// calculate actual state
 		calculate_state();
 
+		// suspicious values? -> recalculate next round
+		if (abs(state->sum) > SUSPICIOUS) {
+			wait = WAIT_NEXT;
+			continue;
+		}
+
 		// check response from previous ramp or do overall standby check
 		if (device)
-			device = check_response(device);
+			if (check_response(device)) {
+				wait = WAIT_NEXT;
+				device = 0;
+				continue; // recalculate next round
+			}
 
 		// do general standby check
 		check_standby();

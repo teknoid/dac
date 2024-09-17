@@ -15,6 +15,7 @@
 #define SELF_CONSUMING		10000
 #define BASELOAD			300
 #define NOISE				20
+#define SUSPICIOUS			250
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
