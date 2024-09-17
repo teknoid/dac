@@ -632,25 +632,6 @@ static void check_standby() {
 				(*d)->state = Request_Standby_Check;
 			}
 		}
-
-	// not needed anymore?
-//	if (BASELOAD * -1 < state->load) {
-//		xdebug("FRONIUS no load at all, requesting standby check on all powered devices");
-//		for (device_t **d = DEVICES; *d != 0; d++) {
-//			int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
-//			if (powered)
-//				(*d)->state = Request_Standby_Check;
-//		}
-//		return;
-//	}
-//
-//	if (state->dload > BASELOAD) {
-//		xdebug("FRONIUS power released by someone %d, requesting standby check on thermostat devices", state->dload);
-//		for (device_t **d = DEVICES; *d != 0; d++)
-//			if ((*d)->thermostat && (*d)->power)
-//				(*d)->state = Request_Standby_Check;
-//		return;
-//	}
 }
 
 static int check_response(device_t *d) {
@@ -933,14 +914,11 @@ static void fronius() {
 
 		// reset program of the day and standby states every 30min
 		if (potd == 0 || now_ts > next_reset) {
-			xlog("FRONIUS resetting standby and thermostat states");
+			xlog("FRONIUS resetting standby states");
 
 			mosmix = read_mosmix(now);
-			for (device_t **d = DEVICES; *d != 0; d++) {
+			for (device_t **d = DEVICES; *d != 0; d++)
 				(*d)->state = Active;
-				if ((*d)->thermostat)
-					(*d)->power = 0;
-			}
 
 			next_reset = now_ts + STANDBY_RESET;
 			wait = 1;
