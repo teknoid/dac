@@ -728,11 +728,11 @@ static void calculate_state() {
 	if (abs(state->dload) < NOISE)
 		state->dload = 0;
 
-	// calculate expected load
-	state->xload = calculate_xload();
-
 	// calculate load manually
 	state->cload = (state->pv + state->akku + state->grid) * -1;
+
+	// calculate expected load
+	state->xload = calculate_xload();
 
 	// wasting akku->grid power?
 	if (state->akku > NOISE && state->grid < NOISE * -1) {
