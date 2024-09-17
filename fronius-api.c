@@ -955,8 +955,9 @@ static void fronius() {
 		// calculate actual state
 		calculate_state();
 
-		// suspicious values? -> recalculate next round
+		// validate values
 		if (abs(state->sum) > SUSPICIOUS) {
+			xlog("FRONIUS detected suspicious values, recalculating next round");
 			wait = WAIT_NEXT;
 			continue;
 		}
