@@ -450,16 +450,6 @@ static int calculate_step(device_t *d, int power) {
 static int ramp_adjustable(device_t *d, int power) {
 	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
 
-	// standby check requested - do a big ramp
-	if (d->state == Request_Standby_Check) {
-		xdebug("FRONIUS starting standby check on %s", d->name);
-		d->state = Standby_Check;
-		if (d->power < 50)
-			return (d->set_function)(d, d->power + 25);
-		else
-			return (d->set_function)(d, d->power - 25);
-	}
-
 	// already full up
 	if (d->power == 100 && power > 0)
 		return 0;
@@ -478,16 +468,6 @@ static int ramp_adjustable(device_t *d, int power) {
 static int ramp_dumb(device_t *d, int power) {
 	int min = d->load + d->load * state->distortion / 10;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
-
-	// standby check requested - toggle
-	if (d->state == Request_Standby_Check) {
-		xdebug("FRONIUS starting standby check on %s", d->name);
-		d->state = Standby_Check;
-		if (d->power)
-			return (d->set_function)(d, 0);
-		else
-			return (d->set_function)(d, 1);
-	}
 
 	// keep on as long as we have enough power and device is already on
 	if (d->power && power > 0)
@@ -611,30 +591,41 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
-static void check_standby() {
+static device_t* check_standby() {
 	// standby check is not reliable or positive load or no active devices
 	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
-		return;
+		return 0;
 
-	// no need to perform standby check as difference load/calculated load is OK
+	// request standby check if difference between load and calculated load is lower than 50%
 	int diff = state->load - state->xload;
 	int diff_perc = abs((state->load * 100) / state->xload);
-	if (diff_perc > 50)
-		return;
-
-	// stop if we still have active standby checks or requests
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Standby_Check || (*d)->state == Request_Standby_Check)
-			return;
-
-	// force standby check on all powered devices
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		int powered = (*d)->adjustable ? (*d)->power > 50 : (*d)->power;
-		if (powered) {
-			xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, (*d)->name);
-			(*d)->state = Request_Standby_Check;
+	int needed = diff_perc < 50;
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		int powered = d->adjustable ? d->power > 50 : d->power;
+		if (d->state == Active && needed && powered) {
+			xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, d->name);
+			d->state = Request_Standby_Check;
 		}
 	}
+
+	// standby check requested - execute
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		if (d->state == Request_Standby_Check) {
+			d->state = Standby_Check;
+			xdebug("FRONIUS starting standby check on %s", d->name);
+			if (d->adjustable)
+				// do a big ramp
+				(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
+			else
+				// toggle
+				(d->set_function)(d, d->power ? 0 : 1);
+			return d;
+		}
+	}
+
+	return 0;
 }
 
 static int check_response(device_t *d) {
@@ -760,17 +751,14 @@ static void calculate_state() {
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
 
-	// calculate greedy
-	if (abs(state->akku) < kf)
-		state->greedy = 0; // stable
-	else
-		state->greedy = state->surplus - kt;
-
 	// calculate modest power
 	if (abs(state->grid) < kf)
 		state->modest = 0; // stable
 	else
-		state->modest = (state->grid * -1) - (state->akku > 0 ? state->akku : 0) - kt;
+		state->modest = (state->grid * -1) - (state->akku > kf ? state->akku : 0) - kt;
+
+	// calculate greedy
+	state->greedy = (state->grid + state->akku) * -1 - kt;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
@@ -952,10 +940,11 @@ static void fronius() {
 			}
 
 		// do general standby check
-		check_standby();
+		device = check_standby();
 
-		// ramp up/down devices depending on if we have surplus or not
-		device = ramp();
+		// no standby checks -> ramp up/down devices depending on if we have surplus or not
+		if (!device)
+			device = ramp();
 
 		// determine wait for next round
 		wait = state->wait = calculate_next_round(device);
