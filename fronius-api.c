@@ -596,18 +596,18 @@ static device_t* check_standby() {
 	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
 		return 0;
 
-	// request standby check if difference between load and calculated load is lower than 50%
+	// request standby check on all powered devices if difference between load and calculated load is lower than 50%
 	int diff = state->load - state->xload;
 	int diff_perc = abs((state->load * 100) / state->xload);
-	int needed = diff_perc < 50;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		int powered = d->adjustable ? d->power > 50 : d->power;
-		if (d->state == Active && needed && powered) {
-			xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, d->name);
-			d->state = Request_Standby_Check;
+	if (diff_perc < 50)
+		for (device_t **dd = DEVICES; *dd != 0; dd++) {
+			device_t *d = *dd;
+			int powered = d->adjustable ? d->power > 50 : d->power;
+			if (d->state == Active && powered) {
+				xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, d->name);
+				d->state = Request_Standby_Check;
+			}
 		}
-	}
 
 	// standby check requested - execute
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
