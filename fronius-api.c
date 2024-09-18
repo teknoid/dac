@@ -77,11 +77,6 @@ int set_heater(device_t *heater, int power) {
 	// char command[128];
 #ifndef FRONIUS_MAIN
 	if (power) {
-		// TODO make configurable
-		if (sensors->bmp280_temp > 28 || sensors->sht31_temp > 25) {
-			xdebug("FRONIUS not switching on heater because of too hot (BMP280=%02.1f, SHT311=%02.1f)", sensors->bmp280_temp, sensors->sht31_temp);
-			return 0;
-		}
 		// xlog("FRONIUS switching %s ON", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
 		// system(command);
@@ -596,6 +591,21 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
+static void check_temp() {
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		if (!d->adjustable && d->state == Active) {
+			// TODO make configurable per device
+			int too_hot = sensors->bmp280_temp > 28 || sensors->sht31_temp > 25;
+			if (too_hot) {
+				xdebug("FRONIUS BMP280=%02.1f, SHT311=%02.1f --> setting %s to standby", sensors->bmp280_temp, sensors->sht31_temp, d->name);
+				(d->set_function)(d, 0);
+				d->state = Standby;
+			}
+		}
+	}
+}
+
 static device_t* check_standby() {
 	// standby check is indicated, request for all powered devices
 	if (state->standby)
@@ -943,6 +953,9 @@ static void fronius() {
 				device = 0;
 				continue; // recalculate next round
 			}
+
+		// check temperature and set all dumb devices to standby if too hot
+		check_temp();
 
 		// perform standby check logic
 		device = check_standby();
