@@ -77,6 +77,11 @@ int set_heater(device_t *heater, int power) {
 	// char command[128];
 #ifndef FRONIUS_MAIN
 	if (power) {
+		// TODO make configurable
+		if (sensors->bmp280_temp > 28 || sensors->sht31_temp > 25) {
+			xdebug("FRONIUS not switching on heater because of too hot (BMP280=%02.1f, SHT311=%02.1f)", sensors->bmp280_temp, sensors->sht31_temp);
+			return 0;
+		}
 		// xlog("FRONIUS switching %s ON", heater->name);
 		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
 		// system(command);
