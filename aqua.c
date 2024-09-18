@@ -73,7 +73,7 @@ static void process(int hour) {
 	float humi = 33;
 	uint16_t lumi = 35000;
 #else
-	float temp = sensors->bmp280_temp;
+	float temp = sensors->sht31_temp;
 	float humi = sensors->sht31_humi;
 	uint16_t lumi = sensors->bh1750_lux_mean;
 #endif

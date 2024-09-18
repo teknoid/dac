@@ -12,7 +12,7 @@
 #include "mcp.h"
 
 static void summer(struct tm *now, potd_t *potd) {
-	float temp = sensors->bmp280_temp;
+	float temp = sensors->sht31_temp;
 	uint16_t lumi = sensors->bh1750_lux_mean;
 	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
 		xlog("SHUTTER Error no sensor data");
@@ -48,7 +48,7 @@ static void summer(struct tm *now, potd_t *potd) {
 }
 
 static void winter(struct tm *now, potd_t *potd) {
-	float temp = sensors->bmp280_temp;
+	float temp = sensors->sht31_temp;
 	uint16_t lumi = sensors->bh1750_lux_mean;
 	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
 		xlog("SHUTTER Error no sensor data");
