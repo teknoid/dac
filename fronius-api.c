@@ -766,7 +766,7 @@ static void calculate_state() {
 	state->surplus = (state->grid + state->akku) * -1;
 
 	// calculate greedy
-	state->greedy = state->surplus - kt;
+	state->greedy = state->surplus - kt; // hint: steal() can increase greedy!
 
 	// calculate modest power
 	if (abs(state->grid) < kf)
