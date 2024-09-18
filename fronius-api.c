@@ -209,7 +209,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload cload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -596,20 +596,18 @@ static device_t* check_standby() {
 	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
 		return 0;
 
-	// request standby check on all powered devices if difference between load and calculated load is lower than 50%
-	int diff = state->load - state->xload;
-	int diff_perc = abs((state->load * 100) / state->xload);
-	if (diff_perc < 50)
+	// standby check is indicated, request for all powered devices
+	if (state->standby)
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			int powered = d->adjustable ? d->power > 50 : d->power;
 			if (d->state == Active && powered) {
-				xdebug("FRONIUS load/xload difference %d is below 50%% (%d%%) , requesting standby check on %s", diff, diff_perc, d->name);
+				xdebug("FRONIUS requesting standby check on %s", d->name);
 				d->state = Request_Standby_Check;
 			}
 		}
 
-	// standby check requested - execute
+	// standby check requested --> execute
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		if (d->state == Request_Standby_Check) {
@@ -709,6 +707,9 @@ static void calculate_state() {
 	// calculate expected load
 	state->xload = calculate_xload();
 
+	// 	difference of calculated load to actual load in %
+	state->dxload = (state->load * 100) / state->xload;
+
 	// wasting akku->grid power?
 	if (state->akku > NOISE && state->grid < NOISE * -1) {
 		int g = abs(state->grid);
@@ -736,6 +737,9 @@ static void calculate_state() {
 		state->tendence = 1; // pv is continuously raising
 	else
 		state->tendence = 0;
+
+	// indicate standby check when difference between actual load and calculated load is three times below 50%
+	state->standby = h3->dxload < 50 && h2->dxload < 50 && h1->dxload < 50 && state->dxload < 50;
 
 	// allow more tolerance for bigger pv production
 	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
@@ -939,7 +943,7 @@ static void fronius() {
 				continue; // recalculate next round
 			}
 
-		// do general standby check
+		// standby check logic
 		device = check_standby();
 
 		// no standby checks -> ramp up/down devices depending on if we have surplus or not

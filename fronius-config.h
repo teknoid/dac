@@ -54,11 +54,13 @@ struct _state {
 	int load;
 	int dload;
 	int xload;
+	int dxload;
 	int cload;
 	int pv10;
 	int pv7;
 	int distortion;
 	int tendence;
+	int standby;
 	int wait;
 };
 
