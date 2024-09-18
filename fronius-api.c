@@ -592,10 +592,6 @@ static void steal_power() {
 }
 
 static device_t* check_standby() {
-	// standby check is not reliable or positive load or no active devices
-	if (state->distortion || state->load > 0 || state->xload == BASELOAD)
-		return 0;
-
 	// standby check is indicated, request for all powered devices
 	if (state->standby)
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
@@ -607,10 +603,10 @@ static device_t* check_standby() {
 			}
 		}
 
-	// standby check requested --> execute
+	// standby check requested --> execute when we have no distortion
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
-		if (d->state == Request_Standby_Check) {
+		if (d->state == Request_Standby_Check && !state->distortion) {
 			d->state = Standby_Check;
 			xdebug("FRONIUS starting standby check on %s", d->name);
 			if (d->adjustable)
@@ -649,9 +645,9 @@ static int check_response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
-		for (device_t **d = DEVICES; *d != 0; d++)
-			if ((*d)->state == Request_Standby_Check)
-				(*d)->state = Active;
+		for (device_t **xd = DEVICES; *xd != 0; xd++)
+			if ((*xd)->state == Request_Standby_Check)
+				(*xd)->state = Active;
 		return 1;
 	}
 
@@ -929,7 +925,7 @@ static void fronius() {
 		calculate_state();
 
 		// validate values
-		if (abs(state->sum) > SUSPICIOUS) {
+		if (abs(state->sum) > SUSPICIOUS || state->load > 0) {
 			xlog("FRONIUS detected suspicious values, recalculating next round");
 			wait = WAIT_NEXT;
 			continue;
@@ -943,7 +939,7 @@ static void fronius() {
 				continue; // recalculate next round
 			}
 
-		// standby check logic
+		// perform standby check logic
 		device = check_standby();
 
 		// no standby checks -> ramp up/down devices depending on if we have surplus or not
