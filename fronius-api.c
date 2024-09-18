@@ -591,7 +591,8 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
-static void check_temp() {
+static device_t* check_standby() {
+	// do temperature check and put dumb devices into standby if too hot
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		if (!d->adjustable && d->state == Active) {
@@ -604,9 +605,7 @@ static void check_temp() {
 			}
 		}
 	}
-}
 
-static device_t* check_standby() {
 	// standby check is indicated, request for all powered devices
 	if (state->standby)
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
@@ -953,9 +952,6 @@ static void fronius() {
 				device = 0;
 				continue; // recalculate next round
 			}
-
-		// check temperature and set all dumb devices to standby if too hot
-		check_temp();
 
 		// perform standby check logic
 		device = check_standby();
