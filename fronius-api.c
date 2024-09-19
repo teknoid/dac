@@ -591,15 +591,15 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
-static device_t* check_standby() {
-	// do temperature check and put dumb devices into standby if too hot
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		if (!d->adjustable && d->state == Active) {
-			// TODO make configurable per device
-			int too_hot = sensors->bmp280_temp > 28 || sensors->sht31_temp > 25;
-			if (too_hot) {
-				xdebug("FRONIUS BMP280=%02.1f, SHT311=%02.1f --> setting %s to standby", sensors->bmp280_temp, sensors->sht31_temp, d->name);
+static device_t* check_standby(struct tm *now) {
+	// put dumb devices into standby if summer or too hot
+	int in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
+	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
+	if (summer || in > 28) {
+		xdebug("FRONIUS summer mode or too hot m=%d in=%d out=%d --> setting dumb devices to standby", now->tm_mon, in, out);
+		for (device_t **dd = DEVICES; *dd != 0; dd++) {
+			device_t *d = *dd;
+			if (!d->adjustable && d->state == Active) {
 				(d->set_function)(d, 0);
 				d->state = Standby;
 			}
@@ -717,8 +717,8 @@ static void calculate_state() {
 	// calculate expected load
 	state->xload = calculate_xload();
 
-	// 	difference of calculated load to actual load in %
-	state->dxload = (state->load * 100) / state->xload;
+	// 	deviation of calculated load to actual load in %
+	state->dxload = (state->xload - state->load) * 100 / state->xload;
 
 	// wasting akku->grid power?
 	if (state->akku > NOISE && state->grid < NOISE * -1) {
@@ -748,8 +748,8 @@ static void calculate_state() {
 	else
 		state->tendence = 0;
 
-	// indicate standby check when difference between actual load and calculated load is three times below 50%
-	state->standby = h3->dxload < 50 && h2->dxload < 50 && h1->dxload < 50 && state->dxload < 50;
+	// indicate standby check when deviation between actual load and calculated load is three times over 50%
+	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
 
 	// allow more tolerance for bigger pv production
 	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
@@ -954,7 +954,7 @@ static void fronius() {
 			}
 
 		// perform standby check logic
-		device = check_standby();
+		device = check_standby(now);
 
 		// no standby checks -> ramp up/down devices depending on if we have surplus or not
 		if (!device)
