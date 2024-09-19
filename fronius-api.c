@@ -22,7 +22,7 @@
 
 // Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE		900
-#define WAIT_IDLE			300
+#define WAIT_STANDBY		300
 #define WAIT_STABLE			60
 #define WAIT_INSTABLE		20
 #define WAIT_NEXT			10
@@ -209,7 +209,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  idle  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -592,6 +592,10 @@ static void steal_power() {
 }
 
 static device_t* check_standby(struct tm *now) {
+	// do not perform standby checks if distortion or no powered devices
+	if (state->distortion || state->xload == BASELOAD)
+		return 0;
+
 	// put dumb devices into standby if summer or too hot
 	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
 	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
@@ -641,7 +645,6 @@ static device_t* check_standby(struct tm *now) {
 }
 
 static int check_response(device_t *d) {
-
 	// do we have a valid response - at least 50% of expected?
 	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
 
@@ -771,12 +774,6 @@ static void calculate_state() {
 	else
 		state->modest = (state->grid * -1) - (state->akku > kf ? state->akku : 0) - kt;
 
-	// check if all devices are in standby
-	state->idle = 1;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if (!(*d)->state == Standby)
-			state->idle = 0;
-
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
 
@@ -804,8 +801,12 @@ static int calculate_next_round(device_t *d) {
 		return WAIT_NEXT;
 
 	// all devices in standby?
-	if (state->idle)
-		return WAIT_IDLE;
+	int all_standby = 1;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state == Active)
+			all_standby = 0;
+	if (all_standby)
+		return WAIT_STANDBY;
 
 	// state is stable when we had no power change now and within last 3 rounds
 	int instable = state->dload;
@@ -953,11 +954,10 @@ static void fronius() {
 			}
 
 		// perform standby check logic
-		if (!state->idle)
-			device = check_standby(now);
+		device = check_standby(now);
 
 		// no standby checks -> ramp up/down devices depending on if we have surplus or not
-		if (!device && !state->idle)
+		if (!device)
 			device = ramp();
 
 		// determine wait for next round
