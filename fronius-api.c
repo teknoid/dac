@@ -620,16 +620,20 @@ static device_t* check_standby(struct tm *now) {
 	// standby check requested --> execute when we have no distortion
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
-		if (d->state == Request_Standby_Check && !state->distortion) {
-			d->state = Standby_Check;
-			xdebug("FRONIUS starting standby check on %s", d->name);
-			if (d->adjustable)
-				// do a big ramp
-				(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
-			else
-				// toggle
-				(d->set_function)(d, d->power ? 0 : 1);
-			return d;
+		if (d->state == Request_Standby_Check) {
+			if (state->distortion)
+				xdebug("FRONIUS skipping standby check for %s due to distortion %d", d->name, state->distortion);
+			else {
+				d->state = Standby_Check;
+				xdebug("FRONIUS starting standby check on %s", d->name);
+				if (d->adjustable)
+					// do a big ramp
+					(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
+				else
+					// toggle
+					(d->set_function)(d, d->power ? 0 : 1);
+				return d;
+			}
 		}
 	}
 
@@ -702,6 +706,8 @@ static void calculate_state() {
 	// total pv from both inverters
 	state->pv = state->pv10 + state->pv7;
 	state->dpv = state->pv - h1->pv;
+	if (abs(state->dpv) < NOISE)
+		state->dpv = 0;
 
 	// subtract PV produced by Fronius7
 	state->load -= state->pv7;
@@ -726,19 +732,9 @@ static void calculate_state() {
 		state->waste = g < state->akku ? g : state->akku;
 	}
 
-	// pv average / variation
-	int avg = 0;
-	unsigned long var = 0;
-	for (int i = 0; i < HISTORY; i++) {
-		state_t *h = get_state_history(i);
-		avg += h->pv;
-		var += abs(h->dpv);
-	}
-	avg /= HISTORY;
-	var /= HISTORY;
-
-	// grade of alternation in pv production when its cloudy with sunny gaps
-	state->distortion = var * 10 / avg;
+	// distortion when delta pv too big for last three times
+	int dpv_sum = abs(h3->dpv) + abs(h2->dpv) + abs(h1->dpv) + abs(state->dpv);
+	state->distortion = dpv_sum > 1000;
 
 	// pv tendence
 	if (h3->dpv < 0 && h2->dpv < 0 && h1->dpv < 0 && state->dpv < 0)
@@ -778,7 +774,7 @@ static void calculate_state() {
 	steal_power();
 
 	char message[128];
-	snprintf(message, 128, "avg:%d var:%lu kf:%d kt:%d", avg, var, kf, kt);
+	snprintf(message, 128, "kf:%d kt:%d", kf, kt);
 	print_power_status(message);
 }
 
@@ -803,7 +799,7 @@ static int calculate_next_round(device_t *d) {
 	// all devices in standby?
 	int all_standby = 1;
 	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Active)
+		if (!(*d)->state == Standby)
 			all_standby = 0;
 	if (all_standby)
 		return WAIT_STANDBY;
