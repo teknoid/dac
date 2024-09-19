@@ -61,6 +61,7 @@ struct _state {
 	int distortion;
 	int tendence;
 	int standby;
+	int idle;
 	int wait;
 };
 
