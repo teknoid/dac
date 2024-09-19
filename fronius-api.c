@@ -593,10 +593,10 @@ static void steal_power() {
 
 static device_t* check_standby(struct tm *now) {
 	// put dumb devices into standby if summer or too hot
-	int in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
+	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
 	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
-	if (summer || in > 28) {
-		xdebug("FRONIUS summer mode or too hot m=%d in=%d out=%d --> setting dumb devices to standby", now->tm_mon, in, out);
+	if (summer || in > 26) {
+		xdebug("FRONIUS summer mode or too hot month=%d in=%2.1f out=%2.1f --> putting dumb devices into standby", now->tm_mon, in, out);
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
