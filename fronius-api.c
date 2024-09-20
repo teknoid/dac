@@ -601,6 +601,10 @@ static device_t* perform_check_standby(device_t *d) {
 		return 0;
 	}
 
+	// already in standby?
+	if (d->state == Standby)
+		return 0;
+
 	d->state = Standby_Check;
 	xdebug("FRONIUS starting standby check on %s", d->name);
 	if (d->adjustable)
