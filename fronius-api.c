@@ -616,16 +616,24 @@ static device_t* perform_check_standby(device_t *d) {
 	return d;
 }
 
+static int standby(struct tm *now) {
+	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
+	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
+	if (summer)
+		return 1;
+	if (now->tm_hour > 15)
+		return 0; // force heating after 15:00 independently from temperature
+	return in > 25; // too hot
+}
+
 static device_t* check_standby(struct tm *now) {
 	// do we have powered devices?
 	if (state->xload == BASELOAD)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
-	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
-	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
-	if (summer || in > 26) {
-		xdebug("FRONIUS summer mode or too hot (month=%d in=%2.1f out=%2.1f) --> putting dumb devices into standby", now->tm_mon, in, out);
+	if (standby(now)) {
+		xdebug("FRONIUS putting dumb devices into standby");
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
@@ -783,7 +791,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - big akku / grid load
 	// - actual load > calculated load --> other consumers active
-	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < 0)
+	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < -5)
 		return WAIT_NEXT;
 
 	// all devices in standby?
