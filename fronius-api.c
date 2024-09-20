@@ -660,7 +660,7 @@ static device_t* check_response(device_t *d) {
 		return d;
 	}
 
-	// standby check was positive -> set device into standby and delete all other standby requests
+	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
@@ -779,11 +779,11 @@ static int calculate_next_round(device_t *d) {
 
 	// determine wait for next round
 	// much faster next round on
-	// - extreme distortion
+	// - distortion
 	// - wasting akku->grid power
-	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500)
+	// - actual load > calculated load --> other consumers active
+	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < 0)
 		return WAIT_NEXT;
 
 	// all devices in standby?
