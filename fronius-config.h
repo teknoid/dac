@@ -20,7 +20,7 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 enum dstate {
-	Standby, Active, Standby_Check, Request_Standby_Check
+	Standby, Active, Standby_Check
 };
 
 typedef struct _meter meter_t;

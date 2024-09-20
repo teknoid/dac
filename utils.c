@@ -564,7 +564,7 @@ const char* resolve_ip(const char *hostname) {
 	struct addrinfo *addr;
 
 	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
-		xlog("Could not resolve inetAddr for %s", hostname);
+		xlog("UTILS Could not resolve inetAddr for %s", hostname);
 		return NULL;
 	}
 

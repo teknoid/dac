@@ -160,29 +160,33 @@ int set_boiler(device_t *boiler, int power) {
 
 static void set_all_devices(int power) {
 	for (device_t **d = DEVICES; *d != 0; d++)
-		((*d)->set_function)((*d), power);
+		((*d)->set_function)(*d, power);
 }
 
 // initialize all devices with start values
 static void init_all_devices() {
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		(*d)->state = Active;
-		(*d)->power = -1;
-		(*d)->dload = 0;
-		(*d)->addr = resolve_ip((*d)->name);
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		d->state = Active;
+		d->addr = resolve_ip((d)->name);
+		d->dload = 0;
+		d->power = -1; // force set to 0
+		(d->set_function)(d, 0);
+		d->power = 0;
 	}
 }
 
 static int calculate_xload() {
 	int xload = BASELOAD;
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		if (!(*d)->power)
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		if (!d->power)
 			continue;
 
-		if ((*d)->adjustable)
-			xload += (*d)->load * (*d)->power / 100;
+		if (d->adjustable)
+			xload += d->load * d->power / 100;
 		else
-			xload += (*d)->load;
+			xload += d->load;
 	}
 	return xload * -1;
 }
@@ -429,9 +433,9 @@ static int calculate_step(device_t *d, int power) {
 	// when we have distortion, do: smaller up steps / bigger down steps
 	if (state->distortion) {
 		if (step > 0)
-			step /= (state->distortion == 1 ? 2 : state->distortion);
+			step /= 2;
 		else
-			step *= (state->distortion == 1 ? 2 : state->distortion);
+			step *= 2;
 		xdebug("FRONIUS step2 %d", step);
 	}
 
@@ -466,7 +470,7 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	int min = d->load + d->load * state->distortion / 10;
+	int min = d->load + state->distortion ? d->load / 2 : 0;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// keep on as long as we have enough power and device is already on
@@ -591,9 +595,26 @@ static void steal_power() {
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
 
+static device_t* perform_check_standby(device_t *d) {
+	if (state->distortion) {
+		xdebug("FRONIUS skipping standby check on %s due to distortion", d->name);
+		return 0;
+	}
+
+	d->state = Standby_Check;
+	xdebug("FRONIUS starting standby check on %s", d->name);
+	if (d->adjustable)
+		// do a big ramp
+		(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
+	else
+		// toggle
+		(d->set_function)(d, d->power ? 0 : 1);
+	return d;
+}
+
 static device_t* check_standby(struct tm *now) {
-	// do not perform standby checks if distortion or no powered devices
-	if (state->distortion || state->xload == BASELOAD)
+	// do we have powered devices?
+	if (state->xload == BASELOAD)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -610,41 +631,15 @@ static device_t* check_standby(struct tm *now) {
 		}
 	}
 
-	// standby check is indicated, request for all powered devices
-	if (state->standby)
-		for (device_t **dd = DEVICES; *dd != 0; dd++) {
-			device_t *d = *dd;
-			int powered = d->adjustable ? d->power > 50 : d->power;
-			if (d->state == Active && powered) {
-				xdebug("FRONIUS requesting standby check on %s", d->name);
-				d->state = Request_Standby_Check;
-			}
-		}
-
-	// standby check requested --> execute when we have no distortion
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		if (d->state == Request_Standby_Check) {
-			if (state->distortion)
-				xdebug("FRONIUS skipping standby check for %s due to distortion %d", d->name, state->distortion);
-			else {
-				d->state = Standby_Check;
-				xdebug("FRONIUS starting standby check on %s", d->name);
-				if (d->adjustable)
-					// do a big ramp
-					(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
-				else
-					// toggle
-					(d->set_function)(d, d->power ? 0 : 1);
-				return d;
-			}
-		}
-	}
+	// execute standby check on first powered device if indicated
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if (state->standby && (*d)->state == Active && (*d)->power)
+			return perform_check_standby(*d);
 
 	return 0;
 }
 
-static int check_response(device_t *d) {
+static device_t* check_response(device_t *d) {
 	// do we have a valid response - at least 50% of expected?
 	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
 
@@ -658,7 +653,7 @@ static int check_response(device_t *d) {
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
 		d->state = Active;
-		return 1;
+		return d;
 	}
 
 	// standby check was positive -> set device into standby and delete all other standby requests
@@ -666,22 +661,13 @@ static int check_response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
-		for (device_t **xd = DEVICES; *xd != 0; xd++)
-			if ((*xd)->state == Request_Standby_Check)
-				(*xd)->state = Active;
-		return 1;
+		return d;
 	}
 
 	// last delta load was too small (minimum 5%)
 	int min = d->load * 5 / 100;
 	if (abs(d->dload) < min) {
 		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
-		return 0;
-	}
-
-	// distortion - load values are not reliable
-	if (state->distortion) {
-		xdebug("FRONIUS skipping standby check for %s due to distortion %d", d->name, state->distortion);
 		return 0;
 	}
 
@@ -692,9 +678,7 @@ static int check_response(device_t *d) {
 	}
 
 	// initiate a standby check
-	xdebug("FRONIUS no response from %s, requesting standby check", d->name);
-	d->state = Request_Standby_Check;
-	return 0;
+	return perform_check_standby(d);
 }
 
 static void calculate_state() {
@@ -783,13 +767,11 @@ static void calculate_state() {
 }
 
 static int calculate_next_round(device_t *d) {
-	// device ramp - wait for response
-	if (d) {
-		if (d->adjustable)
-			return WAIT_ADJUSTABLE;
-		else
-			return WAIT_DUMB;
-	}
+	if (d && d->adjustable)
+		return WAIT_ADJUSTABLE;
+
+	if (d && !d->adjustable)
+		return WAIT_DUMB;
 
 	// determine wait for next round
 	// much faster next round on
@@ -797,7 +779,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - suspicious values from Fronius API
 	// - big akku / grid load
-	if (state->distortion > 1 || state->waste || state->grid > 500 || state->akku > 500)
+	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500)
 		return WAIT_NEXT;
 
 	// all devices in standby?
@@ -863,6 +845,9 @@ static void fronius() {
 		if (wait--)
 			continue;
 
+		// default
+		wait = WAIT_NEXT;
+
 		// clear slot in history for storing new state
 		state = &state_history[state_history_ptr];
 		ZERO(state);
@@ -883,7 +868,6 @@ static void fronius() {
 			if (ret != 0) {
 				xlog("FRONIUS Error calling Meter API: %d", ret);
 				errors++;
-				wait = WAIT_NEXT;
 				continue;
 			}
 
@@ -904,7 +888,6 @@ static void fronius() {
 		if (ret != 0) {
 			xlog("FRONIUS Error calling Fronius10 API: %d", ret);
 			errors++;
-			wait = WAIT_NEXT;
 			continue;
 		}
 
@@ -941,22 +924,18 @@ static void fronius() {
 		// validate values
 		if (abs(state->sum) > SUSPICIOUS || state->load > 0) {
 			xlog("FRONIUS detected suspicious values, recalculating next round");
-			wait = WAIT_NEXT;
 			continue;
 		}
 
-		// check response from previous ramp or do overall standby check
+		// prio1: check response from previous action
 		if (device)
-			if (check_response(device)) {
-				wait = WAIT_NEXT;
-				device = 0;
-				continue; // recalculate next round
-			}
+			device = check_response(device);
 
-		// perform standby check logic
-		device = check_standby(now);
+		// prio2: perform standby checking logic
+		if (!device)
+			device = check_standby(now);
 
-		// no standby checks -> ramp up/down devices depending on if we have surplus or not
+		// prio3: ramp up/down
 		if (!device)
 			device = ramp();
 
