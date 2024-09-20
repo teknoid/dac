@@ -297,7 +297,7 @@ void xlogl_end(char *line, size_t len, const char *s) {
 
 	int l = strlen(line);
 	if (l > len)
-		xerr("!!! Warning !!! segfault approaching due to line buffer is too small: strlen %d > sizeof %d", l, len);
+		xerr("UTILS !!! Warning !!! segfault approaching due to line buffer is too small: strlen %d > sizeof %d", l, len);
 
 	xlog(line);
 }

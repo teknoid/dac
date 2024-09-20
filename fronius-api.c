@@ -761,10 +761,10 @@ static void calculate_state() {
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
 
-	// calculate greedy
+	// greedy power = akku + grid
 	state->greedy = state->surplus - kt; // hint: steal() can increase greedy!
 
-	// calculate modest power
+	// modest power = only grid upload
 	if (abs(state->grid) < kf)
 		state->modest = 0; // stable
 	else
