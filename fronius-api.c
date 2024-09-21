@@ -763,12 +763,16 @@ static void calculate_state() {
 
 	// greedy power = akku + grid
 	state->greedy = state->surplus - kt; // hint: steal() can increase greedy!
+	if (abs(state->greedy) < NOISE)
+		state->greedy = 0;
 
 	// modest power = only grid upload
 	if (abs(state->grid) < kf)
 		state->modest = 0; // stable
 	else
 		state->modest = (state->grid * -1) - (state->akku > kf ? state->akku : 0) - kt;
+	if (abs(state->modest) < NOISE)
+		state->modest = 0;
 
 	// steal power from modest ramped adjustable devices for greedy dumb devices
 	steal_power();
