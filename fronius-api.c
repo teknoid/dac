@@ -616,14 +616,24 @@ static device_t* perform_check_standby(device_t *d) {
 	return d;
 }
 
-static int standby(struct tm *now) {
+static int force_standby(struct tm *now) {
+	int standby = 0;
 	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
 	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
+
 	if (summer)
-		return 1;
-	if (now->tm_hour > 15)
-		return 0; // force heating after 15:00 independently from temperature
-	return in > 25; // too hot
+		standby = 1;
+	else {
+		if (now->tm_hour > 15)
+			standby = 0; // force heating after 15:00 independently from temperature
+		else
+			standby = in > 25; // too hot
+	}
+
+	if (standby)
+		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, out, in);
+
+	return standby;
 }
 
 static device_t* check_standby(struct tm *now) {
@@ -632,8 +642,7 @@ static device_t* check_standby(struct tm *now) {
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
-	if (standby(now)) {
-		xdebug("FRONIUS putting dumb devices into standby");
+	if (force_standby(now)) {
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
