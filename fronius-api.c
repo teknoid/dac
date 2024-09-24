@@ -661,25 +661,32 @@ static device_t* check_standby(struct tm *now) {
 }
 
 static device_t* check_response(device_t *d) {
-	// do we have a valid response - at least 50% of expected?
-	int response = state->dload != 0 && (d->dload > 0 ? (state->dload > d->dload / 2) : (state->dload < d->dload / 2));
+	int delta = d->dload;
+	d->dload = 0;
+
+	// no delta power - no response to check
+	if (!delta)
+		return 0;
+
+	// do we have a valid response at least 1/3 of expected?
+	int response = state->dload != 0 && (delta > 0 ? (state->dload > delta / 3) : (state->dload < delta / 3));
 
 	// response OK
 	if (d->state == Active && response) {
-		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
+		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, state->dload);
 		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
-		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, d->dload, state->dload);
+		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, state->dload);
 		d->state = Active;
 		return d;
 	}
 
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
-		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, d->dload, state->dload);
+		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
 		return d;
@@ -687,13 +694,13 @@ static device_t* check_response(device_t *d) {
 
 	// last delta load was too small (minimum 5%)
 	int min = d->load * 5 / 100;
-	if (abs(d->dload) < min) {
-		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(d->dload), min);
+	if (abs(delta) < min) {
+		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(delta), min);
 		return 0;
 	}
 
 	// ignore standby check when switched off a dumb device
-	if (!d->adjustable && d->dload > 0) {
+	if (!d->adjustable && delta > 0) {
 		xdebug("FRONIUS skipping standby check for %s: switched off dumb device", d->name);
 		return 0;
 	}
