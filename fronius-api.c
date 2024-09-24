@@ -714,8 +714,6 @@ static void calculate_state() {
 	// total pv from both inverters
 	state->pv = state->pv10 + state->pv7;
 	state->dpv = state->pv - h1->pv;
-//	if (abs(state->dpv) < NOISE)
-//		state->dpv = 0;
 
 	// subtract PV produced by Fronius7
 	state->load -= state->pv7;
