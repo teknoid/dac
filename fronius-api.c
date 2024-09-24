@@ -25,9 +25,8 @@
 #define WAIT_STANDBY		300
 #define WAIT_STABLE			60
 #define WAIT_INSTABLE		20
-#define WAIT_NEXT			10
-#define WAIT_ADJUSTABLE		5
-#define WAIT_DUMB			10
+#define WAIT_RAMP			10
+#define WAIT_NEXT			5
 
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
@@ -430,21 +429,21 @@ static int calculate_step(device_t *d, int power) {
 	if (!step)
 		return 0;
 
-	// when we have distortion, do: smaller up steps / bigger down steps
-	if (state->distortion) {
-		if (step > 0)
-			step /= 2;
-		else
-			step *= 2;
-		xdebug("FRONIUS step2 %d", step);
-	}
-
 	// adjust step when ramp and tendence is same direction
 	if (state->tendence) {
 		if (power < 0 && state->tendence < 0)
 			step--;
 		if (power > 0 && state->tendence > 0)
 			step++;
+		xdebug("FRONIUS step2 %d", step);
+	}
+
+	// when we have distortion, do: smaller up steps / bigger down steps
+	if (state->distortion) {
+		if (step > 0)
+			step /= 2;
+		else
+			step *= 2;
 		xdebug("FRONIUS step3 %d", step);
 	}
 
@@ -617,17 +616,18 @@ static device_t* perform_check_standby(device_t *d) {
 }
 
 static int force_standby(struct tm *now) {
-	int standby = 0;
 	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
 	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
 
+	int standby = in > 25; // too hot
 	if (summer)
-		standby = 1;
+		standby = 1; // summer mode -> off
 	else {
-		if (now->tm_hour > 15)
-			standby = 0; // force heating after 15:00 independently from temperature
-		else
-			standby = in > 25; // too hot
+		// force heating independently from temperature
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 uhr
+			standby = 0;
+		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 uhr
+			standby = 0;
 	}
 
 	if (standby)
@@ -714,8 +714,8 @@ static void calculate_state() {
 	// total pv from both inverters
 	state->pv = state->pv10 + state->pv7;
 	state->dpv = state->pv - h1->pv;
-	if (abs(state->dpv) < NOISE)
-		state->dpv = 0;
+//	if (abs(state->dpv) < NOISE)
+//		state->dpv = 0;
 
 	// subtract PV produced by Fronius7
 	state->load -= state->pv7;
@@ -789,19 +789,17 @@ static void calculate_state() {
 }
 
 static int calculate_next_round(device_t *d) {
-	if (d && d->adjustable)
-		return WAIT_ADJUSTABLE;
-
-	if (d && !d->adjustable)
-		return WAIT_DUMB;
+	if (d)
+		return WAIT_RAMP;
 
 	// determine wait for next round
 	// much faster next round on
+	// - pv tendence up/down
 	// - distortion
 	// - wasting akku->grid power
 	// - big akku / grid load
 	// - actual load > calculated load --> other consumers active
-	if (state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < -5)
+	if (state->tendence || state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < -5)
 		return WAIT_NEXT;
 
 	// all devices in standby?
