@@ -668,7 +668,7 @@ static device_t* check_response(device_t *d) {
 	if (!delta)
 		return 0;
 
-	// do we have a valid response at least 1/3 of expected?
+	// valid response is at least 1/3 of expected
 	int response = state->dload != 0 && (delta > 0 ? (state->dload > delta / 3) : (state->dload < delta / 3));
 
 	// response OK
@@ -797,12 +797,11 @@ static int calculate_next_round(device_t *d) {
 	if (d)
 		return WAIT_RAMP;
 
-	// determine wait for next round
 	// much faster next round on
 	// - pv tendence up/down
 	// - distortion
 	// - wasting akku->grid power
-	// - big akku / grid load
+	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
 	if (state->tendence || state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < -5)
 		return WAIT_NEXT;
@@ -822,11 +821,7 @@ static int calculate_next_round(device_t *d) {
 	if (instable)
 		return WAIT_INSTABLE;
 
-	// state is stable, but faster next round when we have distortion
-	if (state->distortion)
-		return WAIT_STABLE / 2;
-	else
-		return WAIT_STABLE;
+	return WAIT_STABLE;
 }
 
 static void fronius() {
