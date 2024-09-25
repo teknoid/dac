@@ -96,17 +96,18 @@ static device_t plug7 = { .id = 0xC24A88, .r = 0, .name = "plug7", .load = 500, 
 static device_t plug8 = { .id = 0x58ED80, .r = 0, .name = "plug8", .load = 500, .set_function = &set_heater, .adjustable = 0 };
 static device_t *DEVICES[] = { &boiler1, &boiler2, &boiler3, &plug5, &plug6, &plug7, &plug8, 0 };
 
+// program of the day
 typedef struct potd_t {
 	const char *name;
 	device_t *greedy[ARRAY_SIZE(DEVICES)];
 	device_t *modest[ARRAY_SIZE(DEVICES)];
 } potd_t;
 
-// program of the day for cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
+// cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
 static const potd_t EMPTY = { .name = "EMPTY", .greedy = { &boiler1, 0 }, .modest = { &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
 
-// program of the day for cloudy weather but tomorrow sunny: steal all akku charge power
+// cloudy weather but tomorrow sunny: steal all akku charge power
 static const potd_t TOMORROW = { .name = "TOMORROW", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 }, .modest = { 0 } };
 
-// program of the day for sunny weather: plenty of power
+// sunny weather: plenty of power
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, 0 }, .modest = { &boiler2, &boiler3, 0 } };

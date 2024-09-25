@@ -51,7 +51,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload  pv10   pv7  dist  tend  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -135,10 +135,10 @@ static int update() {
 	int d = 0;
 
 	state->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
-	d |= delta(state->pv10, h1->pv10, 2);
+	d |= delta(state->pv10, h1->pv10, 1);
 
 	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
-	d |= delta(state->pv7, h1->pv7, 2);
+	d |= delta(state->pv7, h1->pv7, 1);
 
 	return d;
 }
@@ -160,7 +160,7 @@ static void loop() {
 		if (device)
 			sleep(3); // wait for regulation to take effect
 		else
-			msleep(300); // wait for new values
+			msleep(100); // wait for new values
 
 		// update state from modbus registers
 		int delta = update();
@@ -243,7 +243,7 @@ static void* fronius10(void *arg) {
 		}
 
 		while (1) {
-			msleep(500);
+			msleep(250);
 
 			// check error counter
 			if (errors == 10)
@@ -298,7 +298,7 @@ static void* fronius7(void *arg) {
 		}
 
 		while (1) {
-			msleep(500);
+			msleep(100);
 
 			// check error counter
 			if (errors == 10)

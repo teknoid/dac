@@ -736,7 +736,7 @@ static void calculate_state() {
 	// calculate expected load
 	state->xload = calculate_xload();
 
-	// 	deviation of calculated load to actual load in %
+	// deviation of calculated load to actual load in %
 	state->dxload = (state->xload - state->load) * 100 / state->xload;
 
 	// wasting akku->grid power?
