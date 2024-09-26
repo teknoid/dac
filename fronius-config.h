@@ -21,7 +21,7 @@
 
 #define TEMP_IN				sensors->bmp280_temp
 #define TEMP_OUT			sensors->sht31_temp
-#define SUMMER(now)			(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
+#define SUMMER				(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 

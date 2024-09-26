@@ -393,7 +393,7 @@ static int read_mosmix() {
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
 	int n;
-	if (SUMMER(now)) {
+	if (SUMMER) {
 		n = na + ns;
 		xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 	} else {
@@ -478,7 +478,7 @@ static int ramp_dumb(device_t *d, int power) {
 	return 0; // continue loop
 }
 
-static int rampup_device(device_t *d, int power) {
+static int ramp_device(device_t *d, int power) {
 	if (d->state == Standby)
 		return 0; // continue loop
 
@@ -488,19 +488,11 @@ static int rampup_device(device_t *d, int power) {
 		return ramp_dumb(d, power);
 }
 
-static int rampdown_device(device_t *d, int power) {
-	if (d->adjustable)
-		return ramp_adjustable(d, power);
-	else
-		return ramp_dumb(d, power);
-}
-
 static device_t* rampup(int power, device_t **devices) {
 	// debug("FRONIUS rampup() %d", power);
-	for (device_t **d = devices; *d != 0; d++) {
-		if (rampup_device(*d, power))
+	for (device_t **d = devices; *d != 0; d++)
+		if (ramp_device(*d, power))
 			return *d;
-	}
 
 	return 0; // next priority
 }
@@ -514,10 +506,9 @@ static device_t* rampdown(int power, device_t **devices) {
 		d++;
 
 	// now go backward - this will give a reverse order
-	while (d-- != devices) {
-		if (rampdown_device(*d, power))
+	while (d-- != devices)
+		if (ramp_device(*d, power))
 			return *d;
-	}
 
 	return 0; // next priority
 }
@@ -608,22 +599,16 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static int force_standby() {
-	int standby = TEMP_IN > 25; // too hot for heating
+	if (SUMMER)
+		return 1; // summer mode -> off
 
-	if (SUMMER(now))
-		standby = 1; // summer mode -> off
-	else {
-		// force heating independently from temperature
-		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 uhr
-			standby = 0;
-		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 uhr
-			standby = 0;
-	}
+	// force heating independently from temperature
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 uhr
+		return 0;
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 uhr
+		return 0;
 
-	if (standby)
-		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
-
-	return standby;
+	return TEMP_IN > 25; // too hot for heating
 }
 
 static device_t* standby() {
@@ -633,6 +618,7 @@ static device_t* standby() {
 
 	// put dumb devices into standby if summer or too hot
 	if (force_standby(now)) {
+		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
