@@ -603,9 +603,9 @@ static int force_standby() {
 		return 1; // summer mode -> off
 
 	// force heating independently from temperature
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 uhr
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
 		return 0;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 uhr
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
 		return 0;
 
 	return TEMP_IN > 25; // too hot for heating
