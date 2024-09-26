@@ -86,7 +86,7 @@ gpio-bcm2835: gpio-bcm2835.o utils.o
 	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o utils.o
 	
 switch: switch.o gpio-sunxi.o utils.o
-	$(CC) $(CFLAGS) -c switch.c
+	$(CC) $(CFLAGS) -c switch.c gpio-sunxi.c utils.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
 
 template: template.o utils.o
