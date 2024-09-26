@@ -563,7 +563,7 @@ static device_t* steal() {
 	// greedy thief can steal from greedy victims behind
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load + NOISE) {
+			if ((*v)->consuming > (*t)->load * 1.5) {
 				xdebug("FRONIUS steal %d from greedy %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
 				((*v)->set_function)(*v, 0);
 				return *v;
@@ -572,7 +572,7 @@ static device_t* steal() {
 	// greedy thief can steal from all modest victims
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = potd->modest; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load + NOISE) {
+			if ((*v)->consuming > (*t)->load * 1.5) {
 				xdebug("FRONIUS steal %d from modest %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
 				((*v)->set_function)(*v, 0);
 				return *v;
@@ -581,7 +581,7 @@ static device_t* steal() {
 	// modest thief can steal from modest victims behind
 	for (device_t **t = potd->modest; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load + NOISE) {
+			if ((*v)->consuming > (*t)->load * 1.5) {
 				xdebug("FRONIUS steal %d from modest %s and provide it to modest %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
 				((*v)->set_function)(*v, 0);
 				return *v;
