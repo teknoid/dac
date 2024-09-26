@@ -613,7 +613,6 @@ static device_t* perform_check_standby(device_t *d) {
 		return 0;
 	}
 
-	// already in standby?
 	if (d->state == Standby)
 		return 0;
 
@@ -685,12 +684,14 @@ static device_t* check_response(device_t *d) {
 	// response OK
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, state->dload);
+		d->standby_counter = STANDBY_COUNTER;
 		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, state->dload);
+		d->standby_counter = STANDBY_COUNTER;
 		d->state = Active;
 		return d;
 	}
@@ -703,20 +704,18 @@ static device_t* check_response(device_t *d) {
 		return d;
 	}
 
-	// last delta load was too small (minimum 5%)
-	int min = d->load * 5 / 100;
-	if (abs(delta) < min) {
-		xdebug("FRONIUS skipping standby check for %s, delta power only %d required %d", d->name, abs(delta), min);
-		return 0;
-	}
-
 	// ignore standby check when switched off a dumb device
 	if (!d->adjustable && delta > 0) {
 		xdebug("FRONIUS skipping standby check for %s: switched off dumb device", d->name);
 		return 0;
 	}
 
-	// initiate a standby check
+	// skip standby check till counter is not down
+	if (d->adjustable && d->standby_counter > 0) {
+		xdebug("FRONIUS starting standby check on %s in %d", d->name, d->standby_counter--);
+		return 0;
+	}
+
 	return perform_check_standby(d);
 }
 
@@ -771,11 +770,9 @@ static void calculate_state() {
 	// indicate standby check when deviation between actual load and calculated load is three times over 50%
 	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
 
-	// allow more tolerance for bigger pv production, null tolerance if TOMORROW and akku > 50%
+	// allow more tolerance for bigger pv production
 	// TODO in prozent rechnen
 	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
-	if (potd == &TOMORROW && state->chrg > 50)
-		tolerance = 0;
 	int kf = KEEP_FROM * tolerance;
 	int kt = KEEP_TO * tolerance;
 

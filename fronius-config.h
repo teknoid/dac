@@ -5,6 +5,7 @@
 #define OVERRIDE			600
 #define STANDBY				0
 #define STANDBY_RESET		60 * 30
+#define STANDBY_COUNTER		3
 
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
@@ -83,6 +84,7 @@ struct _device {
 	enum dstate state;
 	int power;
 	int dload;
+	int standby_counter;
 	time_t override;
 	set_function_t *set_function;
 };
