@@ -85,14 +85,19 @@ static void set_all_devices(int power) {
 }
 
 // TODO performance: make makro
-static int delta(int v, int v_old, int d_proz) {
-	int v_diff = v - v_old;
-	int v_proz = v == 0 ? 0 : (v_diff * 100) / v;
-	// xlog("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d", v_old, v, v_diff, v_proz, d_proz);
-	if (abs(v_proz) >= d_proz)
-		return 1;
-	return 0;
-}
+//static int delta(int v, int v_old, int d_proz) {
+//	// no tolerance
+//	if (!d_proz)
+//		return v != v_old;
+//
+//	// tolerance in d_proz (percent)
+//	int v_diff = v - v_old;
+//	int v_proz = v == 0 ? 0 : (v_diff * 100) / v;
+//	// xlog("v_old=%d v=%d v_diff=%d v_proz=%d d_proz=%d", v_old, v, v_diff, v_proz, d_proz);
+//	if (abs(v_proz) >= d_proz)
+//		return 1;
+//	return 0;
+//}
 
 static void daily() {
 	xlog("executing daily tasks...");
@@ -135,10 +140,10 @@ static int update() {
 	int d = 0;
 
 	state->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
-	d |= delta(state->pv10, h1->pv10, 1);
+	d |= state->pv10 != h1->pv10;
 
 	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
-	d |= delta(state->pv7, h1->pv7, 1);
+	d |= state->pv7 != h1->pv7;
 
 	return d;
 }
@@ -160,7 +165,7 @@ static void loop() {
 		if (device)
 			sleep(3); // wait for regulation to take effect
 		else
-			msleep(100); // wait for new values
+			msleep(500); // wait for new values
 
 		// update state from modbus registers
 		int delta = update();
@@ -243,7 +248,7 @@ static void* fronius10(void *arg) {
 		}
 
 		while (1) {
-			msleep(250);
+			msleep(1000);
 
 			// check error counter
 			if (errors == 10)
@@ -298,7 +303,7 @@ static void* fronius7(void *arg) {
 		}
 
 		while (1) {
-			msleep(100);
+			msleep(1000);
 
 			// check error counter
 			if (errors == 10)
