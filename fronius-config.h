@@ -53,7 +53,6 @@ struct _state {
 	int surplus;
 	int greedy;
 	int modest;
-	int steal;
 	int waste;
 	int sum;
 	int chrg;
@@ -84,6 +83,7 @@ struct _device {
 	enum dstate state;
 	int power;
 	int dload;
+	int consuming;
 	int standby_counter;
 	time_t override;
 	set_function_t *set_function;

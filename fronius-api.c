@@ -92,6 +92,7 @@ int set_heater(device_t *heater, int power) {
 	// update power values
 	heater->power = power;
 	heater->dload = power ? heater->load * -1 : heater->load;
+	heater->consuming = power ? heater->load : 0;
 	return 1; // loop done
 }
 
@@ -155,6 +156,7 @@ int set_boiler(device_t *boiler, int power) {
 	// update power values
 	boiler->power = power;
 	boiler->dload = boiler->load * step / -100;
+	boiler->consuming = power ? boiler->load * boiler->power / 100 : 0;
 	return 1; // loop done
 }
 
@@ -174,21 +176,6 @@ static void init_all_devices() {
 		(d->set_function)(d, 0);
 		d->power = 0;
 	}
-}
-
-static int calculate_xload() {
-	int xload = BASELOAD;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		if (!d->power)
-			continue;
-
-		if (d->adjustable)
-			xload += d->load * d->power / 100;
-		else
-			xload += d->load;
-	}
-	return xload * -1;
 }
 
 static meter_t* get_meter_history(int offset) {
@@ -213,7 +200,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst steal waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -572,40 +559,35 @@ static device_t* ramp() {
 	return 0;
 }
 
-// TODO Idee: devices als doppelt verkettete liste und dann je nach device von hinten stehlen
-static void steal_power() {
-	int dpower = 0, apower = 0, greedy_dumb_off = 0;
+static device_t* steal() {
+	// greedy thief can steal from greedy victims behind
+	for (device_t **t = potd->greedy; *t != 0; t++)
+		for (device_t **v = t + 1; *v != 0; v++)
+			if ((*v)->consuming > (*t)->load + NOISE) {
+				xdebug("FRONIUS steal %d from greedy %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+				((*v)->set_function)(*v, 0);
+				return *v;
+			}
 
-	// collect greedy dumb power and check if we have greedy dumb off devices
-	for (device_t **d = potd->greedy; *d != 0; d++)
-		if (!(*d)->power)
-			greedy_dumb_off = 1;
-		else if (!(*d)->adjustable && (*d)->power)
-			dpower += (*d)->load;
+	// greedy thief can steal from all modest victims
+	for (device_t **t = potd->greedy; *t != 0; t++)
+		for (device_t **v = potd->modest; *v != 0; v++)
+			if ((*v)->consuming > (*t)->load + NOISE) {
+				xdebug("FRONIUS steal %d from modest %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+				((*v)->set_function)(*v, 0);
+				return *v;
+			}
 
-	// collect modest adjustable
-	for (device_t **d = potd->modest; *d != 0; d++)
-		if ((*d)->adjustable && (*d)->power)
-			apower += (*d)->load * (*d)->power / 100;
+	// modest thief can steal from modest victims behind
+	for (device_t **t = potd->modest; *t != 0; t++)
+		for (device_t **v = t + 1; *v != 0; v++)
+			if ((*v)->consuming > (*t)->load + NOISE) {
+				xdebug("FRONIUS steal %d from modest %s and provide it to modest %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+				((*v)->set_function)(*v, 0);
+				return *v;
+			}
 
-	// collect greedy adjustable
-//	for (device_t **d = potd->greedy; *d != 0; d++)
-//		if ((*d)->adjustable && (*d)->power)
-//			apower += (*d)->load * (*d)->power / 100;
-
-	// nothing to steal
-	if (!greedy_dumb_off || !apower)
-		return;
-
-	// a greedy dumb off device can steal power from a non greedy adjustable device if this power is really consumed
-	int spower = state->load * -1 - dpower;
-	if (spower < 0)
-		spower = 0;
-	state->steal = spower < apower ? spower : apower;
-	if (state->surplus < 0)
-		state->steal = 0;
-	state->greedy += state->steal;
-	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
+	return 0;
 }
 
 static device_t* perform_check_standby(device_t *d) {
@@ -745,7 +727,10 @@ static void calculate_state() {
 	state->cload = (state->pv + state->akku + state->grid) * -1;
 
 	// calculate expected load
-	state->xload = calculate_xload();
+	state->xload = BASELOAD;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		state->xload += (*d)->consuming;
+	state->xload *= -1;
 
 	// deviation of calculated load to actual load in %
 	state->dxload = (state->xload - state->load) * 100 / state->xload;
@@ -787,7 +772,7 @@ static void calculate_state() {
 	state->surplus = (state->grid + state->akku) * -1;
 
 	// greedy power = akku + grid
-	state->greedy = state->surplus - kt; // hint: steal() can increase greedy!
+	state->greedy = state->surplus - kt;
 	if (abs(state->greedy) < NOISE)
 		state->greedy = 0;
 
@@ -795,9 +780,6 @@ static void calculate_state() {
 	state->modest = -1 * state->grid - (state->akku > kf ? state->akku : 0) - kt;
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
-
-	// steal power from adjustable devices for greedy dumb devices
-	steal_power();
 
 	char message[128];
 	snprintf(message, 128, "kf:%d kt:%d", kf, kt);
@@ -969,6 +951,10 @@ static void fronius() {
 		// prio3: ramp up/down
 		if (!device)
 			device = ramp();
+
+		// prio4: check if higher priorized device can steal from lower priorized
+		if (!device)
+			device = steal();
 
 		// determine wait for next round
 		wait = state->wait = calculate_next_round(device);
