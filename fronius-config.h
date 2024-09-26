@@ -79,11 +79,11 @@ struct _device {
 	const char *name;
 	const char *addr;
 	const int adjustable;
-	const int load;
+	const int total;
 	enum dstate state;
 	int power;
+	int load;
 	int dload;
-	int consuming;
 	int standby_counter;
 	time_t override;
 	set_function_t *set_function;
@@ -94,13 +94,13 @@ int set_heater(device_t *device, int power);
 int set_boiler(device_t *device, int power);
 
 // devices
-static device_t boiler1 = { .name = "boiler1", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler2 = { .name = "boiler2", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler3 = { .name = "boiler3", .load = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t plug5 = { .id = 0x5E40EC, .r = 0, .name = "plug5", .load = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug6 = { .id = 0xC24A88, .r = 0, .name = "plug6", .load = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug7 = { .id = 0x58ED80, .r = 0, .name = "plug7", .load = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug8 = { .id = 0xB60A0C, .r = 0, .name = "plug8", .load = 200, .set_function = &set_heater, .adjustable = 0 };
+static device_t boiler1 = { .name = "boiler1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t boiler2 = { .name = "boiler2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t boiler3 = { .name = "boiler3", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t plug5 = { .id = 0x5E40EC, .r = 0, .name = "plug5", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t plug6 = { .id = 0xC24A88, .r = 0, .name = "plug6", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t plug7 = { .id = 0x58ED80, .r = 0, .name = "plug7", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t plug8 = { .id = 0xB60A0C, .r = 0, .name = "plug8", .total = 200, .set_function = &set_heater, .adjustable = 0 };
 static device_t *DEVICES[] = { &boiler1, &boiler2, &boiler3, &plug5, &plug6, &plug7, &plug8, 0 };
 
 // program of the day

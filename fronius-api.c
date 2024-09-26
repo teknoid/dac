@@ -91,8 +91,8 @@ int set_heater(device_t *heater, int power) {
 
 	// update power values
 	heater->power = power;
-	heater->dload = power ? heater->load * -1 : heater->load;
-	heater->consuming = power ? heater->load : 0;
+	heater->load = power ? heater->total : 0;
+	heater->dload = power ? heater->total * -1 : heater->total;
 	return 1; // loop done
 }
 
@@ -155,8 +155,8 @@ int set_boiler(device_t *boiler, int power) {
 
 	// update power values
 	boiler->power = power;
-	boiler->dload = boiler->load * step / -100;
-	boiler->consuming = power ? boiler->load * boiler->power / 100 : 0;
+	boiler->load = boiler->total * boiler->power / 100;
+	boiler->dload = boiler->total * step / -100;
 	return 1; // loop done
 }
 
@@ -170,11 +170,9 @@ static void init_all_devices() {
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		d->state = Active;
-		d->addr = resolve_ip((d)->name);
-		d->dload = 0;
+		d->addr = resolve_ip(d->name);
 		d->power = -1; // force set to 0
 		(d->set_function)(d, 0);
-		d->power = 0;
 	}
 }
 
@@ -416,7 +414,7 @@ static int read_mosmix() {
 
 static int calculate_step(device_t *d, int power) {
 	// power steps
-	int step = power / (d->load / 100);
+	int step = power / (d->total / 100);
 	xdebug("FRONIUS step1 %d", step);
 
 	if (!step)
@@ -466,7 +464,7 @@ static int ramp_dumb(device_t *d, int power) {
 		return 0; // continue loop
 
 	// 50% more when we have distortion
-	int min = state->distortion ? d->load * 1.5 : d->load;
+	int min = state->distortion ? d->total * 1.5 : d->total;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// switch on when enough power is available
@@ -562,8 +560,8 @@ static device_t* steal() {
 	// greedy thief can steal from greedy victims behind
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load * 1.5) {
-				xdebug("FRONIUS steal %d from greedy %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+			if ((*v)->load > (*t)->total * 1.5) {
+				xdebug("FRONIUS steal %d from greedy %s and provide it to greedy %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
 				((*v)->set_function)(*v, 0);
 				return *v;
 			}
@@ -571,8 +569,8 @@ static device_t* steal() {
 	// greedy thief can steal from all modest victims
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = potd->modest; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load * 1.5) {
-				xdebug("FRONIUS steal %d from modest %s and provide it to greedy %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+			if ((*v)->load > (*t)->total * 1.5) {
+				xdebug("FRONIUS steal %d from modest %s and provide it to greedy %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
 				((*v)->set_function)(*v, 0);
 				return *v;
 			}
@@ -580,8 +578,8 @@ static device_t* steal() {
 	// modest thief can steal from modest victims behind
 	for (device_t **t = potd->modest; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->consuming > (*t)->load * 1.5) {
-				xdebug("FRONIUS steal %d from modest %s and provide it to modest %s with a load of %d", (*v)->consuming, (*v)->name, (*t)->name, (*t)->load);
+			if ((*v)->load > (*t)->total * 1.5) {
+				xdebug("FRONIUS steal %d from modest %s and provide it to modest %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
 				((*v)->set_function)(*v, 0);
 				return *v;
 			}
@@ -589,7 +587,7 @@ static device_t* steal() {
 	return 0;
 }
 
-static device_t* perform_check_standby(device_t *d) {
+static device_t* perform_standby(device_t *d) {
 	if (state->distortion) {
 		xdebug("FRONIUS skipping standby check on %s due to distortion", d->name);
 		return 0;
@@ -628,7 +626,7 @@ static int force_standby() {
 	return standby;
 }
 
-static device_t* check_standby() {
+static device_t* standby() {
 	// do we have powered devices?
 	if (state->xload == BASELOAD)
 		return 0;
@@ -647,18 +645,19 @@ static device_t* check_standby() {
 	// execute standby check on first powered device if indicated
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if (state->standby && (*d)->state == Active && (*d)->power)
-			return perform_check_standby(*d);
+			return perform_standby(*d);
 
 	return 0;
 }
 
-static device_t* check_response(device_t *d) {
-	int delta = d->dload;
-	d->dload = 0;
-
+static device_t* response(device_t *d) {
 	// no delta power - no response to check
+	int delta = d->dload;
 	if (!delta)
 		return 0;
+
+	// reset
+	d->dload = 0;
 
 	// valid response is at least 1/3 of expected
 	int response = state->dload != 0 && (delta > 0 ? (state->dload > delta / 3) : (state->dload < delta / 3));
@@ -698,7 +697,7 @@ static device_t* check_response(device_t *d) {
 		return 0;
 	}
 
-	return perform_check_standby(d);
+	return perform_standby(d);
 }
 
 static void calculate_state() {
@@ -728,7 +727,7 @@ static void calculate_state() {
 	// calculate expected load
 	state->xload = BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
-		state->xload += (*d)->consuming;
+		state->xload += (*d)->load;
 	state->xload *= -1;
 
 	// deviation of calculated load to actual load in %
@@ -941,11 +940,11 @@ static void fronius() {
 
 		// prio1: check response from previous action
 		if (device)
-			device = check_response(device);
+			device = response(device);
 
 		// prio2: perform standby checking logic
 		if (!device)
-			device = check_standby();
+			device = standby();
 
 		// prio3: ramp up/down
 		if (!device)
