@@ -431,7 +431,7 @@ static int calculate_step(device_t *d, int power) {
 		xdebug("FRONIUS step2 %d", step);
 	}
 
-	// when we have distortion, do: smaller up steps / bigger down steps
+	// do smaller up steps / bigger down steps when we have distortion
 	if (state->distortion) {
 		if (step > 0)
 			step /= 2;
@@ -444,8 +444,6 @@ static int calculate_step(device_t *d, int power) {
 }
 
 static int ramp_adjustable(device_t *d, int power) {
-	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
-
 	// already full up
 	if (d->power == 100 && power > 0)
 		return 0;
@@ -454,6 +452,7 @@ static int ramp_adjustable(device_t *d, int power) {
 	if (!d->power && power < 0)
 		return 0;
 
+	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
 	int step = calculate_step(d, power);
 	if (!step)
 		return 0;
@@ -462,12 +461,13 @@ static int ramp_adjustable(device_t *d, int power) {
 }
 
 static int ramp_dumb(device_t *d, int power) {
-	int min = d->load + (state->distortion ? d->load / 2 : 0); // 50% more when distortion
-	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
-
 	// keep on as long as we have enough power and device is already on
 	if (d->power && power > 0)
 		return 0; // continue loop
+
+	// 50% more when we have distortion
+	int min = state->distortion ? d->load * 1.5 : d->load;
+	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// switch on when enough power is available
 	if (!d->power && power > min)
@@ -524,7 +524,6 @@ static device_t* rampdown(int power, device_t **devices) {
 	return 0; // next priority
 }
 
-// do device adjustments in sequence of priority
 static device_t* ramp() {
 	device_t *d;
 
