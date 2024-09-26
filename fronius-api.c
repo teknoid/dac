@@ -44,6 +44,7 @@ static state_t *state;
 static state_t state_history[HISTORY];
 static int state_history_ptr = 0;
 
+static struct tm *now;
 static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
@@ -377,7 +378,7 @@ static int choose_program(const potd_t *p, int mosmix) {
 	return mosmix;
 }
 
-static int read_mosmix(struct tm *now) {
+static int read_mosmix() {
 	char line[8];
 	int m0, m1, m2;
 
@@ -406,15 +407,20 @@ static int read_mosmix(struct tm *now) {
 	int e2 = m2 * MOSMIX_FACTOR;
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
-	int n = na + ns;
+	int n;
+	if (SUMMER(now)) {
+		n = na + ns;
+		xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
+	} else {
+		n = na + ns + HEATING;
+		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, HEATING, m0, e0, m1, e1, m2, e2);
+	}
 
-	xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/expected today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
-
-	if (e0 < SELF_CONSUMING) {
+	if (e0 < n) {
 		if (now->tm_hour > 12 && state->chrg < 40) // emergency load to survive next night
 			return choose_program(&EMPTY, m0);
 
-		if (e1 > SELF_CONSUMING)
+		if (e1 > n)
 			return choose_program(&TOMORROW, m0);
 	}
 
@@ -576,8 +582,13 @@ static void steal_power() {
 		else if (!(*d)->adjustable && (*d)->power)
 			dpower += (*d)->load;
 
-	// collect non greedy adjustable
+	// collect modest adjustable
 	for (device_t **d = potd->modest; *d != 0; d++)
+		if ((*d)->adjustable && (*d)->power)
+			apower += (*d)->load * (*d)->power / 100;
+
+	// collect greedy adjustable
+	for (device_t **d = potd->greedy; *d != 0; d++)
 		if ((*d)->adjustable && (*d)->power)
 			apower += (*d)->load * (*d)->power / 100;
 
@@ -590,6 +601,8 @@ static void steal_power() {
 	if (spower < 0)
 		spower = 0;
 	state->steal = spower < apower ? spower : apower;
+	if (state->surplus < 0)
+		state->steal = 0;
 	state->greedy += state->steal;
 	xdebug("FRONIUS steal_power() %d load:%d dpower:%d apower:%d spower:%d off:%d", state->steal, state->load, dpower, apower, spower, greedy_dumb_off);
 }
@@ -615,12 +628,10 @@ static device_t* perform_check_standby(device_t *d) {
 	return d;
 }
 
-static int force_standby(struct tm *now) {
-	float in = sensors->bmp280_temp, out = sensors->sht31_temp; // TODO validate
-	int summer = 4 < now->tm_mon && now->tm_mon < 8 && out > 10 && in > 20;
+static int force_standby() {
+	int standby = TEMP_IN > 25; // too hot for heating
 
-	int standby = in > 25; // too hot
-	if (summer)
+	if (SUMMER(now))
 		standby = 1; // summer mode -> off
 	else {
 		// force heating independently from temperature
@@ -631,12 +642,12 @@ static int force_standby(struct tm *now) {
 	}
 
 	if (standby)
-		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, out, in);
+		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 
 	return standby;
 }
 
-static device_t* check_standby(struct tm *now) {
+static device_t* check_standby() {
 	// do we have powered devices?
 	if (state->xload == BASELOAD)
 		return 0;
@@ -760,9 +771,11 @@ static void calculate_state() {
 	// indicate standby check when deviation between actual load and calculated load is three times over 50%
 	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
 
-	// allow more tolerance for bigger pv production
+	// allow more tolerance for bigger pv production, null tolerance if TOMORROW and akku > 50%
 	// TODO in prozent rechnen
 	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
+	if (potd == &TOMORROW && state->chrg > 50)
+		tolerance = 0;
 	int kf = KEEP_FROM * tolerance;
 	int kt = KEEP_TO * tolerance;
 
@@ -785,7 +798,7 @@ static void calculate_state() {
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
-	// steal power from modest ramped adjustable devices for greedy dumb devices
+	// steal power from adjustable devices for greedy dumb devices
 	steal_power();
 
 	char message[128];
@@ -878,7 +891,7 @@ static void fronius() {
 
 		// get actual calendar time
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		now = localtime(&now_ts);
 
 		// calculate daily statistics
 		if (mday != now->tm_mday) {
@@ -924,7 +937,7 @@ static void fronius() {
 		if (potd == 0 || now_ts > next_reset) {
 			xlog("FRONIUS resetting standby states");
 
-			mosmix = read_mosmix(now);
+			mosmix = read_mosmix();
 			for (device_t **d = DEVICES; *d != 0; d++)
 				(*d)->state = Active;
 
@@ -953,7 +966,7 @@ static void fronius() {
 
 		// prio2: perform standby checking logic
 		if (!device)
-			device = check_standby(now);
+			device = check_standby();
 
 		// prio3: ramp up/down
 		if (!device)

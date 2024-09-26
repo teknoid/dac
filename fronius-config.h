@@ -11,11 +11,16 @@
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
 #define MOSMIX_FACTOR		3
 
-#define AKKU_CAPACITY		11000
-#define SELF_CONSUMING		10000
 #define BASELOAD			300
+#define AKKU_CAPACITY		11000
+#define SELF_CONSUMING		BASELOAD * 24 		// Baseload for 24 hours
+#define HEATING				2000 * 6 			// heating 2kw for 6 hours
 #define NOISE				20
 #define SUSPICIOUS			250
+
+#define TEMP_IN				sensors->bmp280_temp
+#define TEMP_OUT			sensors->sht31_temp
+#define SUMMER(now)			(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
