@@ -800,7 +800,7 @@ static int calculate_next_round(device_t *d) {
 	// all devices in standby?
 	int all_standby = 1;
 	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Active)
+		if ((*d)->state != Standby)
 			all_standby = 0;
 	if (all_standby)
 		return WAIT_STANDBY;
