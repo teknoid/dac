@@ -572,6 +572,7 @@ static device_t* ramp() {
 	return 0;
 }
 
+// TODO Idee: devices als doppelt verkettete liste und dann je nach device von hinten stehlen
 static void steal_power() {
 	int dpower = 0, apower = 0, greedy_dumb_off = 0;
 
@@ -588,9 +589,9 @@ static void steal_power() {
 			apower += (*d)->load * (*d)->power / 100;
 
 	// collect greedy adjustable
-	for (device_t **d = potd->greedy; *d != 0; d++)
-		if ((*d)->adjustable && (*d)->power)
-			apower += (*d)->load * (*d)->power / 100;
+//	for (device_t **d = potd->greedy; *d != 0; d++)
+//		if ((*d)->adjustable && (*d)->power)
+//			apower += (*d)->load * (*d)->power / 100;
 
 	// nothing to steal
 	if (!greedy_dumb_off || !apower)
