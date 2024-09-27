@@ -12,6 +12,7 @@
 #include "fronius.h"
 #include "tasmota.h"
 #include "frozen.h"
+#include "mosmix.h"
 #include "utils.h"
 #include "curl.h"
 #include "mcp.h"
@@ -363,54 +364,50 @@ static int choose_program(const potd_t *p, int mosmix) {
 	return mosmix;
 }
 
-static int read_mosmix() {
-	char line[8];
-	int m0, m1, m2;
+static int read_mosmix(time_t now_ts) {
+	// reload data
+	mosmix_load(CHEMNITZ);
 
-	FILE *fp = fopen(MOSMIX, "r");
-	if (fp == NULL) {
-		xlog("FRONIUS no mosmix data available");
-		return choose_program(&EMPTY, m0);
-	}
+	// find current slot
+	mosmix_t *m = mosmix_current_slot(now_ts);
+	struct tm *slot_time = localtime(&(m->ts));
+	char *timestr = asctime(slot_time);
+	timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
+	xlog("FRONIUS mosmix current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
 
-	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &m0) != 1)
-			return xerr("FRONIUS mosmix parse error %s", line);
+	// cumulated today, tomorrow, tomorrow + 1
+	mosmix_t m0, m1, m2;
+	mosmix_24h(&m0, now_ts, 0);
+	mosmix_24h(&m1, now_ts, 1);
+	mosmix_24h(&m2, now_ts, 2);
 
-	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &m1) != 1)
-			return xerr("FRONIUS mosmix parse error %s", line);
+	int e0 = m0.Rad1h * MOSMIX_FACTOR;
+	int e1 = m1.Rad1h * MOSMIX_FACTOR;
+	int e2 = m2.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/Wh today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, e0, m1.Rad1h, e1, m2.Rad1h, e2);
 
-	if (fgets(line, 8, fp) != NULL)
-		if (sscanf(line, "%d", &m2) != 1)
-			return xerr("FRONIUS mosmix parse error %s", line);
-
-	fclose(fp);
-
-	int e0 = m0 * MOSMIX_FACTOR;
-	int e1 = m1 * MOSMIX_FACTOR;
-	int e2 = m2 * MOSMIX_FACTOR;
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
 	int nh = (9 <= now->tm_hour && now->tm_hour < 15) ? (15 - now->tm_hour) * HEATING : 0; // 9 - 15 o'clock
 	int n;
 	if (SUMMER) {
 		n = na + ns;
-		xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
+		xlog("FRONIUS mosmix needed %d (%d akku + %d self)", n, na, ns);
 	} else {
 		n = na + ns + nh;
-		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, nh, m0, e0, m1, e1, m2, e2);
+		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating)", n, na, ns, nh);
 	}
 
+	int expected = m0.Rad1h * MOSMIX_FACTOR;
 	if (e0 < n) {
 		if (now->tm_hour > 12 && state->chrg < 40) // emergency load to survive next night
-			return choose_program(&EMPTY, m0);
+			return choose_program(&EMPTY, expected);
 
 		if (e1 > n)
-			return choose_program(&TOMORROW, m0);
+			return choose_program(&TOMORROW, expected);
 	}
 
-	return choose_program(&SUNNY, m0);
+	return choose_program(&SUNNY, expected);
 }
 
 static int calculate_step(device_t *d, int power) {
@@ -806,7 +803,7 @@ static int calculate_next_round(device_t *d) {
 }
 
 static void fronius() {
-	int ret, wait = 1, errors = 0, mday = 0, mosmix = 0;
+	int ret, wait = 1, errors = 0, mday = 0, expected = 0;
 	device_t *device = 0;
 	time_t next_reset;
 	response_t memory = { 0 };
@@ -875,7 +872,6 @@ static void fronius() {
 			meter_t *yesterday = get_meter_history(-1);
 			long dp = meter->produced - yesterday->produced;
 			long dc = meter->consumed - yesterday->consumed;
-			int expected = mosmix * MOSMIX_FACTOR;
 			xlog("FRONIUS meter: current power %d, daily produced %d, daily consumed %d, mosmix %d", meter->p, dp, dc, expected);
 
 			// set history pointer to next slot
@@ -905,7 +901,7 @@ static void fronius() {
 		if (potd == 0 || now_ts > next_reset) {
 			xlog("FRONIUS resetting standby states");
 
-			mosmix = read_mosmix();
+			expected = read_mosmix(now_ts);
 			for (device_t **d = DEVICES; *d != 0; d++)
 				(*d)->state = Active;
 

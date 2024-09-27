@@ -2,6 +2,7 @@
 /.settings/language.settings.xml
 /mcp
 /fronius
+/mosmix
 /display
 /gpio-sunxi
 /gpio-bcm2835

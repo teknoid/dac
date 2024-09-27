@@ -1,0 +1,20 @@
+#define CHEMNITZ			"/tmp/CHEMNITZ.csv"
+#define MARIENBERG			"/tmp/MARIENBERG.csv"
+#define BRAUNSDORF			"/tmp/BRAUNSDORF.csv"
+
+#define MOSMIX_FACTOR		3
+
+typedef struct _mosmix mosmix_t;
+
+struct _mosmix {
+	int idx;
+	time_t ts;
+	float TTT;
+	int Rad1h;
+	int SunD1;
+};
+
+int mosmix_load(const char *filename);
+void mosmix_24h(mosmix_t *sum, time_t now_ts, int day);
+mosmix_t* mosmix_current_slot(time_t now_ts);
+
