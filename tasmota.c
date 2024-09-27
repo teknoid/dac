@@ -236,9 +236,10 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 	char *bmp280 = NULL;
 	char *bmp085 = NULL;
 	char *sht31 = NULL;
+	char *htu21 = NULL;
 	char *analog = NULL;
 
-	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, ANALOG:%Q}", &bh1750, &bmp280, &bmp085, &sht31, &analog);
+	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, ANALOG:%Q}", &bh1750, &bmp280, &bmp085, &sht31, &htu21, &analog);
 
 	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
@@ -262,6 +263,12 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 	if (sht31 != NULL) {
 		json_scanf(sht31, strlen(sht31), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->sht31_temp, &sensors->sht31_humi, &sensors->sht31_dew);
 		// xdebug("TASMOTA SHT31 %.1f °C, humidity %.1f %, dewpoint %.1f °C", sensors->sht31_temp, sensors->sht31_humi, sensors->sht31_dew);
+		free(sht31);
+	}
+
+	if (htu21 != NULL) {
+		json_scanf(htu21, strlen(htu21), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->htu21_temp, &sensors->htu21_humi, &sensors->htu21_dew);
+		// xdebug("TASMOTA HTU21 %.1f °C, humidity %.1f %, dewpoint %.1f °C", sensors->htu21_temp, sensors->htu21_humi, sensors->htu21_dew);
 		free(sht31);
 	}
 

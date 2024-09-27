@@ -146,6 +146,11 @@ typedef struct mcp_sensors_t {
 	float sht31_temp;
 	float sht31_dew;
 
+	// HTU21 temperature + humidity
+	float htu21_humi;
+	float htu21_temp;
+	float htu21_dew;
+
 	// ML8511 UV
 	uint16_t ml8511_uv;
 

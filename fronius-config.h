@@ -19,7 +19,7 @@
 #define NOISE				20
 #define SUSPICIOUS			250
 
-#define TEMP_IN				sensors->bmp280_temp
+#define TEMP_IN				sensors->htu21_temp
 #define TEMP_OUT			sensors->sht31_temp
 #define SUMMER				(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
