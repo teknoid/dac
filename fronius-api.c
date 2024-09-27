@@ -392,13 +392,14 @@ static int read_mosmix() {
 	int e2 = m2 * MOSMIX_FACTOR;
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
+	int nh = (9 <= now->tm_hour && now->tm_hour < 15) ? (15 - now->tm_hour) * HEATING : 0; // 9 - 15 o'clock
 	int n;
 	if (SUMMER) {
 		n = na + ns;
 		xlog("FRONIUS mosmix needed %d (%d akku + %d self), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, m0, e0, m1, e1, m2, e2);
 	} else {
-		n = na + ns + HEATING;
-		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, HEATING, m0, e0, m1, e1, m2, e2);
+		n = na + ns + nh;
+		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating), Rad1h/exp today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", n, na, ns, nh, m0, e0, m1, e1, m2, e2);
 	}
 
 	if (e0 < n) {

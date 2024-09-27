@@ -15,7 +15,7 @@
 #define BASELOAD			300
 #define AKKU_CAPACITY		11000
 #define SELF_CONSUMING		BASELOAD * 24 		// Baseload for 24 hours
-#define HEATING				2000 * 6 			// heating 2kw for 6 hours
+#define HEATING				2000	 			// heating 2kw
 #define NOISE				20
 #define SUSPICIOUS			250
 
