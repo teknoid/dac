@@ -547,33 +547,36 @@ static device_t* ramp() {
 	return 0;
 }
 
+static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
+	if (t->state == Active && t->power == 0 && v->load > t->total * 1.5) {
+		int power = v->load;
+		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", power, vstring, v->name, tstring, t->name, t->total);
+		ramp_device(v, power * -1);
+		ramp_device(t, power);
+		return 1;
+	}
+	return 0;
+}
+
+// TODO test return as no response is expected due to no delta power expected when immediately switching victim off and thief on
 static device_t* steal() {
 	// greedy thief can steal from greedy victims behind
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->load > (*t)->total * 1.5) {
-				xdebug("FRONIUS steal %d from greedy %s and provide it to greedy %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
-				((*v)->set_function)(*v, 0);
-				return *v;
-			}
+			if (steal_thief_victim(*t, *v, "greedy", "greedy"))
+				return *t;
 
 	// greedy thief can steal from all modest victims
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = potd->modest; *v != 0; v++)
-			if ((*v)->load > (*t)->total * 1.5) {
-				xdebug("FRONIUS steal %d from modest %s and provide it to greedy %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
-				((*v)->set_function)(*v, 0);
-				return *v;
-			}
+			if (steal_thief_victim(*t, *v, "greedy", "modest"))
+				return *t;
 
 	// modest thief can steal from modest victims behind
 	for (device_t **t = potd->modest; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
-			if ((*v)->load > (*t)->total * 1.5) {
-				xdebug("FRONIUS steal %d from modest %s and provide it to modest %s with a load of %d", (*v)->load, (*v)->name, (*t)->name, (*t)->total);
-				((*v)->set_function)(*v, 0);
-				return *v;
-			}
+			if (steal_thief_victim(*t, *v, "modest", "modest"))
+				return *t;
 
 	return 0;
 }
