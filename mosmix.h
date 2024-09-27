@@ -3,6 +3,7 @@
 #define BRAUNSDORF			"/tmp/BRAUNSDORF.csv"
 
 #define MOSMIX_FACTOR		3
+#define MOSMIX_COLUMNS		5
 
 typedef struct _mosmix mosmix_t;
 

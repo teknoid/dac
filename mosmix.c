@@ -51,21 +51,21 @@ mosmix_t* mosmix_current_slot(time_t now_ts) {
 }
 
 int mosmix_load(const char *filename) {
-	char buf[128];
-	char *strings[5];
+	char buf[LINEBUF];
+	char *strings[MOSMIX_COLUMNS];
 
 	ZERO(mosmix);
 
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)
-		return xerr("FRONIUS no mosmix data available");
+		return xerr("MOSMIX no mosmix data available");
 
 	// header
-	if (fgets(buf, 128, fp) == NULL)
-		return xerr("FRONIUS no mosmix data available");
+	if (fgets(buf, LINEBUF, fp) == NULL)
+		return xerr("MOSMIX no mosmix data available");
 
 	int timestamps = 0;
-	while (fgets(buf, 128, fp) != NULL) {
+	while (fgets(buf, LINEBUF, fp) != NULL) {
 		int i = 0;
 		char *p = strtok(buf, ",");
 		while (p != NULL) {
@@ -78,7 +78,7 @@ int mosmix_load(const char *filename) {
 	}
 
 	fclose(fp);
-	xlog("MOSMIX loaded %s with %d timestamps", filename, timestamps);
+	xlog("MOSMIX loaded %s containing %d timestamps", filename, timestamps);
 	return 0;
 }
 
@@ -86,15 +86,17 @@ int mosmix_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	mosmix_load("/ram/CHEMNITZ.csv");
+	mosmix_load(CHEMNITZ);
 
 	// find current slot
 	time_t now_ts = time(NULL);
 	mosmix_t *m = mosmix_current_slot(now_ts);
-	struct tm *slot_time = localtime(&(m->ts));
-	char *timestr = asctime(slot_time);
-	timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-	xlog("MOSMIX current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
+	if (m != 0) {
+		struct tm *slot_time = localtime(&(m->ts));
+		char *timestr = asctime(slot_time);
+		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
+		xlog("MOSMIX current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
+	}
 
 	// cumulated today, tomorrow, tomorrow + 1
 	mosmix_t m0, m1, m2;

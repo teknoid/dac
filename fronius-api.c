@@ -353,15 +353,15 @@ static int parse_meter(response_t *r) {
 	return 0;
 }
 
-static int choose_program(const potd_t *p, int mosmix) {
+static int choose_program(const potd_t *p, int expected) {
 	xlog("FRONIUS choosing %s program of the day", p->name);
 	if (potd == p)
-		return mosmix;
+		return expected;
 
 	// potd has changed - reset all current devices
 	set_all_devices(0);
 	potd = (potd_t*) p;
-	return mosmix;
+	return expected;
 }
 
 static int read_mosmix(time_t now_ts) {
@@ -370,11 +370,13 @@ static int read_mosmix(time_t now_ts) {
 
 	// find current slot
 	mosmix_t *m = mosmix_current_slot(now_ts);
-	struct tm *slot_time = localtime(&(m->ts));
-	char *timestr = asctime(slot_time);
-	timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-	xlog("FRONIUS mosmix current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
-
+	if (m != 0) {
+		struct tm *slot_time = localtime(&(m->ts));
+		char *timestr = asctime(slot_time);
+		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
+		int exp = m->Rad1h * MOSMIX_FACTOR;
+		xlog("FRONIUS mosmix current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, exp);
+	}
 	// cumulated today, tomorrow, tomorrow + 1
 	mosmix_t m0, m1, m2;
 	mosmix_24h(&m0, now_ts, 0);
