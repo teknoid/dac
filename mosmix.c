@@ -22,9 +22,26 @@ static void store(char **strings, size_t size) {
 	m->Rad1h = atoi(strings[3]);
 	m->SunD1 = atoi(strings[4]);
 }
+void mosmix_expected(mosmix_t *sum, time_t now_ts) {
+	// calculate today 23:59:59 +1 as end time frame
+	struct tm *today = localtime(&now_ts);
+	today->tm_hour = 23;
+	today->tm_min = 59;
+	today->tm_sec = 59;
+	time_t ts_to = mktime(today) + 1;
+
+	ZERO(sum);
+	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
+		mosmix_t *m = &mosmix[i];
+		if (now_ts < m->ts && m->ts < ts_to) {
+			sum->Rad1h += m->Rad1h;
+			sum->SunD1 += m->SunD1;
+		}
+	}
+}
 
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
-	// Calculate today 0:00:00 and build 24h time frame
+	// calculate today 0:00:00 as start and +24h as end time frame
 	struct tm *today = localtime(&now_ts);
 	today->tm_hour = today->tm_min = today->tm_sec = 0;
 	time_t ts_from = mktime(today) + 60 * 60 * 24 * day;
@@ -86,10 +103,10 @@ int mosmix_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
+	time_t now_ts = time(NULL);
 	mosmix_load(CHEMNITZ);
 
 	// find current slot
-	time_t now_ts = time(NULL);
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
 		struct tm *slot_time = localtime(&(m->ts));
@@ -103,11 +120,7 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-
-	int e0 = m0.Rad1h * MOSMIX_FACTOR;
-	int e1 = m1.Rad1h * MOSMIX_FACTOR;
-	int e2 = m2.Rad1h * MOSMIX_FACTOR;
-	xlog("MOSMIX Rad1h/Wh today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, e0, m1.Rad1h, e1, m2.Rad1h, e2);
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
 
 	return 0;
 }
@@ -117,4 +130,3 @@ int main(int argc, char **argv) {
 	return mosmix_main(argc, argv);
 }
 #endif
-

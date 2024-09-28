@@ -170,10 +170,14 @@ static void set_all_devices(int power) {
 static void init_all_devices() {
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
-		d->state = Active;
 		d->addr = resolve_ip(d->name);
-		d->power = -1; // force set to 0
-		(d->set_function)(d, 0);
+		if (d->addr == 0)
+			d->state = Disabled;
+		else {
+			d->state = Active;
+			d->power = -1; // force set to 0
+			(d->set_function)(d, 0);
+		}
 	}
 }
 
@@ -368,48 +372,58 @@ static int read_mosmix(time_t now_ts) {
 	// reload data
 	mosmix_load(CHEMNITZ);
 
-	// find current slot
+	// find current slot and calculate hourly values
+	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
 		struct tm *slot_time = localtime(&(m->ts));
 		char *timestr = asctime(slot_time);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		int exp = m->Rad1h * MOSMIX_FACTOR;
-		xlog("FRONIUS mosmix current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, exp);
+		int need_1h = (100 - state->chrg) * (AKKU_CAPACITY / 100);
+		if (need_1h > 5000)
+			need_1h = 5000; // max 5kW per hour
+		need_1h += BASELOAD;
+		need_1h += SUMMER ? 0 : HEATING;
+		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
+		xlog("FRONIUS mosmix current slot: %d %s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}
-	// cumulated today, tomorrow, tomorrow + 1
+
+	// EOD - calculate values till end of day
+	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
+	int nb = (24 - now->tm_hour) * BASELOAD;
+	int nh = (15 - now->tm_hour <= 6 ? 15 - now->tm_hour : 6) * HEATING; // max 6h from 9 to 15 o'clock
+	int need_eod;
+	mosmix_t eod;
+	mosmix_expected(&eod, now_ts);
+	int exp_eod = eod.Rad1h * MOSMIX_FACTOR;
+	if (SUMMER) {
+		need_eod = na + nb;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", need_eod, na, nb, eod.Rad1h, eod.SunD1, exp_eod);
+	} else {
+		need_eod = na + nb + nh;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", need_eod, na, nb, nh, eod.Rad1h, eod.SunD1, exp_eod);
+	}
+
+	// calculate total daily values
 	mosmix_t m0, m1, m2;
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
+	int exp_tom = m1.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, exp_tom);
 
-	int e0 = m0.Rad1h * MOSMIX_FACTOR;
-	int e1 = m1.Rad1h * MOSMIX_FACTOR;
-	int e2 = m2.Rad1h * MOSMIX_FACTOR;
-	xlog("FRONIUS mosmix Rad1h/Wh today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, e0, m1.Rad1h, e1, m2.Rad1h, e2);
+	// choose program
+	if (exp_eod < need_eod) {
+		if (now->tm_hour > 12 && state->chrg < 40) // emergency charging to survive next night
+			return choose_program(&EMPTY, exp_eod);
 
-	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
-	int ns = (24 - now->tm_hour) * (SELF_CONSUMING / 24);
-	int nh = (9 <= now->tm_hour && now->tm_hour < 15) ? (15 - now->tm_hour) * HEATING : 0; // 9 - 15 o'clock
-	int n;
-	if (SUMMER) {
-		n = na + ns;
-		xlog("FRONIUS mosmix needed %d (%d akku + %d self)", n, na, ns);
-	} else {
-		n = na + ns + nh;
-		xlog("FRONIUS mosmix needed %d (%d akku + %d self + %d heating)", n, na, ns, nh);
+		if (exp_tom < need_eod)
+			return choose_program(&EMPTY, exp_eod); // tomorrow again not enough
+
+		return choose_program(&TOMORROW, exp_eod);
 	}
 
-	int expected = m0.Rad1h * MOSMIX_FACTOR;
-	if (e0 < n) {
-		if (now->tm_hour > 12 && state->chrg < 40) // emergency load to survive next night
-			return choose_program(&EMPTY, expected);
-
-		if (e1 > n)
-			return choose_program(&TOMORROW, expected);
-	}
-
-	return choose_program(&SUNNY, expected);
+	return choose_program(&SUNNY, exp_eod);
 }
 
 static int calculate_step(device_t *d, int power) {
@@ -464,7 +478,7 @@ static int ramp_dumb(device_t *d, int power) {
 		return 0; // continue loop
 
 	// 50% more when we have distortion
-	int min = state->distortion ? d->total * 1.5 : d->total;
+	int min = state->distortion ? d->total + d->total / 2 : d->total;
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// switch on when enough power is available
@@ -479,7 +493,7 @@ static int ramp_dumb(device_t *d, int power) {
 }
 
 static int ramp_device(device_t *d, int power) {
-	if (d->state == Standby)
+	if (d->state == Disabled || d->state == Standby)
 		return 0; // continue loop
 
 	if (d->adjustable)
@@ -548,7 +562,10 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
-	if (t->state == Active && t->power == 0 && v->load > t->total * 1.5) {
+//	xlog("victim %s %s %d %d %d", vstring, v->name, v->state, v->load, v->total);
+//	xlog("thief %s %s %d %d %d", tstring, t->name, t->state, t->load, t->total + t->total / 2);
+	int possible = state->greedy + v->load;
+	if (t->state == Active && t->power == 0 && possible > t->total) {
 		int power = v->load;
 		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", power, vstring, v->name, tstring, t->name, t->total);
 		ramp_device(v, power * -1);
@@ -905,7 +922,8 @@ static void fronius() {
 
 			expected = read_mosmix(now_ts);
 			for (device_t **d = DEVICES; *d != 0; d++)
-				(*d)->state = Active;
+				if ((*d)->state == Standby)
+					(*d)->state = Active;
 
 			next_reset = now_ts + STANDBY_RESET;
 			wait = 1;

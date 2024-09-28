@@ -16,6 +16,7 @@ struct _mosmix {
 };
 
 int mosmix_load(const char *filename);
+void mosmix_expected(mosmix_t *sum, time_t now_ts);
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day);
 mosmix_t* mosmix_current_slot(time_t now_ts);
 

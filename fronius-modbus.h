@@ -4,6 +4,8 @@
 #define SFF(x, y)			(y == 0 ? x : x * pow(10.0, y))
 #define SFI(x, y)			(y == 0 ? x : (int)(x * pow(10, y)))
 
+// generated from misc/sunspec-struct-template.ods
+
 typedef struct sunspec_inverter_t {
 	uint16_t ID;
 	uint16_t L;

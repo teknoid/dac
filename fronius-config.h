@@ -12,9 +12,8 @@
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
 #define MOSMIX_FACTOR		3
 
-#define BASELOAD			300
 #define AKKU_CAPACITY		11000
-#define SELF_CONSUMING		BASELOAD * 24 		// Baseload for 24 hours
+#define BASELOAD			300
 #define HEATING				2000	 			// heating 2kw
 #define NOISE				20
 #define SUSPICIOUS			250
@@ -26,7 +25,7 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 enum dstate {
-	Standby, Active, Standby_Check
+	Disabled, Active, Standby, Standby_Check
 };
 
 typedef struct _meter meter_t;
