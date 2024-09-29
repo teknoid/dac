@@ -9,6 +9,7 @@
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
 #define MOSMIX_FACTOR		3
 
+#define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
 #define BASELOAD			300
 #define HEATING				2000	 			// heating 2kw

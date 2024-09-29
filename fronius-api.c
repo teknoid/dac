@@ -357,18 +357,18 @@ static int parse_meter(response_t *r) {
 	return 0;
 }
 
-static int choose_program(const potd_t *p, int expected) {
+static int choose_program(const potd_t *p) {
 	xlog("FRONIUS choosing %s program of the day", p->name);
 	if (potd == p)
-		return expected;
+		return 0;
 
 	// potd has changed - reset all current devices
 	set_all_devices(0);
 	potd = (potd_t*) p;
-	return expected;
+	return 0;
 }
 
-static int read_mosmix(time_t now_ts) {
+static int read_mosmix(time_t now_ts, int *needed, int *expected) {
 	// reload data
 	mosmix_load(CHEMNITZ);
 
@@ -413,17 +413,19 @@ static int read_mosmix(time_t now_ts) {
 	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, exp_tom);
 
 	// choose program
+	*needed = need_eod;
+	*expected = exp_eod;
 	if (exp_eod < need_eod) {
 		if (now->tm_hour > 12 && state->chrg < 40) // emergency charging to survive next night
-			return choose_program(&EMPTY, exp_eod);
+			return choose_program(&EMPTY);
 
 		if (exp_tom < need_eod)
-			return choose_program(&EMPTY, exp_eod); // tomorrow again not enough
+			return choose_program(&EMPTY); // tomorrow again not enough
 
-		return choose_program(&TOMORROW, exp_eod);
+		return choose_program(&TOMORROW);
 	}
 
-	return choose_program(&SUNNY, exp_eod);
+	return choose_program(&SUNNY);
 }
 
 static int calculate_step(device_t *d, int power) {
@@ -814,7 +816,7 @@ static int calculate_next_round(device_t *d) {
 }
 
 static void fronius() {
-	int ret, wait = 1, errors = 0, mday = 0, expected = 0;
+	int ret, wait = 1, errors = 0, mday = 0, expected = 0, needed = 0;
 	device_t *device = 0;
 	time_t next_reset;
 	response_t memory = { 0 };
@@ -899,26 +901,33 @@ static void fronius() {
 			continue;
 		}
 
-		// not enough PV production, go into offline mode
-		if (state->pv10 < 100) {
-			print_power_status("--> offline");
-			set_all_devices(0);
-			wait = WAIT_OFFLINE;
-			state->pv7 = 0;
-			continue;
-		}
-
 		// reset program of the day and standby states every 30min
 		if (potd == 0 || now_ts > next_reset) {
+			next_reset = now_ts + STANDBY_RESET;
+			read_mosmix(now_ts, &needed, &expected);
 			xlog("FRONIUS resetting standby states");
-
-			expected = read_mosmix(now_ts);
 			for (device_t **d = DEVICES; *d != 0; d++)
 				if ((*d)->state == Standby)
 					(*d)->state = Active;
+		}
 
-			next_reset = now_ts + STANDBY_RESET;
-			wait = 1;
+		// burn out akku when possible and we completely can charge back by day
+		if ((now->tm_hour == 7 || now->tm_hour == 8) && state->chrg > 10 && expected > needed && AKKU_BURNOUT && !SUMMER) {
+			xlog("FRONIUS akku=%d needed=%d expected=%d --> burnout", state->chrg, needed, expected);
+			fronius_override_seconds("plug5", WAIT_OFFLINE);
+			fronius_override_seconds("plug6", WAIT_OFFLINE);
+			// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
+			fronius_override_seconds("plug8", WAIT_OFFLINE);
+			wait = WAIT_OFFLINE;
+			continue;
+		}
+
+		// not enough PV production, go into offline mode
+		if (state->pv10 < 100) {
+			state->pv7 = 0;
+			print_power_status("--> offline");
+			set_all_devices(0);
+			wait = WAIT_OFFLINE;
 			continue;
 		}
 
