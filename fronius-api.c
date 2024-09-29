@@ -895,21 +895,19 @@ static void fronius() {
 					(*d)->state = Active;
 
 			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
-			if (expected == 0 && needed == 0)
-				choose_program(&EMPTY); // no forecast data available
-			else if (expected > needed)
+			if (expected > needed)
 				choose_program(&SUNNY); // plenty of power
 			else {
 				if (now->tm_hour > 12 && state->chrg < 40)
 					choose_program(&EMPTY); // emergency charging to survive next night
-				else if (expected_tomorrow < needed)
-					choose_program(&EMPTY); // tomorrow again not enough
+				else if (expected_tomorrow > needed)
+					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else
-					choose_program(&TOMORROW); // steal all akku charge power
+					choose_program(&EMPTY); // not enough power
 			}
 		}
 
-		// burn out akku when possible and we completely can charge back by day
+		// burn out akku when possible and we can charge back by day completely
 		if ((now->tm_hour == 7 || now->tm_hour == 8) && state->chrg > 10 && expected > needed && AKKU_BURNOUT && !SUMMER) {
 			xlog("FRONIUS akku=%d needed=%d expected=%d --> burnout", state->chrg, needed, expected);
 			fronius_override_seconds("plug5", WAIT_OFFLINE);
