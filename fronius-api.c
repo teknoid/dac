@@ -250,7 +250,7 @@ static void print_power_status(const char *message) {
 	xlogl_int_B(line, "ΔLoad", state->dload);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
-	xlogl_int(line, 0, 0, "Chrg", state->chrg);
+	xlogl_int(line, 0, 0, "SoC", state->soc);
 	xlogl_int(line, 0, 0, "Sum", state->sum);
 	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_end(line, sizeof(line), message);
@@ -311,10 +311,10 @@ static int parse_fronius10(response_t *r) {
 
 		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
 		if (ret == 1)
-			state->chrg = p_charge;
+			state->soc = p_charge;
 		else {
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
-			state->chrg = 0;
+			state->soc = 0;
 		}
 
 		free(c);
@@ -379,7 +379,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 		struct tm *slot_time = localtime(&(m->ts));
 		char *timestr = asctime(slot_time);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		int need_1h = (100 - state->chrg) * (AKKU_CAPACITY / 100);
+		int need_1h = (100 - state->soc) * (AKKU_CAPACITY / 100);
 		if (need_1h > 5000)
 			need_1h = 5000; // max 5kW per hour
 		need_1h += BASELOAD;
@@ -389,9 +389,9 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	}
 
 	// eod - calculate values till end of day
-	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
+	int na = (100 - state->soc) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? 15 - now->tm_hour * HEATING : 0 : 6; // max 6h from 9 to 15 o'clock
+	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? 15 - now->tm_hour * HEATING : 0 : (6 * HEATING); // max 6h from 9 to 15 o'clock
 	mosmix_t eod;
 	mosmix_eod(&eod, now_ts);
 	*expected = eod.Rad1h * MOSMIX_FACTOR;
@@ -742,7 +742,7 @@ static void calculate_state() {
 	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
 
 	// regulate only when surplus > keep, scale for bigger pv production as long as akku is not full
-	int keep = NOISE * 2 * (state->chrg < 100 && state->pv > 3000 ? state->pv / 1000 : 1);
+	int keep = NOISE * 2 * (state->soc < 100 && state->pv > 3000 ? state->pv / 1000 : 1);
 
 	// grid < 0	--> upload
 	// grid > 0	--> download
@@ -898,7 +898,7 @@ static void fronius() {
 			if (expected > needed)
 				choose_program(&SUNNY); // plenty of power
 			else {
-				if (now->tm_hour > 12 && state->chrg < 40)
+				if (now->tm_hour > 12 && state->soc < 40)
 					choose_program(&EMPTY); // emergency charging to survive next night
 				else if (expected_tomorrow > needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
@@ -907,22 +907,22 @@ static void fronius() {
 			}
 		}
 
-		// burn out akku when possible and we can charge back by day completely
-		if ((now->tm_hour == 7 || now->tm_hour == 8) && state->chrg > 10 && expected > needed && AKKU_BURNOUT && !SUMMER) {
-			xlog("FRONIUS akku=%d needed=%d expected=%d --> burnout", state->chrg, needed, expected);
-			fronius_override_seconds("plug5", WAIT_OFFLINE);
-			fronius_override_seconds("plug6", WAIT_OFFLINE);
-			// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
-			fronius_override_seconds("plug8", WAIT_OFFLINE);
-			wait = WAIT_OFFLINE;
-			continue;
-		}
-
-		// not enough PV production, go into offline mode
+		// not enough PV production
 		if (state->pv10 < 100) {
 			state->pv7 = 0;
-			print_power_status("--> offline");
-			set_all_devices(0);
+			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && state->soc > 10 && expected > needed && AKKU_BURNOUT && !SUMMER;
+			if (burnout) {
+				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
+				print_power_status("--> burnout");
+				fronius_override_seconds("plug5", WAIT_OFFLINE);
+				fronius_override_seconds("plug6", WAIT_OFFLINE);
+				// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
+				fronius_override_seconds("plug8", WAIT_OFFLINE);
+			} else {
+				// go into offline mode
+				print_power_status("--> offline");
+				set_all_devices(0);
+			}
 			wait = WAIT_OFFLINE;
 			continue;
 		}

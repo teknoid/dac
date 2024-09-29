@@ -52,7 +52,7 @@ struct _state {
 	int modest;
 	int waste;
 	int sum;
-	int chrg;
+	int soc;
 	int load;
 	int dload;
 	int xload;
