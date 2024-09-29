@@ -1,6 +1,3 @@
-#define KEEP_FROM			20
-#define KEEP_TO				50
-
 #define HISTORY				24
 #define OVERRIDE			600
 #define STANDBY				0
@@ -15,7 +12,7 @@
 #define AKKU_CAPACITY		11000
 #define BASELOAD			300
 #define HEATING				2000	 			// heating 2kw
-#define NOISE				20
+#define NOISE				25
 #define SUSPICIOUS			250
 
 #define TEMP_IN				sensors->htu21_temp

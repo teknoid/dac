@@ -562,9 +562,7 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
-//	xlog("victim %s %s %d %d %d", vstring, v->name, v->state, v->load, v->total);
-//	xlog("thief %s %s %d %d %d", tstring, t->name, t->state, t->load, t->total + t->total / 2);
-	int possible = state->greedy + v->load;
+	int possible = state->greedy + v->load - NOISE;
 	if (t->state == Active && t->power == 0 && possible > t->total) {
 		int power = v->load;
 		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", power, vstring, v->name, tstring, t->name, t->total);
@@ -575,27 +573,24 @@ static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, con
 	return 0;
 }
 
-// TODO test return as no response is expected due to no delta power expected when immediately switching victim off and thief on
-static device_t* steal() {
+static void steal() {
 	// greedy thief can steal from greedy victims behind
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "greedy", "greedy"))
-				return *t;
+				return;
 
 	// greedy thief can steal from all modest victims
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = potd->modest; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "greedy", "modest"))
-				return *t;
+				return;
 
 	// modest thief can steal from modest victims behind
 	for (device_t **t = potd->modest; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "modest", "modest"))
-				return *t;
-
-	return 0;
+				return;
 }
 
 static device_t* perform_standby(device_t *d) {
@@ -762,9 +757,9 @@ static void calculate_state() {
 
 	// allow more tolerance for bigger pv production
 	// TODO in prozent rechnen
-	int tolerance = state->pv > 2000 ? state->pv / 1000 : 1;
-	int kf = KEEP_FROM * tolerance;
-	int kt = KEEP_TO * tolerance;
+	int tolerance = state->pv > 3000 ? state->pv / 1000 : 1;
+	int kf = NOISE * tolerance;
+	int kt = NOISE * 2 * tolerance;
 
 	// grid < 0	--> upload
 	// grid > 0	--> download
@@ -958,7 +953,7 @@ static void fronius() {
 
 		// prio4: check if higher priorized device can steal from lower priorized
 		if (!device)
-			device = steal();
+			steal();
 
 		// determine wait for next round
 		wait = state->wait = calculate_next_round(device);
