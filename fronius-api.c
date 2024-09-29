@@ -755,11 +755,8 @@ static void calculate_state() {
 	// indicate standby check when deviation between actual load and calculated load is three times over 50%
 	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
 
-	// allow more tolerance for bigger pv production
-	// TODO in prozent rechnen
-	int tolerance = state->pv > 3000 ? state->pv / 1000 : 1;
-	int kf = NOISE * tolerance;
-	int kt = NOISE * 2 * tolerance;
+	// regulate only when surplus > keep, scale for bigger pv production as long as akku is not full
+	int keep = NOISE * 2 * (state->chrg < 100 && state->pv > 3000 ? state->pv / 1000 : 1);
 
 	// grid < 0	--> upload
 	// grid > 0	--> download
@@ -771,17 +768,17 @@ static void calculate_state() {
 	state->surplus = (state->grid + state->akku) * -1;
 
 	// greedy power = akku + grid
-	state->greedy = state->surplus - kt;
+	state->greedy = state->surplus - keep;
 	if (abs(state->greedy) < NOISE)
 		state->greedy = 0;
 
 	// modest power = only grid upload without akku discharge
-	state->modest = -1 * state->grid - (state->akku > kf ? state->akku : 0) - kt;
+	state->modest = -1 * state->grid - (state->akku > NOISE ? state->akku : 0) - keep;
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
 	char message[128];
-	snprintf(message, 128, "kf:%d kt:%d", kf, kt);
+	snprintf(message, 128, "keep:%d", keep);
 	print_power_status(message);
 }
 
