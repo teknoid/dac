@@ -391,7 +391,7 @@ static int read_mosmix(time_t now_ts) {
 	// EOD - calculate values till end of day
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = (15 - now->tm_hour <= 6 ? 15 - now->tm_hour : 6) * HEATING; // max 6h from 9 to 15 o'clock
+	int nh = (15 - (now->tm_hour <= 6 && now->tm_hour < 15) ? 15 - now->tm_hour : 6) * HEATING; // max 6h from 9 to 15 o'clock
 	int need_eod;
 	mosmix_t eod;
 	mosmix_expected(&eod, now_ts);
