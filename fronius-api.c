@@ -383,7 +383,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 		if (need_1h > 5000)
 			need_1h = 5000; // max 5kW per hour
 		need_1h += BASELOAD;
-		need_1h += SUMMER ? 0 : HEATING;
+		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? HEATING : 0; // from 9 to 15 o'clock
 		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
 		xlog("FRONIUS mosmix current slot: %d %s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}

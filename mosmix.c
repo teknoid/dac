@@ -76,13 +76,13 @@ int mosmix_load(const char *filename) {
 
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)
-		return xerr("MOSMIX no mosmix data available");
+		return xerr("MOSMIX no data available");
 
 	// header
 	if (fgets(buf, LINEBUF, fp) == NULL)
-		return xerr("MOSMIX no mosmix data available");
+		return xerr("MOSMIX no data available");
 
-	int timestamps = 0;
+	int slots = 0;
 	while (fgets(buf, LINEBUF, fp) != NULL) {
 		int i = 0;
 		char *p = strtok(buf, ",");
@@ -92,11 +92,11 @@ int mosmix_load(const char *filename) {
 			p = strtok(NULL, ",");
 		}
 		store(strings, ARRAY_SIZE(strings));
-		timestamps++;
+		slots++;
 	}
 
 	fclose(fp);
-	xlog("MOSMIX loaded %s containing %d timestamps", filename, timestamps);
+	xlog("MOSMIX loaded %s containing %d slots", filename, slots);
 	return 0;
 }
 
@@ -116,12 +116,17 @@ int mosmix_main(int argc, char **argv) {
 		xlog("MOSMIX current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
 	}
 
-	// cumulated today, tomorrow, tomorrow + 1
+	// eod - calculate values till end of day
+	mosmix_t eod;
+	mosmix_eod(&eod, now_ts);
+	xlog("MOSMIX EOD Rad1h/SunD1 %d/%d", eod.Rad1h, eod.SunD1);
+
+	// calculate total daily values
 	mosmix_t m0, m1, m2;
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
+	xlog("MOSMIX Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
 
 	return 0;
 }
