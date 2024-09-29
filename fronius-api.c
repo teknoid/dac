@@ -367,7 +367,7 @@ static void choose_program(const potd_t *p) {
 
 static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *expected_tomorrow) {
 	// reload data
-	if (!mosmix_load(CHEMNITZ)) {
+	if (mosmix_load(CHEMNITZ)) {
 		needed = expected = expected_tomorrow = 0;
 		return;
 	}
@@ -887,7 +887,7 @@ static void fronius() {
 
 		// reset standby states and recalculate program of the day every 30min
 		if (potd == 0 || now_ts > next_reset) {
-			next_reset = now_ts + STANDBY_RESET;
+			next_reset = now_ts + STANDBY_RESET - 1;
 
 			xlog("FRONIUS resetting standby states");
 			for (device_t **d = DEVICES; *d != 0; d++)
@@ -895,15 +895,18 @@ static void fronius() {
 					(*d)->state = Active;
 
 			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
-			if (expected < needed) {
+			if (expected == 0 && needed == 0)
+				choose_program(&EMPTY); // no forecast data available
+			else if (expected > needed)
+				choose_program(&SUNNY); // plenty of power
+			else {
 				if (now->tm_hour > 12 && state->chrg < 40)
 					choose_program(&EMPTY); // emergency charging to survive next night
 				else if (expected_tomorrow < needed)
 					choose_program(&EMPTY); // tomorrow again not enough
 				else
-					choose_program(&TOMORROW);
-			} else
-				choose_program(&SUNNY);
+					choose_program(&TOMORROW); // steal all akku charge power
+			}
 		}
 
 		// burn out akku when possible and we completely can charge back by day
