@@ -357,20 +357,20 @@ static int parse_meter(response_t *r) {
 	return 0;
 }
 
-static int choose_program(const potd_t *p) {
+static void choose_program(const potd_t *p) {
 	xlog("FRONIUS choosing %s program of the day", p->name);
-	if (potd == p)
-		return 0;
-
-	// potd has changed - reset all current devices
-	set_all_devices(0);
-	potd = (potd_t*) p;
-	return 0;
+	if (potd != p) {
+		potd = (potd_t*) p;
+		set_all_devices(0); // potd has changed - reset all devices
+	}
 }
 
-static int read_mosmix(time_t now_ts, int *needed, int *expected) {
+static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *expected_tomorrow) {
 	// reload data
-	mosmix_load(CHEMNITZ);
+	if (!mosmix_load(CHEMNITZ)) {
+		needed = expected = expected_tomorrow = 0;
+		return;
+	}
 
 	// find current slot and calculate hourly values
 	// TODO do something with them
@@ -388,20 +388,19 @@ static int read_mosmix(time_t now_ts, int *needed, int *expected) {
 		xlog("FRONIUS mosmix current slot: %d %s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}
 
-	// EOD - calculate values till end of day
+	// eod - calculate values till end of day
 	int na = (100 - state->chrg) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = (15 - (now->tm_hour <= 6 && now->tm_hour < 15) ? 15 - now->tm_hour : 6) * HEATING; // max 6h from 9 to 15 o'clock
-	int need_eod;
+	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? 15 - now->tm_hour * HEATING : 0 : 6; // max 6h from 9 to 15 o'clock
 	mosmix_t eod;
-	mosmix_expected(&eod, now_ts);
-	int exp_eod = eod.Rad1h * MOSMIX_FACTOR;
+	mosmix_eod(&eod, now_ts);
+	*expected = eod.Rad1h * MOSMIX_FACTOR;
 	if (SUMMER) {
-		need_eod = na + nb;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", need_eod, na, nb, eod.Rad1h, eod.SunD1, exp_eod);
+		*needed = na + nb;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, eod.Rad1h, eod.SunD1, *expected);
 	} else {
-		need_eod = na + nb + nh;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", need_eod, na, nb, nh, eod.Rad1h, eod.SunD1, exp_eod);
+		*needed = na + nb + nh;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, nh, eod.Rad1h, eod.SunD1, *expected);
 	}
 
 	// calculate total daily values
@@ -409,23 +408,8 @@ static int read_mosmix(time_t now_ts, int *needed, int *expected) {
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-	int exp_tom = m1.Rad1h * MOSMIX_FACTOR;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, exp_tom);
-
-	// choose program
-	*needed = need_eod;
-	*expected = exp_eod;
-	if (exp_eod < need_eod) {
-		if (now->tm_hour > 12 && state->chrg < 40) // emergency charging to survive next night
-			return choose_program(&EMPTY);
-
-		if (exp_tom < need_eod)
-			return choose_program(&EMPTY); // tomorrow again not enough
-
-		return choose_program(&TOMORROW);
-	}
-
-	return choose_program(&SUNNY);
+	*expected_tomorrow = m1.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, *expected_tomorrow);
 }
 
 static int calculate_step(device_t *d, int power) {
@@ -816,7 +800,7 @@ static int calculate_next_round(device_t *d) {
 }
 
 static void fronius() {
-	int ret, wait = 1, errors = 0, mday = 0, expected = 0, needed = 0;
+	int ret, needed, expected, expected_tomorrow, wait = 1, errors = 0, mday = 0;
 	device_t *device = 0;
 	time_t next_reset;
 	response_t memory = { 0 };
@@ -901,14 +885,25 @@ static void fronius() {
 			continue;
 		}
 
-		// reset program of the day and standby states every 30min
+		// reset standby states and recalculate program of the day every 30min
 		if (potd == 0 || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET;
-			read_mosmix(now_ts, &needed, &expected);
+
 			xlog("FRONIUS resetting standby states");
 			for (device_t **d = DEVICES; *d != 0; d++)
 				if ((*d)->state == Standby)
 					(*d)->state = Active;
+
+			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
+			if (expected < needed) {
+				if (now->tm_hour > 12 && state->chrg < 40)
+					choose_program(&EMPTY); // emergency charging to survive next night
+				else if (expected_tomorrow < needed)
+					choose_program(&EMPTY); // tomorrow again not enough
+				else
+					choose_program(&TOMORROW);
+			} else
+				choose_program(&SUNNY);
 		}
 
 		// burn out akku when possible and we completely can charge back by day
@@ -1158,7 +1153,7 @@ static void stop() {
 int fronius_override_seconds(const char *name, int seconds) {
 	for (device_t **d = DEVICES; *d != 0; d++) {
 		if (!strcmp((*d)->name, name)) {
-			xlog("FRONIUS Activating Override for %d seconds on %s", seconds, (*d)->name);
+			xlog("FRONIUS Activating Override on %s", (*d)->name);
 			(*d)->override = time(NULL) + seconds;
 			(*d)->state = Active;
 			((*d)->set_function)((*d), 100);

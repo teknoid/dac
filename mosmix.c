@@ -22,8 +22,9 @@ static void store(char **strings, size_t size) {
 	m->Rad1h = atoi(strings[3]);
 	m->SunD1 = atoi(strings[4]);
 }
-void mosmix_expected(mosmix_t *sum, time_t now_ts) {
-	// calculate today 23:59:59 +1 as end time frame
+
+// calculate now as start and today 23:59:59+1 as end time frame
+void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 	struct tm *today = localtime(&now_ts);
 	today->tm_hour = 23;
 	today->tm_min = 59;
@@ -40,8 +41,8 @@ void mosmix_expected(mosmix_t *sum, time_t now_ts) {
 	}
 }
 
+// calculate today 0:00:00 as start and +24h as end time frame
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
-	// calculate today 0:00:00 as start and +24h as end time frame
 	struct tm *today = localtime(&now_ts);
 	today->tm_hour = today->tm_min = today->tm_sec = 0;
 	time_t ts_from = mktime(today) + 60 * 60 * 24 * day;
