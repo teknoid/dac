@@ -389,12 +389,12 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	}
 
 	// eod - calculate values till end of day
-	int na = (100 - state->soc) * (AKKU_CAPACITY / 100);
-	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? 15 - now->tm_hour * HEATING : 0 : (6 * HEATING); // max 6h from 9 to 15 o'clock
 	mosmix_t eod;
 	mosmix_eod(&eod, now_ts);
 	*expected = eod.Rad1h * MOSMIX_FACTOR;
+	int na = (100 - state->soc) * (AKKU_CAPACITY / 100);
+	int nb = (24 - now->tm_hour) * BASELOAD;
+	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * HEATING : 0 : (6 * HEATING); // max 6h from 9 to 15 o'clock
 	if (SUMMER) {
 		*needed = na + nb;
 		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, eod.Rad1h, eod.SunD1, *expected);
@@ -589,7 +589,7 @@ static device_t* perform_standby(device_t *d) {
 		return 0;
 
 	d->state = Standby_Check;
-	xdebug("FRONIUS starting standby check on %s", d->name);
+	xdebug("FRONIUS starting standby check on %s (counter=%d)", d->name, d->standby_counter);
 	if (d->adjustable)
 		// do a big ramp
 		(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
@@ -679,7 +679,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// skip standby check till counter is not down
-	if (d->adjustable && d->standby_counter > 0) {
+	if (d->standby_counter > 0) {
 		xdebug("FRONIUS starting standby check on %s in %d", d->name, d->standby_counter--);
 		return 0;
 	}
