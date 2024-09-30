@@ -769,8 +769,8 @@ static void calculate_state() {
 	if (abs(state->greedy) < NOISE)
 		state->greedy = 0;
 
-	// modest power = only grid upload without akku discharge
-	state->modest = -1 * state->grid - (state->akku > NOISE ? state->akku : 0) - keep;
+	// modest power = only grid upload without akku charge/discharge
+	state->modest = state->surplus - keep - abs(state->akku);
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
