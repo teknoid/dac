@@ -619,7 +619,7 @@ static device_t* standby() {
 
 	// put dumb devices into standby if summer or too hot
 	if (force_standby(now)) {
-		xdebug("FRONIUS month=%d out=%2.1f in=%2.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
+		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
@@ -763,8 +763,8 @@ static void calculate_state() {
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
-	char message[128];
-	snprintf(message, 128, "keep:%d", keep);
+	char message[LINEBUF];
+	snprintf(message, LINEBUF, "keep:%d", keep);
 	print_power_status(message);
 }
 
@@ -910,10 +910,12 @@ static void fronius() {
 		// not enough PV production
 		if (state->pv10 < 100) {
 			state->pv7 = 0;
-			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && state->soc > 10 && expected > needed && AKKU_BURNOUT && !SUMMER;
+			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && state->soc > 10 && expected > needed && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
-				print_power_status("--> burnout");
+				char message[LINEBUF];
+				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", state->soc, needed, expected, TEMP_IN);
+				print_power_status(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
 				fronius_override_seconds("plug6", WAIT_OFFLINE);
 				// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
