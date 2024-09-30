@@ -112,8 +112,7 @@ int mosmix_main(int argc, char **argv) {
 	// find current slot
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		struct tm *ltstatic = localtime(&(m->ts));
-		char *timestr = asctime(ltstatic);
+		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		xlog("MOSMIX current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
 	}
