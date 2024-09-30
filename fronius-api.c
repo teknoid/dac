@@ -374,7 +374,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		struct tm *ltstatic = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&m->ts);
 		char *timestr = asctime(ltstatic);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		int need_1h = (100 - state->soc) * (AKKU_CAPACITY / 100);
@@ -622,12 +622,12 @@ static device_t* standby() {
 	if (!state->standby)
 		return 0;
 
-	// execute on first powered device and noresponse counter > 0
+	// try first powered device with noresponse counter > 0
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if ((*d)->state == Active && (*d)->power && (*d)->noresponse > 0)
 			return perform_standby(*d);
 
-	// execute on first powered device
+	// try first powered device
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if ((*d)->state == Active && (*d)->power)
 			return perform_standby(*d);
