@@ -25,11 +25,12 @@ static void store(char **strings, size_t size) {
 
 // calculate now as start and today 23:59:59+1 as end time frame
 void mosmix_eod(mosmix_t *sum, time_t now_ts) {
-	struct tm *ltstatic = localtime(&now_ts); // TODO localtime() is not thread safe !!!
-	ltstatic->tm_hour = 23;
-	ltstatic->tm_min = 59;
-	ltstatic->tm_sec = 59;
-	time_t ts_to = mktime(ltstatic) + 1;
+	struct tm today;
+	localtime_r(&now_ts, &today);
+	today.tm_hour = 23;
+	today.tm_min = 59;
+	today.tm_sec = 59;
+	time_t ts_to = mktime(&today) + 1;
 
 	ZERO(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
@@ -43,9 +44,10 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 
 // calculate today 0:00:00 as start and +24h as end time frame
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
-	struct tm *ltstatic = localtime(&now_ts); // TODO localtime() is not thread safe !!!
-	ltstatic->tm_hour = ltstatic->tm_min = ltstatic->tm_sec = 0;
-	time_t ts_from = mktime(ltstatic) + 60 * 60 * 24 * day;
+	struct tm today;
+	localtime_r(&now_ts, &today);
+	today.tm_hour = today.tm_min = today.tm_sec = 0;
+	time_t ts_from = mktime(&today) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
 	ZERO(sum);

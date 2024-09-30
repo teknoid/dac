@@ -577,14 +577,6 @@ static void steal() {
 }
 
 static device_t* perform_standby(device_t *d) {
-	if (state->distortion) {
-		xdebug("FRONIUS skipping standby check on %s due to distortion", d->name);
-		return 0;
-	}
-
-	if (d->state == Standby)
-		return 0;
-
 	d->state = Standby_Check;
 	xdebug("FRONIUS starting standby check on %s (noresponse=%d)", d->name, d->noresponse);
 	if (d->adjustable)
@@ -626,9 +618,18 @@ static device_t* standby() {
 		}
 	}
 
-	// execute standby check on first powered device if indicated
+	// no standby check indicated
+	if (!state->standby)
+		return 0;
+
+	// execute on first powered device and noresponse counter > 0
 	for (device_t **d = DEVICES; *d != 0; d++)
-		if (state->standby && (*d)->state == Active && (*d)->power)
+		if ((*d)->state == Active && (*d)->power && (*d)->noresponse > 0)
+			return perform_standby(*d);
+
+	// execute on first powered device
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state == Active && (*d)->power)
 			return perform_standby(*d);
 
 	return 0;
@@ -642,6 +643,13 @@ static device_t* response(device_t *d) {
 
 	// reset
 	d->dload = 0;
+
+	// ignore response if we have distortion
+	if (state->distortion) {
+		xdebug("FRONIUS ignoring response from %s due to distortion", d->name);
+		d->state = Active;
+		return 0;
+	}
 
 	// valid response is at least 1/3 of expected
 	int response = state->dload != 0 && (delta > 0 ? (state->dload > delta / 3) : (state->dload < delta / 3));
@@ -658,7 +666,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, state->dload);
 		d->noresponse = 0;
 		d->state = Active;
-		return d;
+		return d; // continue main loop
 	}
 
 	// standby check was positive -> set device into standby
@@ -667,7 +675,8 @@ static device_t* response(device_t *d) {
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
-		return 0; // no response expected
+		d->dload = 0; // no response expected
+		return d; // continue main loop
 	}
 
 	// ignore standby check when switched off a dumb device
@@ -735,8 +744,8 @@ static void calculate_state() {
 	else
 		state->tendence = 0;
 
-	// indicate standby check when deviation between actual load and calculated load is three times over 50%
-	state->standby = h3->dxload > 50 && h2->dxload > 50 && h1->dxload > 50 && state->dxload > 50;
+	// indicate standby check when deviation between actual load and calculated load is three times over 33%
+	state->standby = h3->dxload > 33 && h2->dxload > 33 && h1->dxload > 33 && state->dxload > 33 && !state->distortion;
 
 	// regulate only when surplus > keep, scale for bigger pv production as long as akku is not full
 	int keep = NOISE * 2 * (state->soc < 100 && state->pv > 3000 ? state->pv / 1000 : 1);
