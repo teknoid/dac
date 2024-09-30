@@ -548,11 +548,10 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
-	int possible = state->greedy + v->load - NOISE;
-	if (t->state == Active && t->power == 0 && possible > t->total) {
-		int power = v->load;
-		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", power, vstring, v->name, tstring, t->name, t->total);
-		ramp_device(v, power * -1);
+	int power = state->greedy + v->load - NOISE;
+	if (t->state == Active && t->power == 0 && power > t->total) {
+		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, vstring, v->name, tstring, t->name, t->total);
+		ramp_device(v, v->load * -1);
 		ramp_device(t, power);
 		return 1;
 	}
