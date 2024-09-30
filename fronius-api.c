@@ -175,6 +175,7 @@ static void init_all_devices() {
 			d->state = Disabled;
 		else {
 			d->state = Active;
+			d->standby_counter = STANDBY_COUNTER;
 			d->power = -1; // force set to 0
 			(d->set_function)(d, 0);
 		}
@@ -549,7 +550,7 @@ static device_t* ramp() {
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
 	int power = state->greedy + v->load - NOISE;
-	if (t->state == Active && t->power == 0 && power > t->total) {
+	if (t->state == Active && t->power == 0 && v->load > 0 && power > t->total) {
 		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, vstring, v->name, tstring, t->name, t->total);
 		ramp_device(v, v->load * -1);
 		ramp_device(t, power);
@@ -668,7 +669,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, state->dload);
 		(d->set_function)(d, 0);
 		d->state = Standby;
-		return d;
+		return 0; // no response expected
 	}
 
 	// ignore standby check when switched off a dumb device
@@ -890,8 +891,10 @@ static void fronius() {
 
 			xlog("FRONIUS resetting standby states");
 			for (device_t **d = DEVICES; *d != 0; d++)
-				if ((*d)->state == Standby)
+				if ((*d)->state == Standby) {
 					(*d)->state = Active;
+					(*d)->standby_counter = STANDBY_COUNTER;
+				}
 
 			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
 			if (expected > needed)
