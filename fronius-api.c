@@ -273,6 +273,12 @@ static void print_device_status(int wait, int next_reset) {
 		strcat(message, value);
 	}
 
+	strcat(message, "   noresponse ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->noresponse);
+		strcat(message, value);
+	}
+
 	strcat(message, "   next reset in ");
 	append_timeframe(message, next_reset);
 
@@ -577,7 +583,7 @@ static void steal() {
 
 static device_t* perform_standby(device_t *d) {
 	d->state = Standby_Check;
-	xdebug("FRONIUS starting standby check on %s (noresponse=%d)", d->name, d->noresponse);
+	xdebug("FRONIUS starting standby check on %s", d->name);
 	if (d->adjustable)
 		// do a big ramp
 		(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
@@ -688,7 +694,7 @@ static device_t* response(device_t *d) {
 	if (d->noresponse++ > NORESPONSE_STANDBY)
 		return perform_standby(d);
 
-	xdebug("FRONIUS no response from %s (counter=%d standby=%d)", d->name, d->noresponse, NORESPONSE_STANDBY);
+	xdebug("FRONIUS no response from %s", d->name);
 	return 0;
 }
 
