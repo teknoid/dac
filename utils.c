@@ -84,10 +84,10 @@ void xlog(const char *format, ...) {
 			xlog_open();
 
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
 
 		char timestamp[26];
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", ltstatic);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -127,10 +127,10 @@ void xdebug(const char *format, ...) {
 			xlog_open();
 
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
 
 		char timestamp[26];
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", ltstatic);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -167,10 +167,10 @@ int xerr(const char *format, ...) {
 			xlog_open();
 
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
 
 		char timestamp[26];
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", ltstatic);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);
@@ -210,10 +210,10 @@ int xerrr(int ret, const char *format, ...) {
 			xlog_open();
 
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
 
 		char timestamp[26];
-		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", ltstatic);
 		fprintf(xlog_file, "%s ", timestamp);
 
 		va_start(vargs, format);

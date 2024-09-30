@@ -2,7 +2,7 @@
 #define OVERRIDE			600
 #define STANDBY				0
 #define STANDBY_RESET		60 * 30
-#define STANDBY_COUNTER		3
+#define NORESPONSE_STANDBY	3
 
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
@@ -81,7 +81,7 @@ struct _device {
 	int power;
 	int load;
 	int dload;
-	int standby_counter;
+	int noresponse;
 	time_t override;
 	set_function_t *set_function;
 };

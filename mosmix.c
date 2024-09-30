@@ -25,11 +25,11 @@ static void store(char **strings, size_t size) {
 
 // calculate now as start and today 23:59:59+1 as end time frame
 void mosmix_eod(mosmix_t *sum, time_t now_ts) {
-	struct tm *today = localtime(&now_ts);
-	today->tm_hour = 23;
-	today->tm_min = 59;
-	today->tm_sec = 59;
-	time_t ts_to = mktime(today) + 1;
+	struct tm *ltstatic = localtime(&now_ts); // TODO localtime() is not thread safe !!!
+	ltstatic->tm_hour = 23;
+	ltstatic->tm_min = 59;
+	ltstatic->tm_sec = 59;
+	time_t ts_to = mktime(ltstatic) + 1;
 
 	ZERO(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
@@ -43,9 +43,9 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 
 // calculate today 0:00:00 as start and +24h as end time frame
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
-	struct tm *today = localtime(&now_ts);
-	today->tm_hour = today->tm_min = today->tm_sec = 0;
-	time_t ts_from = mktime(today) + 60 * 60 * 24 * day;
+	struct tm *ltstatic = localtime(&now_ts); // TODO localtime() is not thread safe !!!
+	ltstatic->tm_hour = ltstatic->tm_min = ltstatic->tm_sec = 0;
+	time_t ts_from = mktime(ltstatic) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
 	ZERO(sum);
@@ -110,8 +110,8 @@ int mosmix_main(int argc, char **argv) {
 	// find current slot
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		struct tm *slot_time = localtime(&(m->ts));
-		char *timestr = asctime(slot_time);
+		struct tm *ltstatic = localtime(&(m->ts));
+		char *timestr = asctime(ltstatic);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		xlog("MOSMIX current slot is: %d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, m->Rad1h * MOSMIX_FACTOR);
 	}

@@ -119,14 +119,14 @@ static void loop() {
 	while (1) {
 
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
 
 		// first run on next full hour
 		if (hour == -1)
-			hour = now->tm_hour;
+			hour = ltstatic->tm_hour;
 
-		if (hour != now->tm_hour) {
-			hour = now->tm_hour;
+		if (hour != ltstatic->tm_hour) {
+			hour = ltstatic->tm_hour;
 			process(hour);
 		}
 

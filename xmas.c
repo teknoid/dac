@@ -82,9 +82,9 @@ static void off_evening(const timing_t *timing) {
 	power = 0;
 }
 
-static int process(struct tm *now, const timing_t *timing, unsigned int lumi) {
-	int afternoon = now->tm_hour < 12 ? 0 : 1;
-	int curr = now->tm_hour * 60 + now->tm_min;
+static int process(int h, int m, const timing_t *timing, unsigned int lumi) {
+	int afternoon = h < 12 ? 0 : 1;
+	int curr = h * 60 + m;
 	int from = timing->on_h * 60 + timing->on_m;
 	int to = timing->off_h * 60 + timing->off_m;
 
@@ -149,7 +149,8 @@ static void xmas() {
 
 	while (1) {
 		time_t now_ts = time(NULL);
-		struct tm *now = localtime(&now_ts);
+		struct tm *ltstatic = localtime(&now_ts);
+		int h = ltstatic->tm_hour, m = ltstatic->tm_min, wday = ltstatic->tm_wday;
 
 		lumi = sensors->bh1750_lux;
 
@@ -159,11 +160,11 @@ static void xmas() {
 			if (!timing->active)
 				continue;
 
-			if (now->tm_wday != timing->wday)
+			if (wday != timing->wday)
 				continue;
 
 			// xlog("processing timing[%i]", i);
-			process(now, timing, lumi);
+			process(h, m, timing, lumi);
 		}
 
 		sleep(60);

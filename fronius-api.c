@@ -36,16 +36,14 @@
 static potd_t *potd = 0;
 
 // global meter values and history
-static meter_t *meter;
-static meter_t meter_history[HISTORY];
+static meter_t meter_history[HISTORY], *meter = &meter_history[0];
 static int meter_history_ptr = 0;
 
 // global state with power flow data and calculations
-static state_t *state;
-static state_t state_history[HISTORY];
+static state_t state_history[HISTORY], *state = &state_history[0];
 static int state_history_ptr = 0;
 
-static struct tm *now;
+static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
@@ -175,7 +173,6 @@ static void init_all_devices() {
 			d->state = Disabled;
 		else {
 			d->state = Active;
-			d->standby_counter = STANDBY_COUNTER;
 			d->power = -1; // force set to 0
 			(d->set_function)(d, 0);
 		}
@@ -377,8 +374,8 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		struct tm *slot_time = localtime(&(m->ts));
-		char *timestr = asctime(slot_time);
+		struct tm *ltstatic = localtime(&now_ts);
+		char *timestr = asctime(ltstatic);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		int need_1h = (100 - state->soc) * (AKKU_CAPACITY / 100);
 		if (need_1h > 5000)
@@ -589,7 +586,7 @@ static device_t* perform_standby(device_t *d) {
 		return 0;
 
 	d->state = Standby_Check;
-	xdebug("FRONIUS starting standby check on %s (counter=%d)", d->name, d->standby_counter);
+	xdebug("FRONIUS starting standby check on %s (noresponse=%d)", d->name, d->noresponse);
 	if (d->adjustable)
 		// do a big ramp
 		(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
@@ -652,14 +649,14 @@ static device_t* response(device_t *d) {
 	// response OK
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, state->dload);
-		d->standby_counter = STANDBY_COUNTER;
+		d->noresponse = 0;
 		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, state->dload);
-		d->standby_counter = STANDBY_COUNTER;
+		d->noresponse = 0;
 		d->state = Active;
 		return d;
 	}
@@ -668,6 +665,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, state->dload);
 		(d->set_function)(d, 0);
+		d->noresponse = 0;
 		d->state = Standby;
 		return 0; // no response expected
 	}
@@ -678,13 +676,12 @@ static device_t* response(device_t *d) {
 		return 0;
 	}
 
-	// skip standby check till counter is not down
-	if (d->standby_counter > 0) {
-		xdebug("FRONIUS starting standby check on %s in %d", d->name, d->standby_counter--);
-		return 0;
-	}
+	// perform standby check when noresponse counter reaches threshold
+	if (d->noresponse++ > NORESPONSE_STANDBY)
+		return perform_standby(d);
 
-	return perform_standby(d);
+	xdebug("FRONIUS no response from %s (counter=%d standby=%d)", d->name, d->noresponse, NORESPONSE_STANDBY);
+	return 0;
 }
 
 static void calculate_state() {
@@ -840,6 +837,11 @@ static void fronius() {
 		if (wait--)
 			continue;
 
+		// get actual calendar time - and make a copy as subsequent calls to localtime() will override them
+		time_t now_ts = time(NULL);
+		struct tm *ltstatic = localtime(&now_ts);
+		memcpy(now, ltstatic, sizeof(*ltstatic));
+
 		// default
 		wait = WAIT_NEXT;
 
@@ -850,10 +852,6 @@ static void fronius() {
 		// check error counter
 		if (errors == 3)
 			set_all_devices(0);
-
-		// get actual calendar time
-		time_t now_ts = time(NULL);
-		now = localtime(&now_ts);
 
 		// calculate daily statistics
 		if (mday != now->tm_mday) {
@@ -891,10 +889,8 @@ static void fronius() {
 
 			xlog("FRONIUS resetting standby states");
 			for (device_t **d = DEVICES; *d != 0; d++)
-				if ((*d)->state == Standby) {
+				if ((*d)->state == Standby)
 					(*d)->state = Active;
-					(*d)->standby_counter = STANDBY_COUNTER;
-				}
 
 			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
 			if (expected > needed)

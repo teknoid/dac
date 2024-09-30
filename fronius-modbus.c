@@ -28,6 +28,8 @@ static sunspec_meter_t *meter;
 // Fronius modbus reader threads
 static pthread_t thread_fronius10, thread_fronius7;
 
+static struct tm now_tm, *now = &now_tm;
+
 int set_heater(device_t *heater, int power) {
 	return 0;
 }
@@ -154,9 +156,9 @@ static void loop() {
 
 	// initialize hourly & daily
 	time_t last_ts = time(NULL), now_ts = time(NULL);
-	struct tm *now = localtime(&now_ts);
-	hour = now->tm_hour;
-	day = now->tm_wday;
+	struct tm *ltstatic = localtime(&now_ts);
+	hour = ltstatic->tm_hour;
+	day = ltstatic->tm_wday;
 
 	// wait for threads to produce data
 	sleep(1);
@@ -166,6 +168,11 @@ static void loop() {
 			sleep(3); // wait for regulation to take effect
 		else
 			msleep(500); // wait for new values
+
+		// get actual calendar time - and make a copy as subsequent calls to localtime() will override them
+		now_ts = time(NULL);
+		ltstatic = localtime(&now_ts);
+		memcpy(now, ltstatic, sizeof(*ltstatic));
 
 		// update state from modbus registers
 		int delta = update();
@@ -181,10 +188,6 @@ static void loop() {
 			// execute regulator logic
 			device = regulate();
 		}
-
-		// update current date+time
-		now_ts = time(NULL);
-		now = localtime(&now_ts);
 
 		// hourly tasks
 		if (hour != now->tm_hour) {
