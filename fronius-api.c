@@ -523,11 +523,15 @@ static device_t* rampdown(int power, device_t **devices) {
 
 static device_t* ramp() {
 	device_t *d;
+	char line[LINEBUF];
 
 	// greedy power = akku + grid, modest power = only grid upload without akku charge/discharge
 	int greedy = state->surplus;
 	int modest = state->surplus - abs(state->akku);
-	xdebug("FRONIUS ramp greedy=%d modest=%d", greedy, modest);
+	xlogl_start(line, "FRONIUS");
+	xlogl_int(line, 1, 0, "Greedy", greedy);
+	xlogl_int(line, 1, 0, "Modest", modest);
+	xlogl_end(line, sizeof(line), NULL);
 
 	// 1. no extra power available: ramp down modest devices
 	if (modest < NOISE * -1) {

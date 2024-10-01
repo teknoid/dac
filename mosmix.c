@@ -84,7 +84,7 @@ int mosmix_load(const char *filename) {
 	if (fgets(buf, LINEBUF, fp) == NULL)
 		return xerr("MOSMIX no data available");
 
-	int slots = 0;
+	int lines = 0;
 	while (fgets(buf, LINEBUF, fp) != NULL) {
 		int i = 0;
 		char *p = strtok(buf, ",");
@@ -94,11 +94,11 @@ int mosmix_load(const char *filename) {
 			p = strtok(NULL, ",");
 		}
 		store(strings, ARRAY_SIZE(strings));
-		slots++;
+		lines++;
 	}
 
 	fclose(fp);
-	xlog("MOSMIX loaded %s containing %d slots", filename, slots);
+	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 	return 0;
 }
 
