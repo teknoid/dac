@@ -201,7 +201,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -242,8 +242,6 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 1, 1, "Grid", state->grid);
 	xlogl_int(line, 1, 1, "Akku", state->akku);
 	xlogl_int(line, 1, 0, "Surp", state->surplus);
-	xlogl_int(line, 1, 0, "Greedy", state->greedy);
-	xlogl_int(line, 1, 0, "Modest", state->modest);
 	xlogl_int(line, 0, 0, "Load", state->load);
 	xlogl_int(line, 0, 0, "ΔLoad", state->dload);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
@@ -501,7 +499,6 @@ static int ramp_device(device_t *d, int power) {
 }
 
 static device_t* rampup(int power, device_t **devices) {
-	// debug("FRONIUS rampup() %d", power);
 	for (device_t **d = devices; *d != 0; d++)
 		if (ramp_device(*d, power))
 			return *d;
@@ -510,7 +507,6 @@ static device_t* rampup(int power, device_t **devices) {
 }
 
 static device_t* rampdown(int power, device_t **devices) {
-	// xdebug("FRONIUS rampdown() %d", power);
 	device_t **d = devices;
 
 	// jump to last entry
@@ -528,30 +524,42 @@ static device_t* rampdown(int power, device_t **devices) {
 static device_t* ramp() {
 	device_t *d;
 
+	// greedy power = akku + grid
+	int greedy = state->surplus;
+	if (abs(greedy) < NOISE)
+		greedy = 0;
+
+	// modest power = only grid upload without akku charge/discharge
+	int modest = state->surplus - abs(state->akku);
+	if (abs(modest) < NOISE)
+		modest = 0;
+
+	xdebug("FRONIUS ramp greedy=%d modest=%d", greedy, modest);
+
 	// 1. no extra power available: ramp down modest devices
-	if (state->modest < 0) {
-		d = rampdown(state->modest, potd->modest);
+	if (modest < 0) {
+		d = rampdown(modest, potd->modest);
 		if (d)
 			return d;
 	}
 
 	// 2. consuming grid power or discharging akku: ramp down greedy devices too
-	if (state->greedy < 0) {
-		d = rampdown(state->greedy, potd->greedy);
+	if (greedy < 0) {
+		d = rampdown(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
-	if (state->greedy > 0) {
-		d = rampup(state->greedy, potd->greedy);
+	if (greedy > 0) {
+		d = rampup(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 4. extra power available: ramp up modest devices too
-	if (state->modest > 0) {
-		d = rampup(state->modest, potd->modest);
+	if (modest > 0) {
+		d = rampup(modest, potd->modest);
 		if (d)
 			return d;
 	}
@@ -560,7 +568,7 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
-	int power = state->greedy + v->load;
+	int power = state->surplus + v->load;
 	int min = rampup_min(t);
 	if (t->state == Active && t->power == 0 && v->load > 0 && power > min) {
 		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, vstring, v->name, tstring, t->name, t->total);
@@ -773,16 +781,6 @@ static void calculate_state() {
 
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
-
-	// greedy power = akku + grid
-	state->greedy = state->surplus;
-	if (abs(state->greedy) < NOISE)
-		state->greedy = 0;
-
-	// modest power = only grid upload without akku charge/discharge
-	state->modest = state->surplus - abs(state->akku);
-	if (abs(state->modest) < NOISE)
-		state->modest = 0;
 
 	print_power_status(NULL);
 }

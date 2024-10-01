@@ -48,8 +48,6 @@ struct _state {
 	int grid;
 	int akku;
 	int surplus;
-	int greedy;
-	int modest;
 	int waste;
 	int sum;
 	int soc;
