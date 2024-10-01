@@ -244,8 +244,8 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 1, 0, "Surp", state->surplus);
 	xlogl_int(line, 1, 0, "Greedy", state->greedy);
 	xlogl_int(line, 1, 0, "Modest", state->modest);
-	xlogl_int_B(line, "Load", state->load);
-	xlogl_int_B(line, "ΔLoad", state->dload);
+	xlogl_int(line, 0, 0, "Load", state->load);
+	xlogl_int(line, 0, 0, "ΔLoad", state->dload);
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "SoC", state->soc);
@@ -415,6 +415,16 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, *expected_tomorrow);
 }
 
+// minimum available power for ramp up
+static int rampup_min(device_t *d) {
+	int min = d->adjustable ? d->total / 100 : d->total; // adjustable 1% of total, dumb total
+	if (state->soc < 100)
+		min += min / 10; // 10% more while akku is charging to avoid excessive grid load
+	if (state->distortion)
+		min *= 2; // 100% more on distortion
+	return min;
+}
+
 static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->total / 100);
@@ -466,8 +476,7 @@ static int ramp_dumb(device_t *d, int power) {
 	if (d->power && power > 0)
 		return 0; // continue loop
 
-	// 50% more when we have distortion
-	int min = state->distortion ? d->total + d->total / 2 : d->total;
+	int min = rampup_min(d);
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
 	// switch on when enough power is available
@@ -551,34 +560,38 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v, const char *tstring, const char *vstring) {
-	int power = state->greedy + v->load - NOISE;
-	if (t->state == Active && t->power == 0 && v->load > 0 && power > t->total) {
+	int power = state->greedy + v->load;
+	int min = rampup_min(t);
+	if (t->state == Active && t->power == 0 && v->load > 0 && power > min) {
 		xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, vstring, v->name, tstring, t->name, t->total);
 		ramp_device(v, v->load * -1);
 		ramp_device(t, power);
+		t->dload = 0; // force WAIT_RAMP but no response expected as we put power from one to another device
 		return 1;
 	}
 	return 0;
 }
 
-static void steal() {
+static device_t* steal() {
 	// greedy thief can steal from greedy victims behind
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "greedy", "greedy"))
-				return;
+				return *t;
 
 	// greedy thief can steal from all modest victims
 	for (device_t **t = potd->greedy; *t != 0; t++)
 		for (device_t **v = potd->modest; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "greedy", "modest"))
-				return;
+				return *t;
 
 	// modest thief can steal from modest victims behind
 	for (device_t **t = potd->modest; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
 			if (steal_thief_victim(*t, *v, "modest", "modest"))
-				return;
+				return *t;
+
+	return 0;
 }
 
 static device_t* perform_standby(device_t *d) {
@@ -752,9 +765,6 @@ static void calculate_state() {
 	// indicate standby check when deviation between actual load and calculated load is three times over 33%
 	state->standby = h3->dxload > 33 && h2->dxload > 33 && h1->dxload > 33 && state->dxload > 33 && !state->distortion;
 
-	// regulate only when surplus > keep, scale for bigger pv production as long as akku is not full
-	int keep = NOISE * 2 * (state->soc < 100 && state->pv > 3000 ? state->pv / 1000 : 1);
-
 	// grid < 0	--> upload
 	// grid > 0	--> download
 
@@ -765,18 +775,16 @@ static void calculate_state() {
 	state->surplus = (state->grid + state->akku) * -1;
 
 	// greedy power = akku + grid
-	state->greedy = state->surplus - keep;
+	state->greedy = state->surplus;
 	if (abs(state->greedy) < NOISE)
 		state->greedy = 0;
 
 	// modest power = only grid upload without akku charge/discharge
-	state->modest = state->surplus - keep - abs(state->akku);
+	state->modest = state->surplus - abs(state->akku);
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
-	char message[LINEBUF];
-	snprintf(message, LINEBUF, "keep:%d", keep);
-	print_power_status(message);
+	print_power_status(NULL);
 }
 
 static int calculate_next_round(device_t *d) {
@@ -969,7 +977,7 @@ static void fronius() {
 
 		// prio4: check if higher priorized device can steal from lower priorized
 		if (!device)
-			steal();
+			device = steal();
 
 		// determine wait for next round
 		wait = state->wait = calculate_next_round(device);
