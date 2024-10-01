@@ -21,7 +21,6 @@
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 #define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
-// Fronius API is slow --> timings <5s make no sense
 #define WAIT_OFFLINE		900
 #define WAIT_STANDBY		300
 #define WAIT_STABLE			60
@@ -526,8 +525,12 @@ static device_t* ramp() {
 	device_t *d;
 
 	// greedy power = akku + grid, modest power = only grid upload without akku charge/discharge
-	int greedy = abs(state->surplus) > NOISE ? state->surplus : 0;
-	int modest = abs(state->surplus - abs(state->akku)) > NOISE ? state->surplus - abs(state->akku) : 0;
+	int greedy = state->surplus - NOISE;
+	int modest = state->surplus - abs(state->akku) - NOISE;
+	if (abs(greedy) < NOISE)
+		greedy = 0;
+	if (abs(modest) < NOISE)
+		modest = 0;
 	if (!greedy && !modest)
 		return 0;
 
