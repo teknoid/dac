@@ -524,41 +524,34 @@ static device_t* rampdown(int power, device_t **devices) {
 static device_t* ramp() {
 	device_t *d;
 
-	// greedy power = akku + grid
+	// greedy power = akku + grid, modest power = only grid upload without akku charge/discharge
 	int greedy = state->surplus;
-	if (abs(greedy) < NOISE)
-		greedy = 0;
-
-	// modest power = only grid upload without akku charge/discharge
 	int modest = state->surplus - abs(state->akku);
-	if (abs(modest) < NOISE)
-		modest = 0;
-
 	xdebug("FRONIUS ramp greedy=%d modest=%d", greedy, modest);
 
 	// 1. no extra power available: ramp down modest devices
-	if (modest < 0) {
+	if (modest < NOISE * -1) {
 		d = rampdown(modest, potd->modest);
 		if (d)
 			return d;
 	}
 
 	// 2. consuming grid power or discharging akku: ramp down greedy devices too
-	if (greedy < 0) {
+	if (greedy < NOISE * -1) {
 		d = rampdown(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
-	if (greedy > 0) {
+	if (greedy > NOISE) {
 		d = rampup(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 4. extra power available: ramp up modest devices too
-	if (modest > 0) {
+	if (modest > NOISE) {
 		d = rampup(modest, potd->modest);
 		if (d)
 			return d;
@@ -772,12 +765,6 @@ static void calculate_state() {
 
 	// indicate standby check when deviation between actual load and calculated load is three times over 33%
 	state->standby = h3->dxload > 33 && h2->dxload > 33 && h1->dxload > 33 && state->dxload > 33 && !state->distortion;
-
-	// grid < 0	--> upload
-	// grid > 0	--> download
-
-	// akku < 0	--> charge
-	// akku > 0	--> discharge
 
 	// surplus is akku charge + grid upload
 	state->surplus = (state->grid + state->akku) * -1;
