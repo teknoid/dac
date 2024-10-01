@@ -12,7 +12,6 @@
 #define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
 #define BASELOAD			300
-#define HEATING				2000	 			// heating 2kw
 #define NOISE				25
 #define SUSPICIOUS			250
 
@@ -106,7 +105,7 @@ typedef struct potd_t {
 } potd_t;
 
 // cloudy weather with akku empty: priority is warm water in boiler1, then akku, then rest
-static const potd_t EMPTY = { .name = "EMPTY", .greedy = { &boiler1, 0 }, .modest = { &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
+static const potd_t MODEST = { .name = "MODEST", .greedy = { &boiler1, 0 }, .modest = { &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
 
 // cloudy weather but tomorrow sunny: steal all akku charge power
 static const potd_t TOMORROW = { .name = "TOMORROW", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 }, .modest = { 0 } };

@@ -374,6 +374,12 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 		return;
 	}
 
+	// sum up all dumb loads
+	int heating = 0;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if (!(*d)->adjustable)
+			heating += (*d)->total;
+
 	// find current slot and calculate hourly values
 	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
@@ -382,7 +388,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 		if (need_1h > 5000)
 			need_1h = 5000; // max 5kW per hour
 		need_1h += BASELOAD;
-		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? HEATING : 0; // from 9 to 15 o'clock
+		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
 		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
@@ -395,7 +401,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	*expected = eod.Rad1h * MOSMIX_FACTOR;
 	int na = (100 - state->soc) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * HEATING : 0 : (6 * HEATING); // max 6h from 9 to 15 o'clock
+	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
 	if (SUMMER) {
 		*needed = na + nb;
 		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, eod.Rad1h, eod.SunD1, *expected);
@@ -440,8 +446,8 @@ static int calculate_step(device_t *d, int power) {
 		xdebug("FRONIUS step2 %d", step);
 	}
 
-	// do smaller up steps / bigger down steps when we have distortion
-	if (state->distortion) {
+	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full
+	if (state->distortion || state->soc < 100) {
 		if (step > 0)
 			step /= 2;
 		else
@@ -514,10 +520,11 @@ static device_t* rampdown(int power, device_t **devices) {
 		d++;
 
 	// now go backward - this will give a reverse order
-	while (d-- != devices)
+	while (d-- != devices) {
+		xdebug("FRONIUS rampdown() %s %d", (*d)->name, power);
 		if (ramp_device(*d, power))
 			return *d;
-
+	}
 	return 0; // next priority
 }
 
@@ -919,11 +926,11 @@ static void fronius() {
 				choose_program(&SUNNY); // plenty of power
 			else {
 				if (now->tm_hour > 12 && state->soc < 40)
-					choose_program(&EMPTY); // emergency charging to survive next night
+					choose_program(&MODEST); // emergency charging to survive next night
 				else if (expected_tomorrow > needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else
-					choose_program(&EMPTY); // not enough power
+					choose_program(&MODEST); // not enough power
 			}
 		}
 
