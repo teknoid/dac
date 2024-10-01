@@ -26,8 +26,9 @@
 #define WAIT_STANDBY		300
 #define WAIT_STABLE			60
 #define WAIT_INSTABLE		20
-#define WAIT_RAMP			10
+#define WAIT_AKKU			10
 #define WAIT_NEXT			5
+#define WAIT_RAMP			3
 
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
@@ -523,39 +524,42 @@ static device_t* rampdown(int power, device_t **devices) {
 
 static device_t* ramp() {
 	device_t *d;
-	char line[LINEBUF];
 
 	// greedy power = akku + grid, modest power = only grid upload without akku charge/discharge
-	int greedy = state->surplus;
-	int modest = state->surplus - abs(state->akku);
+	int greedy = abs(state->surplus) > NOISE ? state->surplus : 0;
+	int modest = abs(state->surplus - abs(state->akku)) > NOISE ? state->surplus - abs(state->akku) : 0;
+	if (!greedy && !modest)
+		return 0;
+
+	char line[LINEBUF];
 	xlogl_start(line, "FRONIUS");
 	xlogl_int(line, 1, 0, "Greedy", greedy);
 	xlogl_int(line, 1, 0, "Modest", modest);
 	xlogl_end(line, sizeof(line), NULL);
 
 	// 1. no extra power available: ramp down modest devices
-	if (modest < NOISE * -1) {
+	if (modest < 0) {
 		d = rampdown(modest, potd->modest);
 		if (d)
 			return d;
 	}
 
 	// 2. consuming grid power or discharging akku: ramp down greedy devices too
-	if (greedy < NOISE * -1) {
+	if (greedy < 0) {
 		d = rampdown(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 3. uploading grid power or charging akku: ramp up only greedy devices
-	if (greedy > NOISE) {
+	if (greedy > 0) {
 		d = rampup(greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// 4. extra power available: ramp up modest devices too
-	if (modest > NOISE) {
+	if (modest > 0) {
 		d = rampup(modest, potd->modest);
 		if (d)
 			return d;
@@ -777,8 +781,12 @@ static void calculate_state() {
 }
 
 static int calculate_next_round(device_t *d) {
-	if (d)
-		return WAIT_RAMP;
+	if (d) {
+		if (state->soc < 100)
+			return WAIT_AKKU; // wait for inverter to adjust charge power
+		else
+			return WAIT_RAMP;
+	}
 
 	// much faster next round on
 	// - pv tendence up/down
