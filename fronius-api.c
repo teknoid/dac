@@ -201,7 +201,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst waste   sum  chrg  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -388,7 +388,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xlog("FRONIUS mosmix current slot: %d %s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
+		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}
 
 	// eod - calculate values till end of day
@@ -691,7 +691,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// perform standby check when noresponse counter reaches threshold
-	if (d->noresponse++ > NORESPONSE_STANDBY)
+	if (++d->noresponse >= NORESPONSE_STANDBY)
 		return perform_standby(d);
 
 	xdebug("FRONIUS no response from %s", d->name);
