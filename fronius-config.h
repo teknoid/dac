@@ -15,8 +15,14 @@
 #define NOISE				25
 #define SUSPICIOUS			250
 
+#ifdef FRONIUS_MAIN
+#define TEMP_IN				0.0
+#define TEMP_OUT			0.0
+#else
 #define TEMP_IN				sensors->htu21_temp
 #define TEMP_OUT			sensors->sht31_temp
+#endif
+
 #define SUMMER				(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))

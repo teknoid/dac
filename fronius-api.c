@@ -44,7 +44,7 @@ static state_t state_history[HISTORY], *state = &state_history[0];
 static int state_history_ptr = 0;
 
 static struct tm now_tm, *now = &now_tm;
-static int sock = 0;
+static int total10, total10_y, total7, total7_y, sock = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -289,18 +289,19 @@ static void print_device_status(int wait, int next_reset) {
 }
 
 static int parse_fronius10(response_t *r) {
-	float p_charge, p_akku, p_grid, p_load, p_pv;
+	float f_charge, f_akku, f_grid, f_load, f_pv, f_total;
 	char *c;
 	int ret;
 
-	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &p_akku, &p_grid, &p_load, &p_pv);
-	if (ret != 4)
+	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f E_Total:%f } } } }", &f_akku, &f_grid, &f_load, &f_pv, &f_total);
+	if (ret != 5)
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
 
-	state->akku = p_akku;
-	state->grid = p_grid;
-	state->load = p_load;
-	state->pv10 = p_pv;
+	state->akku = f_akku;
+	state->grid = f_grid;
+	state->load = f_load;
+	state->pv10 = f_pv;
+	total10 = f_total;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
 	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Inverters:%Q } } }", &c);
@@ -312,9 +313,9 @@ static int parse_fronius10(response_t *r) {
 		while (*p != '{')
 			p++;
 
-		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &p_charge);
+		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &f_charge);
 		if (ret == 1)
-			state->soc = p_charge;
+			state->soc = f_charge;
 		else {
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
 			state->soc = 0;
@@ -328,15 +329,14 @@ static int parse_fronius10(response_t *r) {
 }
 
 static int parse_fronius7(response_t *r) {
-	float p_pv;
-	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f } } } }", &p_pv);
-	if (ret != 1) {
-		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site->P_PV: no result");
-		state->pv7 = 0;
-		return -1;
-	}
+	float f_pv, f_total;
 
-	state->pv7 = p_pv;
+	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f E_Total:%f } } } }", &f_pv, &f_total);
+	if (ret != 2)
+		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
+
+	state->pv7 = f_pv;
+	total7 = f_total;
 	return 0;
 }
 
@@ -916,7 +916,11 @@ static void fronius() {
 			meter_t *yesterday = get_meter_history(-1);
 			long dp = meter->produced - yesterday->produced;
 			long dc = meter->consumed - yesterday->consumed;
-			xlog("FRONIUS meter: current power %d, daily produced %d, daily consumed %d, mosmix %d", meter->p, dp, dc, expected);
+			int dp10 = total10 - total10_y;
+			int dp7 = total7 - total7_y;
+			xlog("FRONIUS meter: prod=%d cons=%d   inverter: prod10=%d prod7=%d prod=%d   mosmix=%d", dp, dc, dp10, dp7, dp10 + dp7, expected);
+			total10_y = total10;
+			total7_y = total7;
 
 			// set history pointer to next slot
 			dump_meter_history(6);

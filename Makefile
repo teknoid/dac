@@ -58,13 +58,13 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
 
-fronius-api: fronius-api.o utils.o frozen.o
+fronius-api: fronius-api.o mosmix.o utils.o frozen.o curl.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-api.c
-	$(CC) $(CFLAGS) -o fronius fronius-api.o utils.o frozen.o curl.o -lcurl
+	$(CC) $(CFLAGS) -o fronius fronius-api.o mosmix.o utils.o frozen.o curl.o -lcurl
 
-fronius-modbus: fronius-modbus.o utils.o
+fronius-modbus: fronius-modbus.o mosmix.o utils.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c
-	$(CC) $(CFLAGS) -o fronius fronius-modbus.c utils.o -lmodbus -lm -lpthread
+	$(CC) $(CFLAGS) -o fronius fronius-modbus.c mosmix.o utils.o -lmodbus -lm -lpthread
 
 sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
