@@ -51,8 +51,6 @@ struct _state {
 	int surplus;
 	int greedy;
 	int modest;
-	int waste;
-	int sum;
 	int soc;
 	int load;
 	int dload;

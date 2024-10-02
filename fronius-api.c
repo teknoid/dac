@@ -201,7 +201,7 @@ static void dump_state_history(int back) {
 	char line[sizeof(state_t) * 8 + 16];
 	char value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS state ");
@@ -249,7 +249,6 @@ static void print_power_status(const char *message) {
 	xlogl_int(line, 0, 0, "PV10", state->pv10);
 	xlogl_int(line, 0, 0, "PV7", state->pv7);
 	xlogl_int(line, 0, 0, "SoC", state->soc);
-	xlogl_int(line, 0, 0, "Sum", state->sum);
 	xlogl_int(line, 0, 0, "Dist", state->distortion);
 	xlogl_end(line, sizeof(line), message);
 }
@@ -727,14 +726,14 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void calculate_state() {
+static int calculate_state() {
 	// get 3x history back
 	state_t *h1 = get_state_history(-1);
 	state_t *h2 = get_state_history(-2);
 	state_t *h3 = get_state_history(-3);
 
 	// for validation
-	state->sum = state->grid + state->akku + state->load + state->pv10;
+	int sum = state->grid + state->akku + state->load + state->pv10;
 
 	// total pv from both inverters
 	state->pv = state->pv10 + state->pv7;
@@ -759,12 +758,6 @@ static void calculate_state() {
 
 	// deviation of calculated load to actual load in %
 	state->dxload = (state->xload - state->load) * 100 / state->xload;
-
-	// wasting akku->grid power?
-	if (state->akku > NOISE && state->grid < NOISE * -1) {
-		int g = abs(state->grid);
-		state->waste = g < state->akku ? g : state->akku;
-	}
 
 	// distortion when delta pv too big for last three times
 	int dpv_sum = abs(h3->dpv) + abs(h2->dpv) + abs(h1->dpv) + abs(state->dpv);
@@ -794,10 +787,30 @@ static void calculate_state() {
 	if (abs(state->modest) < NOISE)
 		state->modest = 0;
 
+	// validate values
+	if (abs(sum) > SUSPICIOUS) {
+		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
+		return 0;
+	}
+	if (state->load > 0) {
+		xdebug("FRONIUS positive load detected");
+		return 0;
+	}
+	if (state->akku > NOISE && state->grid < NOISE * -1) {
+		int waste = abs(state->grid) < state->akku ? abs(state->grid) : state->akku;
+		xdebug("FRONIUS wasting %d akku -> grid power", waste);
+		return 0;
+	}
+	if (state->grid - h1->grid > 1000) {
+		xdebug("FRONIUS grid spike detected %d %d", state->grid, h1->grid);
+		return 0;
+	}
+
 	print_power_status(NULL);
+	return 1;
 }
 
-static int calculate_next_round(device_t *d) {
+static int calculate_next_round(device_t *d, int valid) {
 	if (d) {
 		if (state->soc < 100)
 			return WAIT_AKKU; // wait for inverter to adjust charge power
@@ -806,12 +819,13 @@ static int calculate_next_round(device_t *d) {
 	}
 
 	// much faster next round on
+	// - suspicious values detected
 	// - pv tendence up/down
 	// - distortion
 	// - wasting akku->grid power
 	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
-	if (state->tendence || state->distortion || state->waste || state->grid > 500 || state->akku > 500 || state->dxload < -5)
+	if (!valid || state->tendence || state->distortion || state->grid > 500 || state->akku > 500 || state->dxload < -5)
 		return WAIT_NEXT;
 
 	// all devices in standby?
@@ -969,32 +983,30 @@ static void fronius() {
 			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
 
 		// calculate actual state
-		calculate_state();
+		int valid = calculate_state();
 
-		// validate values
-		if (abs(state->sum) > SUSPICIOUS || state->load > 0) {
-			xlog("FRONIUS detected suspicious values, recalculating next round");
-			continue;
+		// values ok? then we can regulated
+		if (valid) {
+
+			// prio1: check response from previous action
+			if (device)
+				device = response(device);
+
+			// prio2: perform standby checking logic
+			if (!device)
+				device = standby();
+
+			// prio3: ramp up/down
+			if (!device)
+				device = ramp();
+
+			// prio4: check if higher priorized device can steal from lower priorized
+			if (!device)
+				device = steal();
 		}
 
-		// prio1: check response from previous action
-		if (device)
-			device = response(device);
-
-		// prio2: perform standby checking logic
-		if (!device)
-			device = standby();
-
-		// prio3: ramp up/down
-		if (!device)
-			device = ramp();
-
-		// prio4: check if higher priorized device can steal from lower priorized
-		if (!device)
-			device = steal();
-
 		// determine wait for next round
-		wait = state->wait = calculate_next_round(device);
+		wait = state->wait = calculate_next_round(device, valid);
 
 		// set history pointer to next slot
 		dump_state_history(6);
