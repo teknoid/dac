@@ -529,11 +529,10 @@ static device_t* rampdown(int power, device_t **devices) {
 		d++;
 
 	// now go backward - this will give a reverse order
-	while (d-- != devices) {
-		xdebug("FRONIUS rampdown() %s %d", (*d)->name, power);
+	while (d-- != devices)
 		if (ramp_device(*d, power))
 			return *d;
-	}
+
 	return 0; // next priority
 }
 
@@ -985,7 +984,7 @@ static void fronius() {
 		// calculate actual state
 		int valid = calculate_state();
 
-		// values ok? then we can regulated
+		// values ok? then we can regulate
 		if (valid) {
 
 			// prio1: check response from previous action
