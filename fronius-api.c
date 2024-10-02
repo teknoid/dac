@@ -678,7 +678,7 @@ static device_t* response(device_t *d) {
 
 	// ignore response due to distortion or below NOISE
 	if (state->distortion || abs(delta) < NOISE) {
-		xdebug("FRONIUS ignoring expected response %d from %s (distortion=%d)", delta, d->name, state->distortion);
+		xdebug("FRONIUS ignoring expected response %d from %s (distortion=%d noise=%d)", delta, d->name, state->distortion, NOISE);
 		d->state = Active;
 		return 0;
 	}
