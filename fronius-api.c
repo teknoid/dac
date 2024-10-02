@@ -668,9 +668,9 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-	// no delta power - no response to check
+	// no delta power or too low - no response to check
 	int delta = d->dload;
-	if (!delta)
+	if (!delta || delta < NOISE)
 		return 0;
 
 	// reset
@@ -763,9 +763,9 @@ static int calculate_state() {
 	state->distortion = dpv_sum > 1000;
 
 	// pv tendence
-	if (h3->dpv < 0 && h2->dpv < 0 && h1->dpv < 0 && state->dpv < 0)
+	if (h3->dpv < -NOISE && h2->dpv < -NOISE && h1->dpv < -NOISE && state->dpv < -NOISE)
 		state->tendence = -1; // pv is continuously falling
-	else if (h3->dpv > 0 && h2->dpv > 0 && h1->dpv > 0 && state->dpv > 0)
+	else if (h3->dpv > NOISE && h2->dpv > NOISE && h1->dpv > NOISE && state->dpv > NOISE)
 		state->tendence = 1; // pv is continuously raising
 	else
 		state->tendence = 0;
@@ -795,7 +795,7 @@ static int calculate_state() {
 		xdebug("FRONIUS positive load detected");
 		return 0;
 	}
-	if (state->akku > NOISE && state->grid < NOISE * -1) {
+	if (state->grid < -NOISE && state->akku > NOISE) {
 		int waste = abs(state->grid) < state->akku ? abs(state->grid) : state->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
 		return 0;
