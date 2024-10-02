@@ -12,14 +12,12 @@
 #include "mcp.h"
 
 static void summer(struct tm *now, potd_t *potd) {
-	float temp = sensors->sht31_temp;
-	uint16_t lumi = sensors->bh1750_lux_mean;
-	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
+	if (TEMP == UINT16_MAX || LUMI == UINT16_MAX) {
 		xlog("SHUTTER Error no sensor data");
 		return;
 	}
 
-	int hot = temp >= potd->temp && lumi >= potd->lumi;
+	int hot = TEMP >= potd->temp && LUMI >= potd->lumi;
 	// xdebug("SHUTTER %s program temp=%2.1f lumi=%d hot=%d", potd->name, temp, lumi, hot);
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
@@ -29,7 +27,7 @@ static void summer(struct tm *now, potd_t *potd) {
 
 		// down
 		if (!s->lock_down && down && hot) {
-			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, temp, lumi);
+			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, s->down);
 			s->lock_down = 1;
 			s->lock_up = 0;
@@ -38,7 +36,7 @@ static void summer(struct tm *now, potd_t *potd) {
 
 		// up
 		if (!s->lock_up && !down) {
-			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, temp, lumi);
+			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
 			s->lock_down = 0;
@@ -48,15 +46,13 @@ static void summer(struct tm *now, potd_t *potd) {
 }
 
 static void winter(struct tm *now, potd_t *potd) {
-	float temp = sensors->sht31_temp;
-	uint16_t lumi = sensors->bh1750_lux_mean;
-	if (lumi == UINT16_MAX || temp == UINT16_MAX) {
+	if (TEMP == UINT16_MAX || LUMI == UINT16_MAX) {
 		xlog("SHUTTER Error no sensor data");
 		return;
 	}
 
-	int down = now->tm_hour > 12 && lumi <= potd->lumi && temp <= potd->temp;
-	int up = !down && lumi >= potd->lumi;
+	int down = now->tm_hour > 12 && LUMI <= potd->lumi && TEMP <= potd->temp;
+	int up = !down && LUMI >= potd->lumi;
 	// xdebug("SHUTTER %s program temp=%2.1f lumi=%d", potd->name, temp, lumi);
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
@@ -64,7 +60,7 @@ static void winter(struct tm *now, potd_t *potd) {
 
 		// down
 		if (!s->lock_down && down) {
-			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, temp, lumi);
+			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_DOWN);
 			s->lock_down = 1;
 			s->lock_up = 0;
@@ -73,7 +69,7 @@ static void winter(struct tm *now, potd_t *potd) {
 
 		// up
 		if (!s->lock_up && up) {
-			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, temp, lumi);
+			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
 			s->lock_down = 0;

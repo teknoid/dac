@@ -1,5 +1,15 @@
 #include "tasmota.h"
 
+#ifdef SHUTTER_MAIN
+#define TEMP				23.2
+#define HUMI				33
+#define LUMI				35000
+#else
+#define TEMP				sensors->sht31_temp
+#define HUMI				sensors->sht31_humi
+#define LUMI				sensors->bh1750_lux_mean
+#endif
+
 typedef struct shutter_t {
 	const char *name;
 	const unsigned int id;

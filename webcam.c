@@ -9,6 +9,8 @@
 #include "webcam.h"
 #include "mcp.h"
 
+#define LUMI				sensors->bh1750_raw2
+
 static int webcam_on;
 
 static void webcam_start() {
@@ -45,7 +47,7 @@ static void webcam() {
 	sleep(15);
 
 	// state unknown (e.g. system startup) --> check need for switching on
-	if (sensors->bh1750_raw2 > WEBCAM_SUNRISE)
+	if (LUMI > WEBCAM_SUNRISE)
 		webcam_start();
 	else
 		webcam_stop();
@@ -58,8 +60,8 @@ static void webcam() {
 		if (afternoon && webcam_on) {
 			// evening and on --> check if need to switch off
 			// xlog("awaiting WEBCAM_SUNDOWN at %i", value);
-			if (sensors->bh1750_raw2 < WEBCAM_SUNDOWN) {
-				xlog("reached WEBCAM_SUNDOWN at bh1750_raw2=%d", sensors->bh1750_raw2);
+			if (LUMI < WEBCAM_SUNDOWN) {
+				xlog("reached WEBCAM_SUNDOWN at bh1750_raw2=%d", LUMI);
 				stop_timelapse();
 			}
 		}
@@ -67,8 +69,8 @@ static void webcam() {
 		if (!afternoon && !webcam_on) {
 			// morning and off --> check if need to switch on
 			// xlog("awaiting WEBCAM_SUNRISE at %i", value);
-			if (sensors->bh1750_raw2 > WEBCAM_SUNRISE) {
-				xlog("reached WEBCAM_SUNRISE at bh1750_raw2=%d", sensors->bh1750_raw2);
+			if (LUMI > WEBCAM_SUNRISE) {
+				xlog("reached WEBCAM_SUNRISE at bh1750_raw2=%d", LUMI);
 				start_reset();
 			}
 		}

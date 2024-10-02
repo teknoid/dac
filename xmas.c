@@ -12,6 +12,8 @@
 #include "xmas.h"
 #include "mcp.h"
 
+#define LUMI				sensors->bh1750_lux
+
 // these tasmota devices will be in XMAS mode
 #ifndef PICAM
 static const unsigned int device[] = { DEVICES };
@@ -54,8 +56,8 @@ static void xmas_off_flamingo(const timing_t *timing) {
 	}
 }
 
-static void on_sundown(const timing_t *timing, uint16_t lumi) {
-	xlog("XMAS reached SUNDOWN at %d", lumi);
+static void on_sundown(const timing_t *timing) {
+	xlog("XMAS reached SUNDOWN at %d", LUMI);
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
@@ -68,8 +70,8 @@ static void on_morning(const timing_t *timing) {
 	power = 1;
 }
 
-static void off_sunrise(const timing_t *timing, uint16_t lumi) {
-	xlog("XMAS reached SUNRISE at %d", lumi);
+static void off_sunrise(const timing_t *timing) {
+	xlog("XMAS reached SUNRISE at %d", LUMI);
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
@@ -82,7 +84,7 @@ static void off_evening(const timing_t *timing) {
 	power = 0;
 }
 
-static int process(int h, int m, const timing_t *timing, unsigned int lumi) {
+static int process(int h, int m, const timing_t *timing) {
 	int afternoon = h < 12 ? 0 : 1;
 	int curr = h * 60 + m;
 	int from = timing->on_h * 60 + timing->on_m;
@@ -97,8 +99,8 @@ static int process(int h, int m, const timing_t *timing, unsigned int lumi) {
 
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
-			if (lumi < SUNDOWN)
-				on_sundown(timing, lumi);
+			if (LUMI < SUNDOWN)
+				on_sundown(timing);
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
 				return 0;
@@ -115,8 +117,8 @@ static int process(int h, int m, const timing_t *timing, unsigned int lumi) {
 
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
-			if (lumi > SUNRISE)
-				off_sunrise(timing, lumi);
+			if (LUMI > SUNRISE)
+				off_sunrise(timing);
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
 				return 0;
@@ -141,8 +143,7 @@ static void xmas() {
 	}
 
 	sleep(3); // wait for sensors
-	unsigned int lumi = sensors->bh1750_lux;
-	if (lumi == UINT16_MAX) {
+	if (LUMI == UINT16_MAX) {
 		xlog("XMAS Error no sensor data");
 		return;
 	}
@@ -151,8 +152,6 @@ static void xmas() {
 		time_t now_ts = time(NULL);
 		struct tm *ltstatic = localtime(&now_ts);
 		int h = ltstatic->tm_hour, m = ltstatic->tm_min, wday = ltstatic->tm_wday;
-
-		lumi = sensors->bh1750_lux;
 
 		for (int i = 0; i < ARRAY_SIZE(timings); i++) {
 			const timing_t *timing = &timings[i];
@@ -164,7 +163,7 @@ static void xmas() {
 				continue;
 
 			// xlog("processing timing[%i]", i);
-			process(h, m, timing, lumi);
+			process(h, m, timing);
 		}
 
 		sleep(60);
