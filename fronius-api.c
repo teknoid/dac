@@ -539,28 +539,28 @@ static device_t* rampdown(int power, device_t **devices) {
 static device_t* ramp() {
 	device_t *d;
 
-	// 1. no extra power available: ramp down modest devices
+	// prio1: no extra power available: ramp down modest devices
 	if (state->modest < 0) {
 		d = rampdown(state->modest, potd->modest);
 		if (d)
 			return d;
 	}
 
-	// 2. consuming grid power or discharging akku: ramp down greedy devices too
+	// prio2: consuming grid power or discharging akku: ramp down greedy devices too
 	if (state->greedy < 0) {
 		d = rampdown(state->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
-	// 3. uploading grid power or charging akku: ramp up only greedy devices
+	// prio3: uploading grid power or charging akku: ramp up only greedy devices
 	if (state->greedy > 0) {
 		d = rampup(state->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
-	// 4. extra power available: ramp up modest devices too
+	// prio4: extra power available: ramp up modest devices too
 	if (state->modest > 0) {
 		d = rampup(state->modest, potd->modest);
 		if (d)
@@ -995,7 +995,7 @@ static void fronius() {
 			if (device)
 				device = response(device);
 
-			// prio2: perform standby checking logic
+			// prio2: perform standby check logic
 			if (!device)
 				device = standby();
 
