@@ -668,17 +668,17 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-	// no delta power or too low - no response to check
+	// no delta power - no response to check
 	int delta = d->dload;
-	if (!delta || delta < NOISE)
+	if (!delta)
 		return 0;
 
 	// reset
 	d->dload = 0;
 
-	// ignore response if we have distortion
-	if (state->distortion) {
-		xdebug("FRONIUS ignoring response from %s due to distortion", d->name);
+	// ignore response due to distortion or below NOISE
+	if (state->distortion || abs(delta) < NOISE) {
+		xdebug("FRONIUS ignoring expected response %d from %s (distortion=%d)", delta, d->name, state->distortion);
 		d->state = Active;
 		return 0;
 	}
