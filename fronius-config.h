@@ -1,4 +1,4 @@
-#define HISTORY				24
+#define HISTORY				6
 #define OVERRIDE			600
 #define STANDBY				0
 #define STANDBY_RESET		60 * 30
