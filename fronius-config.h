@@ -21,6 +21,8 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
+#define GREEDY(d)			(d->greedy ? "greedy" : "modest")
+
 enum dstate {
 	Disabled, Active, Standby, Standby_Check
 };
@@ -47,6 +49,8 @@ struct _state {
 	int grid;
 	int akku;
 	int surplus;
+	int greedy;
+	int modest;
 	int waste;
 	int sum;
 	int soc;
@@ -78,6 +82,7 @@ struct _device {
 	int power;
 	int load;
 	int dload;
+	int greedy;
 	int noresponse;
 	time_t override;
 	set_function_t *set_function;
