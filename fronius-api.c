@@ -576,7 +576,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	int power = (t->greedy ? state->greedy : state->modest) + v->load;
 	int min = rampup_min(t);
-	if (power < min)
+	if (power <= min)
 		return 0; // not enough to steal
 
 	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, GREEDY(v), v->name, GREEDY(t), t->name, t->total);
