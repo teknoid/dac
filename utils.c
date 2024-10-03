@@ -662,3 +662,29 @@ int store_blob(const char *filename, void *data, size_t size) {
 	xlog("UTILS stored %d bytes to %s", count * size, filename);
 	return 0;
 }
+
+int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset) {
+	FILE *fp = fopen(filename, "wb");
+	if (fp == NULL)
+		return xerr("Cannot open file %s for writing", filename);
+
+	// xdebug("UTILS rsize=%d count=%d offset=%d", rsize, count, offset);
+
+	// part1: from offset to end
+	int ret = 0;
+	int records = count - offset;
+	int start = offset * rsize;
+	// xdebug("UTILS part1: records=%d start=%d", records, start);
+	ret += fwrite(data + start, rsize, records, fp);
+	// xdebug("UTILS part1: count=%d", count);
+
+	// part2: from start to offset
+	// xdebug("UTILS part2: offset=%d", offset);
+	ret += fwrite(data, rsize, offset, fp);
+	// xdebug("UTILS part1: count=%d", count);
+
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS stored %d bytes to %s", ret * rsize, filename);
+	return 0;
+}

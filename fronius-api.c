@@ -242,7 +242,7 @@ static void bump_gstate() {
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
 	ZERO(gstate);
-	store_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
+	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
 }
 
 static void bump_pstate() {
@@ -1229,7 +1229,8 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
+	// bump_gstate(); // fake yesterday
+	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
 
 	if (sock != 0)
 		close(sock);
