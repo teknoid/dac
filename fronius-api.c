@@ -946,7 +946,7 @@ static void fronius() {
 		struct tm *ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
-		// new day: bump global history
+		// new day: bump global history before writing new values into
 		if (mday != now->tm_mday) {
 //			if (mday != 0) // TODO enable later when implemented load/store the gstate table
 			bump_gstate(); // not bump when initial
