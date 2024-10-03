@@ -205,7 +205,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd     needed   expected   expect+1");
+			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd     needed   expected      exp24    exp24+1");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
