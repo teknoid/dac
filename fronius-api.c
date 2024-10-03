@@ -200,7 +200,7 @@ static void dump_gstate(int back) {
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
-		snprintf(value, 8, "[%03d] ", y * -1);
+		snprintf(value, 8, "[%3d] ", y * -1);
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
@@ -949,13 +949,6 @@ static void fronius() {
 		// make Fronius10 API call
 		errors += curl_perform(curl10, &memory, &parse_fronius10);
 
-		// new day: bump global history
-		if (mday != now->tm_mday) {
-			if (mday != 0)
-				bump_gstate(); // not bump when initial
-			mday = now->tm_mday;
-		}
-
 		// reset standby states, recalculate program of the day and daily states every 30min
 		if (potd == 0 || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET - 1;
@@ -983,6 +976,7 @@ static void fronius() {
 			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected;
 			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
 			print_global_status(message);
+			dump_gstate(2); // TODO remove
 		}
 
 		// not enough PV production
@@ -1038,6 +1032,13 @@ static void fronius() {
 
 		// set pstate history pointer to next slot
 		bump_pstate();
+
+		// new day: bump global history
+		if (mday != now->tm_mday) {
+//			if (mday != 0) // TODO enable resp. implement load/store the gstate table
+			bump_gstate(); // not bump when initial
+			mday = now->tm_mday;
+		}
 
 		print_device_status(wait, next_reset - now_ts);
 		errors = 0;
