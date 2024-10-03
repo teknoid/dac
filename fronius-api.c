@@ -192,7 +192,7 @@ static gstate_t* get_gstate_history(int offset) {
 }
 
 static void dump_gstate_history(int back) {
-	char line[sizeof(pstate_t) * 8 + 16];
+	char line[sizeof(pstate_t) * 12 + 16];
 	char value[12];
 
 	strcpy(line,
