@@ -5,8 +5,7 @@
 #define STANDBY_RESET		60 * 30
 #define NORESPONSE_STANDBY	3
 
-#define GSTATE_FILE			"/tmp/gstate.bin"
-
+#define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
@@ -92,6 +91,7 @@ struct _gstate {
 	int expected;
 	int expected24;
 	int expected24p1;
+	int mosmix;
 };
 
 typedef struct _device device_t;

@@ -205,7 +205,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd     needed   expected      exp24    exp24+1");
+			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd     needed   expected      exp24    exp24+1     mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -770,6 +770,10 @@ static void calculate_gstate(time_t now_ts) {
 
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
+
+	// calculate mosmix factor and store as x10 scaled
+	float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
+	gstate->mosmix = mosmix_factor * 10;
 }
 
 static int calculate_pstate() {
@@ -969,8 +973,7 @@ static void fronius() {
 			// recalculate global state and mosmix values
 			errors += curl_perform(curl_meter, &memory, &parse_meter);
 			calculate_gstate(now_ts);
-			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
-			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
+			snprintf(message, LINEBUF, "mosmix=%.1f", (float) gstate->mosmix / 10);
 			print_gstate(message);
 			dump_gstate(2); // TODO remove
 
@@ -1220,7 +1223,6 @@ static int test() {
 static int init() {
 	set_debug(1);
 
-	// initializing
 	init_all_devices();
 	set_all_devices(0);
 	ZERO(pstate_history);
