@@ -29,13 +29,10 @@
 #define WAIT_NEXT			5
 #define WAIT_RAMP			3
 
-// TODO
-// * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
-
 // program of the day - choose by mosmix forecast data
 static potd_t *potd = 0;
 
-// global state with daily values
+// global state with total and daily values
 static gstate_t gstate_history[GSTATE_HISTORY], *gstate = &gstate_history[0];
 static int gstate_history_ptr = 0;
 
