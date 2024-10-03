@@ -727,7 +727,7 @@ static void calculate_gstate(time_t now_ts) {
 	if (m != 0) {
 		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
 		if (need_1h > 5000)
-			need_1h = 5000; // max 5kW per hour
+			need_1h = 5000; // max charge capacity per hour is 5kW
 		need_1h += BASELOAD;
 		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
 		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
@@ -745,11 +745,10 @@ static void calculate_gstate(time_t now_ts) {
 	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
 	if (SUMMER) {
 		gstate->needed = na + nb;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, eod.Rad1h, eod.SunD1, gstate->expected);
+		xlog("FRONIUS mosmix needed EOD %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, eod.Rad1h, eod.SunD1, gstate->expected);
 	} else {
 		gstate->needed = na + nb + nh;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, nh, eod.Rad1h, eod.SunD1,
-				gstate->expected);
+		xlog("FRONIUS mosmix needed EOD %d Wh (%d akku + %d base + %d heat) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, nh, eod.Rad1h, eod.SunD1, gstate->expected);
 	}
 
 	// calculate total daily values
@@ -771,7 +770,7 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
-	// calculate mosmix factor and store as x10 scaled
+	// calculate mosmix factor and store as x10 scaled integer
 	float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
 	gstate->mosmix = mosmix_factor * 10;
 }
