@@ -983,7 +983,7 @@ static void fronius() {
 			// recalculate daily statistics
 			errors += curl_perform(curl_meter, &memory, &parse_meter);
 			calculate_gstate(now_ts);
-			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected;
+			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
 			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
 			print_global_status(message);
 			dump_gstate(2); // TODO remove
