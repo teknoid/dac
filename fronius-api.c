@@ -927,10 +927,12 @@ static void fronius() {
 	}
 
 	// call meter and both inverters once to update totals counter
-	// TODO implement load/store the gstate table
+	// TODO implement load/store gstate table
 	curl_perform(curl_meter, &memory, &parse_meter);
 	curl_perform(curl10, &memory, &parse_fronius10);
 	curl_perform(curl7, &memory, &parse_fronius7);
+	gstate->timestamp = time(NULL);
+	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 
 	// the FRONIUS main loop
 	while (1) {
