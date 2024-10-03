@@ -757,19 +757,20 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate(time_t now_ts) {
-	gstate_t *yesterday = get_gstate_history(-1);
+	gstate->timestamp = now_ts;
 
+	// total
+	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->grid_produced_total = meter->produced;
 	gstate->grid_consumed_total = meter->consumed;
 
+	// daily
+	gstate_t *yesterday = get_gstate_history(-1);
 	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
 	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
 	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
 	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
-	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
-
-	gstate->timestamp = now_ts;
 }
 
 static int calculate_pstate() {
@@ -926,6 +927,10 @@ static void fronius() {
 		xlog("Error initializing libcurl");
 		return;
 	}
+
+	// call both inverters once to get totals
+	curl_perform(curl10, &memory, &parse_fronius10);
+	curl_perform(curl7, &memory, &parse_fronius7);
 
 	// the FRONIUS main loop
 	while (1) {
