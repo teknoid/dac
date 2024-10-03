@@ -191,6 +191,15 @@ static gstate_t* get_gstate_history(int offset) {
 	return &gstate_history[i];
 }
 
+static pstate_t* get_pstate_history(int offset) {
+	int i = pstate_history_ptr + offset;
+	if (i < 0)
+		i += PSTATE_HISTORY;
+	if (i >= PSTATE_HISTORY)
+		i -= PSTATE_HISTORY;
+	return &pstate_history[i];
+}
+
 static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16];
 	char value[12];
@@ -209,23 +218,6 @@ static void dump_gstate(int back) {
 		}
 		xdebug(line);
 	}
-}
-
-static void bump_gstate() {
-	dump_gstate(GSTATE_HISTORY);
-	if (++gstate_history_ptr == GSTATE_HISTORY)
-		gstate_history_ptr = 0;
-	gstate = &gstate_history[gstate_history_ptr];
-	ZERO(gstate);
-}
-
-static pstate_t* get_pstate_history(int offset) {
-	int i = pstate_history_ptr + offset;
-	if (i < 0)
-		i += PSTATE_HISTORY;
-	if (i >= PSTATE_HISTORY)
-		i -= PSTATE_HISTORY;
-	return &pstate_history[i];
 }
 
 static void dump_pstate(int back) {
@@ -247,6 +239,14 @@ static void dump_pstate(int back) {
 	}
 }
 
+static void bump_gstate() {
+	dump_gstate(GSTATE_HISTORY);
+	if (++gstate_history_ptr == GSTATE_HISTORY)
+		gstate_history_ptr = 0;
+	gstate = &gstate_history[gstate_history_ptr];
+	ZERO(gstate);
+}
+
 static void bump_pstate() {
 	dump_pstate(PSTATE_HISTORY);
 	if (++pstate_history_ptr == PSTATE_HISTORY)
@@ -255,7 +255,7 @@ static void bump_pstate() {
 	ZERO(pstate);
 }
 
-static void print_global_status(const char *message) {
+static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", gstate->pvdaily);
@@ -270,7 +270,7 @@ static void print_global_status(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_power_status(const char *message) {
+static void print_pstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", pstate->pv);
@@ -288,7 +288,7 @@ static void print_power_status(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_device_status(int wait, int next_reset) {
+static void print_dstate(int wait, int next_reset) {
 	char message[128];
 	char value[5];
 
@@ -376,21 +376,20 @@ static int parse_fronius7(response_t *r) {
 }
 
 static int parse_meter(response_t *r) {
-	// clear slot in history for storing new meter data
-	ZERO(meter);
-
-	float p_grid, p_consumed, p_produced;
-	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &p_grid, &p_consumed,
-			&p_produced);
+	float f_grid, f_consumed, f_produced;
+	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &f_grid, &f_consumed,
+			&f_produced);
 
 	if (ret != 3) {
 		xlog("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got only %d", ret);
 		return -1;
 	}
 
-	meter->p = p_grid;
-	meter->consumed = p_consumed;
-	meter->produced = p_produced;
+	ZERO(meter);
+	gstate->grid_produced_total = meter->produced = f_produced;
+	gstate->grid_consumed_total = meter->consumed = f_consumed;
+	meter->p = f_grid;
+
 	return 0;
 }
 
@@ -408,59 +407,6 @@ static void choose_program(const potd_t *p) {
 		for (device_t **d = potd->modest; *d != 0; d++)
 			(*d)->greedy = 0;
 	}
-}
-
-static void calculate_mosmix(time_t now_ts) {
-	// reload data
-	if (mosmix_load(CHEMNITZ))
-		return;
-
-	// sum up all dumb loads
-	int heating = 0;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if (!(*d)->adjustable)
-			heating += (*d)->total;
-
-	// find current slot and calculate hourly values
-	// TODO do something with them
-	mosmix_t *m = mosmix_current_slot(now_ts);
-	if (m != 0) {
-		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
-		if (need_1h > 5000)
-			need_1h = 5000; // max 5kW per hour
-		need_1h += BASELOAD;
-		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
-		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
-		char *timestr = ctime(&m->ts);
-		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
-	}
-
-	// eod - calculate values till end of day
-	mosmix_t eod;
-	mosmix_eod(&eod, now_ts);
-	gstate->expected = eod.Rad1h * MOSMIX_FACTOR;
-	int na = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
-	int nb = (24 - now->tm_hour) * BASELOAD;
-	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
-	if (SUMMER) {
-		gstate->needed = na + nb;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, eod.Rad1h, eod.SunD1, gstate->expected);
-	} else {
-		gstate->needed = na + nb + nh;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, nh, eod.Rad1h, eod.SunD1,
-				gstate->expected);
-	}
-
-	// calculate total daily values
-	mosmix_t m0, m1, m2;
-	mosmix_24h(&m0, now_ts, 0);
-	mosmix_24h(&m1, now_ts, 1);
-	mosmix_24h(&m2, now_ts, 2);
-	gstate->expected24 = m0.Rad1h * MOSMIX_FACTOR;
-	gstate->expected24p1 = m1.Rad1h * MOSMIX_FACTOR;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
-			gstate->expected24p1);
 }
 
 // minimum available power for ramp up
@@ -760,20 +706,68 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
+// TODO ausdünnen
 static void calculate_gstate(time_t now_ts) {
 	gstate->timestamp = now_ts;
 
-	// total
-	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
-	gstate->grid_produced_total = meter->produced;
-	gstate->grid_consumed_total = meter->consumed;
+	// reload mosmix data
+	if (mosmix_load(CHEMNITZ))
+		return;
 
-	// daily
+	// sum up all dumb loads
+	int heating = 0;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if (!(*d)->adjustable)
+			heating += (*d)->total;
+
+	// find current mosmix slot and calculate hourly values
+	// TODO do something with them
+	mosmix_t *m = mosmix_current_slot(now_ts);
+	if (m != 0) {
+		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
+		if (need_1h > 5000)
+			need_1h = 5000; // max 5kW per hour
+		need_1h += BASELOAD;
+		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
+		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
+		char *timestr = ctime(&m->ts);
+		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
+		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
+	}
+
+	// eod - calculate values till end of day
+	mosmix_t eod;
+	mosmix_eod(&eod, now_ts);
+	gstate->expected = eod.Rad1h * MOSMIX_FACTOR;
+	int na = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
+	int nb = (24 - now->tm_hour) * BASELOAD;
+	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
+	if (SUMMER) {
+		gstate->needed = na + nb;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, eod.Rad1h, eod.SunD1, gstate->expected);
+	} else {
+		gstate->needed = na + nb + nh;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, nh, eod.Rad1h, eod.SunD1,
+				gstate->expected);
+	}
+
+	// calculate total daily values
+	mosmix_t m0, m1, m2;
+	mosmix_24h(&m0, now_ts, 0);
+	mosmix_24h(&m1, now_ts, 1);
+	mosmix_24h(&m2, now_ts, 2);
+	gstate->expected24 = m0.Rad1h * MOSMIX_FACTOR;
+	gstate->expected24p1 = m1.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
+			gstate->expected24p1);
+
 	gstate_t *yesterday = get_gstate_history(-1);
 	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
 	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
 	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
 	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
+
+	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 }
 
@@ -932,8 +926,9 @@ static void fronius() {
 		return;
 	}
 
-	// call both inverters once to get totals
+	// call meter and both inverters once to update totals counter
 	// TODO implement load/store the gstate table
+	curl_perform(curl_meter, &memory, &parse_meter);
 	curl_perform(curl10, &memory, &parse_fronius10);
 	curl_perform(curl7, &memory, &parse_fronius7);
 
@@ -949,6 +944,13 @@ static void fronius() {
 		struct tm *ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
+		// new day: bump global history
+		if (mday != now->tm_mday) {
+//			if (mday != 0) // TODO enable later when implemented load/store the gstate table
+			bump_gstate(); // not bump when initial
+			mday = now->tm_mday;
+		}
+
 		// default
 		wait = WAIT_NEXT;
 
@@ -959,7 +961,7 @@ static void fronius() {
 		// make Fronius10 API call
 		errors += curl_perform(curl10, &memory, &parse_fronius10);
 
-		// reset standby states, recalculate program of the day and daily states every 30min
+		// reset standby states, recalculate global state and choose program of the day every 30min
 		if (potd == 0 || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET - 1;
 
@@ -968,7 +970,15 @@ static void fronius() {
 				if ((*d)->state == Standby)
 					(*d)->state = Active;
 
-			calculate_mosmix(now_ts);
+			// recalculate global state and mosmix values
+			errors += curl_perform(curl_meter, &memory, &parse_meter);
+			calculate_gstate(now_ts);
+			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
+			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
+			print_gstate(message);
+			dump_gstate(2); // TODO remove
+
+			// choose program of the day
 			if (gstate->expected > gstate->needed)
 				choose_program(&SUNNY); // plenty of power
 			else {
@@ -979,14 +989,6 @@ static void fronius() {
 				else
 					choose_program(&MODEST); // not enough power
 			}
-
-			// recalculate daily statistics
-			errors += curl_perform(curl_meter, &memory, &parse_meter);
-			calculate_gstate(now_ts);
-			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
-			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
-			print_global_status(message);
-			dump_gstate(2); // TODO remove
 		}
 
 		// not enough PV production
@@ -996,14 +998,14 @@ static void fronius() {
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
 				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", pstate->soc, gstate->needed, gstate->expected, TEMP_IN);
-				print_power_status(message);
+				print_pstate(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
 				fronius_override_seconds("plug6", WAIT_OFFLINE);
 				// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 				fronius_override_seconds("plug8", WAIT_OFFLINE);
 			} else {
 				// go into offline mode
-				print_power_status("--> offline");
+				print_pstate("--> offline");
 				set_all_devices(0);
 			}
 			wait = WAIT_OFFLINE;
@@ -1015,7 +1017,7 @@ static void fronius() {
 
 		// calculate actual state
 		int valid = calculate_pstate();
-		print_power_status(NULL);
+		print_pstate(NULL);
 
 		// values ok? then we can regulate
 		if (valid) {
@@ -1043,14 +1045,7 @@ static void fronius() {
 		// set pstate history pointer to next slot
 		bump_pstate();
 
-		// new day: bump global history
-		if (mday != now->tm_mday) {
-//			if (mday != 0) // TODO enable later when implemented load/store the gstate table
-			bump_gstate(); // not bump when initial
-			mday = now->tm_mday;
-		}
-
-		print_device_status(wait, next_reset - now_ts);
+		print_dstate(wait, next_reset - now_ts);
 		errors = 0;
 	}
 }
