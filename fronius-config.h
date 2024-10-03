@@ -1,4 +1,5 @@
-#define HISTORY				6
+#define GSTATE_HISTORY		14
+#define PSTATE_HISTORY		6
 #define OVERRIDE			600
 #define STANDBY				0
 #define STANDBY_RESET		60 * 30
@@ -47,9 +48,9 @@ struct _meter {
 	int produced;
 };
 
-typedef struct _state state_t;
+typedef struct _pstate pstate_t;
 
-struct _state {
+struct _pstate {
 	int pv;
 	int dpv;
 	int grid;
@@ -69,6 +70,25 @@ struct _state {
 	int tendence;
 	int standby;
 	int wait;
+};
+
+typedef struct _gstate gstate_t;
+
+struct _gstate {
+	int timestamp;
+	int pvtotal;
+	int pvdaily;
+	int pv10total;
+	int pv10daily;
+	int pv7total;
+	int pv7daily;
+	int grid_produced_total;
+	int grid_produced_daily;
+	int grid_consumed_total;
+	int grid_consumed_daily;
+	int needed;
+	int expected;
+	int expected1;
 };
 
 typedef struct _device device_t;

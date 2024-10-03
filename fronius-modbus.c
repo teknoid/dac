@@ -15,9 +15,9 @@
 #include "utils.h"
 
 // global state with power flow data and calculations
-static state_t state_history[HISTORY];
-static state_t *state = state_history;
-static int state_history_ptr = 0;
+static pstate_t pstate_history[PSTATE_HISTORY];
+static pstate_t *pstate = pstate_history;
+static int pstate_history_ptr = 0;
 
 // Fronius modbus register banks
 static sunspec_inverter_t *inverter10;
@@ -38,19 +38,19 @@ int set_boiler(device_t *boiler, int power) {
 	return 0;
 }
 
-// get a state history
-static state_t* get_state_history(int offset) {
-	int i = state_history_ptr + offset;
+// get a power state history
+static pstate_t* get_pstate_history(int offset) {
+	int i = pstate_history_ptr + offset;
 	if (i < 0)
-		i += HISTORY;
-	if (i >= HISTORY)
-		i -= HISTORY;
-	return &state_history[i];
+		i += PSTATE_HISTORY;
+	if (i >= PSTATE_HISTORY)
+		i -= PSTATE_HISTORY;
+	return &pstate_history[i];
 }
 
-// dump the state history up to given rows
-static void dump_state_history(int back) {
-	char line[sizeof(state_t) * 8 + 16];
+// dump the power state history up to given rows
+static void dump_pstate_history(int back) {
+	char line[sizeof(pstate_t) * 8 + 16];
 	char value[8];
 
 	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
@@ -59,8 +59,8 @@ static void dump_state_history(int back) {
 		strcpy(line, "FRONIUS state ");
 		snprintf(value, 8, "[%2d] ", y * -1);
 		strcat(line, value);
-		int *vv = (int*) get_state_history(y * -1);
-		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
+		int *vv = (int*) get_pstate_history(y * -1);
+		for (int x = 0; x < sizeof(pstate_t) / sizeof(int); x++) {
 			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
 		}
@@ -133,19 +133,19 @@ static void calculate() {
 
 static int update() {
 	// clear slot for current values
-	state = &state_history[state_history_ptr];
-	ZERO(state);
+	pstate = &pstate_history[pstate_history_ptr];
+	ZERO(pstate);
 
 	// slot with previous values
-	state_t *h1 = get_state_history(-1);
+	pstate_t *h1 = get_pstate_history(-1);
 
 	int d = 0;
 
-	state->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
-	d |= state->pv10 != h1->pv10;
+	pstate->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
+	d |= pstate->pv10 != h1->pv10;
 
-	state->pv7 = SFI(inverter7->W, inverter7->W_SF);
-	d |= state->pv7 != h1->pv7;
+	pstate->pv7 = SFI(inverter7->W, inverter7->W_SF);
+	d |= pstate->pv7 != h1->pv7;
 
 	return d;
 }
@@ -203,10 +203,10 @@ static void loop() {
 
 		// set history pointer to next slot if we had changes or regulations
 		if (delta || device) {
-			state->wait = now_ts - last_ts;
-			dump_state_history(6);
-			if (++state_history_ptr == HISTORY)
-				state_history_ptr = 0;
+			pstate->wait = now_ts - last_ts;
+			dump_pstate_history(6);
+			if (++pstate_history_ptr == PSTATE_HISTORY)
+				pstate_history_ptr = 0;
 			last_ts = now_ts;
 		}
 	}

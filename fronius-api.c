@@ -32,19 +32,22 @@
 // TODO
 // * 22:00 statistics() production auslesen und mit (allen 3) expected today vergleichen
 
-// program of the day - mosmix will chose appropriate program
+// program of the day - choose by mosmix forecast data
 static potd_t *potd = 0;
 
-// global meter values and history
-static meter_t meter_history[HISTORY], *meter = &meter_history[0];
-static int meter_history_ptr = 0;
+// global state with daily values
+static gstate_t gstate_history[GSTATE_HISTORY], *gstate = &gstate_history[0];
+static int gstate_history_ptr = 0;
 
-// global state with power flow data and calculations
-static state_t state_history[HISTORY], *state = &state_history[0];
-static int state_history_ptr = 0;
+// power state with pv and inverter flow data and calculations
+static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
+static int pstate_history_ptr = 0;
+
+// meter storage
+meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
-static int total10, total10_y, total7, total7_y, sock = 0;
+static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -179,36 +182,65 @@ static void init_all_devices() {
 	}
 }
 
-static meter_t* get_meter_history(int offset) {
-	int i = meter_history_ptr + offset;
+static gstate_t* get_gstate_history(int offset) {
+	int i = gstate_history_ptr + offset;
 	if (i < 0)
-		i += HISTORY;
-	if (i >= HISTORY)
-		i -= HISTORY;
-	return &meter_history[i];
+		i += GSTATE_HISTORY;
+	if (i >= GSTATE_HISTORY)
+		i -= GSTATE_HISTORY;
+	return &gstate_history[i];
 }
 
-static state_t* get_state_history(int offset) {
-	int i = state_history_ptr + offset;
-	if (i < 0)
-		i += HISTORY;
-	if (i >= HISTORY)
-		i -= HISTORY;
-	return &state_history[i];
-}
+static void dump_gstate_history(int back) {
+	char line[sizeof(pstate_t) * 8 + 16];
+	char value[12];
 
-static void dump_state_history(int back) {
-	char line[sizeof(state_t) * 8 + 16];
-	char value[8];
-
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp  grdy modst   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line,
+			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd     needed   expected   expect+1");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
-		strcpy(line, "FRONIUS state ");
+		strcpy(line, "FRONIUS gstate ");
+		snprintf(value, 8, "[%03d] ", y * -1);
+		strcat(line, value);
+		int *vv = (int*) get_gstate_history(y * -1);
+		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
+			snprintf(value, 12, "%10d ", vv[x]);
+			strcat(line, value);
+		}
+		xdebug(line);
+	}
+}
+
+static void next_gstate() {
+	gstate->timestamp = time(NULL);
+	dump_gstate_history(GSTATE_HISTORY);
+	if (++gstate_history_ptr == GSTATE_HISTORY)
+		gstate_history_ptr = 0;
+	gstate = &gstate_history[gstate_history_ptr];
+	ZERO(gstate);
+}
+
+static pstate_t* get_pstate_history(int offset) {
+	int i = pstate_history_ptr + offset;
+	if (i < 0)
+		i += PSTATE_HISTORY;
+	if (i >= PSTATE_HISTORY)
+		i -= PSTATE_HISTORY;
+	return &pstate_history[i];
+}
+
+static void dump_pstate_history(int back) {
+	char line[sizeof(pstate_t) * 8 + 16];
+	char value[8];
+
+	strcpy(line, "FRONIUS pstate  idx    pv   Δpv   grid  akku  surp  grdy modst   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	xdebug(line);
+	for (int y = 0; y < back; y++) {
+		strcpy(line, "FRONIUS pstate ");
 		snprintf(value, 8, "[%2d] ", y * -1);
 		strcat(line, value);
-		int *vv = (int*) get_state_history(y * -1);
-		for (int x = 0; x < sizeof(state_t) / sizeof(int); x++) {
+		int *vv = (int*) get_pstate_history(y * -1);
+		for (int x = 0; x < sizeof(pstate_t) / sizeof(int); x++) {
 			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
 		}
@@ -216,40 +248,29 @@ static void dump_state_history(int back) {
 	}
 }
 
-static void dump_meter_history(int back) {
-	char line[sizeof(meter_t) * 10 + 16];
-	char value[10];
-
-	strcpy(line, "FRONIUS meter  idx     p    p1    p2    p3    v1    v2    v3 consumed produced");
-	xdebug(line);
-	for (int y = 0; y < back; y++) {
-		strcpy(line, "FRONIUS meter ");
-		snprintf(value, 10, "[%2d] ", y * -1);
-		strcat(line, value);
-		int *vv = (int*) get_meter_history(y * -1);
-		for (int x = 0; x < sizeof(meter_t) / sizeof(int); x++) {
-			snprintf(value, 10, x < 7 ? "%5d " : "%8d ", vv[x]);
-			strcat(line, value);
-		}
-		xdebug(line);
-	}
+static void next_pstate() {
+	dump_pstate_history(PSTATE_HISTORY);
+	if (++pstate_history_ptr == PSTATE_HISTORY)
+		pstate_history_ptr = 0;
+	pstate = &pstate_history[pstate_history_ptr];
+	ZERO(pstate);
 }
 
 static void print_power_status(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PV", state->pv);
-	xlogl_int(line, 1, 1, "Grid", state->grid);
-	xlogl_int(line, 1, 1, "Akku", state->akku);
-	xlogl_int(line, 1, 0, "Surp", state->surplus);
-	xlogl_int(line, 1, 0, "Greedy", state->greedy);
-	xlogl_int(line, 1, 0, "Modest", state->modest);
-	xlogl_int(line, 0, 0, "Load", state->load);
-	xlogl_int(line, 0, 0, "ΔLoad", state->dload);
-	xlogl_int(line, 0, 0, "PV10", state->pv10);
-	xlogl_int(line, 0, 0, "PV7", state->pv7);
-	xlogl_int(line, 0, 0, "SoC", state->soc);
-	xlogl_int(line, 0, 0, "Dist", state->distortion);
+	xlogl_int_b(line, "PV", pstate->pv);
+	xlogl_int(line, 1, 1, "Grid", pstate->grid);
+	xlogl_int(line, 1, 1, "Akku", pstate->akku);
+	xlogl_int(line, 1, 0, "Surp", pstate->surplus);
+	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
+	xlogl_int(line, 1, 0, "Modest", pstate->modest);
+	xlogl_int(line, 0, 0, "Load", pstate->load);
+	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
+	xlogl_int(line, 0, 0, "PV10", pstate->pv10);
+	xlogl_int(line, 0, 0, "PV7", pstate->pv7);
+	xlogl_int(line, 0, 0, "SoC", pstate->soc);
+	xlogl_int(line, 0, 0, "Dist", pstate->distortion);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -288,6 +309,24 @@ static void print_device_status(int wait, int next_reset) {
 	xlog(message);
 }
 
+// calculate daily values
+static void daily() {
+	gstate_t *yesterday = get_gstate_history(-1);
+
+	gstate->grid_produced_total = meter->produced;
+	gstate->grid_consumed_total = meter->consumed;
+
+	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
+	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
+	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
+	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
+	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
+	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
+
+	// set history pointer to next slot
+	next_gstate();
+}
+
 static int parse_fronius10(response_t *r) {
 	float f_charge, f_akku, f_grid, f_load, f_pv, f_total;
 	char *c;
@@ -297,11 +336,11 @@ static int parse_fronius10(response_t *r) {
 	if (ret != 5)
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
 
-	state->akku = f_akku;
-	state->grid = f_grid;
-	state->load = f_load;
-	state->pv10 = f_pv;
-	total10 = f_total;
+	pstate->akku = f_akku;
+	pstate->grid = f_grid;
+	pstate->load = f_load;
+	pstate->pv10 = f_pv;
+	gstate->pv10total = f_total;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
 	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Inverters:%Q } } }", &c);
@@ -315,10 +354,10 @@ static int parse_fronius10(response_t *r) {
 
 		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &f_charge);
 		if (ret == 1)
-			state->soc = f_charge;
+			pstate->soc = f_charge;
 		else {
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
-			state->soc = 0;
+			pstate->soc = 0;
 		}
 
 		free(c);
@@ -335,14 +374,13 @@ static int parse_fronius7(response_t *r) {
 	if (ret != 2)
 		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
 
-	state->pv7 = f_pv;
-	total7 = f_total;
+	pstate->pv7 = f_pv;
+	gstate->pv7total = f_total;
 	return 0;
 }
 
 static int parse_meter(response_t *r) {
 	// clear slot in history for storing new meter data
-	meter = &meter_history[meter_history_ptr];
 	ZERO(meter);
 
 	float p_grid, p_consumed, p_produced;
@@ -376,12 +414,10 @@ static void choose_program(const potd_t *p) {
 	}
 }
 
-static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *expected_tomorrow) {
+static void calculate_mosmix(time_t now_ts) {
 	// reload data
-	if (mosmix_load(CHEMNITZ)) {
-		needed = expected = expected_tomorrow = 0;
+	if (mosmix_load(CHEMNITZ))
 		return;
-	}
 
 	// sum up all dumb loads
 	int heating = 0;
@@ -393,7 +429,7 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		int need_1h = (100 - state->soc) * (AKKU_CAPACITY / 100);
+		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
 		if (need_1h > 5000)
 			need_1h = 5000; // max 5kW per hour
 		need_1h += BASELOAD;
@@ -407,16 +443,17 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	// eod - calculate values till end of day
 	mosmix_t eod;
 	mosmix_eod(&eod, now_ts);
-	*expected = eod.Rad1h * MOSMIX_FACTOR;
-	int na = (100 - state->soc) * (AKKU_CAPACITY / 100);
+	gstate->expected = eod.Rad1h * MOSMIX_FACTOR;
+	int na = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
 	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
 	if (SUMMER) {
-		*needed = na + nb;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, eod.Rad1h, eod.SunD1, *expected);
+		gstate->needed = na + nb;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, eod.Rad1h, eod.SunD1, gstate->expected);
 	} else {
-		*needed = na + nb + nh;
-		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", *needed, na, nb, nh, eod.Rad1h, eod.SunD1, *expected);
+		gstate->needed = na + nb + nh;
+		xlog("FRONIUS mosmix EOD needed %d Wh (%d akku + %d base + %d heating) Rad1h/SunD1 %d/%d expected %d Wh", gstate->needed, na, nb, nh, eod.Rad1h, eod.SunD1,
+				gstate->expected);
 	}
 
 	// calculate total daily values
@@ -424,16 +461,16 @@ static void calculate_mosmix(time_t now_ts, int *needed, int *expected, int *exp
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-	*expected_tomorrow = m1.Rad1h * MOSMIX_FACTOR;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, *expected_tomorrow);
+	gstate->expected1 = m1.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected1);
 }
 
 // minimum available power for ramp up
 static int rampup_min(device_t *d) {
 	int min = d->adjustable ? d->total / 100 : d->total; // adjustable 1% of total, dumb total
-	if (state->soc < 100)
+	if (pstate->soc < 100)
 		min += min / 10; // 10% more while akku is charging to avoid excessive grid load
-	if (state->distortion)
+	if (pstate->distortion)
 		min *= 2; // 100% more on distortion
 	return min;
 }
@@ -447,16 +484,16 @@ static int calculate_step(device_t *d, int power) {
 		return 0;
 
 	// adjust step when ramp and tendence is same direction
-	if (state->tendence) {
-		if (power < 0 && state->tendence < 0)
+	if (pstate->tendence) {
+		if (power < 0 && pstate->tendence < 0)
 			step--;
-		if (power > 0 && state->tendence > 0)
+		if (power > 0 && pstate->tendence > 0)
 			step++;
 		xdebug("FRONIUS step2 %d", step);
 	}
 
 	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
-	if (state->distortion || state->soc < 100) {
+	if (pstate->distortion || pstate->soc < 100) {
 		if (step > 0)
 			step /= 2;
 		else
@@ -540,29 +577,29 @@ static device_t* ramp() {
 	device_t *d;
 
 	// prio1: no extra power available: ramp down modest devices
-	if (state->modest < 0) {
-		d = rampdown(state->modest, potd->modest);
+	if (pstate->modest < 0) {
+		d = rampdown(pstate->modest, potd->modest);
 		if (d)
 			return d;
 	}
 
 	// prio2: consuming grid power or discharging akku: ramp down greedy devices too
-	if (state->greedy < 0) {
-		d = rampdown(state->greedy, potd->greedy);
+	if (pstate->greedy < 0) {
+		d = rampdown(pstate->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// prio3: uploading grid power or charging akku: ramp up only greedy devices
-	if (state->greedy > 0) {
-		d = rampup(state->greedy, potd->greedy);
+	if (pstate->greedy > 0) {
+		d = rampup(pstate->greedy, potd->greedy);
 		if (d)
 			return d;
 	}
 
 	// prio4: extra power available: ramp up modest devices too
-	if (state->modest > 0) {
-		d = rampup(state->modest, potd->modest);
+	if (pstate->modest > 0) {
+		d = rampup(pstate->modest, potd->modest);
 		if (d)
 			return d;
 	}
@@ -574,7 +611,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (t->state != Active || t->power || !v->load)
 		return 0; // thief not active or already on or nothing to steal from victim
 
-	int power = (t->greedy ? state->greedy : state->modest) + v->load;
+	int power = (t->greedy ? pstate->greedy : pstate->modest) + v->load;
 	int min = rampup_min(t);
 	if (power <= min)
 		return 0; // not enough to steal
@@ -635,7 +672,7 @@ static int force_standby() {
 
 static device_t* standby() {
 	// do we have powered devices?
-	if (state->xload == BASELOAD)
+	if (pstate->xload == BASELOAD)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -651,7 +688,7 @@ static device_t* standby() {
 	}
 
 	// no standby check indicated
-	if (!state->standby)
+	if (!pstate->standby)
 		return 0;
 
 	// try first powered device with noresponse counter > 0
@@ -677,25 +714,25 @@ static device_t* response(device_t *d) {
 	d->dload = 0;
 
 	// ignore response due to distortion or below NOISE
-	if (state->distortion || abs(delta) < NOISE) {
-		xdebug("FRONIUS ignoring expected response %d from %s (distortion=%d noise=%d)", delta, d->name, state->distortion, NOISE);
+	if (pstate->distortion || abs(delta) < NOISE) {
+		xdebug("FRONIUS ignoring expected response %d from %s (distortion=%d noise=%d)", delta, d->name, pstate->distortion, NOISE);
 		d->state = Active;
 		return 0;
 	}
 
 	// valid response is at least 1/3 of expected
-	int response = state->dload != 0 && (delta > 0 ? (state->dload > delta / 3) : (state->dload < delta / 3));
+	int response = pstate->dload != 0 && (delta > 0 ? (pstate->dload > delta / 3) : (pstate->dload < delta / 3));
 
 	// response OK
 	if (d->state == Active && response) {
-		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, state->dload);
+		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, pstate->dload);
 		d->noresponse = 0;
 		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
-		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, state->dload);
+		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, pstate->dload);
 		d->noresponse = 0;
 		d->state = Active;
 		return d; // continue main loop
@@ -703,7 +740,7 @@ static device_t* response(device_t *d) {
 
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
-		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, state->dload);
+		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, pstate->dload);
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
@@ -727,81 +764,81 @@ static device_t* response(device_t *d) {
 
 static int calculate_state() {
 	// get 3x history back
-	state_t *h1 = get_state_history(-1);
-	state_t *h2 = get_state_history(-2);
-	state_t *h3 = get_state_history(-3);
+	pstate_t *h1 = get_pstate_history(-1);
+	pstate_t *h2 = get_pstate_history(-2);
+	pstate_t *h3 = get_pstate_history(-3);
 
 	// for validation
-	int sum = state->grid + state->akku + state->load + state->pv10;
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10;
 
 	// total pv from both inverters
-	state->pv = state->pv10 + state->pv7;
-	state->dpv = state->pv - h1->pv;
+	pstate->pv = pstate->pv10 + pstate->pv7;
+	pstate->dpv = pstate->pv - h1->pv;
 
 	// subtract PV produced by Fronius7
-	state->load -= state->pv7;
+	pstate->load -= pstate->pv7;
 
 	// calculate delta load
-	state->dload = state->load - h1->load;
-	if (abs(state->dload) < NOISE)
-		state->dload = 0;
+	pstate->dload = pstate->load - h1->load;
+	if (abs(pstate->dload) < NOISE)
+		pstate->dload = 0;
 
 	// calculate load manually
-	state->cload = (state->pv + state->akku + state->grid) * -1;
+	pstate->cload = (pstate->pv + pstate->akku + pstate->grid) * -1;
 
 	// calculate expected load
-	state->xload = BASELOAD;
+	pstate->xload = BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
-		state->xload += (*d)->load;
-	state->xload *= -1;
+		pstate->xload += (*d)->load;
+	pstate->xload *= -1;
 
 	// deviation of calculated load to actual load in %
-	state->dxload = (state->xload - state->load) * 100 / state->xload;
+	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
 
 	// distortion when delta pv too big for last three times
-	int dpv_sum = abs(h3->dpv) + abs(h2->dpv) + abs(h1->dpv) + abs(state->dpv);
-	state->distortion = dpv_sum > 1000;
+	int dpv_sum = abs(h3->dpv) + abs(h2->dpv) + abs(h1->dpv) + abs(pstate->dpv);
+	pstate->distortion = dpv_sum > 1000;
 
 	// pv tendence
-	if (h3->dpv < -NOISE && h2->dpv < -NOISE && h1->dpv < -NOISE && state->dpv < -NOISE)
-		state->tendence = -1; // pv is continuously falling
-	else if (h3->dpv > NOISE && h2->dpv > NOISE && h1->dpv > NOISE && state->dpv > NOISE)
-		state->tendence = 1; // pv is continuously raising
+	if (h3->dpv < -NOISE && h2->dpv < -NOISE && h1->dpv < -NOISE && pstate->dpv < -NOISE)
+		pstate->tendence = -1; // pv is continuously falling
+	else if (h3->dpv > NOISE && h2->dpv > NOISE && h1->dpv > NOISE && pstate->dpv > NOISE)
+		pstate->tendence = 1; // pv is continuously raising
 	else
-		state->tendence = 0;
+		pstate->tendence = 0;
 
 	// indicate standby check when deviation between actual load and calculated load is three times over 33%
-	state->standby = h3->dxload > 33 && h2->dxload > 33 && h1->dxload > 33 && state->dxload > 33 && !state->distortion;
+	pstate->standby = h3->dxload > 33 && h2->dxload > 33 && h1->dxload > 33 && pstate->dxload > 33 && !pstate->distortion;
 
 	// surplus is akku charge + grid upload
-	state->surplus = (state->grid + state->akku) * -1;
+	pstate->surplus = (pstate->grid + pstate->akku) * -1;
 
 	// greedy power = akku + grid
-	state->greedy = state->surplus - NOISE;
-	if (abs(state->greedy) < NOISE)
-		state->greedy = 0;
+	pstate->greedy = pstate->surplus - NOISE;
+	if (abs(pstate->greedy) < NOISE)
+		pstate->greedy = 0;
 
 	// modest power = only grid upload without akku charge/discharge
-	state->modest = state->surplus - abs(state->akku) - NOISE;
-	if (abs(state->modest) < NOISE)
-		state->modest = 0;
+	pstate->modest = pstate->surplus - abs(pstate->akku) - NOISE;
+	if (abs(pstate->modest) < NOISE)
+		pstate->modest = 0;
 
 	// validate values
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
 		return 0;
 	}
-	if (state->load > 0) {
+	if (pstate->load > 0) {
 		xdebug("FRONIUS positive load detected");
 		return 0;
 	}
-	if (state->grid < -NOISE && state->akku > NOISE) {
-		int waste = abs(state->grid) < state->akku ? abs(state->grid) : state->akku;
+	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
+		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
 		return 0;
 	}
-	if (state->grid - h1->grid > 1000) {
-		xdebug("FRONIUS grid spike detected %d %d", state->grid, h1->grid);
+	if (pstate->grid - h1->grid > 1000) {
+		xdebug("FRONIUS grid spike detected %d %d", pstate->grid, h1->grid);
 		return 0;
 	}
 
@@ -811,7 +848,7 @@ static int calculate_state() {
 
 static int calculate_next_round(device_t *d, int valid) {
 	if (d) {
-		if (state->soc < 100)
+		if (pstate->soc < 100)
 			return WAIT_AKKU; // wait for inverter to adjust charge power
 		else
 			return WAIT_RAMP;
@@ -824,7 +861,7 @@ static int calculate_next_round(device_t *d, int valid) {
 	// - wasting akku->grid power
 	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
-	if (!valid || state->tendence || state->distortion || state->grid > 500 || state->akku > 500 || state->dxload < -5)
+	if (!valid || pstate->tendence || pstate->distortion || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
 		return WAIT_NEXT;
 
 	// all devices in standby?
@@ -836,9 +873,9 @@ static int calculate_next_round(device_t *d, int valid) {
 		return WAIT_STANDBY;
 
 	// state is stable when we had no power change now and within last 3 rounds
-	int instable = state->dload;
+	int instable = pstate->dload;
 	for (int i = 1; i <= 3; i++)
-		instable += get_state_history(i * -1)->dload;
+		instable += get_pstate_history(i * -1)->dload;
 	if (instable)
 		return WAIT_INSTABLE;
 
@@ -846,7 +883,7 @@ static int calculate_next_round(device_t *d, int valid) {
 }
 
 static void fronius() {
-	int ret, needed, expected, expected_tomorrow, wait = 1, errors = 0, mday = 0;
+	int ret, wait = 1, errors = 0, mday = 0;
 	device_t *device = 0;
 	time_t next_reset;
 	response_t memory = { 0 };
@@ -859,7 +896,8 @@ static void fronius() {
 	// initializing
 	init_all_devices();
 	set_all_devices(0);
-	ZERO(state_history);
+	ZERO(pstate_history);
+	ZERO(gstate_history);
 
 	CURL *curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL) {
@@ -894,39 +932,9 @@ static void fronius() {
 		// default
 		wait = WAIT_NEXT;
 
-		// clear slot in history for storing new state
-		state = &state_history[state_history_ptr];
-		ZERO(state);
-
 		// check error counter
 		if (errors == 3)
 			set_all_devices(0);
-
-		// calculate daily statistics
-		if (mday != now->tm_mday) {
-			mday = now->tm_mday;
-
-			ret = curl_perform(curl_meter, &memory, &parse_meter);
-			if (ret != 0) {
-				xlog("FRONIUS Error calling Meter API: %d", ret);
-				errors++;
-				continue;
-			}
-
-			meter_t *yesterday = get_meter_history(-1);
-			long dp = meter->produced - yesterday->produced;
-			long dc = meter->consumed - yesterday->consumed;
-			int dp10 = total10 - total10_y;
-			int dp7 = total7 - total7_y;
-			xlog("FRONIUS meter: prod=%d cons=%d   inverter: prod10=%d prod7=%d prod=%d   mosmix=%d", dp, dc, dp10, dp7, dp10 + dp7, expected);
-			total10_y = total10;
-			total7_y = total7;
-
-			// set history pointer to next slot
-			dump_meter_history(6);
-			if (++meter_history_ptr == HISTORY)
-				meter_history_ptr = 0;
-		}
 
 		// make Fronius10 API call
 		ret = curl_perform(curl10, &memory, &parse_fronius10);
@@ -945,27 +953,40 @@ static void fronius() {
 				if ((*d)->state == Standby)
 					(*d)->state = Active;
 
-			calculate_mosmix(now_ts, &needed, &expected, &expected_tomorrow);
-			if (expected > needed)
+			calculate_mosmix(now_ts);
+			if (gstate->expected > gstate->needed)
 				choose_program(&SUNNY); // plenty of power
 			else {
-				if (now->tm_hour > 12 && state->soc < 40)
+				if (now->tm_hour > 12 && pstate->soc < 40)
 					choose_program(&MODEST); // emergency charging to survive next night
-				else if (expected_tomorrow > needed)
+				else if (gstate->expected1 > gstate->needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else
 					choose_program(&MODEST); // not enough power
 			}
 		}
 
+		// calculate daily statistics
+		if (mday != now->tm_mday) {
+			int ret = curl_perform(curl_meter, &memory, &parse_meter);
+			if (ret != 0) {
+				xlog("FRONIUS Error calling Meter API: %d", ret);
+				errors++;
+				continue;
+			}
+
+			mday = now->tm_mday;
+			daily();
+		}
+
 		// not enough PV production
-		if (state->pv10 < 100) {
-			state->pv7 = 0;
-			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && state->soc > 10 && expected > needed && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+		if (pstate->pv10 < 100) {
+			pstate->pv7 = 0;
+			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 10 && gstate->expected > gstate->needed && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
 				char message[LINEBUF];
-				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", state->soc, needed, expected, TEMP_IN);
+				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", pstate->soc, gstate->needed, gstate->expected, TEMP_IN);
 				print_power_status(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
 				fronius_override_seconds("plug6", WAIT_OFFLINE);
@@ -1009,12 +1030,10 @@ static void fronius() {
 		}
 
 		// determine wait for next round
-		wait = state->wait = calculate_next_round(device, valid);
+		wait = pstate->wait = calculate_next_round(device, valid);
 
-		// set history pointer to next slot
-		dump_state_history(6);
-		if (++state_history_ptr == HISTORY)
-			state_history_ptr = 0;
+		// set pstate history pointer to next slot
+		next_pstate();
 
 		print_device_status(wait, next_reset - now_ts);
 		errors = 0;
