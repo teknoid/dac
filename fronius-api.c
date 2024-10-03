@@ -191,7 +191,7 @@ static gstate_t* get_gstate_history(int offset) {
 	return &gstate_history[i];
 }
 
-static void dump_gstate_history(int back) {
+static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16];
 	char value[12];
 
@@ -211,9 +211,8 @@ static void dump_gstate_history(int back) {
 	}
 }
 
-static void next_gstate() {
-	gstate->timestamp = time(NULL);
-	dump_gstate_history(GSTATE_HISTORY);
+static void bump_gstate() {
+	dump_gstate(GSTATE_HISTORY);
 	if (++gstate_history_ptr == GSTATE_HISTORY)
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
@@ -229,7 +228,7 @@ static pstate_t* get_pstate_history(int offset) {
 	return &pstate_history[i];
 }
 
-static void dump_pstate_history(int back) {
+static void dump_pstate(int back) {
 	char line[sizeof(pstate_t) * 8 + 16];
 	char value[8];
 
@@ -248,12 +247,25 @@ static void dump_pstate_history(int back) {
 	}
 }
 
-static void next_pstate() {
-	dump_pstate_history(PSTATE_HISTORY);
+static void bump_pstate() {
+	dump_pstate(PSTATE_HISTORY);
 	if (++pstate_history_ptr == PSTATE_HISTORY)
 		pstate_history_ptr = 0;
 	pstate = &pstate_history[pstate_history_ptr];
 	ZERO(pstate);
+}
+
+static void print_global_status(const char *message) {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "FRONIUS");
+	xlogl_int_b(line, "PV", gstate->pvdaily);
+	xlogl_int_b(line, "PV10", gstate->pv10daily);
+	xlogl_int_b(line, "PV7", gstate->pv7daily);
+	xlogl_int(line, 1, 0, "Grid↑", gstate->grid_produced_daily);
+	xlogl_int(line, 1, 1, "Grid↓", gstate->grid_consumed_daily);
+	xlogl_int(line, 0, 0, "Needed", gstate->needed);
+	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_end(line, sizeof(line), message);
 }
 
 static void print_power_status(const char *message) {
@@ -307,24 +319,6 @@ static void print_device_status(int wait, int next_reset) {
 	strcat(message, value);
 
 	xlog(message);
-}
-
-// calculate daily values
-static void daily() {
-	gstate_t *yesterday = get_gstate_history(-1);
-
-	gstate->grid_produced_total = meter->produced;
-	gstate->grid_consumed_total = meter->consumed;
-
-	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
-	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
-	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
-	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
-	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
-	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
-
-	// set history pointer to next slot
-	next_gstate();
 }
 
 static int parse_fronius10(response_t *r) {
@@ -762,7 +756,23 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static int calculate_state() {
+static void calculate_gstate(time_t now_ts) {
+	gstate_t *yesterday = get_gstate_history(-1);
+
+	gstate->grid_produced_total = meter->produced;
+	gstate->grid_consumed_total = meter->consumed;
+
+	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
+	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
+	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
+	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
+	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
+	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
+
+	gstate->timestamp = now_ts;
+}
+
+static int calculate_pstate() {
 	// get 3x history back
 	pstate_t *h1 = get_pstate_history(-1);
 	pstate_t *h2 = get_pstate_history(-2);
@@ -842,7 +852,6 @@ static int calculate_state() {
 		return 0;
 	}
 
-	print_power_status(NULL);
 	return 1;
 }
 
@@ -883,7 +892,8 @@ static int calculate_next_round(device_t *d, int valid) {
 }
 
 static void fronius() {
-	int ret, wait = 1, errors = 0, mday = 0;
+	char message[LINEBUF];
+	int wait = 1, errors = 0, mday = 0;
 	device_t *device = 0;
 	time_t next_reset;
 	response_t memory = { 0 };
@@ -933,18 +943,20 @@ static void fronius() {
 		wait = WAIT_NEXT;
 
 		// check error counter
-		if (errors == 3)
+		if (errors > 10)
 			set_all_devices(0);
 
 		// make Fronius10 API call
-		ret = curl_perform(curl10, &memory, &parse_fronius10);
-		if (ret != 0) {
-			xlog("FRONIUS Error calling Fronius10 API: %d", ret);
-			errors++;
-			continue;
+		errors += curl_perform(curl10, &memory, &parse_fronius10);
+
+		// new day: bump global history
+		if (mday != now->tm_mday) {
+			if (mday != 0)
+				bump_gstate(); // not bump when initial
+			mday = now->tm_mday;
 		}
 
-		// reset standby states and recalculate program of the day every 30min
+		// reset standby states, recalculate program of the day and daily states every 30min
 		if (potd == 0 || now_ts > next_reset) {
 			next_reset = now_ts + STANDBY_RESET - 1;
 
@@ -964,19 +976,13 @@ static void fronius() {
 				else
 					choose_program(&MODEST); // not enough power
 			}
-		}
 
-		// calculate daily statistics
-		if (mday != now->tm_mday) {
-			int ret = curl_perform(curl_meter, &memory, &parse_meter);
-			if (ret != 0) {
-				xlog("FRONIUS Error calling Meter API: %d", ret);
-				errors++;
-				continue;
-			}
-
-			mday = now->tm_mday;
-			daily();
+			// recalculate daily statistics
+			errors += curl_perform(curl_meter, &memory, &parse_meter);
+			calculate_gstate(now_ts);
+			float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected;
+			snprintf(message, LINEBUF, "mosmix=%.1f", mosmix_factor);
+			print_global_status(message);
 		}
 
 		// not enough PV production
@@ -985,7 +991,6 @@ static void fronius() {
 			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 10 && gstate->expected > gstate->needed && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
-				char message[LINEBUF];
 				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", pstate->soc, gstate->needed, gstate->expected, TEMP_IN);
 				print_power_status(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
@@ -1002,12 +1007,11 @@ static void fronius() {
 		}
 
 		// make Fronius7 API call
-		ret = curl_perform(curl7, &memory, &parse_fronius7);
-		if (ret != 0)
-			xlog("FRONIUS Error calling Fronius7 API: %d", ret);
+		errors += curl_perform(curl7, &memory, &parse_fronius7);
 
 		// calculate actual state
-		int valid = calculate_state();
+		int valid = calculate_pstate();
+		print_power_status(NULL);
 
 		// values ok? then we can regulate
 		if (valid) {
@@ -1033,7 +1037,7 @@ static void fronius() {
 		wait = pstate->wait = calculate_next_round(device, valid);
 
 		// set pstate history pointer to next slot
-		next_pstate();
+		bump_pstate();
 
 		print_device_status(wait, next_reset - now_ts);
 		errors = 0;
