@@ -263,8 +263,10 @@ static void print_global_status(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7daily);
 	xlogl_int(line, 1, 0, "Grid↑", gstate->grid_produced_daily);
 	xlogl_int(line, 1, 1, "Grid↓", gstate->grid_consumed_daily);
-	xlogl_int(line, 0, 0, "Needed", gstate->needed);
-	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "EODn", gstate->needed);
+	xlogl_int(line, 0, 0, "EODe", gstate->expected);
+	xlogl_int(line, 0, 0, "24h", gstate->expected24);
+	xlogl_int(line, 0, 0, "24h+1", gstate->expected24p1);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -431,7 +433,7 @@ static void calculate_mosmix(time_t now_ts) {
 		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, needed/expected %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
+		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}
 
 	// eod - calculate values till end of day
@@ -455,8 +457,10 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-	gstate->expected1 = m1.Rad1h * MOSMIX_FACTOR;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d expected tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected1);
+	gstate->expected24 = m0.Rad1h * MOSMIX_FACTOR;
+	gstate->expected24p1 = m1.Rad1h * MOSMIX_FACTOR;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
+			gstate->expected24p1);
 }
 
 // minimum available power for ramp up
@@ -929,6 +933,7 @@ static void fronius() {
 	}
 
 	// call both inverters once to get totals
+	// TODO implement load/store the gstate table
 	curl_perform(curl10, &memory, &parse_fronius10);
 	curl_perform(curl7, &memory, &parse_fronius7);
 
@@ -969,7 +974,7 @@ static void fronius() {
 			else {
 				if (now->tm_hour > 12 && pstate->soc < 40)
 					choose_program(&MODEST); // emergency charging to survive next night
-				else if (gstate->expected1 > gstate->needed)
+				else if (gstate->expected24p1 > gstate->needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else
 					choose_program(&MODEST); // not enough power
@@ -1040,7 +1045,7 @@ static void fronius() {
 
 		// new day: bump global history
 		if (mday != now->tm_mday) {
-//			if (mday != 0) // TODO enable resp. implement load/store the gstate table
+//			if (mday != 0) // TODO enable later when implemented load/store the gstate table
 			bump_gstate(); // not bump when initial
 			mday = now->tm_mday;
 		}

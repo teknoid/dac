@@ -88,7 +88,8 @@ struct _gstate {
 	int grid_consumed_daily;
 	int needed;
 	int expected;
-	int expected1;
+	int expected24;
+	int expected24p1;
 };
 
 typedef struct _device device_t;
