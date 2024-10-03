@@ -12,7 +12,7 @@ static mosmix_t mosmix[256];
 
 // #define MOSMIX_MAIN
 
-static void store(char **strings, size_t size) {
+static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_t *m = &mosmix[idx];
 
@@ -93,7 +93,7 @@ int mosmix_load(const char *filename) {
 			strings[i++] = p;
 			p = strtok(NULL, ",");
 		}
-		store(strings, ARRAY_SIZE(strings));
+		parse(strings, ARRAY_SIZE(strings));
 		lines++;
 	}
 

@@ -60,3 +60,6 @@ int round100(int n);
 int maximum(int, ...);
 
 void append_timeframe(char *message, int sec);
+
+int load_blob(const char *filename, void *data, size_t size);
+int store_blob(const char *filename, void *data, size_t size);

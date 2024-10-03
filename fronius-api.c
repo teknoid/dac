@@ -245,6 +245,7 @@ static void bump_gstate() {
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
 	ZERO(gstate);
+	store_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 }
 
 static void bump_pstate() {
@@ -902,12 +903,6 @@ static void fronius() {
 		return;
 	}
 
-	// initializing
-	init_all_devices();
-	set_all_devices(0);
-	ZERO(pstate_history);
-	ZERO(gstate_history);
-
 	CURL *curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL) {
 		xlog("Error initializing libcurl");
@@ -927,7 +922,6 @@ static void fronius() {
 	}
 
 	// call meter and both inverters once to update totals counter
-	// TODO implement load/store gstate table
 	curl_perform(curl_meter, &memory, &parse_meter);
 	curl_perform(curl10, &memory, &parse_fronius10);
 	curl_perform(curl7, &memory, &parse_fronius7);
@@ -948,8 +942,8 @@ static void fronius() {
 
 		// new day: bump global history before writing new values into
 		if (mday != now->tm_mday) {
-//			if (mday != 0) // TODO enable later when implemented load/store the gstate table
-			bump_gstate(); // not bump when initial
+			if (mday != 0)
+				bump_gstate(); // but not when initial
 			mday = now->tm_mday;
 		}
 
@@ -1225,10 +1219,20 @@ static int test() {
 
 static int init() {
 	set_debug(1);
+
+	// initializing
+	init_all_devices();
+	set_all_devices(0);
+	ZERO(pstate_history);
+	ZERO(gstate_history);
+
+	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 	return 0;
 }
 
 static void stop() {
+	store_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
+
 	if (sock != 0)
 		close(sock);
 }

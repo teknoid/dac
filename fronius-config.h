@@ -5,6 +5,8 @@
 #define STANDBY_RESET		60 * 30
 #define NORESPONSE_STANDBY	3
 
+#define GSTATE_FILE			"/tmp/gstate.bin"
+
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"

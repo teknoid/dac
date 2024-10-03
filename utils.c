@@ -641,3 +641,24 @@ void append_timeframe(char *message, int sec) {
 
 	strcat(message, c);
 }
+
+int load_blob(const char *filename, void *data, size_t size) {
+	FILE *fp = fopen(filename, "rb");
+	if (fp == NULL)
+		return xerr("Cannot open file %s for reading", filename);
+	size_t count = fread(data, size, 1, fp);
+	fclose(fp);
+	xlog("UTILS loaded %d bytes from %s", count * size, filename);
+	return 0;
+}
+
+int store_blob(const char *filename, void *data, size_t size) {
+	FILE *fp = fopen(filename, "wb");
+	if (fp == NULL)
+		return xerr("Cannot open file %s for writing", filename);
+	size_t count = fwrite(data, size, 1, fp);
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS stored %d bytes to %s", count * size, filename);
+	return 0;
+}
