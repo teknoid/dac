@@ -243,8 +243,6 @@ static void bump_gstate() {
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
 	ZERO(gstate);
-	// store to disk when starting a new day with initial zero values
-	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
 }
 
 static void bump_pstate() {
@@ -976,10 +974,13 @@ static void fronius() {
 		struct tm *ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
-		// new day: bump global history before writing new values into
+		// new day: bump global history and store to disk before writing new values into
 		if (mday != now->tm_mday) {
-			if (mday != 0)
-				bump_gstate(); // but not when initial
+			// but not at startup
+			if (mday != 0) {
+				bump_gstate();
+				store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+			}
 			mday = now->tm_mday;
 		}
 
@@ -1028,7 +1029,7 @@ static void fronius() {
 			pstate->pv7 = 0;
 			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 10 && gstate->expected > gstate->needed && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
-				// burn out akku between 7 and 9 o'clock if we can charge it completely by day
+				// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 				snprintf(message, LINEBUF, "--> burnout SoC=%d needed=%d expected=%d temp=%.1f", pstate->soc, gstate->needed, gstate->expected, TEMP_IN);
 				print_pstate(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
