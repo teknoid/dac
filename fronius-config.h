@@ -16,8 +16,8 @@
 #define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
 #define BASELOAD			300
-#define NOISE				25
 #define SUSPICIOUS			250
+#define NOISE				25
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN				0.0
