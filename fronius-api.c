@@ -243,6 +243,7 @@ static void bump_gstate() {
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
 	ZERO(gstate);
+	// store to disk when starting a new day with initial zero values
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
 }
 
