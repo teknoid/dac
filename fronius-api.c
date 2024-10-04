@@ -45,7 +45,7 @@ static int pstate_history_ptr = 0;
 meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
-static int sock = 0, oldsum = 0;
+static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -323,19 +323,18 @@ static void print_dstate(int wait, int next_reset) {
 }
 
 static int parse_fronius10(response_t *r) {
-	float f_charge, f_akku, f_grid, f_load, f_pv, f_total;
+	float f_charge, f_akku, f_grid, f_load, f_pv;
 	char *c;
 	int ret;
 
-	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f E_Total:%f } } } }", &f_akku, &f_grid, &f_load, &f_pv, &f_total);
-	if (ret != 5)
+	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &f_akku, &f_grid, &f_load, &f_pv);
+	if (ret != 4)
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got %d", ret);
 
 	pstate->akku = f_akku;
 	pstate->grid = f_grid;
 	pstate->load = f_load;
 	pstate->pv10 = f_pv;
-	gstate->pv10total = f_total;
 
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
 	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Inverters:%Q } } }", &c);
@@ -388,21 +387,23 @@ static int parse_meter(response_t *r) {
 }
 
 static int parse_readable(response_t *r) {
-	float f_akku, f_soc, f_pv1, f_pv2;
+	float f_akku, f_soc, f_dc1, f_dc2, f_ac;
 	int ret;
 	char *p;
 
 	// workaround for accessing inverter number as key: "393216" : {
-	p = strstr(r->buffer, "393216") + 6 + 3;
+	p = strstr(r->buffer, "\"393216\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, r->size, "{ channels { BAT_POWERACTIVE_MEAN_F32:%f PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_akku, &f_pv1, &f_pv2);
-	if (ret != 3) {
-		xlog("FRONIUS parse_readable() warning! parsing 393216: expected 3 values but got %d", ret);
+	ret = json_scanf(p, r->size,
+			"{ channels { ACBRIDGE_POWERACTIVE_SUM_MEAN_F32:%f BAT_POWERACTIVE_MEAN_F32:%f PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_ac,
+			&f_akku, &f_dc1, &f_dc2);
+	if (ret != 4) {
+		xlog("FRONIUS parse_readable() warning! parsing 393216: expected 4 values but got %d", ret);
 		return -1;
 	}
 
 	// workaround for accessing akku number as key: "16580608" : {
-	p = strstr(r->buffer, "16580608") + 8 + 3;
+	p = strstr(r->buffer, "\"16580608\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
 	if (ret != 1) {
@@ -410,9 +411,8 @@ static int parse_readable(response_t *r) {
 		return -1;
 	}
 
-	int sum = (f_pv1 / 36000) + (f_pv2 / 36000);
-	xlog("FRONIUS parse_readable() Akku=%.1f SoC=%.1f PV1=%.1f PV2=%.1f SUM=%d Wh Delta=%d Wh", f_akku, f_soc, f_pv1, f_pv2, sum, sum - oldsum);
-	oldsum = sum;
+	gstate->pv10total = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
+	xlog("FRONIUS parse_readable() AC=%.1f Akku=%.1f SoC=%.1f PV1=%.1f PV2=%.1f DC=%d Delta=%d", f_ac, f_akku, f_soc, f_dc1, f_dc2, gstate->pv10total);
 
 	return 0;
 }
@@ -1000,13 +1000,11 @@ static void fronius() {
 
 			// recalculate global state and mosmix values
 			errors += curl_perform(curl_meter, &memory, &parse_meter);
+			errors += curl_perform(curl_readable, &memory, &parse_readable);
 			calculate_gstate(now_ts);
 			snprintf(message, LINEBUF, "mosmix=%.1f", (float) gstate->mosmix / 10);
 			print_gstate(message);
 			dump_gstate(2); // TODO remove
-
-			// readable -> get DC power from fronius10
-			curl_perform(curl_readable, &memory, &parse_readable);
 
 			// choose program of the day
 			if (gstate->expected > gstate->needed)
