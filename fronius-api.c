@@ -387,7 +387,7 @@ static int parse_meter(response_t *r) {
 }
 
 static int parse_readable(response_t *r) {
-	float f_akku, f_soc, f_dc1, f_dc2, f_ac;
+	float f_akku, f_soc, f_dc1, f_dc2, f_ac, f_cons, f_prod;
 	int ret;
 	char *p;
 
@@ -397,23 +397,28 @@ static int parse_readable(response_t *r) {
 	ret = json_scanf(p, r->size,
 			"{ channels { ACBRIDGE_POWERACTIVE_SUM_MEAN_F32:%f BAT_POWERACTIVE_MEAN_F32:%f PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_ac,
 			&f_akku, &f_dc1, &f_dc2);
-	if (ret != 4) {
-		xlog("FRONIUS parse_readable() warning! parsing 393216: expected 4 values but got %d", ret);
-		return -1;
-	}
+	if (ret != 4)
+		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 4 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(r->buffer, "\"16580608\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
-	if (ret != 1) {
-		xlog("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
-		return -1;
-	}
+	if (ret != 1)
+		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
+
+	// workaround for accessing smartmeter number as key: "16252928" : {
+	p = strstr(r->buffer, "\"16252928\"") + 10 + 2;
+	// xlog("FRONIUS %s", p);
+	ret = json_scanf(p, r->size, "{ channels { SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f} }", &f_cons, &f_prod);
+	if (ret != 2)
+		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 2 values but got %d", ret);
 
 	gstate->pv10total = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
-	xlog("FRONIUS parse_readable() AC=%.1f Akku=%.1f SoC=%.1f PV1=%.1f PV2=%.1f DC=%d Delta=%d", f_ac, f_akku, f_soc, f_dc1, f_dc2, gstate->pv10total);
+	gstate->grid_produced_total = f_prod;
+	gstate->grid_consumed_total = f_cons;
 
+	xlog("FRONIUS parse_readable() AC=%.1f Akku=%.1f SoC=%.1f PV1=%.1f PV2=%.1f Cons=%.1f Prod=%.1f DC=%d ", f_ac, f_akku, f_soc, f_dc1, f_dc2, f_cons, f_prod, gstate->pv10total);
 	return 0;
 }
 
@@ -999,7 +1004,7 @@ static void fronius() {
 					(*d)->state = Active;
 
 			// recalculate global state and mosmix values
-			errors += curl_perform(curl_meter, &memory, &parse_meter);
+			// errors += curl_perform(curl_meter, &memory, &parse_meter);
 			errors += curl_perform(curl_readable, &memory, &parse_readable);
 			calculate_gstate(now_ts);
 			snprintf(message, LINEBUF, "mosmix=%.1f", (float) gstate->mosmix / 10);
