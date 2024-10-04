@@ -256,7 +256,7 @@ static void bump_pstate() {
 
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
+	xlogl_start(line, "FRONIUS gstate");
 	xlogl_int_b(line, "PV", gstate->pvdaily);
 	xlogl_int_b(line, "PV10", gstate->pv10daily);
 	xlogl_int_b(line, "PV7", gstate->pv7daily);
@@ -271,7 +271,7 @@ static void print_gstate(const char *message) {
 
 static void print_pstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
+	xlogl_start(line, "FRONIUS pstate");
 	xlogl_int_b(line, "PV", pstate->pv);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
