@@ -259,8 +259,8 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV", gstate->pvdaily);
 	xlogl_int_b(line, "PV10", gstate->pv10daily);
 	xlogl_int_b(line, "PV7", gstate->pv7daily);
-	xlogl_int(line, 1, 0, "Grid↑", gstate->grid_produced_daily);
-	xlogl_int(line, 1, 1, "Grid↓", gstate->grid_consumed_daily);
+	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_daily);
+	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_daily);
 	xlogl_int(line, 0, 0, "EODn", gstate->needed);
 	xlogl_int(line, 0, 0, "EODe", gstate->expected);
 	xlogl_int(line, 0, 0, "24h", gstate->expected24);
@@ -785,12 +785,26 @@ static void calculate_gstate(time_t now_ts) {
 	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
 			gstate->expected24p1);
 
+	// yesterdays total counters
 	gstate_t *yesterday = get_gstate_history(-1);
+
+	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
+	if (!gstate->grid_produced_total)
+		gstate->grid_produced_total = yesterday->grid_produced_total;
+	if (!gstate->grid_consumed_total)
+		gstate->grid_consumed_total = yesterday->grid_consumed_total;
+	if (!gstate->pv10total)
+		gstate->pv10total = yesterday->pv10total;
+	if (!gstate->pv7total)
+		gstate->pv7total = yesterday->pv7total;
+
+	// calculate daily values
 	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
 	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
 	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
 	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
 
+	// sum both inverters
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
@@ -1016,7 +1030,7 @@ static void fronius() {
 				choose_program(&SUNNY); // plenty of power
 			else {
 				if (now->tm_hour > 12 && pstate->soc < 40)
-					choose_program(&MODEST); // emergency charging to survive next night
+					choose_program(&EMERGENCY); // emergency charging to survive next night
 				else if (gstate->expected24p1 > gstate->needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else
