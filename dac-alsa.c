@@ -22,7 +22,7 @@ static void dac_on() {
 #endif
 
 	mcp->dac_power = 1;
-	xlog("switched DAC on");
+	xlog("DAC switched on");
 
 	// wait for DAC init
 	msleep(1000);
@@ -36,7 +36,7 @@ static void dac_off() {
 	gpio_set(GPIO_POWER, 0);
 #endif
 
-	xlog("switched DAC off");
+	xlog("DAC switched off");
 	mcp->dac_power = 0;
 }
 
@@ -49,37 +49,37 @@ void dac_power() {
 
 void dac_volume_up() {
 	system(MIXER" 2%+");
-	xlog("VOL++");
+	xlog("DAC VOL++");
 }
 
 void dac_volume_down() {
 	system(MIXER" 2%-");
-	xlog("VOL--");
+	xlog("DAC VOL--");
 }
 
 void dac_mute() {
 	system(MIXER" mute");
 	mcp->dac_mute = 1;
-	xlog("MUTE");
+	xlog("DAC MUTE");
 }
 
 void dac_unmute() {
 	system(MIXER" unmute");
 	mcp->dac_mute = 0;
-	xlog("UNMUTE");
+	xlog("DAC UNMUTE");
 }
 
 void dac_source(int source) {
-	xlog("dac_source");
+	xlog("DAC dac_source");
 }
 
 int dac_status_get(const void *p1, const void *p2) {
-	xlog("dac_config_get");
+	xlog("DAC dac_config_get");
 	return dummy_status;
 }
 
 void dac_status_set(const void *p1, const void *p2, int value) {
-	xlog("dac_config_set");
+	xlog("DAC dac_config_set");
 	dummy_status = value;
 }
 

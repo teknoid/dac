@@ -82,7 +82,7 @@ static int dac_get_fsr() {
 	value = dpll;
 	value = (value * MCLK) / 0xffffffff;
 
-	// xlog("DAC raw sample rate %d", value);
+	// xlog("DAC DAC raw sample rate %d", value);
 	dvalue = value / 100.0;
 	dvalue = round(dvalue) / 10.0;
 
@@ -111,18 +111,18 @@ static void dac_on() {
 	while (i2c_read(i2c, ADDR, REG_STATUS, &value) < 0) {
 		msleep(100);
 		if (--timeout == 0) {
-			xlog("no answer, aborting.");
+			xlog("DAC no answer, aborting.");
 			return;
 		}
-		xlog("waiting for DAC status %d", timeout);
+		xlog("DAC waiting for status %d", timeout);
 	}
 	value >>= 2;
 	if (value == 0b101010)
-		xlog("Found DAC ES9038Pro");
+		xlog("DAC Found ES9038Pro");
 	else if (value == 0b011100)
-		xlog("Found DAC ES9038Q2M");
+		xlog("DAC Found ES9038Q2M");
 	else if (value == 0b101001 || value == 0b101000)
-		xlog("Found DAC ES9028Pro");
+		xlog("DAC Found ES9028Pro");
 
 	// initialize registers
 	dac_mute();
@@ -135,12 +135,12 @@ static void dac_on() {
 	dac_unmute();
 
 	mcp->dac_power = 1;
-	xlog("switched DAC on");
+	xlog("DAC switched on");
 
 	// power on Externals
 	gpio_set(GPIO_EXT_POWER, 1);
 	mcp->ext_power = 1;
-	xlog("switched EXT on");
+	xlog("DAC switched EXT on");
 }
 
 static void dac_off() {
@@ -150,13 +150,13 @@ static void dac_off() {
 	// power off Externals and wait to avoid speaker plop
 	gpio_set(GPIO_EXT_POWER, 0);
 	mcp->ext_power = 0;
-	xlog("switched EXT off");
+	xlog("DAC switched EXT off");
 	sleep(10);
 
 	// power off DAC
 	gpio_set(GPIO_DAC_POWER, 0);
 	mcp->dac_power = 0;
-	xlog("switched DAC off");
+	xlog("DAC switched off");
 }
 
 void dac_power() {
@@ -185,7 +185,7 @@ void dac_volume_up() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
-	xlog("VOL++ %03d", db);
+	xlog("DAC VOL++ %03d", db);
 }
 
 void dac_volume_down() {
@@ -202,7 +202,7 @@ void dac_volume_down() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
-	xlog("VOL-- %03d", db);
+	xlog("DAC VOL-- %03d", db);
 }
 
 void dac_mute() {
@@ -211,7 +211,7 @@ void dac_mute() {
 
 	i2c_set_bit(i2c, ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 1;
-	xlog("MUTE");
+	xlog("DAC MUTE");
 }
 
 void dac_unmute() {
@@ -220,7 +220,7 @@ void dac_unmute() {
 
 	i2c_clear_bit(i2c, ADDR, REG_MUTE, 0);
 	mcp->dac_mute = 0;
-	xlog("UNMUTE");
+	xlog("DAC UNMUTE");
 }
 
 void dac_source_next() {
@@ -267,14 +267,14 @@ int dac_status_get(const void *p1, const void *p2) {
 	// const menuitem_t *item = p2;
 	uint8_t value;
 	i2c_read_bits(i2c, ADDR, config->reg, &value, config->mask);
-	xlog("dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
+	xlog("DAC dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
 	return value;
 }
 
 void dac_status_set(const void *p1, const void *p2, int value) {
 	const menuconfig_t *config = p1;
 	// const menuitem_t *item = p2;
-	xlog("dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
+	xlog("DAC dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
 	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
 }
 
@@ -318,7 +318,7 @@ void dac_handle(int c) {
 
 static void dac() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
+		xlog("DAC Error setting pthread_setcancelstate");
 		return;
 	}
 
@@ -355,19 +355,19 @@ static void dac() {
 
 		switch (mcp->dac_signal) {
 		case dsd:
-			xlog("[%s] DSD %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("DAC [%s] DSD %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case pcm:
-			xlog("[%s] PCM %d/%d %03ddB", s, mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
+			xlog("DAC [%s] PCM %d/%d %03ddB", s, mcp->mpd_bits, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case spdif:
-			xlog("[%s] SPDIF %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("DAC [%s] SPDIF %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		case dop:
-			xlog("[%s] DOP %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
+			xlog("DAC [%s] DOP %d %03ddB", s, mcp->dac_rate, mcp->dac_volume);
 			break;
 		default:
-			xlog("[%s] NLOCK", s);
+			xlog("DAC [%s] NLOCK", s);
 			mcp->dac_state_changed = 1; // try again
 			break;
 		}
@@ -379,19 +379,19 @@ static int init() {
 		return xerr("error opening  %s", I2C);
 
 	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
-	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
+	xlog("DAC SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
 
 	mcp->switch3 = gpio_configure(GPIO_SWITCH3, 1, 0, -1);
-	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
+	xlog("DAC SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
 
 	mcp->switch4 = gpio_configure(GPIO_SWITCH4, 1, 0, -1);
-	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
+	xlog("DAC SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
 
 	mcp->dac_power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 
 	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
-	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
+	xlog("DAC EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	// prepare the menus
 	es9028_prepare_menus();

@@ -35,20 +35,20 @@ static void workaround_channel() {
 	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
 	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
 	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
-	xlog("WM8741 workaround channel");
+	xlog("DAC WM8741 workaround channel");
 }
 
 // WM8741 workaround: touch volume
 static void workaround_volume() {
 	dac_volume_down();
 	dac_volume_up();
-	xlog("WM8741 workaround volume");
+	xlog("DAC WM8741 workaround volume");
 }
 
 static void dac_on() {
 	gpio_set(GPIO_POWER, 1);
 	mcp->dac_power = 1;
-	xlog("switched DAC on");
+	xlog("DAC switched DAC on");
 	sleep(3);
 	workaround_volume();
 }
@@ -56,7 +56,7 @@ static void dac_on() {
 static void dac_off() {
 	gpio_set(GPIO_POWER, 0);
 	mcp->dac_power = 0;
-	xlog("switched DAC off");
+	xlog("DAC switched DAC off");
 }
 
 void dac_power() {
@@ -70,12 +70,12 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	xlog("VOL++");
+	xlog("DAC VOL++");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
 }
 
 void dac_volume_down() {
-	xlog("VOL--");
+	xlog("DAC VOL--");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
 }
 
@@ -113,7 +113,7 @@ void dac_handle(int c) {
 		break;
 	case KEY_SELECT:
 		gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
-		xlog("CHANNELUP");
+		xlog("DAC CHANNELUP");
 		break;
 	case KEY_POWER:
 		dac_power();

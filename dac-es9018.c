@@ -13,25 +13,25 @@
 static void dac_on() {
 	gpio_set(GPIO_DAC_POWER, 1);
 	mcp->dac_power = 1;
-	xlog("switched DAC on");
+	xlog("DAC switched on");
 
 	msleep(500);
 
 	gpio_set(GPIO_EXT_POWER, 1);
 	mcp->ext_power = 1;
-	xlog("switched EXT on");
+	xlog("DAC switched EXT on");
 }
 
 static void dac_off() {
 	gpio_set(GPIO_EXT_POWER, 0);
 	mcp->ext_power = 0;
-	xlog("switched EXT off");
+	xlog("DAC switched EXT off");
 
 	msleep(500);
 
 	gpio_set(GPIO_DAC_POWER, 0);
 	mcp->dac_power = 0;
-	xlog("switched DAC off");
+	xlog("DAC switched off");
 }
 
 void dac_power() {
@@ -55,7 +55,7 @@ void dac_volume_up() {
 	gpio_set(GPIO_VOL_UP, 0);
 	msleep(50);
 	gpio_configure(GPIO_VOL_UP, 0, 0, 0);
-	xlog("VOL++");
+	xlog("DAC VOL++");
 }
 
 void dac_volume_down() {
@@ -67,7 +67,7 @@ void dac_volume_down() {
 	gpio_set(GPIO_VOL_DOWN, 0);
 	msleep(50);
 	gpio_configure(GPIO_VOL_DOWN, 0, 0, 0);
-	xlog("VOL--");
+	xlog("DAC VOL--");
 }
 
 void dac_mute() {
@@ -111,19 +111,19 @@ static int init() {
 	gpio_configure(GPIO_VOL_DOWN, 0, 0, 0);
 
 	mcp->switch2 = gpio_configure(GPIO_SWITCH2, 1, 0, -1);
-	xlog("SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
+	xlog("DAC SWITCH2 is %s", mcp->switch2 ? "ON" : "OFF");
 
 	mcp->switch3 = gpio_configure(GPIO_SWITCH3, 1, 0, -1);
-	xlog("SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
+	xlog("DAC SWITCH3 is %s", mcp->switch3 ? "ON" : "OFF");
 
 	mcp->switch4 = gpio_configure(GPIO_SWITCH4, 1, 0, -1);
-	xlog("SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
+	xlog("DAC SWITCH4 is %s", mcp->switch4 ? "ON" : "OFF");
 
 	mcp->dac_power = gpio_configure(GPIO_DAC_POWER, 1, 0, -1);
 	xlog("DAC power is %s", mcp->dac_power ? "ON" : "OFF");
 
 	mcp->ext_power = gpio_configure(GPIO_EXT_POWER, 1, 0, -1);
-	xlog("EXT power is %s", mcp->ext_power ? "ON" : "OFF");
+	xlog("DAC EXT power is %s", mcp->ext_power ? "ON" : "OFF");
 
 	return 0;
 }
