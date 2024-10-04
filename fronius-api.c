@@ -33,15 +33,15 @@
 // program of the day - choose by mosmix forecast data
 static potd_t *potd = 0;
 
-// global state with total and daily values
+// global state with total counters and daily calculations
 static gstate_t gstate_history[GSTATE_HISTORY], *gstate = &gstate_history[0];
 static int gstate_history_ptr = 0;
 
-// power state with pv and inverter flow data and calculations
+// power state with actual power flow and state calculations
 static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
-// meter storage
+// meter storage for calibration
 static meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
