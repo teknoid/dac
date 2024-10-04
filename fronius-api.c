@@ -42,7 +42,7 @@ static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
 // meter storage
-meter_t m, *meter = &m;
+static meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
@@ -379,8 +379,8 @@ static int parse_meter(response_t *r) {
 		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
 
 	ZERO(meter);
-	gstate->grid_produced_total = meter->produced = f_prod;
-	gstate->grid_consumed_total = meter->consumed = f_cons;
+	meter->produced = f_prod;
+	meter->consumed = f_cons;
 	meter->p = f_grid;
 
 	return 0;
@@ -959,7 +959,8 @@ static void fronius() {
 	}
 
 	// call meter and both inverters once to update totals counter
-	curl_perform(curl_meter, &memory, &parse_meter);
+	curl_perform(curl_readable, &memory, &parse_readable);
+	// curl_perform(curl_meter, &memory, &parse_meter);
 	curl_perform(curl10, &memory, &parse_fronius10);
 	curl_perform(curl7, &memory, &parse_fronius7);
 	gstate->timestamp = time(NULL);
