@@ -185,7 +185,7 @@ void dac_volume_up() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
-	xlog("DAC VOL++ %03d", db);
+	xlog("DAC vol++ %03d", db);
 }
 
 void dac_volume_down() {
@@ -202,7 +202,7 @@ void dac_volume_down() {
 	int db = (value / 2) * -1;
 	mcp->dac_volume = db;
 	display_fullscreen_number(mcp->dac_volume);
-	xlog("DAC VOL-- %03d", db);
+	xlog("DAC vol-- %03d", db);
 }
 
 void dac_mute() {

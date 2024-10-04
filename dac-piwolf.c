@@ -70,12 +70,12 @@ void dac_power() {
 }
 
 void dac_volume_up() {
-	xlog("DAC VOL++");
+	xlog("DAC vol++");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VUP);
 }
 
 void dac_volume_down() {
-	xlog("DAC VOL--");
+	xlog("DAC vol--");
 	gpio_lirc(GPIO_LIRC_TX, KEY_VDOWN);
 }
 

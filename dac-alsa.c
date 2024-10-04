@@ -49,12 +49,12 @@ void dac_power() {
 
 void dac_volume_up() {
 	system(MIXER" 2%+");
-	xlog("DAC VOL++");
+	xlog("DAC vol++");
 }
 
 void dac_volume_down() {
 	system(MIXER" 2%-");
-	xlog("DAC VOL--");
+	xlog("DAC vol--");
 }
 
 void dac_mute() {

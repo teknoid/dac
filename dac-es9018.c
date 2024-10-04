@@ -55,7 +55,7 @@ void dac_volume_up() {
 	gpio_set(GPIO_VOL_UP, 0);
 	msleep(50);
 	gpio_configure(GPIO_VOL_UP, 0, 0, 0);
-	xlog("DAC VOL++");
+	xlog("DAC vol++");
 }
 
 void dac_volume_down() {
@@ -67,7 +67,7 @@ void dac_volume_down() {
 	gpio_set(GPIO_VOL_DOWN, 0);
 	msleep(50);
 	gpio_configure(GPIO_VOL_DOWN, 0, 0, 0);
-	xlog("DAC VOL--");
+	xlog("DAC vol--");
 }
 
 void dac_mute() {
