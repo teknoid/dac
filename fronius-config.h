@@ -5,7 +5,7 @@
 #define STANDBY_RESET		60 * 30
 #define NORESPONSE_STANDBY	3
 
-// hexdump -e '16 "%10d " "\n"' /tmp/gstate.bin
+// hexdump -v -e '16 "%10d " "\n"' /tmp/gstate.bin
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"

@@ -17,6 +17,7 @@
 #include "curl.h"
 #include "mcp.h"
 
+#define URL_READABLE		"http://fronius/components/readable"
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 #define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -44,7 +45,7 @@ static int pstate_history_ptr = 0;
 meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
-static int sock = 0;
+static int sock = 0, oldsum = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -328,7 +329,7 @@ static int parse_fronius10(response_t *r) {
 
 	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f E_Total:%f } } } }", &f_akku, &f_grid, &f_load, &f_pv, &f_total);
 	if (ret != 5)
-		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got only %d", ret);
+		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got %d", ret);
 
 	pstate->akku = f_akku;
 	pstate->grid = f_grid;
@@ -363,10 +364,9 @@ static int parse_fronius10(response_t *r) {
 
 static int parse_fronius7(response_t *r) {
 	float f_pv, f_total;
-
 	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f E_Total:%f } } } }", &f_pv, &f_total);
 	if (ret != 2)
-		xlog("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
+		return xerr("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
 
 	pstate->pv7 = f_pv;
 	gstate->pv7total = f_total;
@@ -374,19 +374,45 @@ static int parse_fronius7(response_t *r) {
 }
 
 static int parse_meter(response_t *r) {
-	float f_grid, f_consumed, f_produced;
-	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &f_grid, &f_consumed,
-			&f_produced);
+	float f_grid, f_cons, f_prod;
+	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &f_grid, &f_cons, &f_prod);
+	if (ret != 3)
+		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
 
+	ZERO(meter);
+	gstate->grid_produced_total = meter->produced = f_prod;
+	gstate->grid_consumed_total = meter->consumed = f_cons;
+	meter->p = f_grid;
+
+	return 0;
+}
+
+static int parse_readable(response_t *r) {
+	float f_akku, f_soc, f_pv1, f_pv2;
+	int ret;
+	char *p;
+
+	// workaround for accessing inverter number as key: "393216" : {
+	p = strstr(r->buffer, "393216") + 6 + 3;
+	// xlog("FRONIUS %s", p);
+	ret = json_scanf(p, r->size, "{ channels { BAT_POWERACTIVE_MEAN_F32:%f PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_akku, &f_pv1, &f_pv2);
 	if (ret != 3) {
-		xlog("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got only %d", ret);
+		xlog("FRONIUS parse_readable() warning! parsing 393216: expected 3 values but got %d", ret);
 		return -1;
 	}
 
-	ZERO(meter);
-	gstate->grid_produced_total = meter->produced = f_produced;
-	gstate->grid_consumed_total = meter->consumed = f_consumed;
-	meter->p = f_grid;
+	// workaround for accessing akku number as key: "16580608" : {
+	p = strstr(r->buffer, "16580608") + 8 + 3;
+	// xlog("FRONIUS %s", p);
+	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
+	if (ret != 1) {
+		xlog("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
+		return -1;
+	}
+
+	int sum = (f_pv1 / 36000) + (f_pv2 / 36000);
+	xlog("FRONIUS parse_readable() Akku=%.1f SoC=%.1f PV1=%.1f PV2=%.1f SUM=%d Wh Delta=%d Wh", f_akku, f_soc, f_pv1, f_pv2, sum, sum - oldsum);
+	oldsum = sum;
 
 	return 0;
 }
@@ -847,8 +873,8 @@ static int calculate_pstate() {
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
 		return 0;
 	}
-	if (pstate->grid - h1->grid > 1000) {
-		xdebug("FRONIUS grid spike detected %d %d", pstate->grid, h1->grid);
+	if (abs(pstate->grid - h1->grid) > 1000) {
+		xdebug("FRONIUS grid spike detected %d -> %d", h1->grid, pstate->grid);
 		return 0;
 	}
 
@@ -921,6 +947,12 @@ static void fronius() {
 		return;
 	}
 
+	CURL *curl_readable = curl_init(URL_READABLE, &memory);
+	if (curl_readable == NULL) {
+		xlog("Error initializing libcurl");
+		return;
+	}
+
 	// call meter and both inverters once to update totals counter
 	curl_perform(curl_meter, &memory, &parse_meter);
 	curl_perform(curl10, &memory, &parse_fronius10);
@@ -972,6 +1004,9 @@ static void fronius() {
 			snprintf(message, LINEBUF, "mosmix=%.1f", (float) gstate->mosmix / 10);
 			print_gstate(message);
 			dump_gstate(2); // TODO remove
+
+			// readable -> get DC power from fronius10
+			curl_perform(curl_readable, &memory, &parse_readable);
 
 			// choose program of the day
 			if (gstate->expected > gstate->needed)
@@ -1192,6 +1227,15 @@ static int calibrate(char *name) {
 }
 
 static int test() {
+	response_t memory = { 0 };
+
+	CURL *curl_readable = curl_init(URL_READABLE, &memory);
+	if (curl_readable == NULL)
+		return xerr("Error initializing libcurl");
+
+	curl_perform(curl_readable, &memory, &parse_readable);
+	return 0;
+
 	device_t *d = &boiler1;
 
 	d->power = -1;
