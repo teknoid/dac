@@ -463,9 +463,9 @@ static int calculate_step(device_t *d, int power) {
 
 	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
 	if (pstate->distortion || pstate->soc < 100) {
-		if (step > 0)
+		if (step > 1)
 			step /= 2;
-		else
+		if (step < -1)
 			step *= 2;
 		xdebug("FRONIUS step3 %d", step);
 	}
@@ -810,10 +810,11 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
-	// calculate todays mosmix factor and store as x10 scaled integer
-	float mosmix_new = (float) gstate->pvdaily / (float) gstate->expected24;
+	// calculate todays mosmix error and new mosmix factor storing as x10 scaled integer
+	float mosmix_new = (float) gstate->pvdaily / (float) m0.Rad1h;
+	float mosmix_error = (float) gstate->pvdaily / (float) gstate->expected24;
 	gstate->mosmix = mosmix_new * 10.0;
-	xlog("FRONIUS mosmix factory used today %.1f calculated new %.1f", mosmix, mosmix_new);
+	xlog("FRONIUS mosmix factory used today %.1f error today %.1f calculated new %.1f", mosmix, mosmix_error, mosmix_new);
 }
 
 static int calculate_pstate() {
