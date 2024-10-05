@@ -817,7 +817,8 @@ static int calculate_pstate() {
 	pstate_t *h2 = get_pstate_history(-2);
 	pstate_t *h3 = get_pstate_history(-3);
 
-	// TODO BASELOAD aus akku discharge während der Nacht berechnen (alle history Werte mit PV=0)
+	// TODO BASELOAD aus akku discharge während der Nacht berechnen:
+	// 2 timestapms und 2 pstates speichern
 
 	// for validation
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10;
@@ -1014,8 +1015,8 @@ static void fronius() {
 				choose_program(&EMERGENCY); // charge akku asap
 			else {
 				int akku = AKKU_CAPACITY * pstate->soc / 100;
-				if (akku < gstate->survive)
-					choose_program(&MODEST); // charge akku till we survive
+				if (now->tm_hour > 12 && akku < gstate->survive)
+					choose_program(&MODEST); // afternoon - charge akku till we survive
 				else {
 					// we will survive
 					if (gstate->tomorrow > BASELOAD * 24)
