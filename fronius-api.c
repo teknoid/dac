@@ -731,7 +731,6 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-// TODO ausdünnen
 static void calculate_gstate(time_t now_ts) {
 	gstate->timestamp = now_ts;
 
@@ -784,14 +783,12 @@ static void calculate_gstate(time_t now_ts) {
 	}
 
 	// calculate total daily values
-	mosmix_t m0, m1, m2;
+	mosmix_t m0, m1;
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
-	mosmix_24h(&m2, now_ts, 2);
 	gstate->expected24 = m0.Rad1h * mosmix;
 	gstate->expected24p1 = m1.Rad1h * mosmix;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
-			gstate->expected24p1);
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d expected today %d tom %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->expected24, gstate->expected24p1);
 
 	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
 	if (!gstate->grid_produced_total)
@@ -814,9 +811,9 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
 	// calculate todays mosmix factor and store as x10 scaled integer
-	float new_mosmix = (float) gstate->pvdaily / (float) gstate->expected24;
-	gstate->mosmix = new_mosmix * 10;
-	xlog("FRONIUS mosmix factory used today %.1f new calculated %.1f", mosmix, new_mosmix);
+	float mosmix_new = (float) gstate->pvdaily / (float) gstate->expected24;
+	gstate->mosmix = mosmix_new * 10.0;
+	xlog("FRONIUS mosmix factory used today %.1f calculated new %.1f", mosmix, mosmix_new);
 }
 
 static int calculate_pstate() {

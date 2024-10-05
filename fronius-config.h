@@ -8,10 +8,6 @@
 // hexdump -v -e '16 "%10d " "\n"' /tmp/gstate.bin
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 
-#define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
-//#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
-//#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
-
 #define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
 #define BASELOAD			300
