@@ -735,9 +735,17 @@ static device_t* response(device_t *d) {
 static void calculate_gstate(time_t now_ts) {
 	gstate->timestamp = now_ts;
 
+	// yesterdays total counters and values
+	gstate_t *yesterday = get_gstate_history(-1);
+
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
 		return;
+
+	// take yesterdays mosmix factor but only when in range
+	float mosmix = yesterday->mosmix / 10.0;
+	if (mosmix < MOSMIX_MIN || mosmix > MOSMIX_MAX)
+		mosmix = MOSMIX_DEFAULT;
 
 	// sum up all dumb loads
 	int heating = 0;
@@ -754,7 +762,7 @@ static void calculate_gstate(time_t now_ts) {
 			need_1h = 5000; // max charge capacity per hour is 5kW
 		need_1h += BASELOAD;
 		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
-		int exp_1h = m->Rad1h * MOSMIX_FACTOR;
+		int exp_1h = m->Rad1h * mosmix;
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
@@ -763,7 +771,7 @@ static void calculate_gstate(time_t now_ts) {
 	// eod - calculate values till end of day
 	mosmix_t eod;
 	mosmix_eod(&eod, now_ts);
-	gstate->expected = eod.Rad1h * MOSMIX_FACTOR;
+	gstate->expected = eod.Rad1h * mosmix;
 	int na = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
 	int nb = (24 - now->tm_hour) * BASELOAD;
 	int nh = now->tm_hour >= 9 ? now->tm_hour < 15 ? (15 - now->tm_hour) * heating : 0 : (6 * heating); // max 6h from 9 to 15 o'clock
@@ -780,13 +788,10 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
-	gstate->expected24 = m0.Rad1h * MOSMIX_FACTOR;
-	gstate->expected24p1 = m1.Rad1h * MOSMIX_FACTOR;
+	gstate->expected24 = m0.Rad1h * mosmix;
+	gstate->expected24p1 = m1.Rad1h * mosmix;
 	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d tom %d/%d tom+1 %d/%d 24h/24h+1 %d/%d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1, gstate->expected24,
 			gstate->expected24p1);
-
-	// yesterdays total counters
-	gstate_t *yesterday = get_gstate_history(-1);
 
 	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
 	if (!gstate->grid_produced_total)
@@ -808,9 +813,10 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
-	// calculate mosmix factor and store as x10 scaled integer
-	float mosmix_factor = (float) gstate->pvdaily / (float) gstate->expected24;
-	gstate->mosmix = mosmix_factor * 10;
+	// calculate todays mosmix factor and store as x10 scaled integer
+	float new_mosmix = (float) gstate->pvdaily / (float) gstate->expected24;
+	gstate->mosmix = new_mosmix * 10;
+	xlog("FRONIUS mosmix factory used today %.1f new calculated %.1f", mosmix, new_mosmix);
 }
 
 static int calculate_pstate() {
@@ -1021,16 +1027,21 @@ static void fronius() {
 			// errors += curl_perform(curl_meter, &memory, &parse_meter);
 			errors += curl_perform(curl_readable, &memory, &parse_readable);
 			calculate_gstate(now_ts);
-			snprintf(message, LINEBUF, "mosmix=%.1f", (float) gstate->mosmix / 10);
-			print_gstate(message);
-			dump_gstate(2); // TODO remove
+			print_gstate(NULL);
+			dump_gstate(2);
 
 			// choose program of the day
 			if (gstate->expected > gstate->needed)
 				choose_program(&SUNNY); // plenty of power
 			else {
-				if (now->tm_hour > 12 && pstate->soc < 40)
-					choose_program(&EMERGENCY); // emergency charging to survive next night
+				// TODO berechnen aus BASELOAD und AKKU_CAPACITY für 16h (16 uhr bis 08 Uhr)
+				// emergency charging to survive next night
+				if (pstate->soc < 40 && now->tm_hour > 14)
+					choose_program(&EMERGENCY);
+				else if (pstate->soc < 30 && now->tm_hour > 13)
+					choose_program(&EMERGENCY);
+				else if (pstate->soc < 20 && now->tm_hour > 12)
+					choose_program(&EMERGENCY);
 				else if (gstate->expected24p1 > gstate->needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
 				else

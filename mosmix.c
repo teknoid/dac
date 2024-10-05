@@ -114,7 +114,7 @@ int mosmix_main(int argc, char **argv) {
 	if (m != 0) {
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		int exp1h = m->Rad1h * MOSMIX_FACTOR;
+		int exp1h = m->Rad1h * MOSMIX_DEFAULT;
 		xlog("MOSMIX current slot index=%d date=%d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, exp1h);
 	}
 

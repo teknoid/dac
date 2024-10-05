@@ -11,7 +11,6 @@
 #define MOSMIX				"/tmp/Rad1h-CHEMNITZ.txt"
 //#define MOSMIX			"/tmp/Rad1h-MARIENBERG.txt"
 //#define MOSMIX			"/tmp/Rad1h-BRAUNSDORF.txt"
-#define MOSMIX_FACTOR		3
 
 #define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
