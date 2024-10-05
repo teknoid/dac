@@ -804,10 +804,10 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
-	// calculate todays mosmix error and new mosmix factor storing as x10 scaled integer
+	// calculate new mosmix factor storing as x10 scaled integer and todays mosmix error
 	float mosmix_new = (float) gstate->pvdaily / (float) m0.Rad1h;
 	float mosmix_error = gstate->pvdaily == 0 ? 0 : 1 - (float) gstate->today / (float) gstate->pvdaily;
-	gstate->mosmix = mosmix_new * 10.0;
+	gstate->mosmix = 10 * mosmix_new;
 	xlog("FRONIUS mosmix factor used today %.1f, error today %.2f, calculated new %.1f", mosmix, mosmix_error, mosmix_new);
 }
 
