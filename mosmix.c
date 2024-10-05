@@ -10,6 +10,7 @@
 
 static mosmix_t mosmix[256];
 
+// gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
 // #define MOSMIX_MAIN
 
 static void parse(char **strings, size_t size) {
@@ -58,6 +59,36 @@ void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
 			sum->SunD1 += m->SunD1;
 		}
 	}
+}
+
+// calculate hours to survive darkness
+int mosmix_survive(time_t now_ts, int rad1h_min) {
+	struct tm today;
+	localtime_r(&now_ts, &today);
+	today.tm_hour = 23;
+	today.tm_min = 59;
+	today.tm_sec = 59;
+	time_t ts_midnight = mktime(&today) + 1;
+
+	int midnight = 0;
+	for (midnight = 0; midnight < ARRAY_SIZE(mosmix); midnight++)
+		if (mosmix[midnight].ts == ts_midnight)
+			break;
+
+	int from = 0;
+	for (from = midnight; from > 0; from--)
+		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts < now_ts)
+			break; // sundown or now
+
+	int to = 0;
+	for (to = midnight; to < ARRAY_SIZE(mosmix); to++)
+		if (mosmix[to].Rad1h > rad1h_min)
+			break; // sunrise
+
+	int hours = to - from;
+	xlog("sundown=%d/%d midnight=%d/%d sunrise=%d/%d survive=%d hours", from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h, hours);
+
+	return hours;
 }
 
 mosmix_t* mosmix_current_slot(time_t now_ts) {
@@ -115,7 +146,7 @@ int mosmix_main(int argc, char **argv) {
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
 		int exp1h = m->Rad1h * MOSMIX_DEFAULT;
-		xlog("MOSMIX current slot index=%d date=%d %s (%d) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, timestr, m->ts, m->TTT, m->Rad1h, m->SunD1, exp1h);
+		xlog("MOSMIX current slot index=%d date=%d (%s) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, m->ts, timestr, m->TTT, m->Rad1h, m->SunD1, exp1h);
 	}
 
 	// eod - calculate values till end of day
@@ -130,6 +161,7 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_24h(&m2, now_ts, 2);
 	xlog("MOSMIX Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
 
+	mosmix_survive(now_ts, 100);
 	return 0;
 }
 
