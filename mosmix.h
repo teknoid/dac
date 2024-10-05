@@ -2,11 +2,11 @@
 #define MARIENBERG			"/tmp/MARIENBERG.csv"
 #define BRAUNSDORF			"/tmp/BRAUNSDORF.csv"
 
-#define MOSMIX_COLUMNS		5
-
 #define MOSMIX_MIN			1.0
 #define MOSMIX_MAX			5.0
 #define MOSMIX_DEFAULT		3.0
+
+#define MOSMIX_COLUMNS		5
 
 typedef struct _mosmix mosmix_t;
 

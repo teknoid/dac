@@ -724,7 +724,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// perform standby check when noresponse counter reaches threshold
-	if (++d->noresponse >= NORESPONSE_STANDBY)
+	if (++d->noresponse >= STANDBY_NORESPONSE)
 		return perform_standby(d);
 
 	xdebug("FRONIUS no response from %s", d->name);
@@ -757,8 +757,8 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
 		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
-		if (need_1h > 5000)
-			need_1h = 5000; // max charge capacity per hour is 5kW
+		if (need_1h > AKKU_CAPACITY / 2)
+			need_1h = AKKU_CAPACITY / 2; // max charge capacity per hour is half total capacity
 		need_1h += BASELOAD;
 		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
 		int exp_1h = m->Rad1h * mosmix;
@@ -959,25 +959,11 @@ static void fronius() {
 		return;
 	}
 
-	CURL *curl_meter = curl_init(URL_METER, &memory);
-	if (curl_meter == NULL) {
-		xlog("Error initializing libcurl");
-		return;
-	}
-
 	CURL *curl_readable = curl_init(URL_READABLE, &memory);
 	if (curl_readable == NULL) {
 		xlog("Error initializing libcurl");
 		return;
 	}
-
-	// call meter and both inverters once to update totals counter
-	curl_perform(curl_readable, &memory, &parse_readable);
-	// curl_perform(curl_meter, &memory, &parse_meter);
-	curl_perform(curl10, &memory, &parse_fronius10);
-	curl_perform(curl7, &memory, &parse_fronius7);
-	gstate->timestamp = time(NULL);
-	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 
 	// the FRONIUS main loop
 	while (1) {
@@ -1021,7 +1007,6 @@ static void fronius() {
 					(*d)->state = Active;
 
 			// recalculate global state and mosmix values
-			// errors += curl_perform(curl_meter, &memory, &parse_meter);
 			errors += curl_perform(curl_readable, &memory, &parse_readable);
 			calculate_gstate(now_ts);
 			print_gstate(NULL);

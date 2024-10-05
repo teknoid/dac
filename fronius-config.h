@@ -1,9 +1,8 @@
 #define GSTATE_HISTORY		14
 #define PSTATE_HISTORY		6
 #define OVERRIDE			600
-#define STANDBY				0
 #define STANDBY_RESET		60 * 30
-#define NORESPONSE_STANDBY	3
+#define STANDBY_NORESPONSE	3
 
 // hexdump -v -e '16 "%10d " "\n"' /tmp/gstate.bin
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
@@ -15,8 +14,8 @@
 #define NOISE				25
 
 #ifdef FRONIUS_MAIN
-#define TEMP_IN				0.0
-#define TEMP_OUT			0.0
+#define TEMP_IN				22.0
+#define TEMP_OUT			15.0
 #else
 #define TEMP_IN				sensors->htu21_temp
 #define TEMP_OUT			sensors->sht31_temp
@@ -24,7 +23,7 @@
 
 #define SUMMER				(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#define ARRAY_SIZE(x) 		(sizeof(x) / sizeof(x[0]))
 
 #define GREEDY(d)			(d->greedy ? "greedy" : "modest")
 
