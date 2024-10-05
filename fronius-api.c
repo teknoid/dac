@@ -1036,11 +1036,13 @@ static void fronius() {
 			else {
 				// TODO berechnen aus BASELOAD und AKKU_CAPACITY für 16h (16 uhr bis 08 Uhr)
 				// emergency charging to survive next night
-				if (pstate->soc < 40 && now->tm_hour > 14)
+				if (pstate->soc < 50 && now->tm_hour >= 15)
 					choose_program(&EMERGENCY);
-				else if (pstate->soc < 30 && now->tm_hour > 13)
+				else if (pstate->soc < 40 && now->tm_hour >= 14)
 					choose_program(&EMERGENCY);
-				else if (pstate->soc < 20 && now->tm_hour > 12)
+				else if (pstate->soc < 30 && now->tm_hour >= 13)
+					choose_program(&EMERGENCY);
+				else if (pstate->soc < 20 && now->tm_hour >= 12)
 					choose_program(&EMERGENCY);
 				else if (gstate->expected24p1 > gstate->needed)
 					choose_program(&TOMORROW); // steal all power as we can charge akku tomorrow
