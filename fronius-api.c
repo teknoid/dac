@@ -281,8 +281,8 @@ static void print_pstate(const char *message) {
 	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
 	xlogl_int(line, 0, 0, "PV10", pstate->pv10);
 	xlogl_int(line, 0, 0, "PV7", pstate->pv7);
-	xlogl_int(line, 0, 0, "SoC", pstate->soc);
 	xlogl_int(line, 0, 0, "Dist", pstate->distortion);
+	xlogl_float(line, "SoC", pstate->soc / 10.0);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -347,7 +347,7 @@ static int parse_fronius10(response_t *r) {
 
 		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &f_charge);
 		if (ret == 1)
-			pstate->soc = f_charge;
+			pstate->soc = f_charge * 10; // store value as promille 0/00
 		else {
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
 			pstate->soc = 0;
@@ -437,7 +437,7 @@ static void choose_program(const potd_t *p) {
 // minimum available power for ramp up
 static int rampup_min(device_t *d) {
 	int min = d->adjustable ? d->total / 100 : d->total; // adjustable 1% of total, dumb total
-	if (pstate->soc < 100)
+	if (pstate->soc < 1000)
 		min += min / 10; // 10% more while akku is charging to avoid excessive grid load
 	if (pstate->distortion)
 		min *= 2; // 100% more on distortion
@@ -462,7 +462,7 @@ static int calculate_step(device_t *d, int power) {
 	}
 
 	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
-	if (pstate->distortion || pstate->soc < 100) {
+	if (pstate->distortion || pstate->soc < 1000) {
 		if (step > 1)
 			step /= 2;
 		if (step < -1)
@@ -756,7 +756,7 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_t eod;
 	mosmix_eod(&eod, now_ts);
 	gstate->survive = mosmix_survive(now_ts, BASELOAD / mosmix) * BASELOAD;
-	int avail_akku = AKKU_CAPACITY * pstate->soc / 100;
+	int avail_akku = AKKU_CAPACITY * pstate->soc / 1000;
 	int avail_pv = eod.Rad1h * mosmix;
 	gstate->available = avail_akku + avail_pv;
 	xlog("FRONIUS mosmix survive %d Wh, available total %d Wh (%d akku + %d pv)", gstate->survive, gstate->available, avail_akku, avail_pv);
@@ -765,7 +765,7 @@ static void calculate_gstate(time_t now_ts) {
 	// TODO do something with them
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	if (m != 0) {
-		int need_1h = (100 - pstate->soc) * (AKKU_CAPACITY / 100);
+		int need_1h = (1000 - pstate->soc) * (AKKU_CAPACITY / 1000);
 		if (need_1h > 4500)
 			need_1h = 4500; // max charge capacity per hour is 4,5kW
 		need_1h += BASELOAD;
@@ -899,7 +899,7 @@ static int calculate_pstate() {
 
 static int calculate_next_round(device_t *d, int valid) {
 	if (d) {
-		if (pstate->soc < 100)
+		if (pstate->soc < 1000)
 			return WAIT_AKKU; // wait for inverter to adjust charge power
 		else
 			return WAIT_RAMP;
@@ -935,9 +935,9 @@ static int calculate_next_round(device_t *d, int valid) {
 
 static void fronius() {
 	char message[LINEBUF];
-	int wait = 1, errors = 0, mday = 0;
+	int wait = 1, errors = 0, mday = 0, baseload_soc9 = 0, baseload_soc3 = 0;
 	device_t *device = 0;
-	time_t next_reset;
+	time_t next_reset, baseload_ts9 = 0, baseload_ts3 = 0;
 	response_t memory = { 0 };
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -1011,10 +1011,10 @@ static void fronius() {
 			dump_gstate(2);
 
 			// choose program of the day
-			if (pstate->soc < 10 || gstate->available < gstate->survive)
+			if (pstate->soc < 100 || gstate->available < gstate->survive)
 				choose_program(&EMERGENCY); // charge akku asap
 			else {
-				int akku = AKKU_CAPACITY * pstate->soc / 100;
+				int akku = AKKU_CAPACITY * pstate->soc / 1000;
 				if (now->tm_hour > 12 && akku < gstate->survive)
 					choose_program(&MODEST); // afternoon - charge akku till we survive
 				else {
@@ -1030,10 +1030,10 @@ static void fronius() {
 		// not enough PV production
 		if (pstate->pv10 < 100) {
 			pstate->pv7 = 0;
-			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 10 && gstate->available > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 100 && gstate->available > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-				snprintf(message, LINEBUF, "--> burnout SoC=%d available=%d survive=%d temp=%.1f", pstate->soc, gstate->available, gstate->survive, TEMP_IN);
+				snprintf(message, LINEBUF, "--> burnout SoC=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->available, gstate->survive, TEMP_IN);
 				print_pstate(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
 				fronius_override_seconds("plug6", WAIT_OFFLINE);
@@ -1044,6 +1044,29 @@ static void fronius() {
 				print_pstate("--> offline");
 				set_all_devices(0);
 			}
+
+			// baseload: set start time frame
+			if (now->tm_hour == 21 && !baseload_ts9) {
+				// set start time frame
+				baseload_ts9 = now_ts;
+				baseload_soc9 = pstate->soc;
+			}
+
+			// baseload: set end time frame and calculate
+			if (now->tm_hour == 3 && !baseload_ts3) {
+				// set end time frame
+				baseload_ts3 = now_ts;
+				baseload_soc3 = pstate->soc;
+				// calculate
+				int akku9 = AKKU_CAPACITY * baseload_soc9 / 1000;
+				int akku3 = AKKU_CAPACITY * baseload_soc3 / 1000;
+				int delta = akku3 - akku9;
+				int seconds = baseload_ts3 - baseload_ts9;
+				int baseload = delta / (seconds / 3600);
+				xlog("FRONIUS baseload=%d (seconds=%d akku9=%d akku3=%d delta=%d", baseload, seconds, akku9, akku3, delta);
+				baseload_ts9 = baseload_ts3 = baseload_soc9 = baseload_soc3 = 0; // zero start+end
+			}
+
 			wait = WAIT_OFFLINE;
 			continue;
 		}
