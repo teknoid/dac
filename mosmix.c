@@ -161,7 +161,7 @@ int mosmix_main(int argc, char **argv) {
 	if (m != 0) {
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		int exp1h = m->Rad1h * MOSMIX_DEFAULT;
+		int exp1h = m->Rad1h * 3; // guessed
 		xlog("MOSMIX current slot index=%d date=%d (%s) TTT=%2.1f Rad1H=%d SunD1=%d, expected %d Wh", m->idx, m->ts, timestr, m->TTT, m->Rad1h, m->SunD1, exp1h);
 	}
 

@@ -203,7 +203,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd    survive   expected      today   tomorrow     mosmix");
+			"FRONIUS gstate   idx         ts      pvt        pvd    pv10t    pv10d     pv7t     pv7d      gpt      gpd      gct      gcd  survive expected    today tomorrow  dcharge      ttl   mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -211,7 +211,7 @@ static void dump_gstate(int back) {
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
-			snprintf(value, 12, "%10d ", vv[x]);
+			snprintf(value, 12, x == 2 ? "%10d " : "%8d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
@@ -261,10 +261,14 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7daily);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_daily);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_daily);
-	xlogl_int(line, 0, 0, "Survive", gstate->survive);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
+	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
+	xlogl_int(line, 0, 0, "Survive", gstate->survive);
+	xlogl_int(line, 1, AKKU_AVAILABLE < gstate->survive, "Available", AKKU_AVAILABLE);
+	xlogl_float(line, "TTL", gstate->ttl / 60.0);
+	xlogl_float(line, "Mosmix", gstate->mosmix / 10.0);
 	xlogl_end(line, sizeof(line), message);
 }
 
@@ -769,13 +773,13 @@ static void calculate_gstate(time_t now_ts) {
 	// calculate actual mosmix factor: till now produced vs. till now predicted, available power and power needed to survive next night
 	float mosmix = sod.Rad1h == 0 ? 1 : (float) gstate->pvdaily / (float) sod.Rad1h;
 	gstate->mosmix = 10 * mosmix; // store as x10 scaled
-	gstate->survive = BASELOAD * mosmix_survive(now_ts, BASELOAD / mosmix); // BASELOAD * hours
+	int discharge = gstate->discharge == 0 ? BASELOAD : gstate->discharge; // nightly discharge rate
+	float ttl = (float) AKKU_AVAILABLE / (float) discharge; // akku time to live in hours
+	gstate->ttl = ttl * 60; // minutes
+	gstate->survive = discharge * mosmix_survive(now_ts, discharge / mosmix); // BASELOAD * hours
 	gstate->expected = eod.Rad1h * mosmix;
 	int av = gstate->expected + AKKU_AVAILABLE;
-	int pv = gstate->pvdaily;
-	int surv = gstate->survive;
-	int akku = AKKU_AVAILABLE;
-	xlog("FRONIUS mosmix PV=%d sod=%d eod=%d survive=%d available=%d (%d akku + %d pv) mosmix=%.2f", pv, sod.Rad1h, eod.Rad1h, surv, av, akku, gstate->expected, mosmix);
+	xdebug("FRONIUS mosmix sod=%d eod=%d available=%d (%d akku + %d pv)", sod.Rad1h, eod.Rad1h, av, AKKU_AVAILABLE, gstate->expected);
 
 	// calculate total daily values
 	mosmix_t m0, m1;
@@ -783,7 +787,7 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_24h(&m1, now_ts, 1);
 	gstate->today = m0.Rad1h * mosmix;
 	gstate->tomorrow = m1.Rad1h * mosmix;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, today %d Wh, tomorrow %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
+	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, today %d Wh, tomorrow %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
 	// sum up all dumb loads
 	int heating = 0;
@@ -803,7 +807,7 @@ static void calculate_gstate(time_t now_ts) {
 		int exp_1h = m->Rad1h * mosmix;
 		char *timestr = ctime(&m->ts);
 		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
+		xdebug("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
 	}
 }
 
@@ -928,9 +932,9 @@ static int calculate_next_round(device_t *d, int valid) {
 
 static void fronius() {
 	char message[LINEBUF];
-	int wait = 1, errors = 0, mday = 0, baseload_soc9 = 0, baseload_soc3 = 0;
+	int wait = 1, errors = 0, mday = 0, discharge_soc9 = 0, discharge_soc3 = 0;
 	device_t *device = 0;
-	time_t next_reset, baseload_ts9 = 0, baseload_ts3 = 0;
+	time_t next_reset, discharge_ts9 = 0, discharge_ts3 = 0;
 	response_t memory = { 0 };
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -1039,28 +1043,28 @@ static void fronius() {
 			}
 
 			// baseload: set start time frame
-			if (now->tm_hour == 21 && !baseload_ts9) {
+			if (now->tm_hour == 21 && !discharge_ts9) {
 				// set start time frame
-				baseload_ts9 = now_ts;
-				baseload_soc9 = pstate->soc;
-				baseload_ts3 = baseload_soc3 = 0; // zero end
+				discharge_ts9 = now_ts;
+				discharge_soc9 = pstate->soc;
+				discharge_ts3 = discharge_soc3 = 0; // zero end
 			}
 
 			// baseload: set end time frame and calculate
-			if (now->tm_hour == 3 && !baseload_ts3) {
+			if (now->tm_hour == 3 && !discharge_ts3) {
 				// set end time frame
-				baseload_ts3 = now_ts;
-				baseload_soc3 = pstate->soc;
+				discharge_ts3 = now_ts;
+				discharge_soc3 = pstate->soc;
 				// calculate if SoC's between 90% and 10% for smooth discharge
-				if (baseload_soc9 < 900 && baseload_soc3 > 100) {
-					int akku9 = AKKU_CAPACITY * baseload_soc9 / 1000;
-					int akku3 = AKKU_CAPACITY * baseload_soc3 / 1000;
+				if (discharge_soc9 < 900 && discharge_soc3 > 100) {
+					int akku9 = AKKU_CAPACITY * discharge_soc9 / 1000;
+					int akku3 = AKKU_CAPACITY * discharge_soc3 / 1000;
 					int delta = akku3 - akku9;
-					int seconds = baseload_ts3 - baseload_ts9;
-					int baseload = delta / (seconds / 3600);
-					xlog("FRONIUS calculated baseload=%d (seconds=%d akku9=%d akku3=%d delta=%d", baseload, seconds, akku9, akku3, delta);
+					int seconds = discharge_ts3 - discharge_ts9;
+					gstate->discharge = delta / (seconds / 3600);
+					xlog("FRONIUS calculated akku discharge rate=%d (seconds=%d akku9=%d akku3=%d delta=%d", gstate->discharge, seconds, akku9, akku3, delta);
 				}
-				baseload_ts9 = baseload_soc9 = 0; // zero start
+				discharge_ts9 = discharge_soc9 = 0; // zero start
 			}
 
 			wait = WAIT_OFFLINE;

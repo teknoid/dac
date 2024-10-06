@@ -90,6 +90,8 @@ struct _gstate {
 	int expected;
 	int today;
 	int tomorrow;
+	int discharge;
+	int ttl;
 	int mosmix;
 };
 
