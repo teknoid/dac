@@ -140,7 +140,7 @@ static const potd_t EMERGENCY = { .name = "EMERGENCY", .greedy = { 0 }, .modest 
 static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
 
 // cloudy weather but tomorrow sunny: steal all akku charge power
-static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 }, .modest = { 0 } };
+static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &plug5, &plug6, &plug7, &plug8, &boiler1, &boiler2, &boiler3, 0 }, .modest = { 0 } };
 
 // sunny weather: plenty of power but modest boilers to catch all power when we have short sun spikes
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &plug5, &plug6, &plug7, &plug8, 0 }, .modest = { &boiler1, &boiler2, &boiler3, 0 } };

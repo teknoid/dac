@@ -817,9 +817,6 @@ static int calculate_pstate() {
 	pstate_t *h2 = get_pstate_history(-2);
 	pstate_t *h3 = get_pstate_history(-3);
 
-	// TODO BASELOAD aus akku discharge während der Nacht berechnen:
-	// 2 timestapms und 2 pstates speichern
-
 	// for validation
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10;
 
@@ -1050,6 +1047,7 @@ static void fronius() {
 				// set start time frame
 				baseload_ts9 = now_ts;
 				baseload_soc9 = pstate->soc;
+				baseload_ts3 = baseload_soc3 = 0; // zero end
 			}
 
 			// baseload: set end time frame and calculate
@@ -1057,14 +1055,16 @@ static void fronius() {
 				// set end time frame
 				baseload_ts3 = now_ts;
 				baseload_soc3 = pstate->soc;
-				// calculate
-				int akku9 = AKKU_CAPACITY * baseload_soc9 / 1000;
-				int akku3 = AKKU_CAPACITY * baseload_soc3 / 1000;
-				int delta = akku3 - akku9;
-				int seconds = baseload_ts3 - baseload_ts9;
-				int baseload = delta / (seconds / 3600);
-				xlog("FRONIUS baseload=%d (seconds=%d akku9=%d akku3=%d delta=%d", baseload, seconds, akku9, akku3, delta);
-				baseload_ts9 = baseload_ts3 = baseload_soc9 = baseload_soc3 = 0; // zero start+end
+				// calculate if SoC's between 90% and 10% for smooth discharge
+				if (baseload_soc9 < 900 && baseload_soc3 > 100) {
+					int akku9 = AKKU_CAPACITY * baseload_soc9 / 1000;
+					int akku3 = AKKU_CAPACITY * baseload_soc3 / 1000;
+					int delta = akku3 - akku9;
+					int seconds = baseload_ts3 - baseload_ts9;
+					int baseload = delta / (seconds / 3600);
+					xlog("FRONIUS calculated baseload=%d (seconds=%d akku9=%d akku3=%d delta=%d", baseload, seconds, akku9, akku3, delta);
+				}
+				baseload_ts9 = baseload_soc9 = 0; // zero start
 			}
 
 			wait = WAIT_OFFLINE;
