@@ -203,7 +203,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd    survive  available      today   tomorrow     mosmix");
+			"FRONIUS gstate   idx         ts        pvt        pvd      pv10t      pv10d       pv7t       pv7d        gpt        gpd        gct        gcd    survive   expected      today   tomorrow     mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -262,7 +262,7 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_daily);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_daily);
 	xlogl_int(line, 0, 0, "Survive", gstate->survive);
-	xlogl_int(line, 0, 0, "Available", gstate->available);
+	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_end(line, sizeof(line), message);
@@ -741,49 +741,6 @@ static void calculate_gstate(time_t now_ts) {
 	if (mosmix_load(CHEMNITZ))
 		return;
 
-	// take yesterdays mosmix factor but only when in range
-	float mosmix = yesterday->mosmix / 10.0;
-	if (mosmix < MOSMIX_MIN || mosmix > MOSMIX_MAX)
-		mosmix = MOSMIX_DEFAULT;
-
-	// sum up all dumb loads
-	int heating = 0;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if (!(*d)->adjustable)
-			heating += (*d)->total;
-
-	// eod - calculate values till end of day and to survive the night
-	mosmix_t eod;
-	mosmix_eod(&eod, now_ts);
-	gstate->survive = mosmix_survive(now_ts, BASELOAD / mosmix) * BASELOAD;
-	int avail_akku = AKKU_CAPACITY * pstate->soc / 1000;
-	int avail_pv = eod.Rad1h * mosmix;
-	gstate->available = avail_akku + avail_pv;
-	xlog("FRONIUS mosmix survive %d Wh, available total %d Wh (%d akku + %d pv)", gstate->survive, gstate->available, avail_akku, avail_pv);
-
-	// find current mosmix slot and calculate hourly values
-	// TODO do something with them
-	mosmix_t *m = mosmix_current_slot(now_ts);
-	if (m != 0) {
-		int need_1h = (1000 - pstate->soc) * (AKKU_CAPACITY / 1000);
-		if (need_1h > 4500)
-			need_1h = 4500; // max charge capacity per hour is 4,5kW
-		need_1h += BASELOAD;
-		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
-		int exp_1h = m->Rad1h * mosmix;
-		char *timestr = ctime(&m->ts);
-		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
-	}
-
-	// calculate total daily values
-	mosmix_t m0, m1;
-	mosmix_24h(&m0, now_ts, 0);
-	mosmix_24h(&m1, now_ts, 1);
-	gstate->today = m0.Rad1h * mosmix;
-	gstate->tomorrow = m1.Rad1h * mosmix;
-	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, today %d Wh, tomorrow %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
-
 	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
 	if (!gstate->grid_produced_total)
 		gstate->grid_produced_total = yesterday->grid_produced_total;
@@ -804,11 +761,50 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
 	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
 
-	// calculate new mosmix factor storing as x10 scaled integer and todays mosmix error
-	float mosmix_new = (float) gstate->pvdaily / (float) m0.Rad1h;
-	float mosmix_error = gstate->pvdaily == 0 ? 0 : 1 - (float) gstate->today / (float) gstate->pvdaily;
-	gstate->mosmix = 10 * mosmix_new;
-	xlog("FRONIUS mosmix factor used today %.1f, error today %.2f, calculated new %.1f", mosmix, mosmix_error, mosmix_new);
+	// sod+eod - values from midnight to now and now till next midnight
+	mosmix_t sod, eod;
+	mosmix_sod(&sod, now_ts);
+	mosmix_eod(&eod, now_ts);
+
+	// calculate actual mosmix factor: till now produced vs. till now predicted, available power and power needed to survive next night
+	float mosmix = (float) gstate->pvdaily / (float) sod.Rad1h;
+	gstate->mosmix = 10 * mosmix; // store as x10 scaled
+	gstate->survive = BASELOAD * mosmix_survive(now_ts, BASELOAD / mosmix); // BASELOAD * hours
+	gstate->expected = eod.Rad1h * mosmix;
+	int av = gstate->expected + AKKU_AVAILABLE;
+	int pv = gstate->pvdaily;
+	int surv = gstate->survive;
+	int akku = AKKU_AVAILABLE;
+	xlog("FRONIUS mosmix PV=%d sod=%d eod=%d survive=%d available=%d (%d akku + %d pv) mosmix=%.2f", pv, sod.Rad1h, eod.Rad1h, surv, av, akku, gstate->expected, mosmix);
+
+	// calculate total daily values
+	mosmix_t m0, m1;
+	mosmix_24h(&m0, now_ts, 0);
+	mosmix_24h(&m1, now_ts, 1);
+	gstate->today = m0.Rad1h * mosmix;
+	gstate->tomorrow = m1.Rad1h * mosmix;
+	xlog("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, today %d Wh, tomorrow %d Wh", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
+
+	// sum up all dumb loads
+	int heating = 0;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if (!(*d)->adjustable)
+			heating += (*d)->total;
+
+	// find current mosmix slot and calculate hourly values
+	// TODO do something with them
+	mosmix_t *m = mosmix_current_slot(now_ts);
+	if (m != 0) {
+		int need_1h = AKKU_CAPACITY - AKKU_AVAILABLE;
+		if (need_1h > 4500)
+			need_1h = 4500; // max charge capacity per hour is 4,5kW
+		need_1h += BASELOAD;
+		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
+		int exp_1h = m->Rad1h * mosmix;
+		char *timestr = ctime(&m->ts);
+		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
+		xlog("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
+	}
 }
 
 static int calculate_pstate() {
@@ -1008,11 +1004,11 @@ static void fronius() {
 			dump_gstate(2);
 
 			// choose program of the day
-			if (pstate->soc < 100 || gstate->available < gstate->survive)
+			int available = gstate->expected + AKKU_AVAILABLE;
+			if (pstate->soc < 100 || available < gstate->survive)
 				choose_program(&EMERGENCY); // charge akku asap
 			else {
-				int akku = AKKU_CAPACITY * pstate->soc / 1000;
-				if (now->tm_hour > 12 && akku < gstate->survive)
+				if (now->tm_hour > 12 && AKKU_AVAILABLE < gstate->survive)
 					choose_program(&MODEST); // afternoon - charge akku till we survive
 				else {
 					// we will survive
@@ -1027,10 +1023,10 @@ static void fronius() {
 		// not enough PV production
 		if (pstate->pv10 < 100) {
 			pstate->pv7 = 0;
-			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 100 && gstate->available > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
 			if (burnout) {
 				// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-				snprintf(message, LINEBUF, "--> burnout SoC=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->available, gstate->survive, TEMP_IN);
+				snprintf(message, LINEBUF, "--> burnout SoC=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
 				print_pstate(message);
 				fronius_override_seconds("plug5", WAIT_OFFLINE);
 				fronius_override_seconds("plug6", WAIT_OFFLINE);

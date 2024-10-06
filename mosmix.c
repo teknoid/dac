@@ -24,19 +24,36 @@ static void parse(char **strings, size_t size) {
 	m->SunD1 = atoi(strings[4]);
 }
 
-// calculate now as start and today 23:59:59+1 as end time frame
+// calculate now+1h as start and today 23:59:59 as end time frame
 void mosmix_eod(mosmix_t *sum, time_t now_ts) {
-	struct tm today;
-	localtime_r(&now_ts, &today);
-	today.tm_hour = 23;
-	today.tm_min = 59;
-	today.tm_sec = 59;
-	time_t ts_to = mktime(&today) + 1;
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = 23;
+	tm.tm_min = 59;
+	tm.tm_sec = 59;
+	time_t ts_to = mktime(&tm);
 
 	ZERO(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
-		if (now_ts < m->ts && m->ts < ts_to) {
+		if ((now_ts + 3600) < m->ts && m->ts < ts_to) {
+			sum->Rad1h += m->Rad1h;
+			sum->SunD1 += m->SunD1;
+		}
+	}
+}
+
+// calculate today 00:00:00 as start and now as end time frame
+void mosmix_sod(mosmix_t *sum, time_t now_ts) {
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+	time_t ts_from = mktime(&tm) + 1;
+
+	ZERO(sum);
+	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
+		mosmix_t *m = &mosmix[i];
+		if (m->ts > ts_from && m->ts < now_ts) {
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
 		}
@@ -45,10 +62,10 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 
 // calculate today 0:00:00 as start and +24h as end time frame
 void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
-	struct tm today;
-	localtime_r(&now_ts, &today);
-	today.tm_hour = today.tm_min = today.tm_sec = 0;
-	time_t ts_from = mktime(&today) + 60 * 60 * 24 * day;
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+	time_t ts_from = mktime(&tm) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
 	ZERO(sum);

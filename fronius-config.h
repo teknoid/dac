@@ -28,6 +28,8 @@
 
 #define GREEDY_MODEST(d)	(d->greedy ? "greedy" : "modest")
 
+#define AKKU_AVAILABLE		(AKKU_CAPACITY * pstate->soc / 1000)
+
 enum dstate {
 	Disabled, Active, Standby, Standby_Check
 };
@@ -85,7 +87,7 @@ struct _gstate {
 	int grid_consumed_total;
 	int grid_consumed_daily;
 	int survive;
-	int available;
+	int expected;
 	int today;
 	int tomorrow;
 	int mosmix;
