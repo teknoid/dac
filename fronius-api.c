@@ -767,7 +767,7 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_eod(&eod, now_ts);
 
 	// calculate actual mosmix factor: till now produced vs. till now predicted, available power and power needed to survive next night
-	float mosmix = (float) gstate->pvdaily / (float) sod.Rad1h;
+	float mosmix = sod.Rad1h == 0 ? 1 : (float) gstate->pvdaily / (float) sod.Rad1h;
 	gstate->mosmix = 10 * mosmix; // store as x10 scaled
 	gstate->survive = BASELOAD * mosmix_survive(now_ts, BASELOAD / mosmix); // BASELOAD * hours
 	gstate->expected = eod.Rad1h * mosmix;
