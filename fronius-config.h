@@ -4,7 +4,7 @@
 #define STANDBY_RESET		60 * 30
 #define STANDBY_NORESPONSE	3
 
-// hexdump -v -e '16 "%10d " "\n"' /tmp/gstate.bin
+// hexdump -v -e '18 "%10d " "\n"' /tmp/gstate.bin
 // date --date='@1728165335'les
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 

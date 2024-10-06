@@ -203,7 +203,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts      pvt        pvd    pv10t    pv10d     pv7t     pv7d      gpt      gpd      gct      gcd  survive expected    today tomorrow  dcharge      ttl   mosmix");
+			"FRONIUS gstate   idx         ts      pvt      pvd    pv10t    pv10d     pv7t     pv7d        gpt      gpd        gct      gcd  survive expected    today tomorrow  dcharge      ttl   mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -211,7 +211,7 @@ static void dump_gstate(int back) {
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
-			snprintf(value, 12, x == 2 ? "%10d " : "%8d ", vv[x]);
+			snprintf(value, 12, (x == 0 || x == 7 || x == 9) ? "%10d " : "%8d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
