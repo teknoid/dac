@@ -974,7 +974,7 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// calculate akku discharge rate for last hour
+	// calculate akku discharge rate for last hour when no PV and SoC between 90% and 10%
 	if (pstate->pv == 0 && pstate->soc < 900 && pstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
