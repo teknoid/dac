@@ -745,7 +745,7 @@ static void calculate_gstate(time_t now_ts) {
 	if (mosmix_load(CHEMNITZ))
 		return;
 
-	// calculate daily values (when we have values from yesterday)
+	// calculate daily values - when we have values from yesterday
 	gstate->grid_produced_24 = yesterday->grid_produced ? gstate->grid_produced - yesterday->grid_produced : 0;
 	gstate->grid_consumed_24 = yesterday->grid_consumed ? gstate->grid_consumed - yesterday->grid_consumed : 0;
 	gstate->pv10_24 = yesterday->pv10 ? gstate->pv10 - yesterday->pv10 : 0;
@@ -918,10 +918,10 @@ static int calculate_next_round(device_t *d, int valid) {
 
 static void fronius() {
 	char message[LINEBUF];
-	int wait = 1, errors = 0, mday = 0, discharge_soc9 = 0, discharge_soc3 = 0;
-	device_t *device = 0;
-	time_t next_reset, discharge_ts9 = 0, discharge_ts3 = 0;
+	int wait = 1, errors = 0, mday = 0, discharge_start_soc = 0, discharge_end_soc = 0;
+	time_t next_reset, discharge_start_ts = 0, discharge_end_ts = 0;
 	response_t memory = { 0 };
+	device_t *device = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -1029,28 +1029,30 @@ static void fronius() {
 			}
 
 			// baseload: set start time frame
-			if (now->tm_hour == 21 && !discharge_ts9) {
+			if (now->tm_hour == 21 && !discharge_start_ts) {
 				// set start time frame
-				discharge_ts9 = now_ts;
-				discharge_soc9 = pstate->soc;
-				discharge_ts3 = discharge_soc3 = 0; // zero end
+				discharge_start_ts = now_ts;
+				discharge_start_soc = pstate->soc;
+				discharge_end_ts = discharge_end_soc = 0; // zero end
+				xlog("FRONIUS discharge set start point ts=%d soc=%d", discharge_start_ts, discharge_start_soc);
 			}
 
 			// baseload: set end time frame and calculate
-			if (now->tm_hour == 3 && !discharge_ts3) {
+			if (now->tm_hour == 3 && !discharge_end_ts) {
 				// set end time frame
-				discharge_ts3 = now_ts;
-				discharge_soc3 = pstate->soc;
+				discharge_end_ts = now_ts;
+				discharge_end_soc = pstate->soc;
+				xlog("FRONIUS discharge set end point ts=%d soc=%d", discharge_end_ts, discharge_end_soc);
 				// calculate if SoC's between 90% and 10% for smooth discharge
-				if (discharge_soc9 < 900 && discharge_soc3 > 100) {
-					int akku9 = AKKU_CAPACITY * discharge_soc9 / 1000;
-					int akku3 = AKKU_CAPACITY * discharge_soc3 / 1000;
+				if (discharge_start_soc < 900 && discharge_end_soc > 100) {
+					int akku9 = AKKU_CAPACITY * discharge_start_soc / 1000;
+					int akku3 = AKKU_CAPACITY * discharge_end_soc / 1000;
 					int delta = akku3 - akku9;
-					int seconds = discharge_ts3 - discharge_ts9;
+					int seconds = discharge_end_ts - discharge_start_ts;
 					gstate->discharge = delta / (seconds / 3600);
-					xlog("FRONIUS calculated akku discharge rate=%d (seconds=%d akku9=%d akku3=%d delta=%d", gstate->discharge, seconds, akku9, akku3, delta);
+					xlog("FRONIUS calculated akku discharge rate=%d (seconds=%d akku_start=%d akku_end=%d delta=%d", gstate->discharge, seconds, akku9, akku3, delta);
 				}
-				discharge_ts9 = discharge_soc9 = 0; // zero start
+				discharge_start_ts = discharge_start_soc = 0; // zero start
 			}
 
 			wait = WAIT_OFFLINE;
