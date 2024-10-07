@@ -4,7 +4,7 @@
 #define STANDBY_RESET		60 * 30
 #define STANDBY_NORESPONSE	3
 
-// hexdump -v -e '18 "%10d " "\n"' /tmp/gstate.bin
+// hexdump -v -e '5 "%10d " 11 "%8d ""\n"' /tmp/gstate.bin
 // date --date='@1728165335'les
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 
@@ -76,16 +76,14 @@ typedef struct _gstate gstate_t;
 
 struct _gstate {
 	int timestamp;
-	int pvtotal;
-	int pvdaily;
-	int pv10total;
-	int pv10daily;
-	int pv7total;
-	int pv7daily;
-	int grid_produced_total;
-	int grid_produced_daily;
-	int grid_consumed_total;
-	int grid_consumed_daily;
+	int pv10;
+	int pv7;
+	int grid_produced;
+	int grid_consumed;
+	int pv10_24;
+	int pv7_24;
+	int grid_produced_24;
+	int grid_consumed_24;
 	int survive;
 	int expected;
 	int today;

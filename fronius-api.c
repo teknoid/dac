@@ -203,7 +203,7 @@ static void dump_gstate(int back) {
 	char value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts      pvt      pvd    pv10t    pv10d     pv7t     pv7d        gpt      gpd        gct      gcd  survive expected    today tomorrow  dcharge      ttl   mosmix");
+			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24  survive expected    today tomorrow  dcharge      ttl   mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -211,7 +211,7 @@ static void dump_gstate(int back) {
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
-			snprintf(value, 12, (x == 0 || x == 7 || x == 9) ? "%10d " : "%8d ", vv[x]);
+			snprintf(value, 12, (x < 5) ? "%10d " : "%8d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
@@ -256,11 +256,11 @@ static void bump_pstate() {
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS gstate");
-	xlogl_int_b(line, "PV", gstate->pvdaily);
-	xlogl_int_b(line, "PV10", gstate->pv10daily);
-	xlogl_int_b(line, "PV7", gstate->pv7daily);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_daily);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_daily);
+	xlogl_int_b(line, "PV", gstate->pv10_24 + gstate->pv7_24);
+	xlogl_int_b(line, "PV10", gstate->pv10_24);
+	xlogl_int_b(line, "PV7", gstate->pv7_24);
+	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_24);
+	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_24);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
@@ -371,7 +371,7 @@ static int parse_fronius7(response_t *r) {
 		return xerr("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
 
 	pstate->pv7 = f_pv;
-	gstate->pv7total = f_total;
+	gstate->pv7 = f_total;
 	return 0;
 }
 
@@ -415,9 +415,9 @@ static int parse_readable(response_t *r) {
 	if (ret != 2)
 		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 2 values but got %d", ret);
 
-	gstate->pv10total = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
-	gstate->grid_produced_total = f_prod;
-	gstate->grid_consumed_total = f_cons;
+	gstate->pv10 = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
+	gstate->grid_produced = f_prod;
+	gstate->grid_consumed = f_cons;
 
 	return 0;
 }
@@ -746,24 +746,16 @@ static void calculate_gstate(time_t now_ts) {
 		return;
 
 	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
-	if (!gstate->grid_produced_total)
-		gstate->grid_produced_total = yesterday->grid_produced_total;
-	if (!gstate->grid_consumed_total)
-		gstate->grid_consumed_total = yesterday->grid_consumed_total;
-	if (!gstate->pv10total)
-		gstate->pv10total = yesterday->pv10total;
-	if (!gstate->pv7total)
-		gstate->pv7total = yesterday->pv7total;
+	if (!gstate->grid_produced)
+		gstate->grid_produced = yesterday->grid_produced;
+	if (!gstate->grid_consumed)
+		gstate->grid_consumed = yesterday->grid_consumed;
 
 	// calculate daily values
-	gstate->grid_produced_daily = gstate->grid_produced_total - yesterday->grid_produced_total;
-	gstate->grid_consumed_daily = gstate->grid_consumed_total - yesterday->grid_consumed_total;
-	gstate->pv10daily = gstate->pv10total - yesterday->pv10total;
-	gstate->pv7daily = gstate->pv7total - yesterday->pv7total;
-
-	// sum both inverters
-	gstate->pvtotal = gstate->pv10total + gstate->pv7total;
-	gstate->pvdaily = gstate->pvtotal - yesterday->pvtotal;
+	gstate->grid_produced_24 = yesterday->grid_produced ? gstate->grid_produced - yesterday->grid_produced : 0;
+	gstate->grid_consumed_24 = yesterday->grid_consumed ? gstate->grid_consumed - yesterday->grid_consumed : 0;
+	gstate->pv10_24 = yesterday->pv10 ? gstate->pv10 - yesterday->pv10 : 0;
+	gstate->pv7_24 = yesterday->pv7 ? gstate->pv7 - yesterday->pv7 : 0;
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
@@ -771,7 +763,7 @@ static void calculate_gstate(time_t now_ts) {
 	mosmix_eod(&eod, now_ts);
 
 	// calculate actual mosmix factor: till now produced vs. till now predicted, available power and power needed to survive next night
-	float mosmix = sod.Rad1h == 0 ? 1 : (float) gstate->pvdaily / (float) sod.Rad1h;
+	float mosmix = sod.Rad1h == 0 ? 1 : (float) (gstate->pv10_24 + gstate->pv7_24) / (float) sod.Rad1h;
 	gstate->mosmix = 10 * mosmix; // store as x10 scaled
 	int discharge = gstate->discharge == 0 ? BASELOAD : gstate->discharge; // nightly discharge rate
 	float ttl = (float) AKKU_AVAILABLE / (float) discharge; // akku time to live in hours
