@@ -745,13 +745,7 @@ static void calculate_gstate(time_t now_ts) {
 	if (mosmix_load(CHEMNITZ))
 		return;
 
-	// if values are zero then take over from yesterday (Fronius7 sleeps at night and does not answer)
-	if (!gstate->grid_produced)
-		gstate->grid_produced = yesterday->grid_produced;
-	if (!gstate->grid_consumed)
-		gstate->grid_consumed = yesterday->grid_consumed;
-
-	// calculate daily values
+	// calculate daily values (when we have values from yesterday)
 	gstate->grid_produced_24 = yesterday->grid_produced ? gstate->grid_produced - yesterday->grid_produced : 0;
 	gstate->grid_consumed_24 = yesterday->grid_consumed ? gstate->grid_consumed - yesterday->grid_consumed : 0;
 	gstate->pv10_24 = yesterday->pv10 ? gstate->pv10 - yesterday->pv10 : 0;
@@ -773,7 +767,7 @@ static void calculate_gstate(time_t now_ts) {
 	int av = gstate->expected + AKKU_AVAILABLE;
 	xdebug("FRONIUS mosmix sod=%d eod=%d available=%d (%d akku + %d pv)", sod.Rad1h, eod.Rad1h, av, AKKU_AVAILABLE, gstate->expected);
 
-	// calculate total daily values
+	// calculate mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
 	mosmix_24h(&m0, now_ts, 0);
 	mosmix_24h(&m1, now_ts, 1);
