@@ -93,7 +93,7 @@ int mosmix_survive(time_t now_ts, int rad1h_min) {
 			break;
 
 	int from = 0;
-	for (from = midnight; from > 0; from--)
+	for (from = midnight; from >= 0; from--)
 		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts < now_ts)
 			break; // sundown or now
 
@@ -103,7 +103,7 @@ int mosmix_survive(time_t now_ts, int rad1h_min) {
 			break; // sunrise
 
 	int hours = to - from;
-	xlog("MOSMIX survive=%dh, from=%d/%d midnight=%d/%d to=%d/%d", hours, from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h);
+	xlog("MOSMIX survive=%dh, from=%d/%d midnight=%d/%d to=%d/%d min=%d", hours, from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h, rad1h_min);
 	return hours;
 }
 
