@@ -941,6 +941,28 @@ static int calculate_next_round(device_t *d, int valid) {
 	return WAIT_STABLE;
 }
 
+// offline mode
+static void offline() {
+	set_all_devices(0);
+	print_pstate("--> offline");
+}
+
+// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
+static void burnout() {
+	int burnout = pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+	if (!burnout)
+		return;
+
+	char message[LINEBUF];
+	fronius_override_seconds("plug5", WAIT_OFFLINE);
+	fronius_override_seconds("plug6", WAIT_OFFLINE);
+	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
+	fronius_override_seconds("plug8", WAIT_OFFLINE);
+
+	snprintf(message, LINEBUF, "--> burnout soc=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
+	print_pstate(message);
+}
+
 static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
@@ -985,28 +1007,6 @@ static void hourly(time_t now_ts) {
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if ((*d)->state == Standby)
 			(*d)->state = Active;
-}
-
-// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-static void burnout() {
-	int burnout = pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
-	if (!burnout)
-		return;
-
-	char message[LINEBUF];
-	fronius_override_seconds("plug5", WAIT_OFFLINE);
-	fronius_override_seconds("plug6", WAIT_OFFLINE);
-	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
-	fronius_override_seconds("plug8", WAIT_OFFLINE);
-
-	snprintf(message, LINEBUF, "--> burnout soc=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
-	print_pstate(message);
-}
-
-// offline mode
-static void offline() {
-	set_all_devices(0);
-	print_pstate("--> offline");
 }
 
 static void fronius() {
