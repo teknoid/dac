@@ -101,11 +101,11 @@ static void set_all_devices(int power) {
 //	return 0;
 //}
 
-static void daily() {
+static void daily(time_t now_ts) {
 	xlog("executing daily tasks...");
 }
 
-static void hourly() {
+static void hourly(time_t now_ts) {
 	xlog("executing hourly tasks...");
 }
 
@@ -192,13 +192,13 @@ static void loop() {
 		// hourly tasks
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
-			hourly();
+			hourly(now_ts);
 		}
 
 		// daily tasks
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
-			daily();
+			daily(now_ts);
 		}
 
 		// set history pointer to next slot if we had changes or regulations

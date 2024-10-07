@@ -45,7 +45,12 @@ static int pstate_history_ptr = 0;
 static meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
-static int sock = 0;
+static int sock = 0, discharge[24], discharge_soc, discharge_ts;
+
+// CURL memory and handles for reading Inverter API
+static CURL *curl10, *curl7, *curl_readable;
+static response_t memory = { 0 };
+static int errors;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -199,8 +204,7 @@ static pstate_t* get_pstate_history(int offset) {
 }
 
 static void dump_gstate(int back) {
-	char line[sizeof(pstate_t) * 12 + 16];
-	char value[12];
+	char line[sizeof(pstate_t) * 12 + 16], value[12];
 
 	strcpy(line,
 			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24  survive expected    today tomorrow  dcharge      ttl   mosmix");
@@ -219,8 +223,7 @@ static void dump_gstate(int back) {
 }
 
 static void dump_pstate(int back) {
-	char line[sizeof(pstate_t) * 8 + 16];
-	char value[8];
+	char line[sizeof(pstate_t) * 8 + 16], value[8];
 
 	strcpy(line, "FRONIUS pstate  idx    pv   Δpv   grid  akku  surp  grdy modst   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
 	xdebug(line);
@@ -290,7 +293,7 @@ static void print_pstate(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_dstate(int wait, int next_reset) {
+static void print_dstate(int wait) {
 	char message[128];
 	char value[5];
 
@@ -314,9 +317,6 @@ static void print_dstate(int wait, int next_reset) {
 		snprintf(value, 5, "%d", (*d)->noresponse);
 		strcat(message, value);
 	}
-
-	strcat(message, "   next reset in ");
-	append_timeframe(message, next_reset);
 
 	strcat(message, "   wait ");
 	snprintf(value, 5, "%d", wait);
@@ -422,8 +422,8 @@ static int parse_readable(response_t *r) {
 	return 0;
 }
 
-static void choose_program(const potd_t *p) {
-	xlog("FRONIUS choosing %s program of the day", p->name);
+static void select_program(const potd_t *p) {
+	xlog("FRONIUS selecting %s program of the day", p->name);
 	if (potd != p) {
 		potd = (potd_t*) p;
 
@@ -435,6 +435,24 @@ static void choose_program(const potd_t *p) {
 			(*d)->greedy = 1;
 		for (device_t **d = potd->modest; *d != 0; d++)
 			(*d)->greedy = 0;
+	}
+}
+
+// choose program of the day
+static void choose_program() {
+	int available = gstate->expected + AKKU_AVAILABLE;
+	if (pstate->soc < 100 || available < gstate->survive)
+		select_program(&EMERGENCY); // charge akku asap
+	else {
+		if (now->tm_hour > 12 && AKKU_AVAILABLE < gstate->survive)
+			select_program(&MODEST); // afternoon - charge akku till we survive
+		else {
+			// we will survive
+			if (gstate->tomorrow > BASELOAD * 24)
+				select_program(&GREEDY); // charge akku tommorrow
+			else
+				select_program(&SUNNY); // enough available
+		}
 	}
 }
 
@@ -548,6 +566,10 @@ static device_t* rampdown(int power, device_t **devices) {
 
 static device_t* ramp() {
 	device_t *d;
+
+	// if not yet done, do it now
+	if (potd == 0)
+		choose_program();
 
 	// prio1: no extra power available: ramp down modest devices
 	if (pstate->modest < 0) {
@@ -916,11 +938,76 @@ static int calculate_next_round(device_t *d, int valid) {
 	return WAIT_STABLE;
 }
 
-static void fronius() {
+static void daily(time_t now_ts) {
+	xlog("executing daily tasks...");
+
+	// new day: bump global history and store to disk before writing new values into
+	bump_gstate();
+	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+}
+
+static void hourly(time_t now_ts) {
+	xlog("executing hourly tasks...");
+
+	// recalculate global state and mosmix values
+	errors += curl_perform(curl_readable, &memory, &parse_readable);
+	calculate_gstate(now_ts);
+	print_gstate(NULL);
+	dump_gstate(2);
+
+	// calculate akku discharge rate for last hour
+	if (pstate->pv == 0 && pstate->soc < 900 && pstate->soc > 100) {
+		if (discharge_soc && discharge_ts) {
+			int seconds = now_ts - discharge_ts;
+			int start = AKKU_CAPACITY * discharge_soc / 1000;
+			int end = AKKU_CAPACITY * pstate->soc / 1000;
+			int lost = start - end;
+			discharge[now->tm_hour] = lost;
+			xlog("FRONIUS calculated akku discharge rate for last hour: %d (seconds=%d start=%d end=%d lost=%d", gstate->discharge, seconds, start, end, lost);
+
+			char message[LINEBUF], value[6];
+			strcpy(message, "FRONIUS discharge ");
+			for (int i = 0; i < 24; i++)
+				snprintf(value, 8, "%4d ", discharge[i]);
+			strcat(message, value);
+			xdebug(message);
+
+			discharge_soc = pstate->soc;
+			discharge_ts = now_ts;
+		}
+	} else
+		discharge_soc = discharge_ts = 0;
+
+	xlog("FRONIUS resetting standby states");
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state == Standby)
+			(*d)->state = Active;
+}
+
+// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
+static void burnout() {
+	int burnout = pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+	if (!burnout)
+		return;
+
 	char message[LINEBUF];
-	int wait = 1, errors = 0, mday = 0, discharge_start_soc = 0, discharge_end_soc = 0;
-	time_t next_reset, discharge_start_ts = 0, discharge_end_ts = 0;
-	response_t memory = { 0 };
+	fronius_override_seconds("plug5", WAIT_OFFLINE);
+	fronius_override_seconds("plug6", WAIT_OFFLINE);
+	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
+	fronius_override_seconds("plug8", WAIT_OFFLINE);
+
+	snprintf(message, LINEBUF, "--> burnout SoC=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
+	print_pstate(message);
+}
+
+// offline mode
+static void offline() {
+	set_all_devices(0);
+	print_pstate("--> offline");
+}
+
+static void fronius() {
+	int hour, day, wait;
 	device_t *device = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -928,23 +1015,14 @@ static void fronius() {
 		return;
 	}
 
-	CURL *curl10 = curl_init(URL_FLOW10, &memory);
-	if (curl10 == NULL) {
-		xlog("Error initializing libcurl");
-		return;
-	}
+	// initialize hourly & daily (do not run daily/hourly tasks at startup)
+	time_t now_ts = time(NULL);
+	struct tm *ltstatic = localtime(&now_ts);
+	hour = ltstatic->tm_hour;
+	day = ltstatic->tm_wday;
 
-	CURL *curl7 = curl_init(URL_FLOW7, &memory);
-	if (curl7 == NULL) {
-		xlog("Error initializing libcurl");
-		return;
-	}
-
-	CURL *curl_readable = curl_init(URL_READABLE, &memory);
-	if (curl_readable == NULL) {
-		xlog("Error initializing libcurl");
-		return;
-	}
+	errors = 0;
+	wait = 1;
 
 	// the FRONIUS main loop
 	while (1) {
@@ -958,14 +1036,16 @@ static void fronius() {
 		struct tm *ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
-		// new day: bump global history and store to disk before writing new values into
-		if (mday != now->tm_mday) {
-			// but not at startup
-			if (mday != 0) {
-				bump_gstate();
-				store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
-			}
-			mday = now->tm_mday;
+		// hourly tasks
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			hourly(now_ts);
+		}
+
+		// daily tasks
+		if (day != now->tm_wday) {
+			day = now->tm_wday;
+			daily(now_ts);
 		}
 
 		// default
@@ -978,82 +1058,14 @@ static void fronius() {
 		// make Fronius10 API call
 		errors += curl_perform(curl10, &memory, &parse_fronius10);
 
-		// reset standby states, recalculate global state and choose program of the day every 30min
-		if (potd == 0 || now_ts > next_reset) {
-			next_reset = now_ts + STANDBY_RESET - 1;
-
-			xlog("FRONIUS resetting standby states");
-			for (device_t **d = DEVICES; *d != 0; d++)
-				if ((*d)->state == Standby)
-					(*d)->state = Active;
-
-			// recalculate global state and mosmix values
-			errors += curl_perform(curl_readable, &memory, &parse_readable);
-			calculate_gstate(now_ts);
-			print_gstate(NULL);
-			dump_gstate(2);
-
-			// choose program of the day
-			int available = gstate->expected + AKKU_AVAILABLE;
-			if (pstate->soc < 100 || available < gstate->survive)
-				choose_program(&EMERGENCY); // charge akku asap
-			else {
-				if (now->tm_hour > 12 && AKKU_AVAILABLE < gstate->survive)
-					choose_program(&MODEST); // afternoon - charge akku till we survive
-				else {
-					// we will survive
-					if (gstate->tomorrow > BASELOAD * 24)
-						choose_program(&GREEDY); // charge akku tommorrow
-					else
-						choose_program(&SUNNY); // enough available
-				}
-			}
-		}
-
 		// not enough PV production
 		if (pstate->pv10 < 100) {
 			pstate->pv7 = 0;
-			int burnout = (now->tm_hour == 7 || now->tm_hour == 8) && pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
-			if (burnout) {
-				// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-				snprintf(message, LINEBUF, "--> burnout SoC=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
-				print_pstate(message);
-				fronius_override_seconds("plug5", WAIT_OFFLINE);
-				fronius_override_seconds("plug6", WAIT_OFFLINE);
-				// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
-				fronius_override_seconds("plug8", WAIT_OFFLINE);
-			} else {
-				// go into offline mode
-				print_pstate("--> offline");
-				set_all_devices(0);
-			}
 
-			// baseload: set start time frame
-			if (now->tm_hour == 21 && !discharge_start_ts) {
-				// set start time frame
-				discharge_start_ts = now_ts;
-				discharge_start_soc = pstate->soc;
-				discharge_end_ts = discharge_end_soc = 0; // zero end
-				xlog("FRONIUS discharge set start point ts=%d soc=%d", discharge_start_ts, discharge_start_soc);
-			}
-
-			// baseload: set end time frame and calculate
-			if (now->tm_hour == 3 && !discharge_end_ts) {
-				// set end time frame
-				discharge_end_ts = now_ts;
-				discharge_end_soc = pstate->soc;
-				xlog("FRONIUS discharge set end point ts=%d soc=%d", discharge_end_ts, discharge_end_soc);
-				// calculate if SoC's between 90% and 10% for smooth discharge
-				if (discharge_start_soc < 900 && discharge_end_soc > 100) {
-					int akku9 = AKKU_CAPACITY * discharge_start_soc / 1000;
-					int akku3 = AKKU_CAPACITY * discharge_end_soc / 1000;
-					int delta = akku3 - akku9;
-					int seconds = discharge_end_ts - discharge_start_ts;
-					gstate->discharge = delta / (seconds / 3600);
-					xlog("FRONIUS calculated akku discharge rate=%d (seconds=%d akku_start=%d akku_end=%d delta=%d", gstate->discharge, seconds, akku9, akku3, delta);
-				}
-				discharge_start_ts = discharge_start_soc = 0; // zero start
-			}
+			if (now->tm_hour == 7 || now->tm_hour == 8)
+				burnout(); // akku burnout between 7 and 9 o'clock
+			else
+				offline(); // go into offline mode
 
 			wait = WAIT_OFFLINE;
 			continue;
@@ -1092,7 +1104,7 @@ static void fronius() {
 		// set pstate history pointer to next slot
 		bump_pstate();
 
-		print_dstate(wait, next_reset - now_ts);
+		print_dstate(wait);
 		errors = 0;
 	}
 }
@@ -1284,8 +1296,22 @@ static int init() {
 	set_all_devices(0);
 	ZERO(pstate_history);
 	ZERO(gstate_history);
+	ZERO(discharge);
 
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
+
+	curl10 = curl_init(URL_FLOW10, &memory);
+	if (curl10 == NULL)
+		return xerr("Error initializing libcurl");
+
+	curl7 = curl_init(URL_FLOW7, &memory);
+	if (curl7 == NULL)
+		return xerr("Error initializing libcurl");
+
+	curl_readable = curl_init(URL_READABLE, &memory);
+	if (curl_readable == NULL)
+		return xerr("Error initializing libcurl");
+
 	return 0;
 }
 
