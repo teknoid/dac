@@ -41,16 +41,19 @@ static int gstate_history_ptr = 0;
 static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
+// reading Inverter API: CURL handles, response memory, error counter
+static CURL *curl10, *curl7, *curl_readable;
+static response_t memory = { 0 };
+static int errors;
+
+// hourly collected akku discharge rates
+static int discharge[24], discharge_soc, discharge_ts;
+
 // meter storage for calibration
 static meter_t m, *meter = &m;
 
 static struct tm now_tm, *now = &now_tm;
-static int sock = 0, discharge[24], discharge_soc, discharge_ts;
-
-// CURL memory and handles for reading Inverter API
-static CURL *curl10, *curl7, *curl_readable;
-static response_t memory = { 0 };
-static int errors;
+static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -939,7 +942,7 @@ static int calculate_next_round(device_t *d, int valid) {
 }
 
 static void daily(time_t now_ts) {
-	xlog("executing daily tasks...");
+	xlog("FRONIUS executing daily tasks...");
 
 	// new day: bump global history and store to disk before writing new values into
 	bump_gstate();
@@ -947,13 +950,7 @@ static void daily(time_t now_ts) {
 }
 
 static void hourly(time_t now_ts) {
-	xlog("executing hourly tasks...");
-
-	// recalculate global state and mosmix values
-	errors += curl_perform(curl_readable, &memory, &parse_readable);
-	calculate_gstate(now_ts);
-	print_gstate(NULL);
-	dump_gstate(2);
+	xlog("FRONIUS executing hourly tasks...");
 
 	// calculate akku discharge rate for last hour
 	if (pstate->pv == 0 && pstate->soc < 900 && pstate->soc > 100) {
@@ -962,9 +959,10 @@ static void hourly(time_t now_ts) {
 			int start = AKKU_CAPACITY * discharge_soc / 1000;
 			int end = AKKU_CAPACITY * pstate->soc / 1000;
 			int lost = start - end;
-			discharge[now->tm_hour] = lost;
+			gstate->discharge = discharge[now->tm_hour] = lost;
 			xlog("FRONIUS calculated akku discharge rate for last hour: %d (seconds=%d start=%d end=%d lost=%d", gstate->discharge, seconds, start, end, lost);
 
+			// dump hourly collected discharge rates
 			char message[LINEBUF], value[6];
 			strcpy(message, "FRONIUS discharge ");
 			for (int i = 0; i < 24; i++)
@@ -977,6 +975,12 @@ static void hourly(time_t now_ts) {
 		}
 	} else
 		discharge_soc = discharge_ts = 0;
+
+	// recalculate global state and mosmix values
+	errors += curl_perform(curl_readable, &memory, &parse_readable);
+	calculate_gstate(now_ts);
+	print_gstate(NULL);
+	dump_gstate(2);
 
 	xlog("FRONIUS resetting standby states");
 	for (device_t **d = DEVICES; *d != 0; d++)
