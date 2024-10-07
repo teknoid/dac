@@ -29,6 +29,7 @@
 #define GREEDY_MODEST(d)	(d->greedy ? "greedy" : "modest")
 
 #define AKKU_AVAILABLE		(AKKU_CAPACITY * (pstate->soc - 70) / 1000) // minus 7% minimum SoC
+#define AKKU_CAPA_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
 enum dstate {
 	Disabled, Active, Standby, Standby_Check

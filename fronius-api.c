@@ -214,7 +214,7 @@ static void dump_gstate(int back) {
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
-		snprintf(value, 8, "[%3d] ", y * -1);
+		snprintf(value, 12, "[%3d] ", y * -1);
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
@@ -953,12 +953,12 @@ static void burnout() {
 	if (!burnout)
 		return;
 
-	char message[LINEBUF];
 	fronius_override_seconds("plug5", WAIT_OFFLINE);
 	fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
 
+	char message[LINEBUF];
 	snprintf(message, LINEBUF, "--> burnout soc=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
 	print_pstate(message);
 }
@@ -979,18 +979,18 @@ static void hourly(time_t now_ts) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
 			int seconds = now_ts - discharge_ts;
-			int start = AKKU_CAPACITY * discharge_soc / 1000;
-			int end = AKKU_CAPACITY * pstate->soc / 1000;
-			int lost = start - end;
-			gstate->discharge = discharge[now->tm_hour] = lost;
-			xlog("FRONIUS calculated akku discharge rate for last hour: %d (seconds=%d start=%d end=%d lost=%d", gstate->discharge, seconds, start, end, lost);
+			int start = AKKU_CAPA_SOC(discharge_soc);
+			int end = AKKU_CAPA_SOC(pstate->soc);
+			int lost = discharge[now->tm_hour] = start - end;
+			xlog("FRONIUS calculated akku discharge rate for last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
 
 			// dump hourly collected discharge rates
 			char message[LINEBUF], value[6];
-			strcpy(message, "FRONIUS discharge ");
-			for (int i = 0; i < 24; i++)
-				snprintf(value, 8, "%4d ", discharge[i]);
-			strcat(message, value);
+			strcpy(message, "FRONIUS discharge rate ");
+			for (int i = 0; i < 24; i++) {
+				snprintf(value, 6, "%4d ", discharge[i]);
+				strcat(message, value);
+			}
 			xdebug(message);
 		}
 		// update for next calculation
@@ -998,6 +998,19 @@ static void hourly(time_t now_ts) {
 		discharge_ts = now_ts;
 	} else
 		discharge_soc = discharge_ts = 0;
+
+	// 12:00 calculate nightly mean discharge rate
+	if (now->tm_hour == 12) {
+		int sum = 0, count = 0;
+		for (int i = 0; i < 24; i++)
+			if (discharge[i]) { // sum up only non zero values
+				sum += discharge[i];
+				count++;
+			}
+		gstate->discharge = sum / count;
+		xlog("FRONIUS nightly mean akku discharge rate: %d Wh, sum=%d count=%d", gstate->discharge, sum, count);
+		ZERO(discharge);
+	}
 
 	// recalculate global state and mosmix values
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
