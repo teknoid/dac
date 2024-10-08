@@ -1058,6 +1058,9 @@ static void fronius() {
 	// calculate gstate once upon start
 	hourly(now_ts);
 
+	// fake yesterday
+	// daily(now_ts);
+
 	// the FRONIUS main loop
 	while (1) {
 
@@ -1066,8 +1069,8 @@ static void fronius() {
 			continue;
 
 		// get actual calendar time - and make a copy as subsequent calls to localtime() will override them
-		time_t now_ts = time(NULL);
-		struct tm *ltstatic = localtime(&now_ts);
+		now_ts = time(NULL);
+		ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
 		// hourly tasks
@@ -1350,7 +1353,6 @@ static int init() {
 }
 
 static void stop() {
-	// bump_gstate(); // fake yesterday
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
 
 	if (sock != 0)
