@@ -455,7 +455,7 @@ static void select_program(const potd_t *p) {
 // choose program of the day
 static void choose_program() {
 	int available = gstate->expected + AKKU_AVAILABLE;
-	if (pstate->soc < 100 || available < gstate->survive)
+	if (gstate->soc < 100 || available < gstate->survive)
 		select_program(&EMERGENCY); // charge akku asap
 	else {
 		if (now->tm_hour > 12 && AKKU_AVAILABLE < gstate->survive)
@@ -1021,7 +1021,7 @@ static void hourly(time_t now_ts) {
 				sum += discharge[i];
 				count++;
 			}
-		gstate->discharge = sum / count;
+		gstate->discharge = count == 0 ? 0 : sum / count;
 		xlog("FRONIUS nightly mean akku discharge rate: %d Wh, sum=%d count=%d", gstate->discharge, sum, count);
 		ZERO(discharge);
 	}
