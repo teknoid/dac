@@ -210,7 +210,7 @@ static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24  survive expected    today tomorrow  dcharge      ttl   mosmix");
+			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24       pv      soc  survive expected    today tomorrow  dcharge      ttl   mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -273,6 +273,8 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
 	xlogl_int(line, 0, 0, "Survive", gstate->survive);
 	xlogl_int(line, 1, AKKU_AVAILABLE < gstate->survive, "Available", AKKU_AVAILABLE);
+	xlogl_int(line, 0, 0, "PV", gstate->pv);
+	xlogl_float(line, "SoC", gstate->soc / 10.0);
 	xlogl_float(line, "TTL", gstate->ttl / 60.0);
 	xlogl_float(line, "Mosmix", gstate->mosmix / 10.0);
 	xlogl_end(line, sizeof(line), message);
@@ -354,7 +356,7 @@ static int parse_fronius10(response_t *r) {
 
 		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &f_charge);
 		if (ret == 1)
-			pstate->soc = f_charge * 10; // store value as promille 0/00
+			pstate->soc = f_charge * 10.0; // store value as promille 0/00
 		else {
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
 			pstate->soc = 0;
@@ -393,23 +395,30 @@ static int parse_meter(response_t *r) {
 }
 
 static int parse_readable(response_t *r) {
-	float f_dc1, f_dc2, f_cons, f_prod;
+	float f_pv, f_dc1, f_dc2, f_cons, f_prod, f_soc;
 	int ret;
 	char *p;
+
+	// workaround for accessing inverter number as key: "262144" : {
+	p = strstr(r->buffer, "\"262144\"") + 8 + 2;
+	// xlog("FRONIUS %s", p);
+	ret = json_scanf(p, r->size, "{ channels { PV_POWERACTIVE_SUM_F64:%f } }", &f_pv);
+	if (ret != 1)
+		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(r->buffer, "\"393216\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, r->size, "{ channels { PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_dc1, &f_dc2);
 	if (ret != 2)
-		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 4 values but got %d", ret);
+		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
 
-//	// workaround for accessing akku number as key: "16580608" : {
-//	p = strstr(r->buffer, "\"16580608\"") + 10 + 2;
-//	// xlog("FRONIUS %s", p);
-//	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
-//	if (ret != 1)
-//		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
+	// workaround for accessing akku number as key: "16580608" : {
+	p = strstr(r->buffer, "\"16580608\"") + 10 + 2;
+	// xlog("FRONIUS %s", p);
+	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
+	if (ret != 1)
+		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
 	p = strstr(r->buffer, "\"16252928\"") + 10 + 2;
@@ -421,6 +430,8 @@ static int parse_readable(response_t *r) {
 	gstate->pv10 = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
 	gstate->grid_produced = f_prod;
 	gstate->grid_consumed = f_cons;
+	gstate->soc = f_soc * 10.0; // store value as promille 0/00
+	gstate->pv = f_pv;
 
 	return 0;
 }
@@ -974,13 +985,16 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
+	// update gstate counter
+	errors += curl_perform(curl_readable, &memory, &parse_readable);
+
 	// calculate akku discharge rate for last hour when no PV and SoC between 90% and 10%
-	if (pstate->pv == 0 && pstate->soc < 900 && pstate->soc > 100) {
+	if (gstate->pv == 0 && gstate->soc < 900 && gstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
 			int seconds = now_ts - discharge_ts;
 			int start = AKKU_CAPA_SOC(discharge_soc);
-			int end = AKKU_CAPA_SOC(pstate->soc);
+			int end = AKKU_CAPA_SOC(gstate->soc);
 			int lost = discharge[now->tm_hour] = start - end;
 			xlog("FRONIUS calculated akku discharge rate for last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
 
@@ -994,7 +1008,7 @@ static void hourly(time_t now_ts) {
 			xdebug(message);
 		}
 		// update for next calculation
-		discharge_soc = pstate->soc;
+		discharge_soc = gstate->soc;
 		discharge_ts = now_ts;
 	} else
 		discharge_soc = discharge_ts = 0;
@@ -1013,7 +1027,6 @@ static void hourly(time_t now_ts) {
 	}
 
 	// recalculate global state and mosmix values
-	errors += curl_perform(curl_readable, &memory, &parse_readable);
 	calculate_gstate(now_ts);
 	print_gstate(NULL);
 	dump_gstate(2);
@@ -1041,6 +1054,9 @@ static void fronius() {
 
 	errors = 0;
 	wait = 1;
+
+	// calculate gstate once upon start
+	hourly(now_ts);
 
 	// the FRONIUS main loop
 	while (1) {

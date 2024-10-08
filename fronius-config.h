@@ -4,7 +4,7 @@
 #define STANDBY_RESET		60 * 30
 #define STANDBY_NORESPONSE	3
 
-// hexdump -v -e '5 "%10d " 11 "%8d ""\n"' /tmp/gstate.bin
+// hexdump -v -e '5 "%10d " 13 "%8d ""\n"' /tmp/gstate.bin
 // date --date='@1728165335'
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 
@@ -28,7 +28,7 @@
 
 #define GREEDY_MODEST(d)	(d->greedy ? "greedy" : "modest")
 
-#define AKKU_AVAILABLE		(AKKU_CAPACITY * (pstate->soc - 70) / 1000) // minus 7% minimum SoC
+#define AKKU_AVAILABLE		(AKKU_CAPACITY * (gstate->soc - 70) / 1000) // minus 7% minimum SoC
 #define AKKU_CAPA_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
 enum dstate {
@@ -85,6 +85,8 @@ struct _gstate {
 	int pv7_24;
 	int grid_produced_24;
 	int grid_consumed_24;
+	int pv;
+	int soc;
 	int survive;
 	int expected;
 	int today;
