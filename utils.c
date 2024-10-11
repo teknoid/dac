@@ -195,14 +195,12 @@ int xerrr(int ret, const char *format, ...) {
 		vprintf(format, vargs);
 		va_end(vargs);
 		printf("\n");
-		return ret;
 	}
 
 	if (output == XLOG_SYSLOG) {
 		va_start(vargs, format);
 		vsyslog(LOG_NOTICE, format, vargs);
 		va_end(vargs);
-		return ret;
 	}
 
 	if (output == XLOG_FILE) {
@@ -629,6 +627,16 @@ int maximum(int count, ...) {
 	return max;
 }
 
+int average_non_zero(int values[], size_t size) {
+	int sum = 0, count = 0;
+	for (int i = 0; i < size; i++)
+		if (values[i]) { // sum up only non zero values
+			sum += values[i];
+			count++;
+		}
+	return count == 0 ? 0 : sum / count;
+}
+
 void append_timeframe(char *message, int sec) {
 	int h, m, s;
 	char c[30];
@@ -650,7 +658,7 @@ void append_timeframe(char *message, int sec) {
 int load_blob(const char *filename, void *data, size_t size) {
 	FILE *fp = fopen(filename, "rb");
 	if (fp == NULL)
-		return xerr("Cannot open file %s for reading", filename);
+		return xerr("UTILS Cannot open file %s for reading", filename);
 	size_t count = fread(data, size, 1, fp);
 	fclose(fp);
 	xlog("UTILS loaded %d bytes from %s", count * size, filename);
@@ -660,7 +668,7 @@ int load_blob(const char *filename, void *data, size_t size) {
 int store_blob(const char *filename, void *data, size_t size) {
 	FILE *fp = fopen(filename, "wb");
 	if (fp == NULL)
-		return xerr("Cannot open file %s for writing", filename);
+		return xerr("UTILS Cannot open file %s for writing", filename);
 	size_t count = fwrite(data, size, 1, fp);
 	fflush(fp);
 	fclose(fp);
@@ -671,7 +679,7 @@ int store_blob(const char *filename, void *data, size_t size) {
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset) {
 	FILE *fp = fopen(filename, "wb");
 	if (fp == NULL)
-		return xerr("Cannot open file %s for writing", filename);
+		return xerr("UTILS Cannot open file %s for writing", filename);
 
 	// xdebug("UTILS rsize=%d count=%d offset=%d", rsize, count, offset);
 

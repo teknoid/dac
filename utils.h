@@ -59,6 +59,7 @@ int round10(int n);
 int round100(int n);
 
 int maximum(int, ...);
+int average_non_zero(int values[], size_t size);
 
 void append_timeframe(char *message, int sec);
 

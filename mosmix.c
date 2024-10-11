@@ -24,6 +24,23 @@ static void parse(char **strings, size_t size) {
 	m->SunD1 = atoi(strings[4]);
 }
 
+// calculate today 00:00:00 as start and now as end time frame
+void mosmix_sod(mosmix_t *sum, time_t now_ts) {
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+	time_t ts_from = mktime(&tm) + 1;
+
+	ZERO(sum);
+	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
+		mosmix_t *m = &mosmix[i];
+		if (ts_from < m->ts && m->ts < now_ts) { // exclude current hour
+			sum->Rad1h += m->Rad1h;
+			sum->SunD1 += m->SunD1;
+		}
+	}
+}
+
 // calculate now+1h as start and today 23:59:59 as end time frame
 void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 	struct tm tm;
@@ -36,24 +53,7 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 	ZERO(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
-		if ((now_ts + 3600) < m->ts && m->ts < ts_to) {
-			sum->Rad1h += m->Rad1h;
-			sum->SunD1 += m->SunD1;
-		}
-	}
-}
-
-// calculate today 00:00:00 as start and now as end time frame
-void mosmix_sod(mosmix_t *sum, time_t now_ts) {
-	struct tm tm;
-	localtime_r(&now_ts, &tm);
-	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-	time_t ts_from = mktime(&tm) + 1;
-
-	ZERO(sum);
-	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
-		mosmix_t *m = &mosmix[i];
-		if (m->ts > ts_from && m->ts < now_ts) {
+		if (m->ts > (now_ts + 3600) && m->ts < ts_to) { // exclude current hour
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
 		}
@@ -80,39 +80,40 @@ void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
 
 // calculate hours to survive darkness
 int mosmix_survive(time_t now_ts, int rad1h_min) {
-	struct tm today;
-	localtime_r(&now_ts, &today);
-	today.tm_hour = 23;
-	today.tm_min = 59;
-	today.tm_sec = 59;
-	time_t ts_midnight = mktime(&today) + 1;
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = 23;
+	tm.tm_min = 59;
+	tm.tm_sec = 59;
+	time_t ts_midnight = mktime(&tm) + 1;
 
-	int midnight = 0;
+	int midnight;
 	for (midnight = 0; midnight < ARRAY_SIZE(mosmix); midnight++)
 		if (mosmix[midnight].ts == ts_midnight)
 			break;
 
-	int from = 0;
-	for (from = midnight; from >= 0; from--)
+	int from = midnight;
+	while (from--)
 		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts < now_ts)
 			break; // sundown or now
 
-	int to = 0;
-	for (to = midnight; to < ARRAY_SIZE(mosmix); to++)
+	int to = midnight;
+	while (to++ < ARRAY_SIZE(mosmix))
 		if (mosmix[to].Rad1h > rad1h_min)
 			break; // sunrise
 
-	int hours = to - from;
-	xlog("MOSMIX survive=%dh, from=%d/%d midnight=%d/%d to=%d/%d min=%d", hours, from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h, rad1h_min);
+	from += 1;
+	to -= 1;
+	int hours = to - from + 1;
+	xlog("MOSMIX survive=%dh from=%d/%d midnight=%d/%d to=%d/%d min=%d", hours, from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h, rad1h_min);
 	return hours;
 }
 
 mosmix_t* mosmix_current_slot(time_t now_ts) {
-	for (int i = 0; i < ARRAY_SIZE(mosmix) - 1; i++) {
-		mosmix_t *m0 = &mosmix[i];
-		mosmix_t *m1 = &mosmix[i + 1];
-		if (m0->ts < now_ts && now_ts < m1->ts)
-			return m1;
+	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
+		mosmix_t *m = &mosmix[i];
+		if ((m->ts - 3600) < now_ts && now_ts < m->ts)
+			return m;
 	}
 	return 0;
 }
@@ -125,7 +126,7 @@ int mosmix_load(const char *filename) {
 
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)
-		return xerr("MOSMIX no data available");
+		return xerr("MOSMIX Cannot open file %s for reading", filename);
 
 	// header
 	if (fgets(buf, LINEBUF, fp) == NULL)

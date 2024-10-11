@@ -69,7 +69,7 @@ __Warning!__ This is no "ready to use" software. You need to modify and compile 
 Install dependencies:
 
 ```bash
-apt install ir-keytable libmpdclient-dev libmagic-dev libid3tag0-dev libflac-dev libncurses-dev libcurl4-openssl-dev libmodbus-dev
+apt install jq ir-keytable libmpdclient-dev libmagic-dev libid3tag0-dev libflac-dev libncurses-dev libcurl4-openssl-dev libmodbus-dev
 ```
 Install wiringpi - this is board specific, either use repository or compile from vendor gitgub.
 
