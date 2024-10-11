@@ -987,7 +987,7 @@ static void hourly(time_t now_ts) {
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
-	if (gstate->pv == 0 && gstate->soc < 900 && gstate->soc > 100) {
+	if (gstate->pv < 5 && gstate->soc < 900 && gstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
 			int seconds = now_ts - discharge_ts;
