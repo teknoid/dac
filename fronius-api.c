@@ -983,9 +983,6 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// update gstate counter
-	errors += curl_perform(curl_readable, &memory, &parse_readable);
-
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
 	if (gstate->pv < 5 && gstate->soc < 900 && gstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
@@ -1018,6 +1015,13 @@ static void hourly(time_t now_ts) {
 	}
 	if (now->tm_hour == 12)
 		ZERO(discharge);
+}
+
+static void half_hourly(time_t now_ts) {
+	xlog("FRONIUS executing half hourly tasks...");
+
+	// update gstate counter
+	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
@@ -1035,7 +1039,7 @@ static void hourly(time_t now_ts) {
 }
 
 static void fronius() {
-	int hour, day, wait;
+	int min, hour, day, wait;
 	device_t *device = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -1046,6 +1050,7 @@ static void fronius() {
 	// initialize hourly & daily (do not run daily/hourly tasks at startup)
 	time_t now_ts = time(NULL);
 	struct tm *ltstatic = localtime(&now_ts);
+	min = ltstatic->tm_min;
 	hour = ltstatic->tm_hour;
 	day = ltstatic->tm_wday;
 
@@ -1053,7 +1058,7 @@ static void fronius() {
 	wait = 1;
 
 	// calculate gstate once upon start
-	hourly(now_ts);
+	half_hourly(now_ts);
 
 	// fake yesterday
 	// daily(now_ts);
@@ -1069,6 +1074,12 @@ static void fronius() {
 		now_ts = time(NULL);
 		ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
+
+		// half hourly tasks
+		if ((min == 0 || min == 30) && min != now->tm_min) {
+			min = now->tm_min;
+			half_hourly(now_ts);
+		}
 
 		// hourly tasks
 		if (hour != now->tm_hour) {
