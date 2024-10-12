@@ -1076,7 +1076,7 @@ static void fronius() {
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
 		// half hourly tasks
-		if ((min == 0 || min == 30) && min != now->tm_min) {
+		if (min != now->tm_min && (min == 0 || min == 30)) {
 			min = now->tm_min;
 			half_hourly(now_ts);
 		}
