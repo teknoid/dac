@@ -775,13 +775,13 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->timestamp = now_ts;
 
 	// yesterdays total counters and values
-	gstate_t *yesterday = get_gstate_history(-1);
+	gstate_t *y = get_gstate_history(-1);
 
 	// calculate daily values - when we have values from yesterday
-	gstate->grid_produced_24 = yesterday->grid_produced ? gstate->grid_produced - yesterday->grid_produced : 0;
-	gstate->grid_consumed_24 = yesterday->grid_consumed ? gstate->grid_consumed - yesterday->grid_consumed : 0;
-	gstate->pv10_24 = yesterday->pv10 ? gstate->pv10 - yesterday->pv10 : 0;
-	gstate->pv7_24 = yesterday->pv7 ? gstate->pv7 - yesterday->pv7 : 0;
+	gstate->grid_produced_24 = !gstate->grid_produced || !y->grid_produced ? 0 : gstate->grid_produced - y->grid_produced;
+	gstate->grid_consumed_24 = !gstate->grid_consumed || !y->grid_consumed ? 0 : gstate->grid_consumed - y->grid_consumed;
+	gstate->pv10_24 = !gstate->pv10 || !y->pv10 ? 0 : gstate->pv10 - y->pv10;
+	gstate->pv7_24 = !gstate->pv7 || !y->pv7 ? 0 : gstate->pv7 - y->pv7;
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
@@ -1013,7 +1013,7 @@ static void hourly(time_t now_ts) {
 
 	// calculate mean discharge rate and clear it at high noon
 	if (now->tm_hour == 6) {
-		gstate->discharge = average_non_zero(discharge, sizeof(discharge));
+		gstate->discharge = average_non_zero(discharge, ARRAY_SIZE(discharge));
 		xlog("FRONIUS nightly mean akku discharge rate: %d Wh", gstate->discharge);
 	}
 	if (now->tm_hour == 12)
@@ -1102,6 +1102,14 @@ static void fronius() {
 				offline(); // go into offline mode
 
 			wait = WAIT_OFFLINE;
+			continue;
+		}
+
+		// emergency shutdown when more than 10% capacity discharge
+		if (pstate->akku > AKKU_CAPACITY / 10) {
+			set_all_devices(0);
+			xlog("FRONIUS %d akku discharge !!! emergency shutdown", pstate->akku);
+			wait = WAIT_RAMP;
 			continue;
 		}
 
@@ -1291,6 +1299,10 @@ static int calibrate(char *name) {
 
 static int test() {
 	response_t memory = { 0 };
+
+	int x[] = { 264, 286, 264, 231, 275, 231, 220, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+	int y = average_non_zero(x, ARRAY_SIZE(x));
+	xlog("average_non_zero=%d sizeof=%d", y, ARRAY_SIZE(x));
 
 	CURL *curl_readable = curl_init(URL_READABLE, &memory);
 	if (curl_readable == NULL)
