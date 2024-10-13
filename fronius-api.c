@@ -581,10 +581,6 @@ static device_t* rampdown(int power, device_t **devices) {
 static device_t* ramp() {
 	device_t *d;
 
-	// if not yet done, do it now
-	if (potd == 0)
-		choose_program();
-
 	// prio1: no extra power available: ramp down modest devices
 	if (pstate->modest < 0) {
 		d = rampdown(pstate->modest, potd->modest);
@@ -1028,6 +1024,9 @@ static void hourly(time_t now_ts) {
 	print_gstate(NULL);
 	dump_gstate(2);
 
+	// choose program of the day
+	choose_program();
+
 	xlog("FRONIUS resetting standby states");
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if ((*d)->state == Standby)
@@ -1092,8 +1091,12 @@ static void fronius() {
 		// make Fronius10 API call
 		errors += curl_perform(curl10, &memory, &parse_fronius10);
 
-		// not enough PV production
-		if (pstate->pv10 < 100) {
+		// last two history values
+		pstate_t *h1 = get_pstate_history(-1);
+		pstate_t *h2 = get_pstate_history(-2);
+
+		// offline mode when 3x not enough PV production
+		if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
 			pstate->pv7 = 0;
 
 			if (now->tm_hour == 7 || now->tm_hour == 8)
@@ -1105,8 +1108,8 @@ static void fronius() {
 			continue;
 		}
 
-		// emergency shutdown when more than 10% capacity discharge
-		if (pstate->akku > AKKU_CAPACITY / 10) {
+		// emergency shutdown when 3x more than 10% capacity discharge
+		if (pstate->akku > AKKU_CAPACITY / 10 && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
 			set_all_devices(0);
 			xlog("FRONIUS %d akku discharge !!! emergency shutdown", pstate->akku);
 			wait = WAIT_RAMP;
