@@ -773,7 +773,7 @@ static void calculate_gstate(time_t now_ts) {
 	// yesterdays total counters and values
 	gstate_t *y = get_gstate_history(-1);
 
-	// calculate daily values - when we have values from yesterday
+	// calculate daily values - when we have actual values and values from yesterday
 	gstate->grid_produced_24 = !gstate->grid_produced || !y->grid_produced ? 0 : gstate->grid_produced - y->grid_produced;
 	gstate->grid_consumed_24 = !gstate->grid_consumed || !y->grid_consumed ? 0 : gstate->grid_consumed - y->grid_consumed;
 	gstate->pv10_24 = !gstate->pv10 || !y->pv10 ? 0 : gstate->pv10 - y->pv10;
@@ -1069,16 +1069,16 @@ static void fronius() {
 		ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
 
-		// hourly tasks
-		if (hour != now->tm_hour) {
-			hour = now->tm_hour;
-			hourly(now_ts);
-		}
-
 		// daily tasks
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
 			daily(now_ts);
+		}
+
+		// hourly tasks
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			hourly(now_ts);
 		}
 
 		// default
