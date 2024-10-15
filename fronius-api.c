@@ -954,7 +954,7 @@ static void offline() {
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
-	int burnout = pstate->soc > 100 && gstate->expected > gstate->survive && AKKU_BURNOUT && !SUMMER && TEMP_IN < 18;
+	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && pstate->soc > 100 && gstate->expected > gstate->survive;
 	if (!burnout)
 		return;
 
@@ -964,7 +964,7 @@ static void burnout() {
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
 
 	char message[LINEBUF];
-	snprintf(message, LINEBUF, "--> burnout soc=%.1f available=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
+	snprintf(message, LINEBUF, "--> burnout soc=%.1f expected=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
 	print_pstate(message);
 }
 
@@ -1099,8 +1099,8 @@ static void fronius() {
 		if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
 			pstate->pv7 = 0;
 
-			if (now->tm_hour == 7 || now->tm_hour == 8)
-				burnout(); // akku burnout between 7 and 9 o'clock
+			if (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8)
+				burnout(); // akku burnout between 6 and 9 o'clock
 			else
 				offline(); // go into offline mode
 
