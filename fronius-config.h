@@ -4,9 +4,13 @@
 #define STANDBY_RESET		60 * 30
 #define STANDBY_NORESPONSE	3
 
-// hexdump -v -e '5 "%10d " 13 "%8d ""\n"' /tmp/gstate.bin
 // date --date='@1728165335'
+
+// hexdump -v -e '5 "%10d " 13 "%8d ""\n"' /tmp/gstate.bin
 #define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
+
+// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /tmp/minmax.bin
+#define MINMAX_FILE			"/tmp/minmax.bin"				// TODO later on hard disk for reboot!
 
 #define AKKU_BURNOUT		1
 #define AKKU_CAPACITY		11000
@@ -31,22 +35,31 @@
 #define AKKU_AVAILABLE		(AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000) // minus 7% minimum SoC
 #define AKKU_CAPA_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
+#define FLOAT10(x)			((float) x / 10.0)
+
 enum dstate {
 	Disabled, Active, Standby, Standby_Check
 };
 
-typedef struct _meter meter_t;
+typedef struct _raw raw_t;
 
-struct _meter {
-	int p;
-	int p1;
-	int p2;
-	int p3;
-	int v1;
-	int v2;
-	int v3;
-	int consumed;
-	int produced;
+struct _raw {
+	float akku;
+	float grid;
+	float load;
+	float pv10;
+	float pv10_total1;
+	float pv10_total2;
+	float pv7;
+	float pv7_total;
+	float soc;
+	float meter_produced;
+	float meter_consumed;
+	float meter_power;
+	float meter_v1;
+	float meter_v2;
+	float meter_v3;
+
 };
 
 typedef struct _pstate pstate_t;
@@ -85,7 +98,6 @@ struct _gstate {
 	int pv7_24;
 	int grid_produced_24;
 	int grid_consumed_24;
-	int pv;
 	int soc;
 	int survive;
 	int expected;
@@ -94,6 +106,35 @@ struct _gstate {
 	int discharge;
 	int ttl;
 	int mosmix;
+};
+
+typedef struct _minmax minmax_t;
+
+struct _minmax {
+	int v1min_ts;
+	int v1min;
+	int v12min;
+	int v13min;
+	int v2min_ts;
+	int v21min;
+	int v2min;
+	int v23min;
+	int v3min_ts;
+	int v31min;
+	int v32min;
+	int v3min;
+	int v1max_ts;
+	int v1max;
+	int v12max;
+	int v13max;
+	int v2max_ts;
+	int v21max;
+	int v2max;
+	int v23max;
+	int v3max_ts;
+	int v31max;
+	int v32max;
+	int v3max;
 };
 
 typedef struct _device device_t;

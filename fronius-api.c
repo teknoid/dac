@@ -49,8 +49,11 @@ static int errors;
 // hourly collected akku discharge rates
 static int discharge[24], discharge_soc, discharge_ts;
 
-// meter storage for calibration
-static meter_t m, *meter = &m;
+// storage for holding minimum and maximum voltge values
+static minmax_t mm, *minmax = &mm;
+
+// raw data from API
+static raw_t raw, *r = &raw;
 
 static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
@@ -210,7 +213,7 @@ static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24       pv      soc  survive expected    today tomorrow  dcharge      ttl   mosmix");
+			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24      soc  survive expected    today tomorrow  dcharge      ttl   mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -259,6 +262,32 @@ static void bump_pstate() {
 	ZERO(pstate);
 }
 
+static void print_minimum_maximum() {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "FRONIUS");
+	strcat(line, " Minima:");
+	xlogl_float_b(line, "V1", FLOAT10(minmax->v1min));
+	xlogl_float(line, "V2", FLOAT10(minmax->v12min));
+	xlogl_float(line, "V3", FLOAT10(minmax->v13min));
+	xlogl_float_b(line, "V2", FLOAT10(minmax->v2min));
+	xlogl_float(line, "V1", FLOAT10(minmax->v21min));
+	xlogl_float(line, "V3", FLOAT10(minmax->v23min));
+	xlogl_float_b(line, "V3", FLOAT10(minmax->v3min));
+	xlogl_float(line, "V1", FLOAT10(minmax->v31min));
+	xlogl_float(line, "V2", FLOAT10(minmax->v32min));
+	strcat(line, "   Maxima:");
+	xlogl_float_b(line, "V1", FLOAT10(minmax->v1max));
+	xlogl_float(line, "V2", FLOAT10(minmax->v12max));
+	xlogl_float(line, "V3", FLOAT10(minmax->v13max));
+	xlogl_float_b(line, "V2", FLOAT10(minmax->v2max));
+	xlogl_float(line, "V1", FLOAT10(minmax->v21max));
+	xlogl_float(line, "V3", FLOAT10(minmax->v23max));
+	xlogl_float_b(line, "V3", FLOAT10(minmax->v3max));
+	xlogl_float(line, "V1", FLOAT10(minmax->v31max));
+	xlogl_float(line, "V2", FLOAT10(minmax->v32max));
+	xlogl_end(line, sizeof(line), NULL);
+}
+
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS gstate");
@@ -273,7 +302,6 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
 	xlogl_int(line, 0, 0, "Survive", gstate->survive);
 	xlogl_int(line, 1, AKKU_AVAILABLE < gstate->survive, "Available", AKKU_AVAILABLE);
-	xlogl_int(line, 0, 0, "PV", gstate->pv);
 	xlogl_float(line, "SoC", gstate->soc / 10.0);
 	xlogl_float(line, "TTL", gstate->ttl / 60.0);
 	xlogl_float(line, "Mosmix", gstate->mosmix / 10.0);
@@ -330,22 +358,16 @@ static void print_dstate(int wait) {
 	xlog(message);
 }
 
-static int parse_fronius10(response_t *r) {
-	float f_charge, f_akku, f_grid, f_load, f_pv;
+static int parse_fronius10(response_t *resp) {
 	char *c;
 	int ret;
 
-	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &f_akku, &f_grid, &f_load, &f_pv);
+	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &r->akku, &r->grid, &r->load, &r->pv10);
 	if (ret != 4)
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got %d", ret);
 
-	pstate->akku = f_akku;
-	pstate->grid = f_grid;
-	pstate->load = f_load;
-	pstate->pv10 = f_pv;
-
 	// workaround parsing { "Inverters" : { "1" : { ... } } }
-	ret = json_scanf(r->buffer, r->size, "{ Body { Data { Inverters:%Q } } }", &c);
+	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Inverters:%Q } } }", &c);
 	if (ret == 1 && c != NULL) {
 		char *p = c;
 		while (*p != '{')
@@ -354,13 +376,9 @@ static int parse_fronius10(response_t *r) {
 		while (*p != '{')
 			p++;
 
-		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &f_charge);
-		if (ret == 1)
-			pstate->soc = f_charge * 10.0; // store value as promille 0/00
-		else {
+		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &r->soc);
+		if (ret != 1)
 			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
-			pstate->soc = 0;
-		}
 
 		free(c);
 	} else
@@ -369,69 +387,57 @@ static int parse_fronius10(response_t *r) {
 	return 0;
 }
 
-static int parse_fronius7(response_t *r) {
-	float f_pv, f_total;
-	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { Site { P_PV:%f E_Total:%f } } } }", &f_pv, &f_total);
+static int parse_fronius7(response_t *resp) {
+	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_PV:%f E_Total:%f } } } }", &r->pv7, &r->pv7_total);
 	if (ret != 2)
 		return xerr("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
 
-	pstate->pv7 = f_pv;
-	gstate->pv7 = f_total;
 	return 0;
 }
 
-static int parse_meter(response_t *r) {
-	float f_grid, f_cons, f_prod;
-	int ret = json_scanf(r->buffer, r->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &f_grid, &f_cons, &f_prod);
+static int parse_meter(response_t *resp) {
+	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &r->meter_power,
+			&r->meter_consumed, &r->meter_produced);
 	if (ret != 3)
 		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
 
-	ZERO(meter);
-	meter->produced = f_prod;
-	meter->consumed = f_cons;
-	meter->p = f_grid;
-
 	return 0;
 }
 
-static int parse_readable(response_t *r) {
-	float f_pv, f_dc1, f_dc2, f_cons, f_prod, f_soc;
+static int parse_readable(response_t *resp) {
 	int ret;
 	char *p;
 
 	// workaround for accessing inverter number as key: "262144" : {
-	p = strstr(r->buffer, "\"262144\"") + 8 + 2;
+	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, r->size, "{ channels { PV_POWERACTIVE_SUM_F64:%f } }", &f_pv);
+	ret = json_scanf(p, resp->size, "{ channels { PV_POWERACTIVE_SUM_F64:%f } }", &r->pv10);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "393216" : {
-	p = strstr(r->buffer, "\"393216\"") + 8 + 2;
+	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, r->size, "{ channels { PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &f_dc1, &f_dc2);
+	ret = json_scanf(p, resp->size, "{ channels { PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &r->pv10_total1, &r->pv10_total2);
 	if (ret != 2)
 		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
-	p = strstr(r->buffer, "\"16580608\"") + 10 + 2;
+	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, r->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &f_soc);
+	ret = json_scanf(p, resp->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &r->soc);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
-	p = strstr(r->buffer, "\"16252928\"") + 10 + 2;
+	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, r->size, "{ channels { SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f} }", &f_cons, &f_prod);
-	if (ret != 2)
-		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 2 values but got %d", ret);
-
-	gstate->pv10 = (f_dc1 / 3600) + (f_dc2 / 3600); // counters are in Ws!
-	gstate->grid_produced = f_prod;
-	gstate->grid_consumed = f_cons;
-	gstate->soc = f_soc * 10.0; // store value as promille 0/00
-	gstate->pv = f_pv;
+	ret =
+			json_scanf(p, resp->size,
+					"{ channels { SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f SMARTMETER_VOLTAGE_MEAN_01_F64:%f SMARTMETER_VOLTAGE_MEAN_02_F64:%f SMARTMETER_VOLTAGE_MEAN_03_F64:%f} }",
+					&r->meter_consumed, &r->meter_produced, &r->meter_v1, &r->meter_v2, &r->meter_v3);
+	if (ret != 5)
+		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 5 values but got %d", ret);
 
 	return 0;
 }
@@ -768,7 +774,13 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate(time_t now_ts) {
+	// take over raw values
 	gstate->timestamp = now_ts;
+	gstate->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
+	gstate->pv7 = r->pv7_total;
+	gstate->grid_produced = r->meter_produced;
+	gstate->grid_consumed = r->meter_consumed;
+	gstate->soc = r->soc * 10.0; // store value as promille 0/00
 
 	// yesterdays total counters and values
 	gstate_t *y = get_gstate_history(-1);
@@ -828,6 +840,13 @@ static void calculate_gstate(time_t now_ts) {
 }
 
 static int calculate_pstate() {
+	// take over raw values
+	pstate->akku = r->akku;
+	pstate->grid = r->grid;
+	pstate->load = r->load;
+	pstate->pv10 = r->pv10;
+	pstate->pv7 = r->pv7;
+
 	// get 3x history back
 	pstate_t *h1 = get_pstate_history(-1);
 	pstate_t *h2 = get_pstate_history(-2);
@@ -946,12 +965,6 @@ static int calculate_next_round(device_t *d, int valid) {
 	return WAIT_STABLE;
 }
 
-// offline mode
-static void offline() {
-	set_all_devices(0);
-	print_pstate("--> offline");
-}
-
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
 	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && pstate->soc > 100 && gstate->expected > gstate->survive;
@@ -963,9 +976,29 @@ static void burnout() {
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
 
-	char message[LINEBUF];
-	snprintf(message, LINEBUF, "--> burnout soc=%.1f expected=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
-	print_pstate(message);
+	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
+}
+
+static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {
+	*ts = now_ts;
+	*v1 = r->meter_v1 * 10.0;
+	*v2 = r->meter_v2 * 10.0;
+	*v3 = r->meter_v3 * 10.0;
+}
+
+static void minimum_maximum(time_t now_ts) {
+	if (r->meter_v1 * 10 < minmax->v1min)
+		minimum_maximum_store(now_ts, &minmax->v1min_ts, &minmax->v1min, &minmax->v12min, &minmax->v13min);
+	if (r->meter_v2 * 10 < minmax->v2min)
+		minimum_maximum_store(now_ts, &minmax->v2min_ts, &minmax->v21min, &minmax->v2min, &minmax->v23min);
+	if (r->meter_v3 * 10 < minmax->v3min)
+		minimum_maximum_store(now_ts, &minmax->v3min_ts, &minmax->v31min, &minmax->v32min, &minmax->v3min);
+	if (r->meter_v1 * 10 > minmax->v1max)
+		minimum_maximum_store(now_ts, &minmax->v1max_ts, &minmax->v1max, &minmax->v12max, &minmax->v13max);
+	if (r->meter_v2 * 10 > minmax->v2max)
+		minimum_maximum_store(now_ts, &minmax->v2max_ts, &minmax->v21max, &minmax->v2max, &minmax->v23max);
+	if (r->meter_v3 * 10 > minmax->v3max)
+		minimum_maximum_store(now_ts, &minmax->v3max_ts, &minmax->v31max, &minmax->v32max, &minmax->v3max);
 }
 
 static void daily(time_t now_ts) {
@@ -974,6 +1007,7 @@ static void daily(time_t now_ts) {
 	// new day: bump global history and store to disk before writing new values into
 	bump_gstate();
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
 }
 
 static void hourly(time_t now_ts) {
@@ -983,7 +1017,7 @@ static void hourly(time_t now_ts) {
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
-	if (gstate->pv < 5 && gstate->soc < 900 && gstate->soc > 100) {
+	if (gstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
 			int seconds = now_ts - discharge_ts;
@@ -1026,6 +1060,10 @@ static void hourly(time_t now_ts) {
 
 	// choose program of the day
 	choose_program();
+
+	// update volatge minimum/maximum
+	minimum_maximum(now_ts);
+	print_minimum_maximum();
 
 	xlog("FRONIUS resetting standby states");
 	for (device_t **d = DEVICES; *d != 0; d++)
@@ -1096,22 +1134,21 @@ static void fronius() {
 		pstate_t *h2 = get_pstate_history(-2);
 
 		// offline mode when 3x not enough PV production
-		if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
-			pstate->pv7 = 0;
+		if (r->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
 
 			if (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8)
 				burnout(); // akku burnout between 6 and 9 o'clock
 			else
-				offline(); // go into offline mode
+				set_all_devices(0); // go into offline mode
 
 			wait = WAIT_OFFLINE;
 			continue;
 		}
 
 		// emergency shutdown when 3x more than 10% capacity discharge
-		if (pstate->akku > AKKU_CAPACITY / 10 && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
+		if (r->akku > AKKU_CAPACITY && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
 			set_all_devices(0);
-			xlog("FRONIUS %d akku discharge !!! emergency shutdown", pstate->akku);
+			xlog("FRONIUS %.1f akku discharge !!! emergency shutdown", r->akku);
 			wait = WAIT_RAMP;
 			continue;
 		}
@@ -1163,7 +1200,8 @@ static void fronius() {
 static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
 	char message[16];
-	int voltage, closest, target, offset_start = 0, offset_end = 0;
+	int voltage, closest, target;
+	float offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
 	response_t memory = { 0 };
 
@@ -1191,12 +1229,12 @@ static int calibrate(char *name) {
 	printf("calculating offset start");
 	for (int i = 0; i < 10; i++) {
 		curl_perform(curl, &memory, &parse_meter);
-		offset_start += meter->p;
-		printf(" %d", meter->p);
+		offset_start += r->grid;
+		printf(" %.1f", r->grid);
 		sleep(1);
 	}
 	offset_start /= 10;
-	printf(" --> average %d\n", offset_start);
+	printf(" --> average %.1f\n", offset_start);
 
 	printf("waiting for heat up 100%%...\n");
 	snprintf(message, 16, "v:10000:0");
@@ -1205,7 +1243,7 @@ static int calibrate(char *name) {
 
 	// get maximum power
 	curl_perform(curl, &memory, &parse_meter);
-	int max_power = round100(meter->p - offset_start);
+	int max_power = round100(r->grid - offset_start);
 
 	int onepercent = max_power / 100;
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
@@ -1224,7 +1262,7 @@ static int calibrate(char *name) {
 			usleep(1000 * 600);
 
 		curl_perform(curl, &memory, &parse_meter);
-		measure[i] = meter->p - offset_start;
+		measure[i] = r->grid - offset_start;
 		printf("%5d %5d\n", voltage, measure[i]);
 	}
 
@@ -1266,12 +1304,12 @@ static int calibrate(char *name) {
 	printf("calculating offset end");
 	for (int i = 0; i < 10; i++) {
 		curl_perform(curl, &memory, &parse_meter);
-		offset_end += meter->p;
-		printf(" %d", meter->p);
+		offset_end += r->grid;
+		printf(" %.1f", r->grid);
 		sleep(1);
 	}
 	offset_end /= 10;
-	printf(" --> average %d\n", offset_end);
+	printf(" --> average %.1f\n", offset_end);
 
 	// validate - values in measure table should shrink, not grow
 	for (int i = 1; i < 1000; i++)
@@ -1349,6 +1387,12 @@ static int init() {
 
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 
+	// load or default minimum/maximum
+	if (load_blob(MINMAX_FILE, minmax, sizeof(minmax_t))) {
+		minmax->v1min = minmax->v2min = minmax->v3min = 3000;
+		minmax->v1max = minmax->v2max = minmax->v3max = 0;
+	}
+
 	curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL)
 		return xerr("Error initializing libcurl");
@@ -1366,6 +1410,7 @@ static int init() {
 
 static void stop() {
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
 
 	if (sock != 0)
 		close(sock);

@@ -262,6 +262,13 @@ void xlogl_float(char *line, const char *name, float value) {
 	snprintf(pair, 32, " %s:%.1f", name, value);
 	strncat(line, pair, 32);
 }
+
+void xlogl_float_b(char *line, const char *name, float value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BBLU"%.1f"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
 void xlogl_int_r(char *line, const char *name, int value) {
 	char pair[32];
 	snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
