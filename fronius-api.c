@@ -328,7 +328,7 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, "SoC", gstate->soc / 10.0);
 	xlogl_float(line, "TTL", gstate->ttl / 60.0);
 	xlogl_float(line, "Mosmix", gstate->mosmix / 10.0);
-	xlogl_end(line, sizeof(line), message);
+	xlogl_end(line, strlen(line), message);
 }
 
 static void print_pstate(const char *message) {
@@ -346,7 +346,7 @@ static void print_pstate(const char *message) {
 	xlogl_int(line, 0, 0, "PV7", pstate->pv7);
 	xlogl_int(line, 0, 0, "Dist", pstate->distortion);
 	xlogl_float(line, "SoC", pstate->soc / 10.0);
-	xlogl_end(line, sizeof(line), message);
+	xlogl_end(line, strlen(line), message);
 }
 
 static void print_minimum_maximum() {
@@ -374,7 +374,7 @@ static void print_minimum_maximum() {
 	xlogl_float(line, "V1", FLOAT10(minmax->v31max));
 	xlogl_float(line, "V2", FLOAT10(minmax->v32max));
 	xlogl_float_b(line, "Hz", FLOAT10(minmax->fmax));
-	xlogl_end(line, sizeof(line), NULL);
+	xlogl_end(line, strlen(line), NULL);
 }
 
 static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {
@@ -460,28 +460,28 @@ static int parse_readable(response_t *resp) {
 	// workaround for accessing inverter number as key: "262144" : {
 	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { "JIP" } }", &r->pv10);
+	ret = json_scanf(p, strlen(p), "{ channels { "JIP" } }", &r->pv10);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { "JIE1 JIE2" } }", &r->pv10_total1, &r->pv10_total2);
+	ret = json_scanf(p, strlen(p), "{ channels { "JIE1 JIE2" } }", &r->pv10_total1, &r->pv10_total2);
 	if (ret != 2)
 		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { "JBSOC" } }", &r->soc);
+	ret = json_scanf(p, strlen(p), "{ channels { "JBSOC" } }", &r->soc);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
 	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { "JMC JMP JMV1 JMV2 JMV3 JMF" } }", &r->consumed, &r->produced, &r->v1, &r->v2, &r->v3, &r->f);
+	ret = json_scanf(p, strlen(p), "{ channels { "JMC JMP JMV1 JMV2 JMV3 JMF" } }", &r->consumed, &r->produced, &r->v1, &r->v2, &r->v3, &r->f);
 	if (ret != 6)
 		return xerr("FRONIUS parse_readable() warning! parsing 16252928: expected 6 values but got %d", ret);
 
