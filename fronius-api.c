@@ -993,17 +993,17 @@ static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int 
 }
 
 static void minimum_maximum(time_t now_ts) {
-	if (r->meter_v1 * 10 < minmax->v1min)
+	if (r->meter_v1 * 10.0 < minmax->v1min)
 		minimum_maximum_store(now_ts, &minmax->v1min_ts, &minmax->v1min, &minmax->v12min, &minmax->v13min);
-	if (r->meter_v2 * 10 < minmax->v2min)
+	if (r->meter_v2 * 10.0 < minmax->v2min)
 		minimum_maximum_store(now_ts, &minmax->v2min_ts, &minmax->v21min, &minmax->v2min, &minmax->v23min);
-	if (r->meter_v3 * 10 < minmax->v3min)
+	if (r->meter_v3 * 10.0 < minmax->v3min)
 		minimum_maximum_store(now_ts, &minmax->v3min_ts, &minmax->v31min, &minmax->v32min, &minmax->v3min);
-	if (r->meter_v1 * 10 > minmax->v1max)
+	if (r->meter_v1 * 10.0 > minmax->v1max)
 		minimum_maximum_store(now_ts, &minmax->v1max_ts, &minmax->v1max, &minmax->v12max, &minmax->v13max);
-	if (r->meter_v2 * 10 > minmax->v2max)
+	if (r->meter_v2 * 10.0 > minmax->v2max)
 		minimum_maximum_store(now_ts, &minmax->v2max_ts, &minmax->v21max, &minmax->v2max, &minmax->v23max);
-	if (r->meter_v3 * 10 > minmax->v3max)
+	if (r->meter_v3 * 10.0 > minmax->v3max)
 		minimum_maximum_store(now_ts, &minmax->v3max_ts, &minmax->v31max, &minmax->v32max, &minmax->v3max);
 }
 
