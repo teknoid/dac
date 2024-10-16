@@ -262,30 +262,36 @@ static void bump_pstate() {
 	ZERO(pstate);
 }
 
-static void print_minimum_maximum() {
-	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
-	strcat(line, " Minima:");
-	xlogl_float_b(line, "V1", FLOAT10(minmax->v1min));
-	xlogl_float(line, "V2", FLOAT10(minmax->v12min));
-	xlogl_float(line, "V3", FLOAT10(minmax->v13min));
-	xlogl_float_b(line, "V2", FLOAT10(minmax->v2min));
-	xlogl_float(line, "V1", FLOAT10(minmax->v21min));
-	xlogl_float(line, "V3", FLOAT10(minmax->v23min));
-	xlogl_float_b(line, "V3", FLOAT10(minmax->v3min));
-	xlogl_float(line, "V1", FLOAT10(minmax->v31min));
-	xlogl_float(line, "V2", FLOAT10(minmax->v32min));
-	strcat(line, "   Maxima:");
-	xlogl_float_b(line, "V1", FLOAT10(minmax->v1max));
-	xlogl_float(line, "V2", FLOAT10(minmax->v12max));
-	xlogl_float(line, "V3", FLOAT10(minmax->v13max));
-	xlogl_float_b(line, "V2", FLOAT10(minmax->v2max));
-	xlogl_float(line, "V1", FLOAT10(minmax->v21max));
-	xlogl_float(line, "V3", FLOAT10(minmax->v23max));
-	xlogl_float_b(line, "V3", FLOAT10(minmax->v3max));
-	xlogl_float(line, "V1", FLOAT10(minmax->v31max));
-	xlogl_float(line, "V2", FLOAT10(minmax->v32max));
-	xlogl_end(line, sizeof(line), NULL);
+static void print_dstate(int wait) {
+	char message[128];
+	char value[5];
+
+	strcpy(message, "FRONIUS device state ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->state);
+		strcat(message, value);
+	}
+
+	strcat(message, "   power ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if ((*d)->adjustable)
+			snprintf(value, 5, " %3d", (*d)->power);
+		else
+			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
+		strcat(message, value);
+	}
+
+	strcat(message, "   noresponse ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->noresponse);
+		strcat(message, value);
+	}
+
+	strcat(message, "   wait ");
+	snprintf(value, 5, "%d", wait);
+	strcat(message, value);
+
+	xlog(message);
 }
 
 static void print_gstate(const char *message) {
@@ -326,36 +332,52 @@ static void print_pstate(const char *message) {
 	xlogl_end(line, sizeof(line), message);
 }
 
-static void print_dstate(int wait) {
-	char message[128];
-	char value[5];
+static void print_minimum_maximum() {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "FRONIUS");
+	strcat(line, " Minima:");
+	xlogl_float_b(line, "V1", FLOAT10(minmax->v1min));
+	xlogl_float(line, "V2", FLOAT10(minmax->v12min));
+	xlogl_float(line, "V3", FLOAT10(minmax->v13min));
+	xlogl_float_b(line, "V2", FLOAT10(minmax->v2min));
+	xlogl_float(line, "V1", FLOAT10(minmax->v21min));
+	xlogl_float(line, "V3", FLOAT10(minmax->v23min));
+	xlogl_float_b(line, "V3", FLOAT10(minmax->v3min));
+	xlogl_float(line, "V1", FLOAT10(minmax->v31min));
+	xlogl_float(line, "V2", FLOAT10(minmax->v32min));
+	strcat(line, "   Maxima:");
+	xlogl_float_b(line, "V1", FLOAT10(minmax->v1max));
+	xlogl_float(line, "V2", FLOAT10(minmax->v12max));
+	xlogl_float(line, "V3", FLOAT10(minmax->v13max));
+	xlogl_float_b(line, "V2", FLOAT10(minmax->v2max));
+	xlogl_float(line, "V1", FLOAT10(minmax->v21max));
+	xlogl_float(line, "V3", FLOAT10(minmax->v23max));
+	xlogl_float_b(line, "V3", FLOAT10(minmax->v3max));
+	xlogl_float(line, "V1", FLOAT10(minmax->v31max));
+	xlogl_float(line, "V2", FLOAT10(minmax->v32max));
+	xlogl_end(line, sizeof(line), NULL);
+}
 
-	strcpy(message, "FRONIUS device state ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->state);
-		strcat(message, value);
-	}
+static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {
+	*ts = now_ts;
+	*v1 = r->meter_v1 * 10.0;
+	*v2 = r->meter_v2 * 10.0;
+	*v3 = r->meter_v3 * 10.0;
+}
 
-	strcat(message, "   power ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		if ((*d)->adjustable)
-			snprintf(value, 5, " %3d", (*d)->power);
-		else
-			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
-		strcat(message, value);
-	}
-
-	strcat(message, "   noresponse ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->noresponse);
-		strcat(message, value);
-	}
-
-	strcat(message, "   wait ");
-	snprintf(value, 5, "%d", wait);
-	strcat(message, value);
-
-	xlog(message);
+static void minimum_maximum(time_t now_ts) {
+	if (r->meter_v1 * 10.0 < minmax->v1min)
+		minimum_maximum_store(now_ts, &minmax->v1min_ts, &minmax->v1min, &minmax->v12min, &minmax->v13min);
+	if (r->meter_v2 * 10.0 < minmax->v2min)
+		minimum_maximum_store(now_ts, &minmax->v2min_ts, &minmax->v21min, &minmax->v2min, &minmax->v23min);
+	if (r->meter_v3 * 10.0 < minmax->v3min)
+		minimum_maximum_store(now_ts, &minmax->v3min_ts, &minmax->v31min, &minmax->v32min, &minmax->v3min);
+	if (r->meter_v1 * 10.0 > minmax->v1max)
+		minimum_maximum_store(now_ts, &minmax->v1max_ts, &minmax->v1max, &minmax->v12max, &minmax->v13max);
+	if (r->meter_v2 * 10.0 > minmax->v2max)
+		minimum_maximum_store(now_ts, &minmax->v2max_ts, &minmax->v21max, &minmax->v2max, &minmax->v23max);
+	if (r->meter_v3 * 10.0 > minmax->v3max)
+		minimum_maximum_store(now_ts, &minmax->v3max_ts, &minmax->v31max, &minmax->v32max, &minmax->v3max);
 }
 
 static int parse_fronius10(response_t *resp) {
@@ -985,26 +1007,13 @@ static void burnout() {
 	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", r->soc, gstate->expected, gstate->survive, TEMP_IN);
 }
 
-static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {
-	*ts = now_ts;
-	*v1 = r->meter_v1 * 10.0;
-	*v2 = r->meter_v2 * 10.0;
-	*v3 = r->meter_v3 * 10.0;
-}
+static void monthly(time_t now_ts) {
+	xlog("FRONIUS executing monthly tasks...");
 
-static void minimum_maximum(time_t now_ts) {
-	if (r->meter_v1 * 10.0 < minmax->v1min)
-		minimum_maximum_store(now_ts, &minmax->v1min_ts, &minmax->v1min, &minmax->v12min, &minmax->v13min);
-	if (r->meter_v2 * 10.0 < minmax->v2min)
-		minimum_maximum_store(now_ts, &minmax->v2min_ts, &minmax->v21min, &minmax->v2min, &minmax->v23min);
-	if (r->meter_v3 * 10.0 < minmax->v3min)
-		minimum_maximum_store(now_ts, &minmax->v3min_ts, &minmax->v31min, &minmax->v32min, &minmax->v3min);
-	if (r->meter_v1 * 10.0 > minmax->v1max)
-		minimum_maximum_store(now_ts, &minmax->v1max_ts, &minmax->v1max, &minmax->v12max, &minmax->v13max);
-	if (r->meter_v2 * 10.0 > minmax->v2max)
-		minimum_maximum_store(now_ts, &minmax->v2max_ts, &minmax->v21max, &minmax->v2max, &minmax->v23max);
-	if (r->meter_v3 * 10.0 > minmax->v3max)
-		minimum_maximum_store(now_ts, &minmax->v3max_ts, &minmax->v31max, &minmax->v32max, &minmax->v3max);
+	// reset minimum/maximum voltages
+	ZERO(minmax);
+	minmax->v1min = minmax->v2min = minmax->v3min = 3000;
+	minmax->v1max = minmax->v2max = minmax->v3max = 0;
 }
 
 static void daily(time_t now_ts) {
@@ -1067,7 +1076,7 @@ static void hourly(time_t now_ts) {
 	// choose program of the day
 	choose_program();
 
-	// update volatge minimum/maximum
+	// update voltage minimum/maximum
 	minimum_maximum(now_ts);
 	print_minimum_maximum();
 
@@ -1078,7 +1087,7 @@ static void hourly(time_t now_ts) {
 }
 
 static void fronius() {
-	int hour, day, wait;
+	int hour, day, mon, wait;
 	device_t *device = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -1091,6 +1100,7 @@ static void fronius() {
 	struct tm *ltstatic = localtime(&now_ts);
 	hour = ltstatic->tm_hour;
 	day = ltstatic->tm_wday;
+	mon = ltstatic->tm_mon;
 
 	errors = 0;
 	wait = 1;
@@ -1112,6 +1122,12 @@ static void fronius() {
 		now_ts = time(NULL);
 		ltstatic = localtime(&now_ts);
 		memcpy(now, ltstatic, sizeof(*ltstatic));
+
+		// monthly tasks
+		if (mon != now->tm_mon) {
+			mon = now->tm_mon;
+			monthly(now_ts);
+		}
 
 		// daily tasks
 		if (day != now->tm_wday) {
