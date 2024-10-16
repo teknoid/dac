@@ -1122,9 +1122,9 @@ static void fronius() {
 	// initialize hourly & daily (do not run daily/hourly tasks at startup)
 	time_t now_ts = time(NULL);
 	struct tm *ltstatic = localtime(&now_ts);
-	hour = ltstatic->tm_hour;
-	day = ltstatic->tm_wday;
 	mon = ltstatic->tm_mon;
+	day = ltstatic->tm_wday;
+	hour = ltstatic->tm_hour;
 
 	errors = 0;
 	wait = 1;
