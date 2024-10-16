@@ -156,14 +156,12 @@ static void stop() {
 		close(fd_rb);
 }
 
-MCP_REGISTER(rotary, 5, &init, &stop, NULL);
-
 #ifdef LOCALMAIN
-
 int main(void) {
 	init();
 	int c = getchar();
 	stop();
 }
-
+#else
+MCP_REGISTER(rotary, 5, &init, &stop, NULL);
 #endif

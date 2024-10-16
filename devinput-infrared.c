@@ -44,13 +44,11 @@ static void ir() {
 			break;
 		}
 
-		if (ev.type != EV_KEY) {
+		if (ev.type != EV_KEY)
 			continue;
-		}
 
-		if (!mcp->ir_active) {
+		if (!mcp->ir_active)
 			continue;
-		}
 
 		switch (ev.value) {
 		case 0: // RELEASE
@@ -104,15 +102,13 @@ static void stop() {
 		close(fd_ir);
 }
 
-MCP_REGISTER(ir, 5, &init, &stop, &ir);
-
 #ifdef LOCALMAIN
-
 int main(void) {
 	init();
 	int c = getchar();
 	stop();
 }
-
+#else
+MCP_REGISTER(ir, 5, &init, &stop, &ir);
 #endif
 

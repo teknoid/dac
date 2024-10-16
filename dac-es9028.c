@@ -322,34 +322,33 @@ static void dac() {
 		return;
 	}
 
-	char *s, s_mpd[] = "MPD", s_opt[] = "OPT", s_coax[] = "COAX";
+	char *s;
 	while (1) {
 		msleep(250);
 
-		if (!mcp->dac_power) {
+		if (!mcp->dac_power)
 			continue;
-		}
 
 		mcp->dac_source = dac_get_source();
 		mcp->dac_signal = dac_get_signal();
 		mcp->dac_volume = dac_get_vol();
 		mcp->dac_rate = dac_get_fsr();
 
-		if (!mcp->dac_state_changed) {
+		if (!mcp->dac_state_changed)
 			continue;
-		}
+
 		mcp->dac_state_changed = 0;
 
 		// print status only when state has changed
 		switch (mcp->dac_source) {
 		case mpd:
-			s = s_mpd;
+			s = "MPD";
 			break;
 		case opt:
-			s = s_opt;
+			s = "OPT";
 			break;
 		case coax:
-			s = s_coax;
+			s = "COAX";
 			break;
 		}
 

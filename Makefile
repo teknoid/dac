@@ -74,9 +74,6 @@ display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
 	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
 
-rotary2uinput: rotary2uinput.o
-	$(CC) $(CFLAGS) $(LIBS) -o rotary2uinput rotary2uinput.c
-
 gpio-sunxi: gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
 	$(CC) $(CFLAGS) -o gpio-sunxi gpio-sunxi.o utils.o
@@ -101,7 +98,7 @@ aqua: aqua.o utils.o
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo rotary2uinput test gpio-sunxi gpio-bcm2835 fronius mosmix template aqua
+	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 fronius mosmix template aqua
 
 install:
 	@echo "[Installing and starting mcp]"
