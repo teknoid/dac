@@ -967,7 +967,7 @@ static int calculate_next_round(device_t *d, int valid) {
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
-	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && pstate->soc > 100 && gstate->expected > gstate->survive;
+	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && r->soc > 10 && gstate->expected > gstate->survive;
 	if (!burnout)
 		return;
 
@@ -976,7 +976,7 @@ static void burnout() {
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
 
-	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", pstate->soc / 10.0, gstate->expected, gstate->survive, TEMP_IN);
+	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", r->soc, gstate->expected, gstate->survive, TEMP_IN);
 }
 
 static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {

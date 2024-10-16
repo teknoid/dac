@@ -59,7 +59,6 @@ struct _raw {
 	float meter_v1;
 	float meter_v2;
 	float meter_v3;
-
 };
 
 typedef struct _pstate pstate_t;
