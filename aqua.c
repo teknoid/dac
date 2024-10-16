@@ -67,7 +67,7 @@ static int get_rain(int valve, int hour) {
 }
 
 static void process(int hour) {
-	xdebug("AQUA sensors temp=%2.1f humi=%3.1f lumi=%d", TEMP, HUMI, LUMI);
+	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", TEMP, HUMI, LUMI);
 	if (TEMP == UINT16_MAX || LUMI == UINT16_MAX || HUMI == UINT16_MAX) {
 		xlog("AQUA Error no sensor data");
 		return;

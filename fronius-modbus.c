@@ -110,12 +110,12 @@ static void hourly(time_t now_ts) {
 }
 
 static device_t* regulate() {
-//	xlog("PhVphA %d (%2.1f)", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
-//	xlog("PhVphB %d (%2.1f)", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
-//	xlog("PhVphC %d (%2.1f)", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
+//	xlog("PhVphA %d (%.1f)", SFI(inverter7->PhVphA, inverter7->V_SF), SFF(inverter7->PhVphA, inverter7->V_SF));
+//	xlog("PhVphB %d (%.1f)", SFI(inverter7->PhVphB, inverter7->V_SF), SFF(inverter7->PhVphB, inverter7->V_SF));
+//	xlog("PhVphC %d (%.1f)", SFI(inverter7->PhVphC, inverter7->V_SF), SFF(inverter7->PhVphC, inverter7->V_SF));
 //
-//	xlog("DCW    %d (%2.1f)", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
-//	xlog("W      %d (%2.1f)", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
+//	xlog("DCW    %d (%.1f)", SFI(inverter10->DCW, inverter10->DCW_SF), SFF(inverter10->DCW, inverter10->DCW_SF));
+//	xlog("W      %d (%.1f)", SFI(inverter10->W, inverter10->W_SF), SFF(inverter10->W, inverter10->W_SF));
 //
 //	xlog("PV10=%d PV7=%d", state->pv10, state->pv7);
 

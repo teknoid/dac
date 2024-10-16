@@ -18,7 +18,7 @@ static void summer(struct tm *now, potd_t *potd) {
 	}
 
 	int hot = TEMP >= potd->temp && LUMI >= potd->lumi;
-	// xdebug("SHUTTER %s program temp=%2.1f lumi=%d hot=%d", potd->name, temp, lumi, hot);
+	// xdebug("SHUTTER %s program temp=%.1f lumi=%d hot=%d", potd->name, temp, lumi, hot);
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
@@ -27,7 +27,7 @@ static void summer(struct tm *now, potd_t *potd) {
 
 		// down
 		if (!s->lock_down && down && hot) {
-			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
+			xlog("SHUTTER trigger %s DOWN %s at temp=%.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, s->down);
 			s->lock_down = 1;
 			s->lock_up = 0;
@@ -36,7 +36,7 @@ static void summer(struct tm *now, potd_t *potd) {
 
 		// up
 		if (!s->lock_up && !down) {
-			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
+			xlog("SHUTTER trigger %s UP %s at temp=%.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
 			s->lock_down = 0;
@@ -53,14 +53,14 @@ static void winter(struct tm *now, potd_t *potd) {
 
 	int down = now->tm_hour > 12 && LUMI <= potd->lumi && TEMP <= potd->temp;
 	int up = !down && LUMI >= potd->lumi;
-	// xdebug("SHUTTER %s program temp=%2.1f lumi=%d", potd->name, temp, lumi);
+	// xdebug("SHUTTER %s program temp=%.1f lumi=%d", potd->name, temp, lumi);
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
 
 		// down
 		if (!s->lock_down && down) {
-			xlog("SHUTTER trigger %s DOWN %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
+			xlog("SHUTTER trigger %s DOWN %s at temp=%.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_DOWN);
 			s->lock_down = 1;
 			s->lock_up = 0;
@@ -69,7 +69,7 @@ static void winter(struct tm *now, potd_t *potd) {
 
 		// up
 		if (!s->lock_up && up) {
-			xlog("SHUTTER trigger %s UP %s at temp=%2.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
+			xlog("SHUTTER trigger %s UP %s at temp=%.1f lumi=%d", potd->name, s->name, TEMP, LUMI);
 			tasmota_shutter(s->id, SHUTTER_UP);
 			s->lock_up = 1;
 			s->lock_down = 0;
