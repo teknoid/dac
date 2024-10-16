@@ -30,6 +30,23 @@
 #define WAIT_NEXT			5
 #define WAIT_RAMP			3
 
+#define JMC					" SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f "
+#define JMP					" SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f "
+#define JMV1				" SMARTMETER_VOLTAGE_MEAN_01_F64:%f "
+#define JMV2				" SMARTMETER_VOLTAGE_MEAN_02_F64:%f "
+#define JMV3				" SMARTMETER_VOLTAGE_MEAN_03_F64:%f "
+#define JMF					" SMARTMETER_FREQUENCY_MEAN_F64:%f "
+
+#define JBSOC				" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
+
+#define JIE1				" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
+#define JIE2				" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
+#define JIP					" PV_POWERACTIVE_SUM_F64:%f "
+
+#define JMMPP				" PowerReal_P_Sum:%f "
+#define JMMC				" EnergyReal_WAC_Sum_Consumed:%f "
+#define JMMP				" EnergyReal_WAC_Sum_Produced:%f "
+
 // program of the day - choose by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -345,6 +362,7 @@ static void print_minimum_maximum() {
 	xlogl_float_b(line, "V3", FLOAT10(minmax->v3min));
 	xlogl_float(line, "V1", FLOAT10(minmax->v31min));
 	xlogl_float(line, "V2", FLOAT10(minmax->v32min));
+	xlogl_float_b(line, "Hz", FLOAT10(minmax->fmin));
 	strcat(line, "   Maxima:");
 	xlogl_float_b(line, "V1", FLOAT10(minmax->v1max));
 	xlogl_float(line, "V2", FLOAT10(minmax->v12max));
@@ -355,36 +373,46 @@ static void print_minimum_maximum() {
 	xlogl_float_b(line, "V3", FLOAT10(minmax->v3max));
 	xlogl_float(line, "V1", FLOAT10(minmax->v31max));
 	xlogl_float(line, "V2", FLOAT10(minmax->v32max));
+	xlogl_float_b(line, "Hz", FLOAT10(minmax->fmax));
 	xlogl_end(line, sizeof(line), NULL);
 }
 
 static void minimum_maximum_store(time_t now_ts, int *ts, int *v1, int *v2, int *v3) {
 	*ts = now_ts;
-	*v1 = r->meter_v1 * 10.0;
-	*v2 = r->meter_v2 * 10.0;
-	*v3 = r->meter_v3 * 10.0;
+	*v1 = r->v1 * 10.0;
+	*v2 = r->v2 * 10.0;
+	*v3 = r->v3 * 10.0;
 }
 
 static void minimum_maximum(time_t now_ts) {
-	if (r->meter_v1 * 10.0 < minmax->v1min)
+	if (r->v1 * 10.0 < minmax->v1min)
 		minimum_maximum_store(now_ts, &minmax->v1min_ts, &minmax->v1min, &minmax->v12min, &minmax->v13min);
-	if (r->meter_v2 * 10.0 < minmax->v2min)
+	if (r->v2 * 10.0 < minmax->v2min)
 		minimum_maximum_store(now_ts, &minmax->v2min_ts, &minmax->v21min, &minmax->v2min, &minmax->v23min);
-	if (r->meter_v3 * 10.0 < minmax->v3min)
+	if (r->v3 * 10.0 < minmax->v3min)
 		minimum_maximum_store(now_ts, &minmax->v3min_ts, &minmax->v31min, &minmax->v32min, &minmax->v3min);
-	if (r->meter_v1 * 10.0 > minmax->v1max)
+	if (r->v1 * 10.0 > minmax->v1max)
 		minimum_maximum_store(now_ts, &minmax->v1max_ts, &minmax->v1max, &minmax->v12max, &minmax->v13max);
-	if (r->meter_v2 * 10.0 > minmax->v2max)
+	if (r->v2 * 10.0 > minmax->v2max)
 		minimum_maximum_store(now_ts, &minmax->v2max_ts, &minmax->v21max, &minmax->v2max, &minmax->v23max);
-	if (r->meter_v3 * 10.0 > minmax->v3max)
+	if (r->v3 * 10.0 > minmax->v3max)
 		minimum_maximum_store(now_ts, &minmax->v3max_ts, &minmax->v31max, &minmax->v32max, &minmax->v3max);
+
+	if (r->f * 10.0 < minmax->fmin) {
+		minmax->fmin_ts = now_ts;
+		minmax->fmin = r->f * 10.0;
+	}
+	if (r->f * 10.0 > minmax->fmax) {
+		minmax->fmax_ts = now_ts;
+		minmax->fmax = r->f * 10.0;
+	}
 }
 
 static int parse_fronius10(response_t *resp) {
 	char *c;
 	int ret;
 
-	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_Akku:%f, P_Grid:%f, P_Load:%f, P_PV:%f } } } }", &r->akku, &r->grid, &r->load, &r->pv10);
+	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_Akku:%f P_Grid:%f P_Load:%f P_PV:%f } } } }", &r->akku, &r->grid, &r->load, &r->pv10);
 	if (ret != 4)
 		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got %d", ret);
 
@@ -418,8 +446,7 @@ static int parse_fronius7(response_t *resp) {
 }
 
 static int parse_meter(response_t *resp) {
-	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { PowerReal_P_Sum:%f, EnergyReal_WAC_Sum_Consumed:%f, EnergyReal_WAC_Sum_Produced:%f } } }", &r->meter_power,
-			&r->meter_consumed, &r->meter_produced);
+	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { "JMMPP JMMC JMMP" } } }", &r->p, &r->consumed, &r->produced);
 	if (ret != 3)
 		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
 
@@ -433,33 +460,30 @@ static int parse_readable(response_t *resp) {
 	// workaround for accessing inverter number as key: "262144" : {
 	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { PV_POWERACTIVE_SUM_F64:%f } }", &r->pv10);
+	ret = json_scanf(p, resp->size, "{ channels { "JIP" } }", &r->pv10);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f } }", &r->pv10_total1, &r->pv10_total2);
+	ret = json_scanf(p, resp->size, "{ channels { "JIE1 JIE2" } }", &r->pv10_total1, &r->pv10_total2);
 	if (ret != 2)
 		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret = json_scanf(p, resp->size, "{ channels { BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f } }", &r->soc);
+	ret = json_scanf(p, resp->size, "{ channels { "JBSOC" } }", &r->soc);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
 	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
 	// xlog("FRONIUS %s", p);
-	ret =
-			json_scanf(p, resp->size,
-					"{ channels { SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f SMARTMETER_VOLTAGE_MEAN_01_F64:%f SMARTMETER_VOLTAGE_MEAN_02_F64:%f SMARTMETER_VOLTAGE_MEAN_03_F64:%f} }",
-					&r->meter_consumed, &r->meter_produced, &r->meter_v1, &r->meter_v2, &r->meter_v3);
-	if (ret != 5)
-		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 5 values but got %d", ret);
+	ret = json_scanf(p, resp->size, "{ channels { "JMC JMP JMV1 JMV2 JMV3 JMF" } }", &r->consumed, &r->produced, &r->v1, &r->v2, &r->v3, &r->f);
+	if (ret != 6)
+		return xerr("FRONIUS parse_readable() warning! parsing 16252928: expected 6 values but got %d", ret);
 
 	return 0;
 }
@@ -800,8 +824,8 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->timestamp = now_ts;
 	gstate->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
 	gstate->pv7 = r->pv7_total;
-	gstate->grid_produced = r->meter_produced;
-	gstate->grid_consumed = r->meter_consumed;
+	gstate->grid_produced = r->produced;
+	gstate->grid_consumed = r->consumed;
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
 
 	// yesterdays total counters and values
@@ -1012,8 +1036,8 @@ static void monthly(time_t now_ts) {
 
 	// reset minimum/maximum voltages
 	ZERO(minmax);
-	minmax->v1min = minmax->v2min = minmax->v3min = 3000;
-	minmax->v1max = minmax->v2max = minmax->v3max = 0;
+	minmax->v1min = minmax->v2min = minmax->v3min = minmax->fmin = 3000;
+	minmax->v1max = minmax->v2max = minmax->v3max = minmax->fmax = 0;
 }
 
 static void daily(time_t now_ts) {
@@ -1411,8 +1435,8 @@ static int init() {
 
 	// load or default minimum/maximum
 	if (load_blob(MINMAX_FILE, minmax, sizeof(minmax_t))) {
-		minmax->v1min = minmax->v2min = minmax->v3min = 3000;
-		minmax->v1max = minmax->v2max = minmax->v3max = 0;
+		minmax->v1min = minmax->v2min = minmax->v3min = minmax->fmin = 3000;
+		minmax->v1max = minmax->v2max = minmax->v3max = minmax->fmax = 0;
 	}
 
 	curl10 = curl_init(URL_FLOW10, &memory);

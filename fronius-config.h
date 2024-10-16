@@ -53,12 +53,13 @@ struct _raw {
 	float pv7;
 	float pv7_total;
 	float soc;
-	float meter_produced;
-	float meter_consumed;
-	float meter_power;
-	float meter_v1;
-	float meter_v2;
-	float meter_v3;
+	float produced;
+	float consumed;
+	float p;
+	float v1;
+	float v2;
+	float v3;
+	float f;
 };
 
 typedef struct _pstate pstate_t;
@@ -134,6 +135,10 @@ struct _minmax {
 	int v31max;
 	int v32max;
 	int v3max;
+	int fmin_ts;
+	int fmin;
+	int fmax_ts;
+	int fmax;
 };
 
 typedef struct _device device_t;
