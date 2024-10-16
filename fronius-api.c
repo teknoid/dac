@@ -846,6 +846,7 @@ static int calculate_pstate() {
 	pstate->load = r->load;
 	pstate->pv10 = r->pv10;
 	pstate->pv7 = r->pv7;
+	pstate->soc = r->soc * 10.0;
 
 	// get 3x history back
 	pstate_t *h1 = get_pstate_history(-1);
@@ -963,6 +964,11 @@ static int calculate_next_round(device_t *d, int valid) {
 		return WAIT_INSTABLE;
 
 	return WAIT_STABLE;
+}
+
+static void offline() {
+	set_all_devices(0);
+	xlog("FRONIUS offline pv=%.1f akku=%.1f grid=%.1f load=%.1f soc=%.1f", r->pv10, r->akku, r->grid, r->load, r->soc);
 }
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
@@ -1139,7 +1145,7 @@ static void fronius() {
 			if (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8)
 				burnout(); // akku burnout between 6 and 9 o'clock
 			else
-				set_all_devices(0); // go into offline mode
+				offline(); // go into offline mode
 
 			wait = WAIT_OFFLINE;
 			continue;
