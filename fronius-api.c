@@ -1454,6 +1454,7 @@ static int init() {
 	ZERO(pstate_history);
 	ZERO(gstate_history);
 	ZERO(discharge);
+	ZERO(r);
 
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 
