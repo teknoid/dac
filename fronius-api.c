@@ -956,15 +956,15 @@ static void calculate_pstate2() {
 		pstate->flags |= FLAG_DISTORTION;
 
 	// pv tendence
-	if (h2->dpv < -NOISE && h1->dpv < -NOISE && pstate->dpv < -NOISE)
+	if (pstate->dpv < -NOISE && h1->dpv < -NOISE && h2->dpv < -NOISE)
 		pstate->tendence = -1; // pv is continuously falling
-	else if (h2->dpv > NOISE && h1->dpv > NOISE && pstate->dpv > NOISE)
+	else if (pstate->dpv > NOISE && h1->dpv > NOISE && h2->dpv > NOISE)
 		pstate->tendence = 1; // pv is continuously raising
 	else
 		pstate->tendence = 0;
 
-	// indicate standby check when deviation between actual load and calculated load is three times over 33%
-	if (h2->dxload > 33 && h1->dxload > 33 && pstate->dxload > 33 && !PSTATE_DISTORTION)
+	// indicate standby check when deviation between actual load and calculated load is three times over 33% and no distortion
+	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33 && !PSTATE_DISTORTION)
 		pstate->flags |= FLAG_STANDBY;
 
 	// surplus is akku charge + grid upload
