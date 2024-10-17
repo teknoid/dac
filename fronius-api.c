@@ -999,6 +999,19 @@ static void calculate_pstate2() {
 		return;
 	}
 
+	// all devices in standby?
+	int all_standby = 1;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state != Standby)
+			all_standby = 0;
+	if (all_standby)
+		pstate->flags |= FLAG_ALL_STANDBY;
+
+	// state is stable when we have 3x no power change
+	int deltas = pstate->dload + h1->dload + h2->dload;
+	if (!deltas)
+		pstate->flags |= FLAG_STABLE;
+
 	pstate->flags |= FLAG_VALID;
 }
 
@@ -1020,22 +1033,13 @@ static int calculate_next_round(device_t *d) {
 	if (!PSTATE_VALID || PSTATE_DISTORTION || pstate->tendence || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
 		return WAIT_NEXT;
 
-	// all devices in standby?
-	int all_standby = 1;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state != Standby)
-			all_standby = 0;
-	if (all_standby)
+	if (PSTATE_ALL_STANDBY)
 		return WAIT_STANDBY;
 
-	// state is stable when we had no power change now and within last 3 rounds
-	int instable = pstate->dload;
-	for (int i = 1; i <= 3; i++)
-		instable += get_pstate_history(i * -1)->dload;
-	if (instable)
-		return WAIT_INSTABLE;
+	if (PSTATE_STABLE)
+		return WAIT_STABLE;
 
-	return WAIT_STABLE;
+	return WAIT_INSTABLE;
 }
 
 static void offline() {
@@ -1080,6 +1084,8 @@ static void hourly(time_t now_ts) {
 
 	// update gstate counter
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
+	// TOODO
+	// errors += curl_perform(curl7, &memory, &parse_fronius7);
 
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
 	if (gstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
