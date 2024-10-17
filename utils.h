@@ -15,6 +15,17 @@
 
 #define LINEBUF 256
 
+#define BYTE2BIN_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE2BIN(byte)  \
+  ((byte) & 0x80 ? '1' : '0'), \
+  ((byte) & 0x40 ? '1' : '0'), \
+  ((byte) & 0x20 ? '1' : '0'), \
+  ((byte) & 0x10 ? '1' : '0'), \
+  ((byte) & 0x08 ? '1' : '0'), \
+  ((byte) & 0x04 ? '1' : '0'), \
+  ((byte) & 0x02 ? '1' : '0'), \
+  ((byte) & 0x01 ? '1' : '0')
+
 void set_xlog(int output);
 void set_debug(int debug);
 void xlog_close();
@@ -24,15 +35,16 @@ int xerr(const char *format, ...);
 int xerrr(int ret, const char *format, ...);
 
 void xlogl_start(char *line, const char *s);
-void xlogl_int(char *line, int colored, int invers, const char *name, int value);
+void xlogl_bits(char *line, const char *name, int byte);
 void xlogl_float(char *line, const char *name, float value);
 void xlogl_float_b(char *line, const char *name, float value);
-void xlogl_end(char *line, size_t len, const char *s);
+void xlogl_int(char *line, int colored, int invers, const char *name, int value);
 void xlogl_int_r(char *line, const char *name, int value);
 void xlogl_int_y(char *line, const char *name, int value);
 void xlogl_int_g(char *line, const char *name, int value);
 void xlogl_int_b(char *line, const char *name, int value);
 void xlogl_int_B(char *line, const char *name, int value);
+void xlogl_end(char *line, size_t len, const char *s);
 
 int elevate_realtime(int cpu);
 

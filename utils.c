@@ -232,6 +232,24 @@ void xlogl_start(char *line, const char *s) {
 		line[0] = '\0';
 }
 
+void xlogl_bits(char *line, const char *name, int byte) {
+	char pair[32];
+	snprintf(pair, 32, " %s:"BYTE2BIN_PATTERN, name, BYTE2BIN(byte));
+	strncat(line, pair, 32);
+}
+
+void xlogl_float(char *line, const char *name, float value) {
+	char pair[32];
+	snprintf(pair, 32, " %s:%.1f", name, value);
+	strncat(line, pair, 32);
+}
+
+void xlogl_float_b(char *line, const char *name, float value) {
+	char pair[32];
+	snprintf(pair, 32, " "BOLD"%s:"BBLU"%.1f"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
 void xlogl_int(char *line, int colored, int invers, const char *name, int value) {
 	char pair[32];
 
@@ -254,18 +272,6 @@ void xlogl_int(char *line, int colored, int invers, const char *name, int value)
 	} else
 		snprintf(pair, 32, " %s:%d", name, value);
 
-	strncat(line, pair, 32);
-}
-
-void xlogl_float(char *line, const char *name, float value) {
-	char pair[32];
-	snprintf(pair, 32, " %s:%.1f", name, value);
-	strncat(line, pair, 32);
-}
-
-void xlogl_float_b(char *line, const char *name, float value) {
-	char pair[32];
-	snprintf(pair, 32, " "BOLD"%s:"BBLU"%.1f"RESET, name, value);
 	strncat(line, pair, 32);
 }
 

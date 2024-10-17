@@ -37,6 +37,20 @@
 
 #define FLOAT10(x)			((float) x / 10.0)
 
+#define FLAG_VALID			(1 << 0)
+#define FLAG_DISTORTION		(1 << 1)
+#define FLAG_STANDBY		(1 << 2)
+#define FLAG_BURNOUT		(1 << 3)
+#define FLAG_OFFLINE		(1 << 4)
+#define FLAG_EMERGENCY		(1 << 5)
+
+#define PSTATE_VALID		(pstate->flags & FLAG_VALID)
+#define PSTATE_DISTORTION	(pstate->flags & FLAG_DISTORTION)
+#define PSTATE_STANDBY		(pstate->flags & FLAG_STANDBY)
+#define PSTATE_BURNOUT		(pstate->flags & FLAG_BURNOUT)
+#define PSTATE_OFFLINE		(pstate->flags & FLAG_OFFLINE)
+#define PSTATE_EMERGENCY	(pstate->flags & FLAG_EMERGENCY)
+
 enum dstate {
 	Disabled, Active, Standby, Standby_Check
 };
@@ -80,10 +94,9 @@ struct _pstate {
 	int cload;
 	int pv10;
 	int pv7;
-	int distortion;
 	int tendence;
-	int standby;
 	int wait;
+	int flags;
 };
 
 typedef struct _gstate gstate_t;
