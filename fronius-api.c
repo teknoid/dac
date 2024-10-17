@@ -977,6 +977,17 @@ static void calculate_pstate2() {
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
 
+	// all devices in standby?
+	pstate->flags |= FLAG_ALL_STANDBY;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+
+	// state is stable when we have 3x no power change
+	int deltas = pstate->dload + h1->dload + h2->dload;
+	if (!deltas)
+		pstate->flags |= FLAG_STABLE;
+
 	// validate values
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
@@ -995,19 +1006,6 @@ static void calculate_pstate2() {
 		xdebug("FRONIUS grid spike detected %d -> %d", h1->grid, pstate->grid);
 		return;
 	}
-
-	// all devices in standby?
-	int all_standby = 1;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state != Standby)
-			all_standby = 0;
-	if (all_standby)
-		pstate->flags |= FLAG_ALL_STANDBY;
-
-	// state is stable when we have 3x no power change
-	int deltas = pstate->dload + h1->dload + h2->dload;
-	if (!deltas)
-		pstate->flags |= FLAG_STABLE;
 
 	pstate->flags |= FLAG_VALID;
 }
