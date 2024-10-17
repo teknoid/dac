@@ -325,9 +325,9 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
 	xlogl_int(line, 0, 0, "Survive", gstate->survive);
 	xlogl_int(line, 1, AKKU_AVAILABLE < gstate->survive, "Available", AKKU_AVAILABLE);
-	xlogl_float(line, "SoC", gstate->soc / 10.0);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", gstate->ttl / 60.0);
-	xlogl_float(line, "Mosmix", gstate->mosmix / 10.0);
+	xlogl_float(line, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_end(line, strlen(line), message);
 }
 
@@ -344,7 +344,7 @@ static void print_pstate(const char *message) {
 	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
 	xlogl_int(line, 0, 0, "PV10", pstate->pv10);
 	xlogl_int(line, 0, 0, "PV7", pstate->pv7);
-	xlogl_float(line, "SoC", pstate->soc / 10.0);
+	xlogl_float(line, "SoC", FLOAT10(pstate->soc));
 	xlogl_bits(line, "Flags", pstate->flags);
 	xlogl_end(line, strlen(line), message);
 }
@@ -459,28 +459,24 @@ static int parse_readable(response_t *resp) {
 
 	// workaround for accessing inverter number as key: "262144" : {
 	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
-	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, strlen(p), "{ channels { "JIP" } }", &r->pv10);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
-	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, strlen(p), "{ channels { "JIE1 JIE2" } }", &r->pv10_total1, &r->pv10_total2);
 	if (ret != 2)
 		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
-	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, strlen(p), "{ channels { "JBSOC" } }", &r->soc);
 	if (ret != 1)
 		return xerr("FRONIUS parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
 	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
-	// xlog("FRONIUS %s", p);
 	ret = json_scanf(p, strlen(p), "{ channels { "JMC JMP JMV1 JMV2 JMV3 JMF" } }", &r->consumed, &r->produced, &r->v1, &r->v2, &r->v3, &r->f);
 	if (ret != 6)
 		return xerr("FRONIUS parse_readable() warning! parsing 16252928: expected 6 values but got %d", ret);
@@ -828,10 +824,11 @@ static void calculate_gstate(time_t now_ts) {
 	// take over raw values
 	gstate->timestamp = now_ts;
 	gstate->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
-	gstate->pv7 = r->pv7_total;
 	gstate->grid_produced = r->produced;
 	gstate->grid_consumed = r->consumed;
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
+	if (r->pv7_total > 0)
+		gstate->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
 
 	// yesterdays total counters and values
 	gstate_t *y = get_gstate_history(-1);
@@ -1044,12 +1041,12 @@ static int calculate_next_round(device_t *d) {
 
 static void offline() {
 	set_all_devices(0);
-	xlog("FRONIUS offline pv=%.1f akku=%.1f grid=%.1f load=%.1f soc=%.1f", r->pv10, r->akku, r->grid, r->load, r->soc);
+	xlog("FRONIUS offline pv=%d akku=%d grid=%d load=%d soc=%.1f", pstate->pv10, pstate->akku, pstate->grid, pstate->load, FLOAT10(pstate->soc));
 }
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
-	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && r->soc > 10 && gstate->expected > gstate->survive;
+	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && pstate->soc > 100 && gstate->expected > gstate->survive;
 	if (!burnout)
 		return;
 
@@ -1058,7 +1055,7 @@ static void burnout() {
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
 
-	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", r->soc, gstate->expected, gstate->survive, TEMP_IN);
+	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", FLOAT10(pstate->soc), gstate->expected, gstate->survive, TEMP_IN);
 }
 
 static void monthly(time_t now_ts) {
@@ -1084,8 +1081,6 @@ static void hourly(time_t now_ts) {
 
 	// update gstate counter
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
-	// TOODO
-	// errors += curl_perform(curl7, &memory, &parse_fronius7);
 
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
 	if (gstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
@@ -1225,7 +1220,7 @@ static void fronius() {
 		// check emergency
 		if (PSTATE_EMERGENCY) {
 			set_all_devices(0);
-			xlog("FRONIUS %.1f akku discharge !!! emergency shutdown", r->akku);
+			xlog("FRONIUS %.1f akku discharge !!! emergency shutdown", FLOAT10(pstate->akku));
 			wait = WAIT_RAMP;
 			continue;
 		}
