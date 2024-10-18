@@ -1077,12 +1077,12 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// update raw values
-	errors += curl_perform(curl_readable, &memory, &parse_readable);
-
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
 		return;
+
+	// update raw values
+	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
 	// recalculate global state and mosmix values
 	calculate_gstate(now_ts);
