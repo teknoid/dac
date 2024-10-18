@@ -1103,7 +1103,8 @@ static void hourly(time_t now_ts) {
 			int seconds = now_ts - discharge_ts;
 			int start = AKKU_CAPA_SOC(discharge_soc);
 			int end = AKKU_CAPA_SOC(gstate->soc);
-			int lost = discharge[now->tm_hour] = start - end;
+			int idx = now->tm_hour ? now->tm_hour - 1 : 23;
+			int lost = discharge[idx] = start - end;
 			xlog("FRONIUS calculated akku discharge rate for last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
 
 			// dump hourly collected discharge rates
