@@ -109,12 +109,12 @@ struct _gstate {
 	int timestamp;
 	int pv10;
 	int pv7;
-	int grid_produced;
-	int grid_consumed;
+	int produced;
+	int consumed;
 	int pv10_24;
 	int pv7_24;
-	int grid_produced_24;
-	int grid_consumed_24;
+	int produced_24;
+	int consumed_24;
 	int soc;
 	int survive;
 	int expected;

@@ -317,8 +317,8 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV", gstate->pv10_24 + gstate->pv7_24);
 	xlogl_int_b(line, "PV10", gstate->pv10_24);
 	xlogl_int_b(line, "PV7", gstate->pv7_24);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->grid_produced_24);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->grid_consumed_24);
+	xlogl_int(line, 1, 0, "↑Grid", gstate->produced_24);
+	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed_24);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
@@ -824,8 +824,8 @@ static void calculate_gstate(time_t now_ts) {
 	// take over raw values
 	gstate->timestamp = now_ts;
 	gstate->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
-	gstate->grid_produced = r->produced;
-	gstate->grid_consumed = r->consumed;
+	gstate->produced = r->produced;
+	gstate->consumed = r->consumed;
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
 	if (r->pv7_total > 0.0)
 		gstate->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
@@ -834,8 +834,8 @@ static void calculate_gstate(time_t now_ts) {
 	gstate_t *y = get_gstate_history(-1);
 
 	// calculate daily values - when we have actual values and values from yesterday
-	gstate->grid_produced_24 = !gstate->grid_produced || !y->grid_produced ? 0 : gstate->grid_produced - y->grid_produced;
-	gstate->grid_consumed_24 = !gstate->grid_consumed || !y->grid_consumed ? 0 : gstate->grid_consumed - y->grid_consumed;
+	gstate->produced_24 = !gstate->produced || !y->produced ? 0 : gstate->produced - y->produced;
+	gstate->consumed_24 = !gstate->consumed || !y->consumed ? 0 : gstate->consumed - y->consumed;
 	gstate->pv10_24 = !gstate->pv10 || !y->pv10 ? 0 : gstate->pv10 - y->pv10;
 	gstate->pv7_24 = !gstate->pv7 || !y->pv7 ? 0 : gstate->pv7 - y->pv7;
 
@@ -1077,11 +1077,27 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// update gstate counter
+	// update raw values
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
+	// reload mosmix data
+	if (mosmix_load(CHEMNITZ))
+		return;
+
+	// recalculate global state and mosmix values
+	calculate_gstate(now_ts);
+	print_gstate(NULL);
+	dump_gstate(2);
+
+	// choose program of the day
+	choose_program();
+
+	// update voltage minimum/maximum
+	minimum_maximum(now_ts);
+	print_minimum_maximum();
+
 	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
-	if (gstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
+	if (pstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
 		if (discharge_soc && discharge_ts) {
 			// calculate
 			int seconds = now_ts - discharge_ts;
@@ -1112,22 +1128,6 @@ static void hourly(time_t now_ts) {
 	}
 	if (now->tm_hour == 12)
 		ZERO(discharge);
-
-	// reload mosmix data
-	if (mosmix_load(CHEMNITZ))
-		return;
-
-	// recalculate global state and mosmix values
-	calculate_gstate(now_ts);
-	print_gstate(NULL);
-	dump_gstate(2);
-
-	// choose program of the day
-	choose_program();
-
-	// update voltage minimum/maximum
-	minimum_maximum(now_ts);
-	print_minimum_maximum();
 
 	xlog("FRONIUS resetting standby states");
 	for (device_t **d = DEVICES; *d != 0; d++)
