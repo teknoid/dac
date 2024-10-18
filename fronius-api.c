@@ -827,7 +827,7 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->grid_produced = r->produced;
 	gstate->grid_consumed = r->consumed;
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
-	if (r->pv7_total > 0)
+	if (r->pv7_total > 0.0)
 		gstate->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
 
 	// yesterdays total counters and values
