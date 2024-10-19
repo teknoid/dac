@@ -283,18 +283,18 @@ static void print_dstate(int wait) {
 	char message[128];
 	char value[5];
 
-	strcpy(message, "FRONIUS device state ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->state);
-		strcat(message, value);
-	}
-
-	strcat(message, "   power ");
+	strcpy(message, "FRONIUS device power ");
 	for (device_t **d = DEVICES; *d != 0; d++) {
 		if ((*d)->adjustable)
 			snprintf(value, 5, " %3d", (*d)->power);
 		else
 			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
+		strcat(message, value);
+	}
+
+	strcat(message, "   state ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->state);
 		strcat(message, value);
 	}
 
