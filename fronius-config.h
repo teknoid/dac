@@ -1,59 +1,59 @@
-#define GSTATE_HISTORY		14
-#define PSTATE_HISTORY		6
-#define OVERRIDE			600
-#define STANDBY_RESET		60 * 30
-#define STANDBY_NORESPONSE	3
+#define GSTATE_HISTORY			14
+#define PSTATE_HISTORY			6
+#define OVERRIDE				600
+#define STANDBY_RESET			60 * 30
+#define STANDBY_NORESPONSE		3
 
 // date --date='@1728165335'
 
 // hexdump -v -e '5 "%10d " 12 "%8d ""\n"' /tmp/gstate.bin
-#define GSTATE_FILE			"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
+#define GSTATE_FILE				"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
 
 // hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /tmp/minmax.bin
-#define MINMAX_FILE			"/tmp/minmax.bin"				// TODO later on hard disk for reboot!
+#define MINMAX_FILE				"/tmp/minmax.bin"				// TODO later on hard disk for reboot!
 
-#define AKKU_BURNOUT		1
-#define AKKU_CAPACITY		11000
-#define BASELOAD			300
-#define SUSPICIOUS			250
-#define NOISE				25
+#define AKKU_BURNOUT			1
+#define AKKU_CAPACITY			11000
+#define BASELOAD				300
+#define SUSPICIOUS				250
+#define NOISE					25
 
 #ifdef FRONIUS_MAIN
-#define TEMP_IN				22.0
-#define TEMP_OUT			15.0
+#define TEMP_IN					22.0
+#define TEMP_OUT				15.0
 #else
-#define TEMP_IN				sensors->htu21_temp
-#define TEMP_OUT			sensors->sht31_temp
+#define TEMP_IN					sensors->htu21_temp
+#define TEMP_OUT				sensors->sht31_temp
 #endif
 
-#define SUMMER				(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
+#define SUMMER					(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
 
-#define ARRAY_SIZE(x) 		(sizeof(x) / sizeof(x[0]))
+#define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 
-#define GREEDY_MODEST(d)	(d->greedy ? "greedy" : "modest")
+#define GREEDY_MODEST(d)		(d->greedy ? "greedy" : "modest")
 
-#define AKKU_AVAILABLE		(AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000) // minus 7% minimum SoC
-#define AKKU_CAPA_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
+#define AKKU_AVAILABLE			(AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000) // minus 7% minimum SoC
+#define AKKU_CAPA_SOC(soc)		(AKKU_CAPACITY * soc / 1000)
 
-#define FLOAT10(x)			((float) x / 10.0)
+#define FLOAT10(x)				((float) x / 10.0)
 
-#define FLAG_VALID			(1 << 0)
-#define FLAG_DISTORTION		(1 << 1)
-#define FLAG_STANDBY		(1 << 2)
-#define FLAG_BURNOUT		(1 << 3)
-#define FLAG_OFFLINE		(1 << 4)
-#define FLAG_ALL_STANDBY	(1 << 5)
-#define FLAG_STABLE			(1 << 6)
-#define FLAG_EMERGENCY		(1 << 7)
+#define FLAG_VALID				(1 << 0)
+#define FLAG_STABLE				(1 << 1)
+#define FLAG_DISTORTION			(1 << 2)
+#define FLAG_CHECK_STANDBY		(1 << 3)
+#define FLAG_ALL_STANDBY		(1 << 4)
+#define FLAG_EMERGENCY			(1 << 5)
+#define FLAG_BURNOUT			(1 << 6)
+#define FLAG_OFFLINE			(1 << 7)
 
-#define PSTATE_VALID		(pstate->flags & FLAG_VALID)
-#define PSTATE_DISTORTION	(pstate->flags & FLAG_DISTORTION)
-#define PSTATE_STANDBY		(pstate->flags & FLAG_STANDBY)
-#define PSTATE_BURNOUT		(pstate->flags & FLAG_BURNOUT)
-#define PSTATE_OFFLINE		(pstate->flags & FLAG_OFFLINE)
-#define PSTATE_ALL_STANDBY	(pstate->flags & FLAG_ALL_STANDBY)
-#define PSTATE_STABLE		(pstate->flags & FLAG_STABLE)
-#define PSTATE_EMERGENCY	(pstate->flags & FLAG_EMERGENCY)
+#define PSTATE_VALID			(pstate->flags & FLAG_VALID)
+#define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
+#define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
+#define PSTATE_CHECK_STANDBY	(pstate->flags & FLAG_CHECK_STANDBY)
+#define PSTATE_ALL_STANDBY		(pstate->flags & FLAG_ALL_STANDBY)
+#define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
+#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
+#define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 enum dstate {
 	Disabled, Active, Standby, Standby_Check

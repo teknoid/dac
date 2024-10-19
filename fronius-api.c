@@ -741,7 +741,7 @@ static device_t* standby() {
 	}
 
 	// no standby check indicated
-	if (!PSTATE_STANDBY)
+	if (!PSTATE_CHECK_STANDBY)
 		return 0;
 
 	// try first active powered device with noresponse counter > 0
@@ -972,7 +972,7 @@ static void calculate_pstate2() {
 
 	// indicate standby check when deviation between actual load and calculated load is three times over 33% and no distortion
 	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33 && !PSTATE_DISTORTION)
-		pstate->flags |= FLAG_STANDBY;
+		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// surplus is akku charge + grid upload
 	pstate->surplus = (pstate->grid + pstate->akku) * -1;
