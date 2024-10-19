@@ -901,20 +901,30 @@ static void calculate_pstate1() {
 
 	// offline mode when 3x not enough PV production
 	if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
-		if (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8)
-			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock
+		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 100 && gstate->expected > gstate->survive;
+		if (burnout_time && burnout_possible && AKKU_BURNOUT)
+			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
-			pstate->flags |= FLAG_OFFLINE; // go into offline mode
+			pstate->flags |= FLAG_OFFLINE; // offline
+		return;
 	}
 
 	// emergency shutdown when 3x more than 10% capacity discharge
-	if (pstate->akku > AKKU_CAPACITY && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10)
+	if (pstate->akku > AKKU_CAPACITY && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
 		pstate->flags |= FLAG_EMERGENCY;
+		return;
+	}
+
+	pstate->flags |= FLAG_VALID;
 }
 
 static void calculate_pstate2() {
 	// take over raw values from Fronius7
 	pstate->pv7 = r->pv7;
+
+	// clear VALID flag
+	pstate->flags &= ~FLAG_VALID;
 
 	// get 2x history back
 	pstate_t *h1 = get_pstate_history(-1);
@@ -1018,6 +1028,9 @@ static int calculate_next_round(device_t *d) {
 			return WAIT_RAMP;
 	}
 
+	if (PSTATE_OFFLINE || PSTATE_BURNOUT)
+		return WAIT_OFFLINE;
+
 	// much faster next round on
 	// - suspicious values detected
 	// - distortion
@@ -1037,6 +1050,11 @@ static int calculate_next_round(device_t *d) {
 	return WAIT_INSTABLE;
 }
 
+static void emergency() {
+	set_all_devices(0);
+	xlog("FRONIUS %.1f akku discharge !!! emergency shutdown", FLOAT10(pstate->akku));
+}
+
 static void offline() {
 	set_all_devices(0);
 	xlog("FRONIUS offline pv=%d akku=%d grid=%d load=%d soc=%.1f", pstate->pv10, pstate->akku, pstate->grid, pstate->load, FLOAT10(pstate->soc));
@@ -1044,15 +1062,10 @@ static void offline() {
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
-	int burnout = !SUMMER && TEMP_IN < 20 && AKKU_BURNOUT && pstate->soc > 100 && gstate->expected > gstate->survive;
-	if (!burnout)
-		return;
-
 	fronius_override_seconds("plug5", WAIT_OFFLINE);
 	fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
-
 	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", FLOAT10(pstate->soc), gstate->expected, gstate->survive, TEMP_IN);
 }
 
@@ -1191,9 +1204,6 @@ static void fronius() {
 			hourly(now_ts);
 		}
 
-		// default
-		wait = WAIT_NEXT;
-
 		// check error counter
 		if (errors > 10)
 			set_all_devices(0);
@@ -1203,30 +1213,22 @@ static void fronius() {
 		calculate_pstate1();
 
 		// check burnout
-		if (PSTATE_BURNOUT) {
+		if (PSTATE_BURNOUT)
 			burnout();
-			wait = WAIT_OFFLINE;
-			continue;
-		}
 
 		// check offline
-		if (PSTATE_OFFLINE) {
+		if (PSTATE_OFFLINE)
 			offline();
-			wait = WAIT_OFFLINE;
-			continue;
-		}
 
 		// check emergency
-		if (PSTATE_EMERGENCY) {
-			set_all_devices(0);
-			xlog("FRONIUS %.1f akku discharge !!! emergency shutdown", FLOAT10(pstate->akku));
-			wait = WAIT_RAMP;
-			continue;
-		}
+		if (PSTATE_EMERGENCY)
+			emergency();
 
-		// make Fronius7 API call and calculate second pstate
-		errors += curl_perform(curl7, &memory, &parse_fronius7);
-		calculate_pstate2();
+		if (PSTATE_VALID) {
+			// make Fronius7 API call and calculate second pstate
+			errors += curl_perform(curl7, &memory, &parse_fronius7);
+			calculate_pstate2();
+		}
 
 		// print actual pstate
 		print_pstate(NULL);
