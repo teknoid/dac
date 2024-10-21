@@ -1109,31 +1109,27 @@ static void hourly(time_t now_ts) {
 	minimum_maximum(now_ts);
 	print_minimum_maximum();
 
-	// collect akku discharge rate for last hour when no PV and SoC between 90% and 10%
-	if (pstate->pv10 < 5 && gstate->soc < 900 && gstate->soc > 100) {
-		if (discharge_soc && discharge_ts) {
-			// calculate
-			int seconds = now_ts - discharge_ts;
-			int start = AKKU_CAPA_SOC(discharge_soc);
-			int end = AKKU_CAPA_SOC(gstate->soc);
-			int idx = now->tm_hour ? now->tm_hour - 1 : 23;
-			int lost = discharge[idx] = start - end;
-			xlog("FRONIUS calculated akku discharge rate for last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
+	// collect akku discharge rate for last hour when SoC between 90% and 10%
+	int start = AKKU_CAPA_SOC(discharge_soc);
+	int end = AKKU_CAPA_SOC(gstate->soc);
+	if (start > end && gstate->soc < 900 && gstate->soc > 100) {
+		int seconds = now_ts - discharge_ts;
+		int idx = now->tm_hour ? now->tm_hour - 1 : 23;
+		int lost = discharge[idx] = start - end;
+		xlog("FRONIUS akku discharge rate last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
 
-			// dump hourly collected discharge rates
-			char message[LINEBUF], value[6];
-			strcpy(message, "FRONIUS discharge rate ");
-			for (int i = 0; i < 24; i++) {
-				snprintf(value, 6, "%4d ", discharge[i]);
-				strcat(message, value);
-			}
-			xdebug(message);
+		// dump hourly collected discharge rates
+		char message[LINEBUF], value[6];
+		strcpy(message, "FRONIUS discharge rate ");
+		for (int i = 0; i < 24; i++) {
+			snprintf(value, 6, "%4d ", discharge[i]);
+			strcat(message, value);
 		}
-		// update for next calculation
-		discharge_soc = gstate->soc;
-		discharge_ts = now_ts;
-	} else
-		discharge_soc = discharge_ts = 0;
+		xdebug(message);
+	}
+	// update for next calculation
+	discharge_soc = gstate->soc;
+	discharge_ts = now_ts;
 
 	// calculate mean discharge rate and clear it at high noon
 	if (now->tm_hour == 6) {
