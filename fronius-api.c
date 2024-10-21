@@ -1116,7 +1116,7 @@ static void hourly(time_t now_ts) {
 		int seconds = now_ts - discharge_ts;
 		int idx = now->tm_hour ? now->tm_hour - 1 : 23;
 		int lost = discharge[idx] = start - end;
-		xlog("FRONIUS akku discharge rate last hour: %d Wh, seconds=%d start=%d end=%d", lost, seconds, start, end);
+		xlog("FRONIUS discharge rate last hour %d Wh, start=%d end=%d seconds=%d", lost, start, end, seconds);
 
 		// dump hourly collected discharge rates
 		char message[LINEBUF], value[6];
@@ -1134,7 +1134,7 @@ static void hourly(time_t now_ts) {
 	// calculate mean discharge rate and clear it at high noon
 	if (now->tm_hour == 6) {
 		gstate->discharge = average_non_zero(discharge, ARRAY_SIZE(discharge));
-		xlog("FRONIUS nightly mean akku discharge rate: %d Wh", gstate->discharge);
+		xlog("FRONIUS nightly mean discharge rate %d Wh", gstate->discharge);
 	}
 	if (now->tm_hour == 12)
 		ZERO(discharge);
