@@ -208,7 +208,7 @@ int sensor_main(int argc, char **argv) {
 	set_debug(1);
 
 	sensors = malloc(sizeof(*sensors));
-	ZERO(sensors);
+	ZEROP(sensors);
 
 	init();
 	sleep(1);

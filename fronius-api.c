@@ -268,7 +268,7 @@ static void bump_gstate() {
 	if (++gstate_history_ptr == GSTATE_HISTORY)
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
-	ZERO(gstate);
+	ZEROP(gstate);
 }
 
 static void bump_pstate() {
@@ -276,7 +276,7 @@ static void bump_pstate() {
 	if (++pstate_history_ptr == PSTATE_HISTORY)
 		pstate_history_ptr = 0;
 	pstate = &pstate_history[pstate_history_ptr];
-	ZERO(pstate);
+	ZEROP(pstate);
 }
 
 static void print_dstate(int wait) {
@@ -1073,7 +1073,7 @@ static void monthly(time_t now_ts) {
 	xlog("FRONIUS executing monthly tasks...");
 
 	// reset minimum/maximum voltages
-	ZERO(minmax);
+	ZEROP(minmax);
 	minmax->v1min = minmax->v2min = minmax->v3min = minmax->fmin = 3000;
 	minmax->v1max = minmax->v2max = minmax->v3max = minmax->fmax = 0;
 }
@@ -1413,6 +1413,14 @@ static int test() {
 	int x[] = { 264, 286, 264, 231, 275, 231, 220, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 	int y = average_non_zero(x, ARRAY_SIZE(x));
 	xlog("average_non_zero=%d sizeof=%d", y, ARRAY_SIZE(x));
+	for (int i = 0; i < 24; i++)
+		printf("%d ", x[i]);
+	printf("\n");
+	printf("sizeof %lu %lu\n", sizeof(x), sizeof(*x));
+	ZERO(x);
+	for (int i = 0; i < 24; i++)
+		printf("%d ", x[i]);
+	printf("\n");
 
 	CURL *curl_readable = curl_init(URL_READABLE, &memory);
 	if (curl_readable == NULL)
@@ -1426,22 +1434,9 @@ static int test() {
 	d->power = -1;
 	d->addr = resolve_ip(d->name);
 
-	// 2 x blink
-	set_boiler(d, 100);
-	sleep(1);
-	set_boiler(d, 0);
-	sleep(1);
-	set_boiler(d, 100);
-	sleep(1);
-	set_boiler(d, 0);
-	sleep(1);
+	curl_perform(curl_readable, &memory, &parse_readable);
+	printf("curl perform\n");
 
-	// full ramp up 0..100
-	for (int i = 0; i <= 100; i++) {
-		set_boiler(d, i);
-		usleep(200 * 1000);
-	}
-	set_boiler(d, 0);
 	return 0;
 }
 
@@ -1450,10 +1445,10 @@ static int init() {
 
 	init_all_devices();
 	set_all_devices(0);
-	ZERO(pstate_history);
-	ZERO(gstate_history);
+	ZEROP(pstate_history);
+	ZEROP(gstate_history);
+	ZEROP(r);
 	ZERO(discharge);
-	ZERO(r);
 
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 
@@ -1519,6 +1514,7 @@ int fronius_main(int argc, char **argv) {
 
 	int c;
 	while ((c = getopt(argc, argv, "c:o:t")) != -1) {
+		printf("getopt %c\n", c);
 		switch (c) {
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
@@ -1526,7 +1522,9 @@ int fronius_main(int argc, char **argv) {
 		case 'o':
 			return fronius_override(optarg);
 		case 't':
-			return test();
+			test();
+			printf("test\n");
+			return 0;
 		}
 	}
 

@@ -31,7 +31,7 @@ void mosmix_sod(mosmix_t *sum, time_t now_ts) {
 	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
 	time_t ts_from = mktime(&tm) + 1;
 
-	ZERO(sum);
+	ZEROP(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
 		if (ts_from < m->ts && m->ts < now_ts) { // exclude current hour
@@ -50,7 +50,7 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 	tm.tm_sec = 59;
 	time_t ts_to = mktime(&tm);
 
-	ZERO(sum);
+	ZEROP(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
 		if (m->ts > (now_ts + 3600) && m->ts < ts_to) { // exclude current hour
@@ -68,7 +68,7 @@ void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
 	time_t ts_from = mktime(&tm) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
-	ZERO(sum);
+	ZEROP(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
 		if (ts_from < m->ts && m->ts < ts_to) {
@@ -122,7 +122,7 @@ int mosmix_load(const char *filename) {
 	char buf[LINEBUF];
 	char *strings[MOSMIX_COLUMNS];
 
-	ZERO(mosmix);
+	ZEROP(mosmix);
 
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)

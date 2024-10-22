@@ -134,7 +134,7 @@ static void calculate() {
 static int update() {
 	// clear slot for current values
 	pstate = &pstate_history[pstate_history_ptr];
-	ZERO(pstate);
+	ZEROP(pstate);
 
 	// slot with previous values
 	pstate_t *h1 = get_pstate_history(-1);
@@ -228,9 +228,9 @@ static void* fronius10(void *arg) {
 		return (void*) 0;
 
 	while (1) {
-		ZERO(inverter_registers);
-		ZERO(storage_registers);
-		ZERO(meter_registers);
+		ZEROP(inverter_registers);
+		ZEROP(storage_registers);
+		ZEROP(meter_registers);
 
 		errors = 0;
 		modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);
@@ -285,7 +285,7 @@ static void* fronius7(void *arg) {
 		return (void*) 0;
 
 	while (1) {
-		ZERO(inverter_registers);
+		ZEROP(inverter_registers);
 
 		errors = 0;
 		modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);

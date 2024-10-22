@@ -223,7 +223,7 @@ static int init() {
 
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));
-	ZERO(client_tx);
+	ZEROP(client_tx);
 
 	snprintf(client_id, 128, "%s-mcp-tx", hostname);
 	mqttfd_tx = open_nb_socket(HOST, PORT);
@@ -241,7 +241,7 @@ static int init() {
 
 	// subscriber client
 	client_rx = malloc(sizeof(*client_rx));
-	ZERO(client_rx);
+	ZEROP(client_rx);
 
 	snprintf(client_id, 128, "%s-mcp-rx", hostname);
 	mqttfd_rx = open_nb_socket(HOST, PORT);

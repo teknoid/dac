@@ -333,7 +333,7 @@ int elevate_realtime(int cpu) {
 
 	// Set our thread to MAX priority
 	struct sched_param sp;
-	ZERO(&sp);
+	ZEROP(&sp);
 	sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	if (sched_setscheduler(0, SCHED_FIFO, &sp))
 		return -1;
@@ -595,7 +595,7 @@ const char* resolve_ip(const char *hostname) {
 	}
 
 	char *addrstr = malloc(16);
-	ZERO(addrstr);
+	ZEROP(addrstr);
 
 	inet_ntop(addr->ai_family, ptr, addrstr, 16);
 	xlog("UTILS %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);

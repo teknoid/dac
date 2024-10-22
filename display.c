@@ -380,10 +380,10 @@ int display_main(int argc, char **argv) {
 	set_debug(1);
 
 	cfg = malloc(sizeof(*cfg));
-	ZERO(cfg);
+	ZEROP(cfg);
 
 	mcp = malloc(sizeof(*mcp));
-	ZERO(mcp);
+	ZEROP(mcp);
 
 	mcp->ir_active = 1;
 	mcp->dac_power = 1;

@@ -112,7 +112,7 @@ mcp_sensors_t *sensors = NULL;
 // called in each module via macro MCP_REGISTER(...) before main()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
-	ZERO(new_module);
+	ZEROP(new_module);
 
 	new_module->name = name;
 	new_module->init = init;
@@ -314,17 +314,17 @@ int main(int argc, char **argv) {
 
 	// allocate global data exchange structures
 	cfg = malloc(sizeof(*cfg));
-	ZERO(cfg);
+	ZEROP(cfg);
 
 	mcp = malloc(sizeof(*mcp));
-	ZERO(mcp);
+	ZEROP(mcp);
 	mcp->ir_active = 1;
 	mcp->notifications_lcd = 1;
 	mcp->notifications_sound = 1;
 	mcp->notifications_desktop = 0;
 
 	sensors = malloc(sizeof(*sensors));
-	ZERO(sensors);
+	ZEROP(sensors);
 
 	// parse command line arguments
 	int c;
