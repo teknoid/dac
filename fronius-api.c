@@ -912,7 +912,7 @@ static void calculate_pstate1() {
 	}
 
 	// emergency shutdown when 3x more than 10% capacity discharge
-	if (pstate->akku > AKKU_CAPACITY && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
+	if (pstate->akku > AKKU_CAPACITY / 10 && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
