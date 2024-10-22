@@ -125,6 +125,7 @@ int set_heater(device_t *heater, int power) {
 }
 
 // echo p:0:0 | socat - udp:boiler3:1975
+// for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 int set_boiler(device_t *boiler, int power) {
 	// fix power value if out of range
 	if (power < 0)
@@ -902,7 +903,7 @@ static void calculate_pstate1() {
 	// offline mode when 3x not enough PV production
 	if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 100 && gstate->expected > gstate->survive;
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->expected > gstate->survive;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
