@@ -6,7 +6,7 @@
 
 // these tasmota devices will be in XMAS mode
 // #define DEVICES			PLUG1, PLUG2, PLUG3, PLUG4, PLUG5, PLUG6
-#define DEVICES			PLUG1
+#define DEVICES			PLUG2
 
 // the remote control unit
 #define WHITE1				1
