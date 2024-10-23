@@ -141,7 +141,7 @@ static int update() {
 
 	int d = 0;
 
-	pstate->pv10 = SFI(inverter10->DCW, inverter10->DCW_SF);
+	pstate->pv10 = SFI(inverter10->W, inverter10->W_SF);
 	d |= pstate->pv10 != h1->pv10;
 
 	pstate->pv7 = SFI(inverter7->W, inverter7->W_SF);
@@ -233,13 +233,13 @@ static void* fronius10(void *arg) {
 		ZEROP(meter_registers);
 
 		errors = 0;
-		modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);
+		modbus_t *mb = modbus_new_tcp("192.168.25.230", 502);
 
 		modbus_set_response_timeout(mb, 5, 0);
 		modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-		// TODO remove
-		rc = modbus_set_slave(mb, 2);
+		// Fronius10 is primary unit in installation setup
+		rc = modbus_set_slave(mb, 1);
 		if (rc == -1)
 			xlog("Fronius10 invalid slave ID");
 
