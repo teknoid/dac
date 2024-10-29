@@ -55,7 +55,7 @@ static void handle_button(unsigned char c) {
 		break;
 	case 32:
 #ifdef FRONIUS
-		fronius_override_seconds("plug8", 3600);
+		fronius_override_seconds("plug4", 3600);
 #endif
 		break;
 	case 160:

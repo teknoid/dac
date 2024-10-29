@@ -6,11 +6,11 @@
 
 // date --date='@1728165335'
 
-// hexdump -v -e '5 "%10d " 12 "%8d ""\n"' /tmp/gstate.bin
-#define GSTATE_FILE				"/tmp/gstate.bin"				// TODO later on hard disk for reboot!
+// hexdump -v -e '5 "%10d " 12 "%8d ""\n"' /work/gstate.bin
+#define GSTATE_FILE				"/work/gstate.bin"
 
-// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /tmp/minmax.bin
-#define MINMAX_FILE				"/tmp/minmax.bin"				// TODO later on hard disk for reboot!
+// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/minmax.bin
+#define MINMAX_FILE				"/work/minmax.bin"
 
 #define AKKU_BURNOUT			1
 #define AKKU_CAPACITY			11000
