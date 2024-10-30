@@ -1017,6 +1017,10 @@ static void calculate_pstate2() {
 		xdebug("FRONIUS grid spike detected %d -> %d", h1->grid, pstate->grid);
 		return;
 	}
+	if (!potd) {
+		xlog("FRONIUS No potd selected!");
+		return;
+	}
 
 	pstate->flags |= FLAG_VALID;
 }
