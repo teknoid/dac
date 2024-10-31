@@ -231,7 +231,7 @@ static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[12];
 
 	strcpy(line,
-			"FRONIUS gstate   idx         ts       pv10        pv7      ↑grid      ↓grid  pv10_24   pv7_24 ↑grid_24 ↓grid_24      soc  survive expected    today tomorrow  dcharge      ttl   mosmix");
+			"FRONIUS gstate   idx         ts      ∑pv10       ∑pv7     ∑↑grid     ∑↓grid    pv10     pv7   ↑grid   ↓grid     soc survive   avail   today  tomorr dcharge  mosmix");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -239,7 +239,7 @@ static void dump_gstate(int back) {
 		strcat(line, value);
 		int *vv = (int*) get_gstate_history(y * -1);
 		for (int x = 0; x < sizeof(gstate_t) / sizeof(int); x++) {
-			snprintf(value, 12, (x < 5) ? "%10d " : "%8d ", vv[x]);
+			snprintf(value, 12, (x < 5) ? "%10d " : "%7d ", vv[x]);
 			strcat(line, value);
 		}
 		xdebug(line);
@@ -320,14 +320,12 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7_24);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced_24);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed_24);
-	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
 	xlogl_int(line, 0, 0, "Survive", gstate->survive);
-	xlogl_int(line, 1, AKKU_AVAILABLE < gstate->survive, "Available", AKKU_AVAILABLE);
+	xlogl_int(line, 1, gstate->available < gstate->survive, "Available", gstate->available);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_float(line, "TTL", gstate->ttl / 60.0);
 	xlogl_float(line, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_end(line, strlen(line), message);
 }
@@ -485,7 +483,7 @@ static int parse_readable(response_t *resp) {
 	return 0;
 }
 
-static void select_program(const potd_t *p) {
+static int select_program(const potd_t *p) {
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	if (potd != p) {
 		potd = (potd_t*) p;
@@ -499,24 +497,26 @@ static void select_program(const potd_t *p) {
 		for (device_t **d = potd->modest; *d != 0; d++)
 			(*d)->greedy = 0;
 	}
+	return 0;
 }
 
-// choose program of the day
-static void choose_program() {
-	int available = gstate->expected + AKKU_AVAILABLE;
-	if (gstate->soc < 100 || available < gstate->survive)
-		select_program(&EMERGENCY); // charge akku asap
-	else {
-		if (now->tm_hour > 12 && AKKU_AVAILABLE < gstate->survive)
-			select_program(&MODEST); // afternoon - charge akku till we survive
-		else {
-			// we will survive
-			if (gstate->tomorrow > BASELOAD * 24)
-				select_program(&GREEDY); // charge akku tommorrow
-			else
-				select_program(&SUNNY); // enough available
-		}
-	}
+// choose program of the dayF
+static int choose_program() {
+
+	// charge akku asap - no devices active
+	if (gstate->soc < 100)
+		return select_program(&EMERGENCY);
+
+	// we will NOT survive - only use pv7 power or non akku charging power
+	if (gstate->available < gstate->survive)
+		return select_program(&MODEST); //
+
+	// we will survive - charge akku tommorrow when more than today
+	if (gstate->tomorrow > gstate->today)
+		return select_program(&GREEDY);
+
+	// enough available
+	return select_program(&SUNNY);
 }
 
 // minimum available power for ramp up
@@ -851,18 +851,22 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_sod(&sod, now_ts);
 	mosmix_eod(&eod, now_ts);
 
-	// calculate actual mosmix factor: till now produced vs. till now predicted, available power and power needed to survive next night
+	// calculate:
+	// - actual mosmix factor: till now produced vs. till now predicted
+	// - expected pv power till end of day
+	// - available power (expected + akku)
+	// - power needed to survive next night
 	int pv = gstate->pv10_24 + gstate->pv7_24;
 	float mosmix = sod.Rad1h == 0 || pv == 0 ? 1 : (float) pv / (float) sod.Rad1h;
 	gstate->mosmix = 10 * mosmix; // store as x10 scaled
+	int available = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
 	int discharge = gstate->discharge == 0 ? BASELOAD : gstate->discharge; // nightly discharge rate or BASELOAD default
-	float ttl = (float) AKKU_AVAILABLE / (float) discharge; // akku time to live in hours
-	gstate->ttl = ttl * 60; // minutes
+	float ttl = (float) available / (float) discharge; // akku time to live in hours
 	int rad1h_min = discharge / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	gstate->survive = discharge * mosmix_survive(now_ts, rad1h_min); // discharge * hours
-	gstate->expected = eod.Rad1h * mosmix;
-	int total = AKKU_AVAILABLE + gstate->expected;
-	xdebug("FRONIUS mosmix sod=%d eod=%d available=%d (%d akku + %d pv)", sod.Rad1h, eod.Rad1h, total, AKKU_AVAILABLE, gstate->expected);
+	int expected = eod.Rad1h * mosmix;
+	gstate->available = available + expected;
+	xdebug("FRONIUS mosmix sod=%d eod=%d available=%d (%d akku + %d pv) akku ttl=%.1fh", sod.Rad1h, eod.Rad1h, gstate->available, available, expected, ttl);
 
 	// calculate mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -877,21 +881,6 @@ static void calculate_mosmix(time_t now_ts) {
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if (!(*d)->adjustable)
 			heating += (*d)->total;
-
-	// find current mosmix slot and calculate hourly values
-	// TODO do something with them
-	mosmix_t *m = mosmix_current_slot(now_ts);
-	if (m != 0) {
-		int need_1h = AKKU_CAPACITY - AKKU_AVAILABLE;
-		if (need_1h > 4500)
-			need_1h = 4500; // max charge capacity per hour is 4,5kW
-		need_1h += discharge;
-		need_1h += !SUMMER && now->tm_hour >= 9 && now->tm_hour < 15 ? heating : 0; // from 9 to 15 o'clock
-		int exp_1h = m->Rad1h * mosmix;
-		char *timestr = ctime(&m->ts);
-		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		xdebug("FRONIUS mosmix current slot index=%d date=%s TTT=%.1f Rad1H=%d SunD1=%d, need1h/exp1h %d/%d Wh", m->idx, timestr, m->TTT, m->Rad1h, m->SunD1, need_1h, exp_1h);
-	}
 }
 
 static void calculate_pstate1() {
@@ -909,7 +898,7 @@ static void calculate_pstate1() {
 	// offline mode when 3x not enough PV production
 	if (pstate->pv10 < 100 && h1->pv10 < 100 && h2->pv < 100) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->expected > gstate->survive;
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->available > gstate->survive;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
@@ -1077,7 +1066,7 @@ static void burnout() {
 	fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
-	xlog("FRONIUS burnout soc=%.1f expected=%d survive=%d temp=%.1f", FLOAT10(pstate->soc), gstate->expected, gstate->survive, TEMP_IN);
+	xlog("FRONIUS burnout soc=%.1f available=%d survive=%d temp=%.1f", FLOAT10(pstate->soc), gstate->available, gstate->survive, TEMP_IN);
 }
 
 static void monthly(time_t now_ts) {
@@ -1114,13 +1103,13 @@ static void hourly(time_t now_ts) {
 	calculate_gstate(now_ts);
 
 	// collect akku discharge rate for last hour when SoC between 90% and 10%
-	int start = AKKU_CAPA_SOC(discharge_soc);
-	int end = AKKU_CAPA_SOC(gstate->soc);
-	if (start > end && gstate->soc < 900 && gstate->soc > 100) {
+	int start = AKKU_CAPACITY_SOC(discharge_soc);
+	int stop = AKKU_CAPACITY_SOC(gstate->soc);
+	if (start > stop && gstate->soc < 900 && gstate->soc > 100) {
 		int seconds = now_ts - discharge_ts;
 		int idx = now->tm_hour ? now->tm_hour - 1 : 23;
-		int lost = discharge[idx] = start - end;
-		xlog("FRONIUS discharge rate last hour %d Wh, start=%d end=%d seconds=%d", lost, start, end, seconds);
+		int lost = discharge[idx] = start - stop;
+		xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
 
 		// dump hourly collected discharge rates
 		char message[LINEBUF], value[6];
@@ -1141,7 +1130,7 @@ static void hourly(time_t now_ts) {
 
 	// calculate mean discharge rate and clear it at high noon
 	if (now->tm_hour == 6) {
-		gstate->discharge = average_non_zero(discharge, ARRAY_SIZE(discharge));
+		gstate->discharge = average_non_zero(discharge, 24);
 		xlog("FRONIUS nightly mean discharge rate %d Wh", gstate->discharge);
 	}
 	if (now->tm_hour == 12)

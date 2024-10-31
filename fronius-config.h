@@ -32,8 +32,7 @@
 
 #define GREEDY_MODEST(d)		(d->greedy ? "greedy" : "modest")
 
-#define AKKU_AVAILABLE			(AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000) // minus 7% minimum SoC
-#define AKKU_CAPA_SOC(soc)		(AKKU_CAPACITY * soc / 1000)
+#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
 #define FLOAT10(x)				((float) x / 10.0)
 
@@ -117,11 +116,10 @@ struct _gstate {
 	int consumed_24;
 	int soc;
 	int survive;
-	int expected;
+	int available;
 	int today;
 	int tomorrow;
 	int discharge;
-	int ttl;
 	int mosmix;
 };
 
