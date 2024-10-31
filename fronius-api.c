@@ -839,6 +839,12 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->consumed_24 = !gstate->consumed || !y->consumed ? 0 : gstate->consumed - y->consumed;
 	gstate->pv10_24 = !gstate->pv10 || !y->pv10 ? 0 : gstate->pv10 - y->pv10;
 	gstate->pv7_24 = !gstate->pv7 || !y->pv7 ? 0 : gstate->pv7 - y->pv7;
+}
+
+static void calculate_mosmix(time_t now_ts) {
+	// reload mosmix data
+	if (mosmix_load(CHEMNITZ))
+		return;
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
@@ -1095,24 +1101,17 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// reload mosmix data
-	if (mosmix_load(CHEMNITZ))
-		return;
+	// reset standby states
+	xlog("FRONIUS resetting standby states");
+	for (device_t **d = DEVICES; *d != 0; d++)
+		if ((*d)->state == Standby)
+			(*d)->state = Active;
 
 	// update raw values
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
-	// recalculate global state and mosmix values
+	// recalculate global state
 	calculate_gstate(now_ts);
-	print_gstate(NULL);
-	dump_gstate(2);
-
-	// choose program of the day
-	choose_program();
-
-	// update voltage minimum/maximum
-	minimum_maximum(now_ts);
-	print_minimum_maximum();
 
 	// collect akku discharge rate for last hour when SoC between 90% and 10%
 	int start = AKKU_CAPA_SOC(discharge_soc);
@@ -1136,6 +1135,10 @@ static void hourly(time_t now_ts) {
 	discharge_soc = gstate->soc;
 	discharge_ts = now_ts;
 
+	// update voltage minimum/maximum
+	minimum_maximum(now_ts);
+	print_minimum_maximum();
+
 	// calculate mean discharge rate and clear it at high noon
 	if (now->tm_hour == 6) {
 		gstate->discharge = average_non_zero(discharge, ARRAY_SIZE(discharge));
@@ -1144,10 +1147,15 @@ static void hourly(time_t now_ts) {
 	if (now->tm_hour == 12)
 		ZERO(discharge);
 
-	xlog("FRONIUS resetting standby states");
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Standby)
-			(*d)->state = Active;
+	// recalculate global state with mosmix values
+	calculate_mosmix(now_ts);
+
+	// choose program of the day
+	choose_program();
+
+	// dump gstate
+	print_gstate(NULL);
+	dump_gstate(2);
 }
 
 static void fronius() {
