@@ -6,7 +6,7 @@
 
 // date --date='@1728165335'
 
-// hexdump -v -e '5 "%10d " 12 "%8d ""\n"' /work/gstate.bin
+// hexdump -v -e '5 "%10d " 11 "%6d ""\n"' /work/gstate.bin
 #define GSTATE_FILE				"/work/gstate.bin"
 
 // hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/minmax.bin
