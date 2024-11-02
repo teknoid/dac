@@ -18,7 +18,7 @@
 #define TASMOTA
 #define FRONIUS
 #define LCD
-#define I2C				"/dev/i2c-7"
+#define I2C				"/dev/i2c-3"
 #define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
 #endif
 
