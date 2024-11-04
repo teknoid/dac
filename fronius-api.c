@@ -356,14 +356,14 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 1, gstate->available < gstate->survive, "Available", gstate->available);
+	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "Akku", gstate->akku);
+	xlogl_float(line, "TTL", (float) gstate->ttl / 60.0);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, 0, 0, "Survive", gstate->survive);
+	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Discharge", gstate->discharge);
-	xlogl_int(line, 0, 0, "Survive", gstate->survive);
-	xlogl_int(line, 0, 0, "Expected", gstate->expected);
-	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_float(line, "TTL", (float) gstate->ttl / 60.0);
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, "Mosmix", FLOAT10(gstate->mosmix));
 	strcat(line, " potd:");
 	strcat(line, potd->name);
@@ -540,7 +540,7 @@ static int select_program(const potd_t *p) {
 	return 0;
 }
 
-// choose program of the dayF
+// choose program of the day
 static int choose_program() {
 
 	// charge akku asap - no devices active
@@ -561,7 +561,7 @@ static int choose_program() {
 
 // minimum available power for ramp up
 static int rampup_min(device_t *d) {
-	int min = d->adjustable ? d->total / 100 : d->total; // adjustable 1% of total, dumb total
+	int min = d->adjustable ? d->total / 100 : d->total; // adjustable: 1% of total, dumb: total
 	if (pstate->soc < 1000)
 		min += min / 10; // 10% more while akku is charging to avoid excessive grid load
 	if (PSTATE_DISTORTION)
