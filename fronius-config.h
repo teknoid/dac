@@ -1,16 +1,20 @@
-#define GSTATE_HISTORY			14
-#define PSTATE_HISTORY			6
+#define COUNTER_HISTORY			30		// days
+#define GSTATE_HISTORY			24		// hours
+#define PSTATE_HISTORY			3		// samples
 #define OVERRIDE				600
 #define STANDBY_RESET			60 * 30
 #define STANDBY_NORESPONSE		3
 
 // date --date='@1728165335'
 
-// hexdump -v -e '5 "%10d " 11 "%6d ""\n"' /work/gstate.bin
-#define GSTATE_FILE				"/work/gstate.bin"
+// hexdump -v -e '5 "%10d ""\n"' /work/fronius-counter.bin
+#define COUNTER_FILE			"/work/fronius-counter.bin"
 
-// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/minmax.bin
-#define MINMAX_FILE				"/work/minmax.bin"
+// hexdump -v -e '12 "%6d ""\n"' /work/fronius-gstate.bin
+#define GSTATE_FILE				"/work/fronius-gstate.bin"
+
+// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
+#define MINMAX_FILE				"/work/fronius-minmax.bin"
 
 #define AKKU_BURNOUT			1
 #define AKKU_CAPACITY			11000
@@ -79,6 +83,37 @@ struct _raw {
 	float f;
 };
 
+typedef struct _counter counter_t;
+
+struct _counter {
+	int timestamp;
+	int pv10;
+	int pv7;
+	int produced;
+	int consumed;
+};
+
+typedef struct _gstate gstate_t;
+
+struct _gstate {
+	int timestamp;
+	int pv;
+	int pv10;
+	int pv7;
+	int produced;
+	int consumed;
+	int today;
+	int tomorrow;
+	int discharge;
+	int survive;
+	int expected;
+	int soc;
+	int ttl;
+	int akku;
+	int available;
+	int mosmix;
+};
+
 typedef struct _pstate pstate_t;
 
 struct _pstate {
@@ -100,27 +135,6 @@ struct _pstate {
 	int tendence;
 	int wait;
 	int flags;
-};
-
-typedef struct _gstate gstate_t;
-
-struct _gstate {
-	int timestamp;
-	int pv10;
-	int pv7;
-	int produced;
-	int consumed;
-	int pv10_24;
-	int pv7_24;
-	int produced_24;
-	int consumed_24;
-	int soc;
-	int survive;
-	int available;
-	int today;
-	int tomorrow;
-	int discharge;
-	int mosmix;
 };
 
 typedef struct _minmax minmax_t;
