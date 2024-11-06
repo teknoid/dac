@@ -887,10 +887,11 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->consumed = !counter->consumed || !y->consumed ? 0 : counter->consumed - y->consumed;
 	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
 	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
+	gstate->pv = gstate->pv10 + gstate->pv7;
 
 	// akku time to live based on average nightly discharge rate
 	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	float ttl = (float) gstate->akku / (float) gstate->discharge; // hours
+	float ttl = ((float) gstate->akku) / ((float) gstate->discharge); // hours
 	gstate->ttl = ttl * 60.0; // minutes
 }
 
@@ -905,15 +906,14 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_eod(&eod, now_ts);
 
 	// actual mosmix factor: till now produced vs. till now predicted
-	gstate->pv = gstate->pv10 + gstate->pv7;
-	float mosmix = sod.Rad1h == 0 || gstate->pv == 0 ? 1 : (float) gstate->pv / (float) sod.Rad1h;
-	gstate->mosmix = 10 * mosmix; // store as x10 scaled
+	float mosmix = sod.Rad1h == 0 || gstate->pv == 0 ? 1 : ((float) gstate->pv) / ((float) sod.Rad1h);
+	gstate->mosmix = mosmix * 10.0; // store as x10 scaled
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
 
 	// power needed to survive next night
-	int rad1h_min = (float) gstate->discharge / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int rad1h_min = gstate->discharge / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	gstate->survive = gstate->discharge * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 
 	// total available power (akku + expected)
