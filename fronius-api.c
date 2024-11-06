@@ -302,10 +302,15 @@ static void bump_counter() {
 }
 
 static void bump_gstate() {
+	gstate_t *old_gstate = gstate;
+
 	if (++gstate_history_ptr == GSTATE_HISTORY)
 		gstate_history_ptr = 0;
 	gstate = &gstate_history[gstate_history_ptr];
 	ZEROP(gstate);
+
+	// take over global values
+	gstate->discharge = old_gstate->discharge;
 }
 
 static void bump_pstate() {
@@ -1157,8 +1162,6 @@ static void hourly(time_t now_ts) {
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
 	// calculate mean discharge rate and clear it at high noon
-	if (!gstate->discharge)
-		gstate->discharge = BASELOAD; // default
 	if (now->tm_hour == 6) {
 		gstate->discharge = average_non_zero(discharge, 24);
 		xlog("FRONIUS nightly mean discharge rate %d Wh", gstate->discharge);
@@ -1529,6 +1532,9 @@ static int init() {
 	curl_readable = curl_init(URL_READABLE, &memory);
 	if (curl_readable == NULL)
 		return xerr("Error initializing libcurl");
+
+	// default global values
+	gstate->discharge = BASELOAD;
 
 	return 0;
 }

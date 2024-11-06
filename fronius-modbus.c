@@ -49,18 +49,17 @@ static pstate_t* get_pstate_history(int offset) {
 }
 
 // dump the power state history up to given rows
-static void dump_pstate_history(int back) {
-	char line[sizeof(pstate_t) * 8 + 16];
-	char value[8];
+static void dump_pstate(int back) {
+	char line[sizeof(pstate_t) * 8 + 16], value[8];
 
-	strcpy(line, "FRONIUS state  idx    pv   Δpv   grid  akku  surp waste   sum   soc  load Δload xload dxlod cload  pv10   pv7  dist  tend stdby  wait");
+	strcpy(line, "FRONIUS pstate  idx    pv   Δpv   grid  akku  surp  grdy modst   soc  load Δload xload dxlod cload  pv10   pv7  tend  wait");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
-		strcpy(line, "FRONIUS state ");
+		strcpy(line, "FRONIUS pstate ");
 		snprintf(value, 8, "[%2d] ", y * -1);
 		strcat(line, value);
 		int *vv = (int*) get_pstate_history(y * -1);
-		for (int x = 0; x < sizeof(pstate_t) / sizeof(int); x++) {
+		for (int x = 0; x < sizeof(pstate_t) / sizeof(int) - 1; x++) {
 			snprintf(value, 8, x == 2 ? "%6d " : "%5d ", vv[x]);
 			strcat(line, value);
 		}
@@ -204,7 +203,7 @@ static void loop() {
 		// set history pointer to next slot if we had changes or regulations
 		if (delta || device) {
 			pstate->wait = now_ts - last_ts;
-			dump_pstate_history(6);
+			dump_pstate(3);
 			if (++pstate_history_ptr == PSTATE_HISTORY)
 				pstate_history_ptr = 0;
 			last_ts = now_ts;
