@@ -552,7 +552,11 @@ static int choose_program() {
 	if (gstate->soc < 100)
 		return select_program(&EMERGENCY);
 
-	// we will NOT survive - only use pv7 power or non akku charging power
+	// afternoon and akku not yet reached survive power - charging akku has priority
+	if (now->tm_hour > 12 && gstate->akku < gstate->survive)
+		return select_program(&MODEST); //
+
+	// we will NOT survive - charging akku has priority
 	if (gstate->available < gstate->survive)
 		return select_program(&MODEST); //
 
@@ -1135,9 +1139,6 @@ static void monthly(time_t now_ts) {
 static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
-	// bump counter history before writing new values into
-	bump_counter();
-
 	// store to disk
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
 	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
@@ -1148,9 +1149,6 @@ static void daily(time_t now_ts) {
 
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
-
-	// bump gstate history before writing new values into
-	bump_gstate();
 
 	// reset standby states
 	xlog("FRONIUS resetting standby states");
@@ -1251,12 +1249,14 @@ static void fronius() {
 		// daily tasks
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
+			bump_counter(); // bump counter history before writing new values into
 			daily(now_ts);
 		}
 
 		// hourly tasks
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
+			bump_gstate(); // bump gstate history before writing new values into
 			hourly(now_ts);
 		}
 
