@@ -311,6 +311,7 @@ static void bump_gstate() {
 
 	// take over global values
 	gstate->discharge = old_gstate->discharge;
+	gstate->mosmix = old_gstate->mosmix;
 }
 
 static void bump_pstate() {
