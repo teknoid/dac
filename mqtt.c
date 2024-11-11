@@ -218,8 +218,8 @@ static void mqtt() {
 static int init() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
-	char hostname[128], client_id[128];
-	gethostname(hostname, 128);
+	char hostname[64], client_id[128];
+	gethostname(hostname, 64);
 
 	// publisher client
 	client_tx = malloc(sizeof(*client_tx));

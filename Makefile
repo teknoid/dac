@@ -3,7 +3,7 @@ UNAME_M := $(shell uname -m)
 INCLUDE = ./include
 LIB = ./lib/$(UNAME_M)
 
-CFLAGS = -I$(INCLUDE) -Wall -Wno-format-truncation
+CFLAGS = -I$(INCLUDE) -Wall
 LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
 SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
@@ -11,8 +11,9 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius-api.o mosmix.o aqua.o curl.o gpio-dummy.o
-COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius-api.o mosmix.o aqua.o curl.o gpio-dummy.o
+COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o
+#COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o button.o lcd.o mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius-api.o curl.o frozen.o mosmix.o aqua.o gpio-dummy.o
+COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o shutter.o flamingo.o fronius-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
@@ -33,11 +34,10 @@ anus: $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
 
 tron: $(COBJS-TRON) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lcurl
+	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lmodbus -lcurl
 
 odroid: $(COBJS-ODROID) 
-	$(CC) $(CFLAGS) -o mcp $(COBJS-ODROID) $(LIBS) -lmqttc -lcurl
-
+	$(CC) $(CFLAGS) -o mcp $(COBJS-ODROID) $(LIBS) -lmqttc -lmodbus -lcurl
 
 picam: $(COBJS-PICAM)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
@@ -62,9 +62,13 @@ fronius-api: fronius-api.o mosmix.o utils.o frozen.o curl.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-api.c
 	$(CC) $(CFLAGS) -o fronius fronius-api.o mosmix.o utils.o frozen.o curl.o -lcurl
 
-fronius-modbus: fronius-modbus.o mosmix.o utils.o
-	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c
-	$(CC) $(CFLAGS) -o fronius fronius-modbus.c mosmix.o utils.o -lmodbus -lm -lpthread
+fronius-modbus: fronius-modbus.o sunspec.o mosmix.o utils.o
+	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c sunspec.c
+	$(CC) $(CFLAGS) -o fronius fronius-modbus.o sunspec.o mosmix.o utils.o -lmodbus -lm -lpthread
+
+sunspec: sunspec.o utils.o
+	$(CC) $(CFLAGS) -DSUNSPEC_MAIN -c sunspec.c
+	$(CC) $(CFLAGS) -o sunspec sunspec.o utils.o -lmodbus -lm -lpthread
 
 sensors: sensors.o utils.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
@@ -98,7 +102,7 @@ aqua: aqua.o utils.o
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 fronius mosmix template aqua
+	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 fronius sunspec mosmix template aqua
 
 install:
 	@echo "[Installing and starting mcp]"

@@ -2,6 +2,7 @@
 /.settings/language.settings.xml
 /mcp
 /fronius
+/sunspec
 /mosmix
 /display
 /gpio-sunxi

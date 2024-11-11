@@ -1,6 +1,6 @@
 #define COUNTER_HISTORY			30		// days
 #define GSTATE_HISTORY			24		// hours
-#define PSTATE_HISTORY			3		// samples
+#define PSTATE_HISTORY			32		// samples
 #define OVERRIDE				600
 #define STANDBY_RESET			60 * 30
 #define STANDBY_NORESPONSE		3
@@ -104,7 +104,7 @@ struct _gstate {
 	int consumed;
 	int today;
 	int tomorrow;
-	int discharge;
+	int baseload;
 	int survive;
 	int expected;
 	int soc;
@@ -120,18 +120,24 @@ struct _pstate {
 	int pv;
 	int dpv;
 	int grid;
+	int dgrid;
+	int ac10;
+	int ac7;
 	int akku;
-	int surplus;
-	int greedy;
-	int modest;
 	int soc;
 	int load;
 	int dload;
 	int xload;
 	int dxload;
-	int cload;
-	int pv10;
-	int pv7;
+	int dc10;
+	int pv10_1;
+	int pv10_2;
+	int dc7;
+	int pv7_1;
+	int pv7_2;
+	int surplus;
+	int greedy;
+	int modest;
 	int tendence;
 	int wait;
 	int flags;
