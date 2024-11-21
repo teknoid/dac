@@ -78,6 +78,31 @@ void mosmix_24h(mosmix_t *sum, time_t now_ts, int day) {
 	}
 }
 
+// calculate today 0:00:00 as start and +24h as end time frame
+void mosmix_noon(mosmix_t *forenoon, mosmix_t *afternoon, time_t now_ts) {
+	struct tm tm;
+	localtime_r(&now_ts, &tm);
+	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
+	time_t ts_from = mktime(&tm);
+	time_t ts_noon = ts_from + 60 * 60 * 12; // high noon
+	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
+
+	ZEROP(forenoon);
+	ZEROP(afternoon);
+	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
+		mosmix_t *m = &mosmix[i];
+		if (ts_from < m->ts && m->ts < ts_to) {
+			if (m->ts <= ts_noon) {
+				forenoon->Rad1h += m->Rad1h;
+				forenoon->SunD1 += m->SunD1;
+			} else {
+				afternoon->Rad1h += m->Rad1h;
+				afternoon->SunD1 += m->SunD1;
+			}
+		}
+	}
+}
+
 // calculate hours to survive darkness
 int mosmix_survive(time_t now_ts, int rad1h_min) {
 	struct tm tm;
@@ -177,6 +202,12 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_24h(&m1, now_ts, 1);
 	mosmix_24h(&m2, now_ts, 2);
 	xlog("MOSMIX Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
+
+	// calculate forenoon/afternoon values
+	mosmix_t bn, an;
+	mosmix_noon(&bn, &an, now_ts);
+	float sunny = an.SunD1 ? (float) bn.SunD1 / (float) an.SunD1 : 0;
+	xdebug("MOSMIX Rad1h/SunD1 forenoon %d/%d afternoon %d/%d sunny=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, sunny);
 
 	mosmix_survive(now_ts, 100);
 	return 0;
