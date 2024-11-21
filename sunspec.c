@@ -9,6 +9,8 @@
 #include "sunspec.h"
 #include "utils.h"
 
+// gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread
+
 static void collect_models(sunspec_t *ss) {
 	uint16_t index[2] = { 0, 0 };
 	uint16_t *id = &index[0];

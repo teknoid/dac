@@ -11,7 +11,6 @@
 static mosmix_t mosmix[256];
 
 // gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
-// #define MOSMIX_MAIN
 
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
