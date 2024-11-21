@@ -206,8 +206,8 @@ int mosmix_main(int argc, char **argv) {
 	// calculate forenoon/afternoon values
 	mosmix_t bn, an;
 	mosmix_noon(&bn, &an, now_ts);
-	float sunny = an.SunD1 ? (float) bn.SunD1 / (float) an.SunD1 : 0;
-	xdebug("MOSMIX Rad1h/SunD1 forenoon %d/%d afternoon %d/%d sunny=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, sunny);
+	float noon = bn.SunD1 ? (float) an.SunD1 / (float) bn.SunD1 : 0;
+	xdebug("MOSMIX Rad1h/SunD1 forenoon %d/%d afternoon %d/%d noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 
 	mosmix_survive(now_ts, 100);
 	return 0;

@@ -39,6 +39,7 @@
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
 #define FLOAT10(x)				((float) x / 10.0)
+#define FLOAT60(x)				((float) x / 60.0)
 
 #define FLAG_VALID				(1 << 0)
 #define FLAG_STABLE				(1 << 1)
@@ -105,13 +106,13 @@ struct _gstate {
 	int today;
 	int tomorrow;
 	int baseload;
-	int survive;
 	int expected;
+	int akku;
 	int soc;
 	int ttl;
-	int akku;
-	int available;
+	int noon;
 	int mosmix;
+	int survive;
 };
 
 typedef struct _pstate pstate_t;

@@ -260,7 +260,7 @@ static void dump_counter(int back) {
 static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 
-	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload   surv    exp    soc    ttl   akku  avail   mosm");
+	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp    soc    ttl   akku   noon   surv   mosm");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -360,15 +360,14 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 1, gstate->available < gstate->survive, "Available", gstate->available);
-	xlogl_int(line, 0, 0, "Expected", gstate->expected);
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, "TTL", (float) gstate->ttl / 60.0);
-	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, 0, 0, "Survive", gstate->survive);
-	xlogl_int(line, 0, 0, "Baseload", gstate->baseload);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
+	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "Baseload", gstate->baseload);
+	xlogl_int(line, 0, 0, "Akku", gstate->akku);
+	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_float(line, "Survive", FLOAT10(gstate->survive));
 	xlogl_float(line, "Mosmix", FLOAT10(gstate->mosmix));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
@@ -553,19 +552,23 @@ static int choose_program() {
 		return select_program(&EMERGENCY);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->available < gstate->survive)
+	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// we will survive but run short on expected pv energy - give more prio to akku
-	if (gstate->survive - gstate->akku > gstate->expected / 2)
+	// enough pv available
+	if (gstate->survive > 20)
+		return select_program(&SUNNY);
+
+	// afternoon is less sunny than forenoon - charge akku earlier
+	if (gstate->noon < 10)
 		return select_program(&MODEST);
 
-	// we will survive - charge akku tommorrow when more pv than today
+	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// enough available
-	return select_program(&SUNNY);
+	// default
+	return select_program(&MODEST);
 }
 
 // minimum available power for ramp up
@@ -927,12 +930,13 @@ static void calculate_mosmix(time_t now_ts) {
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
 
-	// power needed to survive next night
+	// calculate survival factor from needed to survive next night vs. available (expected + akku)
 	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	gstate->survive = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
-
-	// total available power (akku + expected)
-	gstate->available = gstate->akku + gstate->expected;
+	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int available = gstate->expected + gstate->akku;
+	float survive = needed ? (float) available / (float) needed : 0;
+	gstate->survive = survive * 10.0; // store as x10 scaled
+	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -958,7 +962,7 @@ static void calculate_pstate1() {
 	// offline mode when 3x not enough PV production
 	if (pstate->pv10_1 < 100 && h1->pv10_1 < 100 && h2->pv10_1 < 100) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->available > gstate->survive;
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
@@ -1126,7 +1130,7 @@ static void burnout() {
 	fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	fronius_override_seconds("plug8", WAIT_OFFLINE);
-	xlog("FRONIUS burnout soc=%.1f available=%d survive=%d temp=%.1f", FLOAT10(pstate->soc), gstate->available, gstate->survive, TEMP_IN);
+	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
 }
 
 static void monthly(time_t now_ts) {
