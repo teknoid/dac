@@ -260,7 +260,7 @@ static void dump_counter(int back) {
 static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 
-	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp    soc    ttl   akku   noon   surv   mosm");
+	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp    soc    ttl   akku   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -293,36 +293,45 @@ static void dump_pstate(int back) {
 	}
 }
 
-static void bump_counter() {
+static void bump_counter(time_t now_ts) {
+	counter->timestamp = now_ts;
+
+	// calculate new counter pointer
 	if (++counter_history_ptr == COUNTER_HISTORY)
 		counter_history_ptr = 0;
-	counter = &counter_history[counter_history_ptr];
-	ZEROP(counter);
+	counter_t *counter_new = &counter_history[counter_history_ptr];
+
+	// take over all values
+	memcpy(counter_new, (void*) counter, sizeof(counter_t));
+	counter = counter_new; // atomic update current counter pointer
 }
 
-static void bump_gstate() {
-	gstate_t *old_gstate = gstate;
+static void bump_gstate(time_t now_ts) {
+	gstate->timestamp = now_ts;
 
+	// calculate new gstate pointer
 	if (++gstate_history_ptr == GSTATE_HISTORY)
 		gstate_history_ptr = 0;
-	gstate = &gstate_history[gstate_history_ptr];
-	ZEROP(gstate);
+	gstate_t *gstate_new = &gstate_history[gstate_history_ptr];
 
-	// take over global values
-	gstate->baseload = old_gstate->baseload;
-	gstate->mosmix = old_gstate->mosmix;
+	// take over all values
+	memcpy(gstate_new, (void*) gstate, sizeof(gstate_t));
+	gstate = gstate_new; // atomic update current gstate pointer
 }
 
 static void bump_pstate() {
+	// calculate new pstate pointer
 	if (++pstate_history_ptr == PSTATE_HISTORY)
 		pstate_history_ptr = 0;
-	pstate = &pstate_history[pstate_history_ptr];
-	ZEROP(pstate);
+	pstate_t *pstate_new = &pstate_history[pstate_history_ptr];
+
+	// take over all values
+	memcpy(pstate_new, (void*) pstate, sizeof(pstate_t));
+	pstate = pstate_new; // atomic update current pstate pointer
 }
 
 static void print_dstate(int wait) {
-	char message[128];
-	char value[5];
+	char message[128], value[5];
 
 	strcpy(message, "FRONIUS device power ");
 	for (device_t **d = DEVICES; *d != 0; d++) {
@@ -557,7 +566,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// enough pv available
-	if (gstate->survive > 20)
+	if (gstate->survive > 30)
 		return select_program(&SUNNY);
 
 	// afternoon is less sunny than forenoon - charge akku earlier
@@ -874,9 +883,52 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
+// TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
+// collect akku discharge rate for last hour and calculate baseload
+static void calculate_discharge_rate(time_t now_ts) {
+	int last_discharge_soc = discharge_soc;
+	int last_discharge_ts = discharge_ts;
+
+	// calculate baseload from mean discharge rate
+	if (now->tm_hour == 6) {
+		gstate->baseload = average_non_zero(discharge, 24);
+		xlog("FRONIUS calculated average nightly baseload %d Wh", gstate->baseload);
+	}
+
+	// clear it at high noon
+	if (now->tm_hour == 12)
+		ZERO(discharge);
+
+	// update global values for next calculation
+	discharge_soc = pstate->soc;
+	discharge_ts = now_ts;
+
+	// calculate only between 10% and 90%
+	if (pstate->soc < 100 || pstate->soc > 900)
+		return;
+
+	int start = AKKU_CAPACITY_SOC(last_discharge_soc);
+	int stop = AKKU_CAPACITY_SOC(pstate->soc);
+	if (start < stop)
+		return; // no discharge
+
+	int seconds = now_ts - last_discharge_ts;
+	int idx = now->tm_hour ? now->tm_hour - 1 : 23;
+	int lost = discharge[idx] = start - stop;
+	xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
+
+	// dump hourly collected discharge rates
+	char message[LINEBUF], value[6];
+	strcpy(message, "FRONIUS discharge rate ");
+	for (int i = 0; i < 24; i++) {
+		snprintf(value, 6, "%4d ", discharge[i]);
+		strcat(message, value);
+	}
+	xdebug(message);
+}
+
 static void calculate_gstate(time_t now_ts) {
 	// take over raw values - counter
-	counter->timestamp = now_ts;
 	counter->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
 	counter->produced = r->produced;
 	counter->consumed = r->consumed;
@@ -935,7 +987,7 @@ static void calculate_mosmix(time_t now_ts) {
 	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
-	float survive = needed ? (float) available / (float) needed : 0;
+	float survive = needed ? ((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10.0; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 
@@ -946,6 +998,13 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->today = m0.Rad1h * mosmix;
 	gstate->tomorrow = m1.Rad1h * mosmix;
 	xdebug("FRONIUS mosmix sod=%d eod=%d Rad1h/SunD1 today %d/%d, tomorrow %d/%d", sod.Rad1h, eod.Rad1h, m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1);
+
+	// mosmix total expected forenoon/afternoon
+	mosmix_t bn, an;
+	mosmix_noon(&bn, &an, now_ts);
+	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
+	gstate->noon = noon * 10.0;
+	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 }
 
 static void calculate_pstate1() {
@@ -1149,6 +1208,9 @@ static void monthly(time_t now_ts) {
 static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
+	// bump counter history before writing new values into
+	bump_counter(now_ts);
+
 	// store to disk
 #ifndef FRONIUS_MAIN
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
@@ -1162,6 +1224,9 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
+	// bump gstate history before writing new values into
+	bump_gstate(now_ts);
+
 	// reset standby states
 	xlog("FRONIUS resetting standby states");
 	for (device_t **d = DEVICES; *d != 0; d++)
@@ -1171,38 +1236,11 @@ static void hourly(time_t now_ts) {
 	// update raw values
 	errors += curl_perform(curl_readable, &memory, &parse_readable);
 
-	// calculate baseload from mean discharge rate and clear it at high noon
-	if (now->tm_hour == 6) {
-		gstate->baseload = average_non_zero(discharge, 24);
-		xlog("FRONIUS calculated nightly baseload %d Wh", gstate->baseload);
-	}
-	if (now->tm_hour == 12)
-		ZERO(discharge);
-
-	// recalculate global state
+	// calculate global state
 	calculate_gstate(now_ts);
 
-	// collect akku discharge rate for last hour when SoC between 90% and 10%
-	int start = AKKU_CAPACITY_SOC(discharge_soc);
-	int stop = AKKU_CAPACITY_SOC(gstate->soc);
-	if (start > stop && gstate->soc < 900 && gstate->soc > 100) {
-		int seconds = now_ts - discharge_ts;
-		int idx = now->tm_hour ? now->tm_hour - 1 : 23;
-		int lost = discharge[idx] = start - stop;
-		xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
-
-		// dump hourly collected discharge rates
-		char message[LINEBUF], value[6];
-		strcpy(message, "FRONIUS discharge rate ");
-		for (int i = 0; i < 24; i++) {
-			snprintf(value, 6, "%4d ", discharge[i]);
-			strcat(message, value);
-		}
-		xdebug(message);
-	}
-	// update for next calculation
-	discharge_soc = gstate->soc;
-	discharge_ts = now_ts;
+	// calculate discharge rate and baseload
+	calculate_discharge_rate(now_ts);
 
 	// update voltage minimum/maximum
 	minimum_maximum(now_ts);
@@ -1229,14 +1267,18 @@ static void fronius() {
 	struct tm *ltstatic = localtime(&now_ts);
 	mon = ltstatic->tm_mon;
 	day = ltstatic->tm_wday;
-	// hour = ltstatic->tm_hour;
-	hour = -1; // force hourly() on startup
+	hour = ltstatic->tm_hour;
 
 	errors = 0;
 	wait = 1;
 
 	// fake yesterday
 	// daily(now_ts);
+
+	// once upon start: calculate global state, init discharge and choose program of the day
+	calculate_gstate(now_ts);
+	calculate_discharge_rate(now_ts);
+	choose_program();
 
 	// the FRONIUS main loop
 	while (1) {
@@ -1259,14 +1301,12 @@ static void fronius() {
 		// daily tasks
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
-			bump_counter(); // bump counter history before writing new values into
 			daily(now_ts);
 		}
 
 		// hourly tasks
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
-			bump_gstate(); // bump gstate history before writing new values into
 			hourly(now_ts);
 		}
 
@@ -1275,7 +1315,7 @@ static void fronius() {
 			set_all_devices(0);
 
 		// dump and bump pstate history before writing new values into
-		dump_pstate(PSTATE_HISTORY);
+		dump_pstate(5);
 		bump_pstate();
 
 		// make Fronius10 API call and calculate first pstate

@@ -236,7 +236,7 @@ static void dump_counter(int back) {
 static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 
-	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp    soc    ttl   akku   noon   surv   mosm");
+	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp    soc    ttl   akku   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
