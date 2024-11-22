@@ -350,11 +350,11 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_int(line, 0, 0, "Baseload", gstate->baseload);
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_float(line, "Noon", FLOAT10(gstate->noon));
-	xlogl_float(line, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, "Mosmix", FLOAT10(gstate->mosmix));
+	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
+	xlogl_float(line, 0, 0, "Noon", FLOAT10(gstate->noon));
+	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
+	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), message);
@@ -373,7 +373,7 @@ static void print_pstate(const char *message) {
 	xlogl_int(line, 1, 0, "Modest", pstate->modest);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
 	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
-	xlogl_float(line, "SoC", FLOAT10(pstate->soc));
+	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
 	if (f10 && f10->inverter) {
 		snprintf(value, 16, " F10:%d/%d", f10->inverter->St, f10->poll);
 		strcat(line, value);

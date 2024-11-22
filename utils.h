@@ -38,7 +38,7 @@ int xerrr(int ret, const char *format, ...);
 
 void xlogl_start(char *line, const char *s);
 void xlogl_bits(char *line, const char *name, int byte);
-void xlogl_float(char *line, const char *name, float value);
+void xlogl_float(char *line, int colored, int invers, const char *name, float value);
 void xlogl_float_b(char *line, const char *name, float value);
 void xlogl_int(char *line, int colored, int invers, const char *name, int value);
 void xlogl_int_r(char *line, const char *name, int value);

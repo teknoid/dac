@@ -238,9 +238,28 @@ void xlogl_bits(char *line, const char *name, int byte) {
 	strncat(line, pair, 32);
 }
 
-void xlogl_float(char *line, const char *name, float value) {
+void xlogl_float(char *line, int colored, int invers, const char *name, float value) {
 	char pair[32];
-	snprintf(pair, 32, " %s:%.1f", name, value);
+
+	if (colored) {
+		if (invers) {
+			if (value < 0)
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
+			else if (value > 0)
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
+			else
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
+		} else {
+			if (value < 0)
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
+			else if (value > 0)
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
+			else
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
+		}
+	} else
+		snprintf(pair, 32, " %s:%.1f", name, value);
+
 	strncat(line, pair, 32);
 }
 
