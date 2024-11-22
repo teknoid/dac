@@ -415,7 +415,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// enough pv available
-	if (gstate->survive > 20)
+	if (gstate->survive > 30)
 		return select_program(&SUNNY);
 
 	// afternoon is less sunny than forenoon - charge akku earlier
@@ -1047,13 +1047,13 @@ static int delta() {
 		return 1;
 
 	// do we have pv?
-	int pv = pstate->pv10_1 > NOISE && pstate->pv10_2 > NOISE;
+	int pv = pstate->pv10_1 > NOISE || pstate->pv10_2 > NOISE;
 
-	// trigger only on grid changes
+	// trigger only on grid up/download
 	if (pv && potd == &MODEST)
 		return abs(pstate->grid) > NOISE;
 
-	// trigger on akku or grid changes
+	// trigger on both grid up/download or akku charge/discharge
 	if (pv && potd == &GREEDY)
 		return abs(pstate->grid) > NOISE || abs(pstate->akku) > NOISE;
 
