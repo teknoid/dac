@@ -3,7 +3,7 @@
 #define PSTATE_HISTORY			32		// samples
 #define OVERRIDE				600
 #define STANDBY_RESET			60 * 30
-#define STANDBY_NORESPONSE		3
+#define STANDBY_NORESPONSE		5
 
 // date --date='@1728165335'
 
