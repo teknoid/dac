@@ -1200,10 +1200,6 @@ static void fronius() {
 		print_gstate(NULL);
 		print_pstate(NULL);
 
-		// check burnout
-		if (PSTATE_BURNOUT)
-			burnout();
-
 		// check emergency
 		if (PSTATE_EMERGENCY)
 			emergency();
@@ -1211,6 +1207,10 @@ static void fronius() {
 		// check offline
 		if (PSTATE_OFFLINE)
 			offline();
+
+		// check burnout
+		if (PSTATE_BURNOUT)
+			burnout();
 
 		// next round when pstate is invalid
 		if (!PSTATE_VALID)
