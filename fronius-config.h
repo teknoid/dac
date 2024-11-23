@@ -122,10 +122,9 @@ struct _pstate {
 	int dpv;
 	int grid;
 	int dgrid;
+	int akku;
 	int ac10;
 	int ac7;
-	int akku;
-	int soc;
 	int load;
 	int dload;
 	int xload;
@@ -141,6 +140,7 @@ struct _pstate {
 	int modest;
 	int tendence;
 	int wait;
+	int soc;
 	int flags;
 };
 

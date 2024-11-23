@@ -254,7 +254,7 @@ static void dump_gstate(int back) {
 static void dump_pstate(int back) {
 	char line[sizeof(pstate_t) * 8 + 16], value[16];
 
-	strcpy(line, "FRONIUS pstate  idx    pv   Δpv   grid Δgrid  ac10   ac7  akku   soc  load Δload xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend  wait");
+	strcpy(line, "FRONIUS pstate  idx    pv   Δpv   grid Δgrid  akku  ac10   ac7  load Δload xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend  wait   soc");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS pstate ");
@@ -795,7 +795,7 @@ static void calculate_gstate(time_t now_ts) {
 		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
 		gstate->baseload = gridload;
 	}
-	if (gstate->baseload < NOISE) {
+	if (gstate->baseload < NOISE || BASELOAD * 2 < gstate->baseload) {
 		xdebug("FRONIUS no reliable baseload available, using BASELOAD as default");
 		gstate->baseload = BASELOAD;
 	}
@@ -823,6 +823,15 @@ static void calculate_gstate(time_t now_ts) {
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
+	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d mosmix=%.1f expected=%d", gstate->pv, sod.Rad1h, eod.Rad1h, mosmix, gstate->expected);
+
+	// mosmix total expected today and tomorrow
+	mosmix_t m0, m1;
+	mosmix_24h(&m0, now_ts, 0);
+	mosmix_24h(&m1, now_ts, 1);
+	gstate->today = m0.Rad1h * mosmix;
+	gstate->tomorrow = m1.Rad1h * mosmix;
+	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
 	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
@@ -832,15 +841,7 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->survive = survive * 10.0; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 
-	// mosmix total expected today and tomorrow
-	mosmix_t m0, m1;
-	mosmix_24h(&m0, now_ts, 0);
-	mosmix_24h(&m1, now_ts, 1);
-	gstate->today = m0.Rad1h * mosmix;
-	gstate->tomorrow = m1.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix sod=%d eod=%d Rad1h/SunD1 today %d/%d, tomorrow %d/%d", sod.Rad1h, eod.Rad1h, m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1);
-
-	// mosmix total expected forenoon/afternoon
+	// mosmix sunshine duration ratio forenoon/afternoon
 	mosmix_t bn, an;
 	mosmix_noon(&bn, &an, now_ts);
 	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
@@ -998,7 +999,7 @@ static void update_f10(sunspec_t *ss) {
 		ss->poll = POLL_TIME_FAULT;
 	}
 
-	// akku power is DC power minus PV - calculate here as we need it in delta_x()
+	// akku power is DC power minus PV - calculate here as we need it in delta()
 	pstate->akku = pstate->dc10 - (pstate->pv10_1 + pstate->pv10_2);
 }
 
@@ -1047,7 +1048,7 @@ static int delta() {
 		return 1;
 
 	// do we have pv?
-	int pv = pstate->pv10_1 > NOISE || pstate->pv10_2 > NOISE;
+	int pv = pstate->pv10_1 > NOISE || pstate->pv10_2 > NOISE || pstate->pv7_1 > NOISE || pstate->pv7_2 > NOISE;
 
 	// trigger only on grid up/download
 	if (pv && potd == &MODEST)
@@ -1056,6 +1057,10 @@ static int delta() {
 	// trigger on both grid up/download or akku charge/discharge
 	if (pv && potd == &GREEDY)
 		return abs(pstate->grid) > NOISE || abs(pstate->akku) > NOISE;
+
+	// trigger on grid download or akku discharge when we have pv
+	if (pv && (pstate->akku > NOISE || pstate->grid > NOISE))
+		return 1;
 
 	// trigger on any ac power changes
 	int deltas = 0;
