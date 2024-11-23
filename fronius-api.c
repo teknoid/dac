@@ -559,7 +559,7 @@ static int choose_program() {
 
 	// charge akku asap - no devices active
 	if (gstate->soc < 100)
-		return select_program(&EMERGENCY);
+		return select_program(&CHARGE);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)

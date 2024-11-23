@@ -408,7 +408,7 @@ static int choose_program() {
 
 	// charge akku asap - no devices active
 	if (gstate->soc < 100)
-		return select_program(&EMERGENCY);
+		return select_program(&CHARGE);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
@@ -494,13 +494,13 @@ static int ramp_dumb(device_t *d, int power) {
 	int min = rampup_min(d);
 	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
 
+	// switch on when enough power is available
+	if (!d->power && power > min)
+		return (d->set_function)(d, 1);
+
 	// switch off
 	if (d->power)
 		return (d->set_function)(d, 0);
-
-	// switch on when enough power is available and state is stable
-	if (power > min && PSTATE_STABLE)
-		return (d->set_function)(d, 1);
 
 	return 0; // continue loop
 }
@@ -524,9 +524,8 @@ static device_t* rampup(int power, device_t **devices) {
 }
 
 static device_t* rampdown(int power, device_t **devices) {
-	device_t **d = devices;
-
 	// jump to last entry
+	device_t **d = devices;
 	while (*d != 0)
 		d++;
 
@@ -555,6 +554,11 @@ static device_t* ramp() {
 			return d;
 	}
 
+	// do rampup only when valid or enough grid upload
+	int ok = PSTATE_STABLE || pstate->grid < -1000;
+	if (!ok)
+		return 0;
+
 	// prio3: uploading grid power or charging akku: ramp up only greedy devices
 	if (pstate->greedy > 0) {
 		d = rampup(pstate->greedy, potd->greedy);
@@ -578,8 +582,8 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	int power = (t->greedy ? pstate->greedy : pstate->modest) + v->load;
 	int min = rampup_min(t);
-	if (power <= min || !PSTATE_STABLE)
-		return 0; // not enough to steal or not stable
+	if (power <= min)
+		return 0; // not enough to steal
 
 	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, GREEDY_MODEST(v), v->name, GREEDY_MODEST(t), t->name, t->total);
 	ramp_device(v, v->load * -1);
@@ -675,15 +679,23 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
+	// no delta power - no response to check
 	int delta = d->dload;
-	d->dload = 0; // reset
-
-	// power released or below noise - skip response check
-	if (delta > -NOISE)
+	if (!delta)
 		return 0;
 
+	// reset
+	d->dload = 0;
+
+	// ignore response due to distortion or below NOISE
+	if (abs(delta) < NOISE) {
+		xdebug("FRONIUS ignoring expected response below NOISE %d from %s", delta, d->name);
+		d->state = Active;
+		return 0;
+	}
+
 	// valid response is at least 1/3 of expected
-	int response = pstate->dload < -NOISE && pstate->dload < delta / 3;
+	int response = pstate->dload != 0 && (delta > 0 ? (pstate->dload > delta / 3) : (pstate->dload < delta / 3));
 
 	// response OK
 	if (d->state == Active && response) {
@@ -709,6 +721,10 @@ static device_t* response(device_t *d) {
 		d->dload = 0; // no response expected
 		return d; // continue main loop
 	}
+
+	// ignore standby check when power was released
+	if (delta > 0)
+		return 0;
 
 	// perform standby check when noresponse counter reaches threshold
 	if (++d->noresponse >= STANDBY_NORESPONSE)
@@ -869,9 +885,9 @@ static void calculate_pstate() {
 		return;
 	}
 
-	// emergency shutdown when 3x more than 10% capacity discharge
-	if (pstate->akku > AKKU_CAPACITY / 10 && h1->akku > AKKU_CAPACITY / 10 && h2->akku > AKKU_CAPACITY / 10) {
-		pstate->flags |= FLAG_EMERGENCY; // emergency shutdown
+	// emergency shutdown when three times extreme akku discharge or grid download
+	if (pstate->akku > EMERGENCY && h1->akku > EMERGENCY && h2->akku > EMERGENCY && pstate->grid > EMERGENCY && h1->grid > EMERGENCY && h2->grid > EMERGENCY) {
+		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
 
@@ -889,6 +905,17 @@ static void calculate_pstate() {
 	// deviation of calculated load to actual load in %
 	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
 
+	// all devices in standby or off?
+	pstate->flags |= FLAG_ALL_STANDBY;
+	pstate->flags |= FLAG_ALL_OFF;
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		if (d->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+		if (d->power)
+			pstate->flags &= ~FLAG_ALL_OFF;
+	}
+
 	// distortion when delta pv is too big
 	int dpv_sum = 0;
 	for (int i = 0; i < PSTATE_HISTORY; i++)
@@ -904,59 +931,52 @@ static void calculate_pstate() {
 	else
 		pstate->tendence = 0;
 
-	// indicate standby check when deviation between actual load and calculated load is three times above 33%
-	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
+	// indicate standby check when deviation between actual load and calculated load is three times above 50%
+	if (pstate->dxload > 50 && h1->dxload > 50 && h2->dxload > 50)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// surplus is akku charge + grid upload
 	pstate->surplus = (pstate->grid + pstate->akku) * -1;
 
 	// greedy power = akku + grid
-	pstate->greedy = pstate->surplus - NOISE;
+	pstate->greedy = pstate->surplus;
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
+	if (PSTATE_ALL_OFF && pstate->greedy < 0)
+		pstate->greedy = 0; // nothing to ramp down
 
 	// modest power = only pure grid upload
-	pstate->modest = pstate->grid * -1 - NOISE;
+	pstate->modest = pstate->grid * -1;
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
+	if (PSTATE_ALL_OFF && pstate->modest < 0)
+		pstate->modest = 0; // nothing to ramp down
 
-	// all devices in standby or off?
-	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->flags |= FLAG_ALL_OFF;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		if (d->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
-		if (d->power)
-			pstate->flags &= ~FLAG_ALL_OFF;
-	}
+	pstate->flags |= FLAG_VALID;
 
-	// validate values
+	//clear flag if values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
-//		return;
+//		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
 		xdebug("FRONIUS positive load detected");
-		return;
+//		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
-		return;
+		pstate->flags &= ~FLAG_VALID;
 	}
-	if (abs(pstate->grid - h1->grid) > 500) { // e.g. refrigerator starts !!!
-		xdebug("FRONIUS grid spike detected %d -> %d", h1->grid, pstate->grid);
-		return;
+	if (pstate->grid - h1->grid > 500) { // e.g. refrigerator starts !!!
+		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - h1->grid, h1->grid, pstate->grid);
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (!potd) {
 		xlog("FRONIUS No potd selected!");
-		return;
+		pstate->flags &= ~FLAG_VALID;
 	}
-
-	pstate->flags |= FLAG_VALID;
 }
 
 static void update_f10(sunspec_t *ss) {
@@ -1046,7 +1066,7 @@ static int delta() {
 
 	// trigger on both grid upload or akku charge
 	if (pv && potd == &GREEDY)
-		return pstate->grid < -NOISE || pstate->akku < -NOISE;
+		return (pstate->grid < -NOISE) || (pstate->akku < -NOISE);
 
 	// trigger on any ac power changes
 	int deltas = 0;
@@ -1059,12 +1079,10 @@ static int delta() {
 static void emergency() {
 	xlog("FRONIUS emergency shutdown at %.1f akku discharge", FLOAT10(pstate->akku));
 	set_all_devices(0);
-	bump_pstate();
 }
 
 static void offline() {
 	xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
-	bump_pstate();
 }
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
@@ -1074,7 +1092,6 @@ static void burnout() {
 	// fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
 	// fronius_override_seconds("plug8", WAIT_OFFLINE);
-	bump_pstate();
 }
 
 static void monthly(time_t now_ts) {
@@ -1197,7 +1214,7 @@ static void fronius() {
 			hourly(now_ts);
 		}
 
-		// no device and no pstate value changes or all in standby? -> nothing to do
+		// no device and no pstate value changes -> nothing to do
 		if (!device && !delta())
 			continue;
 
@@ -1220,25 +1237,23 @@ static void fronius() {
 		if (PSTATE_BURNOUT)
 			burnout();
 
-		// next round when pstate is invalid
-		if (!PSTATE_VALID)
-			continue;
-
 		// prio1: check response from previous action
 		if (device)
 			device = response(device);
 
-		// prio2: perform standby check logic
-		if (!device)
-			device = standby();
+		if (PSTATE_VALID) {
+			// prio2: ramp up/down
+			if (!device)
+				device = ramp();
 
-		// prio3: ramp up/down
-		if (!device)
-			device = ramp();
+			// prio3: check if higher priorized device can steal from lower priorized
+			if (!device)
+				device = steal();
 
-		// prio4: check if higher priorized device can steal from lower priorized
-		if (!device)
-			device = steal();
+			// prio4: perform standby check logic
+			if (!device)
+				device = standby();
+		}
 
 		// set history pointer to next slot
 		pstate->wait = now_ts - last_ts;

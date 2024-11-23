@@ -21,6 +21,7 @@
 #define BASELOAD				300
 #define SUSPICIOUS				250
 #define NOISE					25
+#define EMERGENCY				(AKKU_CAPACITY / 10)
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN					22.0
@@ -221,8 +222,8 @@ typedef struct potd_t {
 	device_t *modest[ARRAY_SIZE(DEVICES)];
 } potd_t;
 
-// emergency: all power goes into akku
-static const potd_t EMERGENCY = { .name = "EMERGENCY", .greedy = { 0 }, .modest = { 0 } };
+// charge: all power goes into akku
+static const potd_t CHARGE = { .name = "CHARGE", .greedy = { 0 }, .modest = { 0 } };
 
 // cloudy weather with akku empty: first charge akku, then boiler1, then rest
 static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
