@@ -18,15 +18,34 @@
 #define LINEBUF						256
 
 #define BYTE2BIN_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE2BIN(byte)  \
-  ((byte) & 0x80 ? '1' : '0'), \
-  ((byte) & 0x40 ? '1' : '0'), \
-  ((byte) & 0x20 ? '1' : '0'), \
-  ((byte) & 0x10 ? '1' : '0'), \
-  ((byte) & 0x08 ? '1' : '0'), \
-  ((byte) & 0x04 ? '1' : '0'), \
-  ((byte) & 0x02 ? '1' : '0'), \
-  ((byte) & 0x01 ? '1' : '0')
+#define BYTE2BIN(x)  \
+  ((x) & 0x80 ? '1' : '0'), \
+  ((x) & 0x40 ? '1' : '0'), \
+  ((x) & 0x20 ? '1' : '0'), \
+  ((x) & 0x10 ? '1' : '0'), \
+  ((x) & 0x08 ? '1' : '0'), \
+  ((x) & 0x04 ? '1' : '0'), \
+  ((x) & 0x02 ? '1' : '0'), \
+  ((x) & 0x01 ? '1' : '0')
+
+#define BYTE2BIN_PATTERN16 "%c%c%c%c%c%c%c%c %c%c%c%c%c%c%c%c"
+#define BYTE2BIN16(x)  \
+  ((x) & 0x8000 ? '1' : '0'), \
+  ((x) & 0x4000 ? '1' : '0'), \
+  ((x) & 0x2000 ? '1' : '0'), \
+  ((x) & 0x1000 ? '1' : '0'), \
+  ((x) & 0x0800 ? '1' : '0'), \
+  ((x) & 0x0400 ? '1' : '0'), \
+  ((x) & 0x0200 ? '1' : '0'), \
+  ((x) & 0x0100 ? '1' : '0'), \
+  ((x) & 0x0080 ? '1' : '0'), \
+  ((x) & 0x0040 ? '1' : '0'), \
+  ((x) & 0x0020 ? '1' : '0'), \
+  ((x) & 0x0010 ? '1' : '0'), \
+  ((x) & 0x0008 ? '1' : '0'), \
+  ((x) & 0x0004 ? '1' : '0'), \
+  ((x) & 0x0002 ? '1' : '0'), \
+  ((x) & 0x0001 ? '1' : '0')
 
 void set_xlog(int output);
 void set_debug(int debug);
@@ -37,7 +56,8 @@ int xerr(const char *format, ...);
 int xerrr(int ret, const char *format, ...);
 
 void xlogl_start(char *line, const char *s);
-void xlogl_bits(char *line, const char *name, int byte);
+void xlogl_bits(char *line, const char *name, int bits);
+void xlogl_bits16(char *line, const char *name, int bits);
 void xlogl_float(char *line, int colored, int invers, const char *name, float value);
 void xlogl_float_b(char *line, const char *name, float value);
 void xlogl_int(char *line, int colored, int invers, const char *name, int value);

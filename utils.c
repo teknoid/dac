@@ -232,10 +232,16 @@ void xlogl_start(char *line, const char *s) {
 		line[0] = '\0';
 }
 
-void xlogl_bits(char *line, const char *name, int byte) {
-	char pair[32];
-	snprintf(pair, 32, " %s:"BYTE2BIN_PATTERN, name, BYTE2BIN(byte));
-	strncat(line, pair, 32);
+void xlogl_bits(char *line, const char *name, int bits) {
+	char c[32];
+	snprintf(c, 32, " %s:"BYTE2BIN_PATTERN, name, BYTE2BIN(bits));
+	strncat(line, c, 32);
+}
+
+void xlogl_bits16(char *line, const char *name, int bits) {
+	char c[32];
+	snprintf(c, 32, " %s:"BYTE2BIN_PATTERN16, name, BYTE2BIN16(bits));
+	strncat(line, c, 32);
 }
 
 void xlogl_float(char *line, int colored, int invers, const char *name, float value) {

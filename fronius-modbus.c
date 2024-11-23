@@ -382,7 +382,7 @@ static void print_pstate(const char *message) {
 		snprintf(value, 16, " F7:%d/%d", f7->inverter->St, f7->poll);
 		strcat(line, value);
 	}
-	xlogl_bits(line, "Flags", pstate->flags);
+	xlogl_bits16(line, "Flags", pstate->flags);
 	xlogl_end(line, strlen(line), message);
 }
 
@@ -637,7 +637,7 @@ static int force_standby() {
 
 static device_t* standby() {
 	// do we have powered devices?
-	if (pstate->xload == gstate->baseload)
+	if (PSTATE_ALL_OFF)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -921,11 +921,16 @@ static void calculate_pstate() {
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
 
-	// all devices in standby?
-//	pstate->flags |= FLAG_ALL_STANDBY;
-//	for (device_t **d = DEVICES; *d != 0; d++)
-//		if ((*d)->state != Standby)
-//			pstate->flags &= ~FLAG_ALL_STANDBY;
+	// all devices in standby or off?
+	pstate->flags |= FLAG_ALL_STANDBY;
+	pstate->flags |= FLAG_ALL_OFF;
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		if (d->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+		if (d->power)
+			pstate->flags &= ~FLAG_ALL_OFF;
+	}
 
 	// validate values
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2;
@@ -1059,7 +1064,6 @@ static void emergency() {
 
 static void offline() {
 	xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
-	set_all_devices(0);
 	bump_pstate();
 }
 
@@ -1112,6 +1116,10 @@ static void hourly(time_t now_ts) {
 	for (device_t **d = DEVICES; *d != 0; d++)
 		if ((*d)->state == Standby)
 			(*d)->state = Active;
+
+	// force all devices off when offline
+	if (PSTATE_OFFLINE)
+		set_all_devices(0);
 
 	// update voltage minimum/maximum
 //	minimum_maximum(now_ts);
