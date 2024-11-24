@@ -981,8 +981,8 @@ static void calculate_pstate() {
 		xlog("FRONIUS no potd selected!");
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (!f10->inverter->St) {
-		xlog("FRONIUS no Fronius10 inverter state!");
+	if (!f10->active) {
+		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_VALID;
 	}
 }
@@ -1001,15 +1001,18 @@ static void update_f10(sunspec_t *ss) {
 		uint32_t y = SWAP32(ss->mppt->DCWH2);
 		counter->pv10 = SFUI(x + y, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
+		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
 		ss->poll = POLL_TIME_SLEEPING;
+		ss->active = 0;
 		break;
 
 	default:
 		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->active = 0;
 		ss->poll = POLL_TIME_FAULT;
 	}
 
@@ -1029,15 +1032,18 @@ static void update_f7(sunspec_t *ss) {
 		uint32_t y = SWAP32(ss->mppt->DCWH2);
 		counter->pv7 = SFUI(x + y, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
+		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
 		ss->poll = POLL_TIME_SLEEPING;
+		ss->active = 0;
 		break;
 
 	default:
 		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->active = 0;
 		ss->poll = POLL_TIME_FAULT;
 	}
 }

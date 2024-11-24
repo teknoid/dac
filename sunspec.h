@@ -222,6 +222,7 @@ struct _sunspec {
 	const char *ip;
 	int slave;
 	int poll;
+	int active;
 	sunspec_callback_t callback;
 	pthread_t thread;
 	modbus_t *mb;
