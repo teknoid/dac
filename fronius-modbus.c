@@ -940,6 +940,8 @@ static void calculate_pstate() {
 
 	// greedy power = akku + grid
 	pstate->greedy = pstate->surplus;
+	if (pstate->greedy > 0)
+		pstate->greedy -= NOISE; // threshold for ramp up
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
 	if (PSTATE_ALL_OFF && pstate->greedy < 0)
@@ -947,6 +949,8 @@ static void calculate_pstate() {
 
 	// modest power = only pure grid upload
 	pstate->modest = pstate->grid * -1;
+	if (pstate->modest > 0)
+		pstate->modest -= NOISE; // threshold for ramp up
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
 	if (PSTATE_ALL_OFF && pstate->modest < 0)
