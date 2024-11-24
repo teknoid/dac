@@ -978,7 +978,11 @@ static void calculate_pstate() {
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (!potd) {
-		xlog("FRONIUS No potd selected!");
+		xlog("FRONIUS no potd selected!");
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (!f10->inverter->St) {
+		xlog("FRONIUS no Fronius10 inverter state!");
 		pstate->flags &= ~FLAG_VALID;
 	}
 }
