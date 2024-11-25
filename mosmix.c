@@ -33,7 +33,7 @@ void mosmix_sod(mosmix_t *sum, time_t now_ts) {
 	ZEROP(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
-		if (ts_from < m->ts && m->ts < now_ts) { // exclude current hour
+		if (ts_from < m->ts && m->ts <= now_ts) {
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
 		}
@@ -52,7 +52,7 @@ void mosmix_eod(mosmix_t *sum, time_t now_ts) {
 	ZEROP(sum);
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_t *m = &mosmix[i];
-		if (m->ts > (now_ts + 3600) && m->ts < ts_to) { // exclude current hour
+		if (m->ts > now_ts && m->ts < ts_to) { // include current hour as it normally runs at full hour
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
 		}
