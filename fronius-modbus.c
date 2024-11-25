@@ -831,6 +831,12 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->tomorrow = m1.Rad1h * mosmix;
 	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
+	// mosmix validate sod+eod == today total
+	if ((sod.Rad1h + eod.Rad1h) != m0.Rad1h)
+		xdebug("FRONIUS mosmix calculation error: Rad1h sod+eod != today");
+	if ((sod.SunD1 + eod.SunD1) != m0.SunD1)
+		xdebug("FRONIUS mosmix calculation error: SunD1 sod+eod != today");
+
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
 	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
