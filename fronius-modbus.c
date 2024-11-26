@@ -687,7 +687,7 @@ static device_t* response(device_t *d) {
 	// reset
 	d->dload = 0;
 
-	// ignore response due to distortion or below NOISE
+	// ignore response below NOISE
 	if (abs(delta) < NOISE) {
 		xdebug("FRONIUS ignoring expected response below NOISE %d from %s", delta, d->name);
 		d->state = Active;
@@ -925,9 +925,10 @@ static void calculate_pstate() {
 	// distortion when delta pv is too big
 	int dpv_sum = 0;
 	for (int i = 0; i < PSTATE_HISTORY; i++)
-		dpv_sum += pstate_history[i].dpv;
+		dpv_sum += abs(pstate_history[i].dpv);
 	if (dpv_sum > 1000)
 		pstate->flags |= FLAG_DISTORTION;
+	// xdebug("FRONIUS distortion=%d sum=%d", PSTATE_DISTORTION, dpv_sum);
 
 	// pv tendence
 	if (pstate->dpv < -NOISE && h1->dpv < -NOISE && h2->dpv < -NOISE)
