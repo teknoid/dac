@@ -554,8 +554,8 @@ static device_t* ramp() {
 			return d;
 	}
 
-	// do rampup only when valid or enough grid upload
-	int ok = PSTATE_STABLE || pstate->grid < -1000;
+	// ramp up only when state is stable or enough surplus power
+	int ok = PSTATE_STABLE || pstate->surplus > 2000;
 	if (!ok)
 		return 0;
 
