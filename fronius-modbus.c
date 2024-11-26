@@ -1145,18 +1145,20 @@ static void daily(time_t now_ts) {
 static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// bump gstate history before writing new values into
-	bump_gstate(now_ts);
-
-	// reset standby states
-	xlog("FRONIUS resetting standby states");
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Standby)
-			(*d)->state = Active;
+	// resetting noresponse counters and standby states
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		d->noresponse = 0;
+		if (d->state == Standby)
+			d->state = Active;
+	}
 
 	// force all devices off when offline
 	if (PSTATE_OFFLINE)
 		set_all_devices(0);
+
+	// bump gstate history before writing new values into
+	bump_gstate(now_ts);
 
 	// update voltage minimum/maximum
 //	minimum_maximum(now_ts);
