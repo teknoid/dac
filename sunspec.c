@@ -31,7 +31,8 @@ static void collect_models(sunspec_t *ss) {
 			ss->inverter_addr = address;
 			ss->inverter_size = *size;
 			ss->inverter_id = *id;
-			ss->inverter = malloc(sizeof(sunspec_inverter_t));
+			if (!ss->inverter)
+				ss->inverter = malloc(sizeof(sunspec_inverter_t));
 			ZEROP(ss->inverter);
 			break;
 
@@ -41,7 +42,8 @@ static void collect_models(sunspec_t *ss) {
 			ss->meter_addr = address;
 			ss->meter_size = *size;
 			ss->meter_id = *id;
-			ss->meter = malloc(sizeof(sunspec_meter_t));
+			if (!ss->meter)
+				ss->meter = malloc(sizeof(sunspec_meter_t));
 			ZEROP(ss->meter);
 			break;
 
@@ -49,7 +51,8 @@ static void collect_models(sunspec_t *ss) {
 			ss->storage_addr = address;
 			ss->storage_size = *size;
 			ss->storage_id = *id;
-			ss->storage = malloc(sizeof(sunspec_storage_t));
+			if (!ss->storage)
+				ss->storage = malloc(sizeof(sunspec_storage_t));
 			ZEROP(ss->storage);
 			break;
 
@@ -57,7 +60,8 @@ static void collect_models(sunspec_t *ss) {
 			ss->mppt_addr = address;
 			ss->mppt_size = *size;
 			ss->mppt_id = *id;
-			ss->mppt = malloc(sizeof(sunspec_mppt_t));
+			if (!ss->mppt)
+				ss->mppt = malloc(sizeof(sunspec_mppt_t));
 			ZEROP(ss->mppt);
 			break;
 		}
@@ -122,12 +126,8 @@ static void* poll(void *arg) {
 		// immediate
 
 		// read dynamic models in a loop
-		while (1) {
+		while (errors > -10) {
 			msleep(ss->poll);
-
-			// check error counter
-			if (errors < -10)
-				break;
 
 			if (ss->inverter)
 				errors += read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);
@@ -149,7 +149,7 @@ static void* poll(void *arg) {
 //			xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 		}
 
-		xlog("SUNSPEC aborting %s poll due to too many errors %d", ss->name, errors);
+		xlog("SUNSPEC aborting %s poll due to too many errors: %d", ss->name, abs(errors));
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
@@ -178,10 +178,6 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave, const sunsp
 void sunspec_stop(sunspec_t *ss) {
 	if (!ss)
 		return;
-
-	// TODO free models in thread before stopping threads
-	// see https://stackoverflow.com/questions/1119134/how-do-malloc-and-free-work
-	// OR malloc all models in init()
 
 	if (pthread_cancel(ss->thread))
 		xerr("SUNSPEC Error canceling %s poll thread", ss->name);
