@@ -888,6 +888,7 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
+		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->tendence = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
 		return;
 	}
 
