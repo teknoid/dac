@@ -737,34 +737,25 @@ static device_t* response(device_t *d) {
 // TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
 // collect akku discharge rate for last hour and calculate baseload
 static void calculate_discharge_rate(time_t now_ts) {
-	int last_discharge_soc = discharge_soc;
-	int last_discharge_ts = discharge_ts;
-
-	// calculate baseload from mean discharge rate
-	if (now->tm_hour == 6) {
-		gstate->baseload = average_non_zero(discharge, 24);
-		xlog("FRONIUS calculated average nightly baseload %d Wh", gstate->baseload);
-	}
-
-	// clear it at high noon
+	// clear at high noon
 	if (now->tm_hour == 12)
 		ZERO(discharge);
 
 	// update global values for next calculation
+	int last_discharge_soc = discharge_soc;
+	int last_discharge_ts = discharge_ts;
 	discharge_soc = pstate->soc;
 	discharge_ts = now_ts;
 
-	// calculate only between 10% and 90%
-	if (pstate->soc < 100 || pstate->soc > 900)
-		return;
-
+	// check if we are in akku discharge phase: offline, soc between 10%-90% and decreasing
 	int start = AKKU_CAPACITY_SOC(last_discharge_soc);
 	int stop = AKKU_CAPACITY_SOC(pstate->soc);
-	if (start < stop)
-		return; // no discharge
+	int dis = PSTATE_OFFLINE && 100 < pstate->soc && pstate->soc < 900 && start > stop;
+	if (!dis)
+		return;
 
 	int seconds = now_ts - last_discharge_ts;
-	int idx = now->tm_hour ? now->tm_hour - 1 : 23;
+	int idx = now->tm_hour ? now->tm_hour - 1 : 23; // shift 1h left
 	int lost = discharge[idx] = start - stop;
 	xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
 
@@ -776,6 +767,10 @@ static void calculate_discharge_rate(time_t now_ts) {
 		strcat(message, value);
 	}
 	xdebug(message);
+
+	// calculate baseload from mean discharge rate
+	gstate->baseload = average_non_zero(discharge, 24);
+	xlog("FRONIUS calculated baseload from mean discharge rate %d Wh", gstate->baseload);
 }
 
 static void calculate_gstate(time_t now_ts) {
@@ -813,15 +808,15 @@ static void calculate_gstate(time_t now_ts) {
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
 	float mosmix;
-	if (gstate->pv) {
-		mosmix = sod.Rad1h == 0 ? 1 : ((float) gstate->pv) / ((float) sod.Rad1h);
+	if (gstate->pv && sod.Rad1h) {
+		mosmix = (float) gstate->pv / (float) sod.Rad1h;
 		gstate->mosmix = mosmix * 10.0; // store as x10 scaled
 	} else
 		mosmix = gstate->mosmix / 10.0; // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d mosmix=%.1f expected=%d", gstate->pv, sod.Rad1h, eod.Rad1h, mosmix, gstate->expected);
+	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -1166,11 +1161,11 @@ static void hourly(time_t now_ts) {
 //	minimum_maximum(now_ts);
 //	print_minimum_maximum();
 
-	// calculate global state
-	calculate_gstate(now_ts);
-
 	// calculate discharge rate and baseload
 	calculate_discharge_rate(now_ts);
+
+	// calculate global state
+	calculate_gstate(now_ts);
 
 	// choose program of the day
 	choose_program();
@@ -1199,8 +1194,8 @@ static void fronius() {
 	sleep(3);
 
 	// once upon start: calculate global state, init discharge and choose program of the day
-	calculate_gstate(now_ts);
 	calculate_discharge_rate(now_ts);
+	calculate_gstate(now_ts);
 	choose_program();
 
 	// the FRONIUS main loop
