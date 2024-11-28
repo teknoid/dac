@@ -773,7 +773,7 @@ static void calculate_gstate(time_t now_ts) {
 		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
 		gstate->baseload = gridload;
 	}
-	if (gstate->baseload < NOISE || BASELOAD * 2 < gstate->baseload) {
+	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
 		xdebug("FRONIUS no reliable baseload available, using BASELOAD as default");
 		gstate->baseload = BASELOAD;
 	}
