@@ -77,8 +77,8 @@ int set_heater(device_t *heater, int power) {
 		return 0;
 
 	// can we send a message
-	if (heater->addr == NULL)
-		return 0; // continue loop
+//	if (heater->addr == NULL)
+//		return 0; // continue loop
 
 	// char command[128];
 #ifndef FRONIUS_MAIN
