@@ -214,7 +214,7 @@ static device_t b2 = { .name = "boiler2", .total = 2000, .set_function = &set_bo
 static device_t b3 = { .name = "boiler3", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .set_function = &set_heater, .adjustable = 0 };
 static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t h3 = { .id = PLUG5, .r = 3, .name = "schlaf", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .set_function = &set_heater, .adjustable = 0 };
 static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .set_function = &set_heater, .adjustable = 0 };
 static device_t *DEVICES[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
 
