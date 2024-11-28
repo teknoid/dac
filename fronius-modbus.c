@@ -178,13 +178,11 @@ static void init_all_devices() {
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		d->addr = resolve_ip(d->name);
-		if (d->addr == 0)
-			d->state = Disabled;
-		else {
-			d->state = Active;
-			d->power = -1; // force set to 0
-			(d->set_function)(d, 0);
-		}
+		d->state = Active;
+		d->power = -1; // force set to 0
+		(d->set_function)(d, 0);
+		if (d->adjustable && d->addr == 0)
+			d->state = Disabled; // controlled via ip address
 	}
 }
 

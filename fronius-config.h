@@ -209,9 +209,9 @@ int set_heater(device_t *device, int power);
 int set_boiler(device_t *device, int power);
 
 // devices
-static device_t b1 = { .name = "küche1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t b2 = { .name = "küche2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t b3 = { .name = "bad", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t b1 = { .name = "boiler1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t b2 = { .name = "boiler2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
 static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .set_function = &set_heater, .adjustable = 0 };
 static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .set_function = &set_heater, .adjustable = 0 };
 static device_t h3 = { .id = SWITCHBOX, .r = 3, .name = "schlaf", .total = 500, .set_function = &set_heater, .adjustable = 0 };
