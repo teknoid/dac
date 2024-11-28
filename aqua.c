@@ -4,9 +4,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "aqua-config.h"
+#include "tasmota-devices.h"
 #include "tasmota.h"
 #include "utils.h"
+#include "aqua.h"
 #include "mcp.h"
 
 static void set_pump(int value) {
