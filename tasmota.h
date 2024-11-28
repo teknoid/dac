@@ -25,7 +25,7 @@
 
 // Relais Boards
 #define CARPORT			0xF81A5D
-#define SCHUPPEN		0x555555
+#define SCHUPPEN		0x1A5E25
 #define AQUA			0x666666
 
 #define SHUTTER_UP		100

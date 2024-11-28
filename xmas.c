@@ -28,8 +28,9 @@ void xmas_on() {
 #ifndef PICAM
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 1);
-	// workaround carport
+	// workaround carport+schuppen
 	tasmota_power(CARPORT, 1, 1);
+	tasmota_power(SCHUPPEN, 1, 1);
 #endif
 }
 
@@ -37,8 +38,9 @@ void xmas_off() {
 #ifndef PICAM
 	for (int i = 0; i < ARRAY_SIZE(device); i++)
 		tasmota_power(device[i], 0, 0);
-	// workaround carport
+	// workaround carport+schuppen
 	tasmota_power(CARPORT, 1, 0);
+	tasmota_power(SCHUPPEN, 1, 0);
 #endif
 }
 
