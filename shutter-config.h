@@ -1,4 +1,4 @@
-#include "tasmota.h"
+#include "tasmota-devices.h"
 
 #ifdef SHUTTER_MAIN
 #define TEMP				23.2

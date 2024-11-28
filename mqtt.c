@@ -15,6 +15,7 @@
 #include <posix_sockets.h>
 #include <mqttc.h>
 
+#include "tasmota-devices.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "utils.h"

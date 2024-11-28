@@ -14,23 +14,6 @@
 
 #define LUMI				sensors->bh1750_lux
 
-// these tasmota devices are controlled via XMAS
-static const xmas_t devices[] = {
-	{ PLUG2, 0 },
-	{ CARPORT, 1 },
-	{ SCHUPPEN, 1 },
-};
-
-static const xmas_timing_t timings[] = {
-	{ 1, 1, 15, 00, 22, 00, WHITE1, 'A' }, // Monday
-	{ 1, 2, 15, 00, 22, 00, WHITE1, 'A' },
-	{ 1, 3, 15, 00, 22, 00, WHITE1, 'A' },
-	{ 1, 4, 15, 00, 22, 00, WHITE1, 'A' },
-	{ 1, 5, 15, 00, 23, 00, WHITE1, 'A' },
-	{ 1, 6, 15, 00, 23, 00, WHITE1, 'A' },
-	{ 1, 0, 15, 00, 23, 00, WHITE1, 'A' }, // Sunday
-};
-
 // TODO define channel status for each remote control unit
 static char channel_status[128];
 

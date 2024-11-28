@@ -1540,7 +1540,7 @@ static int test() {
 	curl_perform(curl_readable, &memory, &parse_readable);
 	return 0;
 
-	device_t *d = &boiler1;
+	device_t *d = &b1;
 
 	d->power = -1;
 	d->addr = resolve_ip(d->name);

@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "shutter-config.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "mcp.h"

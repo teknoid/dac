@@ -1,3 +1,5 @@
+#include "tasmota-devices.h"
+
 #define COUNTER_HISTORY			30		// days
 #define GSTATE_HISTORY			24		// hours
 #define PSTATE_HISTORY			32		// samples
@@ -207,14 +209,14 @@ int set_heater(device_t *device, int power);
 int set_boiler(device_t *device, int power);
 
 // devices
-static device_t boiler1 = { .name = "boiler1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler2 = { .name = "boiler2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t boiler3 = { .name = "boiler3", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t plug5 = { .id = 0xB60A0C, .r = 0, .name = "plug5", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug6 = { .id = 0x5E40EC, .r = 0, .name = "plug6", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug7 = { .id = 0x814D47, .r = 0, .name = "plug3", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t plug8 = { .id = 0x83185A, .r = 0, .name = "plug4", .total = 200, .set_function = &set_heater, .adjustable = 0 };
-static device_t *DEVICES[] = { &boiler1, &boiler2, &boiler3, &plug5, &plug6, &plug7, &plug8, 0 };
+static device_t b1 = { .name = "küche1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t b2 = { .name = "küche2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t b3 = { .name = "bad", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
+static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t h3 = { .id = SWITCHBOX, .r = 3, .name = "schlaf", .total = 500, .set_function = &set_heater, .adjustable = 0 };
+static device_t h4 = { .id = PLUG9, .r = 0, .name = "tisch", .total = 200, .set_function = &set_heater, .adjustable = 0 };
+static device_t *DEVICES[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
 
 // program of the day
 typedef struct potd_t {
@@ -227,10 +229,10 @@ typedef struct potd_t {
 static const potd_t CHARGE = { .name = "CHARGE", .greedy = { 0 }, .modest = { 0 } };
 
 // cloudy weather with akku empty: first charge akku, then boiler1, then rest
-static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &boiler1, &plug5, &plug6, &plug7, &plug8, &boiler2, &boiler3, 0 } };
+static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
 
 // cloudy weather but tomorrow sunny: steal all akku charge power
-static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &plug5, &plug6, &plug7, &plug8, &boiler1, &boiler2, &boiler3, 0 }, .modest = { 0 } };
+static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, 0 }, .modest = { 0 } };
 
 // sunny weather: plenty of power but modest boilers to catch all power when we have short sun spikes
-static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &plug5, &plug6, &plug7, &plug8, 0 }, .modest = { &boiler1, &boiler2, &boiler3, 0 } };
+static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
