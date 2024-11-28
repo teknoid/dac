@@ -741,20 +741,19 @@ static void calculate_discharge_rate(time_t now_ts) {
 	if (now->tm_hour == 12)
 		ZERO(discharge);
 
+	int start = AKKU_CAPACITY_SOC(discharge_soc);
+	int stop = AKKU_CAPACITY_SOC(pstate->soc);
+	int seconds = now_ts - discharge_ts;
+
 	// update global values for next calculation
-	int last_discharge_soc = discharge_soc;
-	int last_discharge_ts = discharge_ts;
 	discharge_soc = pstate->soc;
 	discharge_ts = now_ts;
 
-	// check if we are in akku discharge phase: offline, soc between 10%-90% and decreasing
-	int start = AKKU_CAPACITY_SOC(last_discharge_soc);
-	int stop = AKKU_CAPACITY_SOC(pstate->soc);
+	// check if we are in akku discharge phase: offline, soc between 10-90% and decreasing
 	int dis = PSTATE_OFFLINE && 100 < pstate->soc && pstate->soc < 900 && start > stop;
 	if (!dis)
 		return;
 
-	int seconds = now_ts - last_discharge_ts;
 	int idx = now->tm_hour ? now->tm_hour - 1 : 23; // shift 1h left
 	int lost = discharge[idx] = start - stop;
 	xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
