@@ -66,6 +66,8 @@ static tasmota_state_t* get_state(unsigned int id) {
 	ts_new->id = id;
 	ts_new->relay1 = -1;
 	ts_new->relay2 = -1;
+	ts_new->relay3 = -1;
+	ts_new->relay4 = -1;
 	ts_new->position = -1;
 	ts_new->timer = 0;
 	ts_new->next = NULL;
@@ -102,6 +104,12 @@ static void update_relay(unsigned int id, int relay, int power) {
 	} else if (relay == 2) {
 		ss->relay2 = power;
 		xlog("TASMOTA updated %6X relay2 state to %d", ss->id, power);
+	} else if (relay == 3) {
+		ss->relay3 = power;
+		xlog("TASMOTA updated %6X relay3 state to %d", ss->id, power);
+	} else if (relay == 4) {
+		ss->relay4 = power;
+		xlog("TASMOTA updated %6X relay4 state to %d", ss->id, power);
 	} else
 		xlog("TASMOTA no relay%d at %6X", ss->id, relay);
 }
@@ -134,7 +142,15 @@ static void trigger(unsigned int id, int button, int action) {
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
 		tasmota_state_t *ss = get_state(sc.id);
-		int power = (sc.relay == 0 || sc.relay == 1) ? ss->relay1 : ss->relay2;
+		int power;
+		if (sc.relay == 0 || sc.relay == 1)
+			power = ss->relay1;
+		else if (sc.relay == 2)
+			power = ss->relay2;
+		else if (sc.relay == 3)
+			power = ss->relay3;
+		else if (sc.relay == 4)
+			power = ss->relay4;
 
 		if (sc.t1 == id && sc.t1b == button) {
 			if (power != 1)
@@ -444,9 +460,13 @@ static void loop() {
 				ts->timer--;
 				if (ts->timer == 0) {
 					if (ts->relay1)
-						tasmota_power(ts->id, 0, 0);
+						tasmota_power(ts->id, 1, 0);
 					if (ts->relay2)
 						tasmota_power(ts->id, 2, 0);
+					if (ts->relay3)
+						tasmota_power(ts->id, 3, 0);
+					if (ts->relay4)
+						tasmota_power(ts->id, 4, 0);
 				}
 			}
 			ts = ts->next;

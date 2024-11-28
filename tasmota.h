@@ -23,7 +23,7 @@
 #define ROLLO_SW		0x333333
 #define ROLLO_W			0x444444
 
-// Relais Boards
+// Relay Boards
 #define CARPORT			0xF81A5D
 #define SCHUPPEN		0x1A5E25
 #define AQUA			0x666666
@@ -52,9 +52,11 @@ typedef struct tasmota_config_t {
 
 typedef struct tasmota_state_t {
 	unsigned int id;
-	int relay1;
-	int relay2;
-	int position;
+	unsigned int relay1;
+	unsigned int relay2;
+	unsigned int relay3;
+	unsigned int relay4;
+	unsigned int position;
 	unsigned int timer;
 	void *next;
 } tasmota_state_t;
