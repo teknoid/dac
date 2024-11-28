@@ -22,6 +22,7 @@
 #define SUSPICIOUS				250
 #define NOISE					25
 #define EMERGENCY				(AKKU_CAPACITY / 10)
+#define PV_MIN					100
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN					22.0

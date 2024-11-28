@@ -876,7 +876,7 @@ static void calculate_pstate() {
 		pstate->dload = 0;
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv < 100 && h1->pv < 100 && h2->pv < 100) {
+	if (pstate->pv < PV_MIN && h1->pv < PV_MIN && h2->pv < PV_MIN) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
@@ -1071,7 +1071,7 @@ static int delta() {
 		return 1;
 
 	// do we have pv?
-	int pv = pstate->pv10_1 > NOISE || pstate->pv10_2 > NOISE || pstate->pv7_1 > NOISE || pstate->pv7_2 > NOISE;
+	int pv = pstate->pv10_1 > PV_MIN || pstate->pv10_2 > PV_MIN || pstate->pv7_1 > PV_MIN || pstate->pv7_2 > PV_MIN;
 
 	// trigger on grid download or akku discharge when we have pv
 	if (pv && (pstate->akku > NOISE || pstate->grid > NOISE))
