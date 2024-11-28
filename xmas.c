@@ -14,10 +14,22 @@
 
 #define LUMI				sensors->bh1750_lux
 
-// these tasmota devices will be in XMAS mode
-#ifndef PICAM
-static const unsigned int device[] = { DEVICES };
-#endif
+// these tasmota devices are controlled via XMAS
+static const xmas_t devices[] = {
+	{ PLUG2, 0 },
+	{ CARPORT, 1 },
+	{ SCHUPPEN, 1 },
+};
+
+static const xmas_timing_t timings[] = {
+	{ 1, 1, 15, 00, 22, 00, WHITE1, 'A' }, // Monday
+	{ 1, 2, 15, 00, 22, 00, WHITE1, 'A' },
+	{ 1, 3, 15, 00, 22, 00, WHITE1, 'A' },
+	{ 1, 4, 15, 00, 22, 00, WHITE1, 'A' },
+	{ 1, 5, 15, 00, 23, 00, WHITE1, 'A' },
+	{ 1, 6, 15, 00, 23, 00, WHITE1, 'A' },
+	{ 1, 0, 15, 00, 23, 00, WHITE1, 'A' }, // Sunday
+};
 
 // TODO define channel status for each remote control unit
 static char channel_status[128];
@@ -26,25 +38,23 @@ static int power = -1;
 
 void xmas_on() {
 #ifndef PICAM
-	for (int i = 0; i < ARRAY_SIZE(device); i++)
-		tasmota_power(device[i], 0, 1);
-	// workaround carport+schuppen
-	tasmota_power(CARPORT, 1, 1);
-	tasmota_power(SCHUPPEN, 1, 1);
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		const xmas_t *device = &devices[i];
+		tasmota_power(device->id, device->relay, 1);
+	}
 #endif
 }
 
 void xmas_off() {
 #ifndef PICAM
-	for (int i = 0; i < ARRAY_SIZE(device); i++)
-		tasmota_power(device[i], 0, 0);
-	// workaround carport+schuppen
-	tasmota_power(CARPORT, 1, 0);
-	tasmota_power(SCHUPPEN, 1, 0);
+	for (int i = 0; i < ARRAY_SIZE(devices); i++) {
+		const xmas_t *device = &devices[i];
+		tasmota_power(device->id, device->relay, 0);
+	}
 #endif
 }
 
-static void xmas_on_flamingo(const timing_t *timing) {
+static void xmas_on_flamingo(const xmas_timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (!channel_status[index]) {
 		xlog("flamingo_send_FA500 %d %c 1", timing->remote, timing->channel);
@@ -53,7 +63,7 @@ static void xmas_on_flamingo(const timing_t *timing) {
 	}
 }
 
-static void xmas_off_flamingo(const timing_t *timing) {
+static void xmas_off_flamingo(const xmas_timing_t *timing) {
 	int index = timing->channel - 'A';
 	if (channel_status[index]) {
 		xlog("flamingo_send_FA500 %d %c 0", timing->remote, timing->channel);
@@ -62,35 +72,35 @@ static void xmas_off_flamingo(const timing_t *timing) {
 	}
 }
 
-static void on_sundown(const timing_t *timing) {
+static void on_sundown(const xmas_timing_t *timing) {
 	xlog("XMAS reached SUNDOWN at %d", LUMI);
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
 }
 
-static void on_morning(const timing_t *timing) {
+static void on_morning(const xmas_timing_t *timing) {
 	xlog("XMAS reached ON time frame");
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
 }
 
-static void off_sunrise(const timing_t *timing) {
+static void off_sunrise(const xmas_timing_t *timing) {
 	xlog("XMAS reached SUNRISE at %d", LUMI);
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
 }
 
-static void off_evening(const timing_t *timing) {
+static void off_evening(const xmas_timing_t *timing) {
 	xlog("XMAS reached OFF time frame");
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
 }
 
-static int process(int h, int m, const timing_t *timing) {
+static int process(int h, int m, const xmas_timing_t *timing) {
 	int afternoon = h < 12 ? 0 : 1;
 	int curr = h * 60 + m;
 	int from = timing->on_h * 60 + timing->on_m;
@@ -160,7 +170,7 @@ static void xmas() {
 		int h = ltstatic->tm_hour, m = ltstatic->tm_min, wday = ltstatic->tm_wday;
 
 		for (int i = 0; i < ARRAY_SIZE(timings); i++) {
-			const timing_t *timing = &timings[i];
+			const xmas_timing_t *timing = &timings[i];
 
 			if (!timing->active)
 				continue;
