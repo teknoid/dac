@@ -76,23 +76,11 @@ int set_heater(device_t *heater, int power) {
 	if (heater->power && heater->power == power)
 		return 0;
 
-	// can we send a message
-//	if (heater->addr == NULL)
-//		return 0; // continue loop
-
-	// char command[128];
 #ifndef FRONIUS_MAIN
-	if (power) {
-		// xlog("FRONIUS switching %s ON", heater->name);
-		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20On", heater->addr);
-		// system(command);
+	if (power)
 		tasmota_power(heater->id, heater->r, 1);
-	} else {
-		// xlog("FRONIUS switching %s OFF", heater->name);
-		// snprintf(command, 128, "curl --silent --output /dev/null http://%s/cm?cmnd=Power%%20Off", heater->addr);
-		// system(command);
+	else
 		tasmota_power(heater->id, heater->r, 0);
-	}
 #endif
 
 	// update power values
