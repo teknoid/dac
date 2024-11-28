@@ -170,7 +170,7 @@ static void init_all_devices() {
 		d->power = -1; // force set to 0
 		(d->set_function)(d, 0);
 		if (d->adjustable && d->addr == 0)
-			d->state = Disabled; // controlled via ip address
+			d->state = Disabled; // controlled via socket send, so we need an ip address
 	}
 }
 
