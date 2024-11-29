@@ -736,14 +736,14 @@ static void calculate_baseload() {
 		int start_hour = lt->tm_hour;
 		localtime(&tstop);
 		int stop_hour = lt->tm_hour;
-		xdebug("FRONIUS discharge %02d->%02d: %d", start_hour, stop_hour, lost);
+		xdebug("FRONIUS discharge %02d->%02d: %d Wh", start_hour, stop_hour, lost);
 		sum += lost;
 		count++;
 	}
 
 	// calculate baseload from mean discharge rate
 	gstate->baseload = count ? sum / count : 0;
-	xlog("FRONIUS calculated baseload from mean discharge rate within %d hours %d Wh", count, gstate->baseload);
+	xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
 }
 
 static void calculate_gstate(time_t now_ts) {
