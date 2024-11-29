@@ -18,6 +18,9 @@
 // hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
 #define MINMAX_FILE				"/work/fronius-minmax.bin"
 
+// hexdump -v -e '24 "%6d""\n"' /work/fronius-discharge.bin
+#define DISCHARGE_FILE			"/work/fronius-discharge.bin"
+
 #define AKKU_BURNOUT			1
 #define AKKU_CAPACITY			11000
 #define BASELOAD				300

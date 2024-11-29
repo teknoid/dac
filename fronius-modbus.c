@@ -1281,6 +1281,7 @@ static int init() {
 
 	load_blob(COUNTER_FILE, counter_history, sizeof(counter_history));
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
+	load_blob(DISCHARGE_FILE, discharge, sizeof(discharge));
 
 	meter = sunspec_init("Meter", "192.168.25.230", 200, &update_meter);
 	f10 = sunspec_init("Fronius10", "192.168.25.230", 1, &update_f10);
@@ -1297,6 +1298,7 @@ static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+	store_blob(DISCHARGE_FILE, discharge, sizeof(discharge));
 #endif
 
 	if (sock)
