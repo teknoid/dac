@@ -718,14 +718,14 @@ static device_t* response(device_t *d) {
 }
 
 // TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
-// collect akku discharge rate from gsate history and calculate baseload
-static void calculate_discharge_rate() {
+// collect hourly akku discharge rates from gsate history and calculate baseload
+static void calculate_baseload() {
 	int sum = 0, count = 0;
 	for (int i = -23; i < 0; i++) {
 		gstate_t *start = get_gstate_history(i);
 		gstate_t *stop = get_gstate_history(i + 1);
 
-		// check if we are in akku discharge phase: soc between 10-90% and decreasing
+		// check if we are in discharge phase: soc between 10-90% and decreasing
 		int discharge = start->soc < 900 && stop->soc > 100 && start->soc > stop->soc;
 		if (!discharge)
 			continue;
@@ -762,7 +762,7 @@ static void calculate_gstate(time_t now_ts) {
 		gstate->baseload = gridload;
 	}
 	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
-		xdebug("FRONIUS no reliable baseload available, using BASELOAD as default");
+		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
 		gstate->baseload = BASELOAD;
 	}
 
@@ -1135,7 +1135,7 @@ static void hourly(time_t now_ts) {
 //	print_minimum_maximum();
 
 	// calculate discharge rate and baseload
-	calculate_discharge_rate(now_ts);
+	calculate_baseload(now_ts);
 
 	// calculate global state
 	calculate_gstate(now_ts);
@@ -1167,7 +1167,7 @@ static void fronius() {
 	sleep(3);
 
 	// once upon start: calculate global state + discharge rate and choose program of the day
-	calculate_discharge_rate(now_ts);
+	calculate_baseload(now_ts);
 	calculate_gstate(now_ts);
 	choose_program();
 
