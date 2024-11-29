@@ -942,17 +942,16 @@ static void calculate_gstate(time_t now_ts) {
 }
 
 static void calculate_mosmix(time_t now_ts) {
-	// reload mosmix data
-	if (mosmix_load(CHEMNITZ))
-		return;
-
 	// calculate baseload from mean akku discharge rate or grid load
 	int baseload = calculate_baseload();
 
 	// akku time to live calculated from baseload
 	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	float ttl = ((float) gstate->akku) / ((float) baseload); // hours
-	gstate->ttl = ttl * 60.0; // minutes
+	gstate->ttl = gstate->akku * 60 / baseload; // minutes
+
+	// reload mosmix data
+	if (mosmix_load(CHEMNITZ))
+		return;
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;

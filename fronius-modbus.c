@@ -745,11 +745,11 @@ static int calculate_baseload() {
 		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, baseload);
 	else {
 		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
-		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
+		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
 		baseload = gridload;
 	}
 	if (baseload < NOISE || baseload > BASELOAD * 2) {
-		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
+		xlog("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
 		baseload = BASELOAD;
 	}
 	return baseload;
