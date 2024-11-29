@@ -62,13 +62,10 @@ static int gstate_history_ptr = 0;
 static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
-// hourly collected akku discharge rates
-static int discharge[24], discharge_soc, discharge_ts;
-
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;
 
-static struct tm now_tm, *now = &now_tm;
+static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
 // reading Inverter API: CURL handles, response memory, raw date, error counter
@@ -372,7 +369,6 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
-	xlogl_int(line, 0, 0, "Baseload", gstate->baseload);
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
@@ -883,48 +879,43 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-// TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
-// collect akku discharge rate for last hour and calculate baseload
-static void calculate_discharge_rate(time_t now_ts) {
-	int last_discharge_soc = discharge_soc;
-	int last_discharge_ts = discharge_ts;
+// collect hourly akku discharge rates from gstate history and calculate baseload
+static int calculate_baseload() {
+	int sum = 0, count = 0;
+	for (int i = -23; i < 0; i++) {
+		gstate_t *start = get_gstate_history(i);
+		gstate_t *stop = get_gstate_history(i + 1);
 
-	// calculate baseload from mean discharge rate
-	if (now->tm_hour == 6) {
-		gstate->baseload = average_non_zero(discharge, 24);
-		xlog("FRONIUS calculated average nightly baseload %d Wh", gstate->baseload);
+		// check if we are in discharge phase: soc between 10-90% and decreasing
+		int discharge = start->soc < 900 && stop->soc > 100 && start->soc > stop->soc;
+		if (!discharge)
+			continue;
+
+		int lost = AKKU_CAPACITY_SOC(start->soc) - AKKU_CAPACITY_SOC(stop->soc);
+		time_t tstart = start->timestamp, tstop = stop->timestamp;
+		localtime(&tstart);
+		int start_hour = lt->tm_hour;
+		localtime(&tstop);
+		int stop_hour = lt->tm_hour;
+		xdebug("FRONIUS discharge %02d->%02d: %d Wh", start_hour, stop_hour, lost);
+		sum += lost;
+		count++;
 	}
 
-	// clear it at high noon
-	if (now->tm_hour == 12)
-		ZERO(discharge);
-
-	// update global values for next calculation
-	discharge_soc = pstate->soc;
-	discharge_ts = now_ts;
-
-	// calculate only between 10% and 90%
-	if (pstate->soc < 100 || pstate->soc > 900)
-		return;
-
-	int start = AKKU_CAPACITY_SOC(last_discharge_soc);
-	int stop = AKKU_CAPACITY_SOC(pstate->soc);
-	if (start < stop)
-		return; // no discharge
-
-	int seconds = now_ts - last_discharge_ts;
-	int idx = now->tm_hour ? now->tm_hour - 1 : 23;
-	int lost = discharge[idx] = start - stop;
-	xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
-
-	// dump hourly collected discharge rates
-	char message[LINEBUF], value[6];
-	strcpy(message, "FRONIUS discharge rate ");
-	for (int i = 0; i < 24; i++) {
-		snprintf(value, 6, "%4d ", discharge[i]);
-		strcat(message, value);
+	// check if baseload is available (e.g. not if akku is empty)
+	int baseload = count ? sum / count : 0;
+	if (baseload)
+		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, baseload);
+	else {
+		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
+		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
+		baseload = gridload;
 	}
-	xdebug(message);
+	if (baseload < NOISE || baseload > BASELOAD * 2) {
+		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
+		baseload = BASELOAD;
+	}
+	return baseload;
 }
 
 static void calculate_gstate(time_t now_ts) {
@@ -934,17 +925,6 @@ static void calculate_gstate(time_t now_ts) {
 	counter->consumed = r->consumed;
 	if (r->pv7_total > 0.0)
 		counter->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
-
-	// check if baseload is available (e.g. not if akku is empty)
-	if (!gstate->baseload) {
-		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
-		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
-		gstate->baseload = gridload;
-	}
-	if (gstate->baseload < NOISE) {
-		xdebug("FRONIUS no reliable baseload available, using BASELOAD as default");
-		gstate->baseload = BASELOAD;
-	}
 
 	// take over raw values - gstate
 	gstate->timestamp = now_ts;
@@ -959,17 +939,20 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
 	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
 	gstate->pv = gstate->pv10 + gstate->pv7;
-
-	// akku time to live calculated from baseload
-	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	float ttl = ((float) gstate->akku) / ((float) gstate->baseload); // hours
-	gstate->ttl = ttl * 60.0; // minutes
 }
 
 static void calculate_mosmix(time_t now_ts) {
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
 		return;
+
+	// calculate baseload from mean akku discharge rate or grid load
+	int baseload = calculate_baseload();
+
+	// akku time to live calculated from baseload
+	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
+	float ttl = ((float) gstate->akku) / ((float) baseload); // hours
+	gstate->ttl = ttl * 60.0; // minutes
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
@@ -984,8 +967,8 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod.Rad1h * mosmix;
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int rad1h_min = baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int needed = baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? ((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10.0; // store as x10 scaled
@@ -1239,9 +1222,6 @@ static void hourly(time_t now_ts) {
 	// calculate global state
 	calculate_gstate(now_ts);
 
-	// calculate discharge rate and baseload
-	calculate_discharge_rate(now_ts);
-
 	// update voltage minimum/maximum
 	minimum_maximum(now_ts);
 	print_minimum_maximum();
@@ -1264,10 +1244,10 @@ static void fronius() {
 
 	// initialize hourly & daily
 	time_t now_ts = time(NULL);
-	struct tm *ltstatic = localtime(&now_ts);
-	mon = ltstatic->tm_mon;
-	day = ltstatic->tm_wday;
-	hour = ltstatic->tm_hour;
+	localtime(&now_ts);
+	mon = lt->tm_mon;
+	day = lt->tm_wday;
+	hour = lt->tm_hour;
 
 	errors = 0;
 	wait = 1;
@@ -1277,7 +1257,6 @@ static void fronius() {
 
 	// once upon start: calculate global state, init discharge and choose program of the day
 	calculate_gstate(now_ts);
-	calculate_discharge_rate(now_ts);
 	choose_program();
 
 	// the FRONIUS main loop
@@ -1289,8 +1268,8 @@ static void fronius() {
 
 		// get actual calendar time - and make a copy as subsequent calls to localtime() will override them
 		now_ts = time(NULL);
-		ltstatic = localtime(&now_ts);
-		memcpy(now, ltstatic, sizeof(*ltstatic));
+		localtime(&now_ts);
+		memcpy(now, lt, sizeof(*lt));
 
 		// monthly tasks
 		if (mon != now->tm_mon) {
@@ -1561,7 +1540,6 @@ static int init() {
 	ZEROP(gstate_history);
 	ZEROP(counter_history);
 	ZEROP(r);
-	ZERO(discharge);
 
 	load_blob(COUNTER_FILE, counter_history, sizeof(counter_history));
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
@@ -1584,9 +1562,9 @@ static int init() {
 	if (curl_readable == NULL)
 		return xerr("Error initializing libcurl");
 
-	// default global values
-	if (!gstate->baseload)
-		gstate->baseload = BASELOAD;
+	// initialize localtime's static structure
+	time_t sec = 0;
+	lt = localtime(&sec);
 
 	return 0;
 }

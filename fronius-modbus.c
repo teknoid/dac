@@ -219,7 +219,7 @@ static void dump_counter(int back) {
 static void dump_gstate(int back) {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 
-	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo  bload    exp   akku    soc    ttl   noon   mosm   surv");
+	strcpy(line, "FRONIUS gstate   idx         ts     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp   akku    soc    ttl   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < back; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -331,7 +331,6 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
-	xlogl_int(line, 0, 0, "Baseload", gstate->baseload);
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
@@ -717,9 +716,8 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-// TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
-// collect hourly akku discharge rates from gsate history and calculate baseload
-static void calculate_baseload() {
+// collect hourly akku discharge rates from gstate history and calculate baseload
+static int calculate_baseload() {
 	int sum = 0, count = 0;
 	for (int i = -23; i < 0; i++) {
 		gstate_t *start = get_gstate_history(i);
@@ -741,9 +739,20 @@ static void calculate_baseload() {
 		count++;
 	}
 
-	// calculate baseload from mean discharge rate
-	gstate->baseload = count ? sum / count : 0;
-	xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
+	// check if baseload is available (e.g. not if akku is empty)
+	int baseload = count ? sum / count : 0;
+	if (baseload)
+		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, baseload);
+	else {
+		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
+		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
+		baseload = gridload;
+	}
+	if (baseload < NOISE || baseload > BASELOAD * 2) {
+		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
+		baseload = BASELOAD;
+	}
+	return baseload;
 }
 
 static void calculate_gstate(time_t now_ts) {
@@ -755,20 +764,12 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
 	gstate->pv = gstate->pv10 + gstate->pv7;
 
-	// check if baseload is available (e.g. not if akku is empty)
-	if (!gstate->baseload) {
-		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
-		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
-		gstate->baseload = gridload;
-	}
-	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
-		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
-		gstate->baseload = BASELOAD;
-	}
+	// calculate baseload from mean akku discharge rate or grid load
+	int baseload = calculate_baseload();
 
 	// akku time to live calculated from baseload
 	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
+	gstate->ttl = gstate->akku * 60 / baseload; // minutes
 
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
@@ -806,8 +807,8 @@ static void calculate_gstate(time_t now_ts) {
 		xdebug("FRONIUS mosmix calculation error: SunD1 sod+eod != today");
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int rad1h_min = baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int needed = baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? ((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10.0; // store as x10 scaled
@@ -872,7 +873,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// calculate expected load
-	pstate->xload = gstate->baseload;
+	pstate->xload = BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;

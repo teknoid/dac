@@ -114,7 +114,6 @@ struct _gstate {
 	int consumed;
 	int today;
 	int tomorrow;
-	int baseload;
 	int expected;
 	int akku;
 	int soc;
