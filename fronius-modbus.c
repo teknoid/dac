@@ -1135,9 +1135,6 @@ static void hourly(time_t now_ts) {
 //	minimum_maximum(now_ts);
 //	print_minimum_maximum();
 
-	// calculate discharge rate and baseload
-	calculate_baseload(now_ts);
-
 	// calculate global state
 	calculate_gstate(now_ts);
 
@@ -1168,7 +1165,6 @@ static void fronius() {
 	sleep(3);
 
 	// once upon start: calculate global state + discharge rate and choose program of the day
-	calculate_baseload(now_ts);
 	calculate_gstate(now_ts);
 	choose_program();
 
