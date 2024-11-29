@@ -44,10 +44,7 @@ static pstate_t pstate_history[PSTATE_HISTORY];
 static int pstate_history_ptr = 0;
 static volatile pstate_t *pstate = &pstate_history[0];
 
-// hourly collected akku discharge rates and grid loads
-static int discharge[24], discharge_soc, discharge_ts;
-
-static struct tm now_tm, *now = &now_tm;
+static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
 // SunSpec modbus devices
@@ -401,7 +398,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// enough pv available
-	if (gstate->survive > 20)
+	if (gstate->survive > 25)
 		return select_program(&SUNNY);
 
 	// afternoon is less sunny than forenoon - charge akku earlier
@@ -721,41 +718,32 @@ static device_t* response(device_t *d) {
 }
 
 // TODO nicht akku discharge rate sondern über gstate history die Fronius10 lifetime counter berechnen
-// collect akku discharge rate for last hour and calculate baseload
-static void calculate_discharge_rate(time_t now_ts) {
-	// clear at high noon
-	if (now->tm_hour == 12)
-		ZERO(discharge);
+// collect akku discharge rate from gsate history and calculate baseload
+static void calculate_discharge_rate() {
+	int sum = 0, count = 0;
+	for (int i = -23; i < 0; i++) {
+		gstate_t *start = get_gstate_history(i);
+		gstate_t *stop = get_gstate_history(i + 1);
 
-	int start = AKKU_CAPACITY_SOC(discharge_soc);
-	int stop = AKKU_CAPACITY_SOC(pstate->soc);
-	int seconds = now_ts - discharge_ts;
+		// check if we are in akku discharge phase: soc between 10-90% and decreasing
+		int discharge = start->soc < 900 && stop->soc > 100 && start->soc > stop->soc;
+		if (!discharge)
+			continue;
 
-	// update global values for next calculation
-	discharge_soc = pstate->soc;
-	discharge_ts = now_ts;
-
-	// check if we are in akku discharge phase: offline, soc between 10-90% and decreasing
-	int dis = PSTATE_OFFLINE && 100 < pstate->soc && pstate->soc < 900 && start > stop;
-	if (!dis)
-		return;
-
-	int idx = now->tm_hour ? now->tm_hour - 1 : 23; // shift 1h left
-	int lost = discharge[idx] = start - stop;
-	xlog("FRONIUS discharge rate last hour %d Wh, start=%d stop=%d seconds=%d", lost, start, stop, seconds);
-
-	// dump hourly collected discharge rates
-	char message[LINEBUF], value[6];
-	strcpy(message, "FRONIUS discharge rate ");
-	for (int i = 0; i < 24; i++) {
-		snprintf(value, 6, "%4d ", discharge[i]);
-		strcat(message, value);
+		int lost = AKKU_CAPACITY_SOC(start->soc) - AKKU_CAPACITY_SOC(stop->soc);
+		time_t tstart = start->timestamp, tstop = stop->timestamp;
+		localtime(&tstart);
+		int start_hour = lt->tm_hour;
+		localtime(&tstop);
+		int stop_hour = lt->tm_hour;
+		xdebug("FRONIUS discharge %02d->%02d: %d", start_hour, stop_hour, lost);
+		sum += lost;
+		count++;
 	}
-	xdebug(message);
 
 	// calculate baseload from mean discharge rate
-	gstate->baseload = average_non_zero(discharge, 24);
-	xlog("FRONIUS calculated baseload from mean discharge rate %d Wh", gstate->baseload);
+	gstate->baseload = count ? sum / count : 0;
+	xlog("FRONIUS calculated baseload from mean discharge rate within %d hours %d Wh", count, gstate->baseload);
 }
 
 static void calculate_gstate(time_t now_ts) {
@@ -1167,10 +1155,10 @@ static void fronius() {
 
 	// initialize hourly & daily & monthly
 	time_t last_ts = time(NULL), now_ts = time(NULL);
-	struct tm *ltstatic = localtime(&now_ts);
-	mon = ltstatic->tm_mon;
-	day = ltstatic->tm_wday;
-	hour = ltstatic->tm_hour;
+	localtime(&now_ts);
+	mon = lt->tm_mon;
+	day = lt->tm_wday;
+	hour = lt->tm_hour;
 
 	// fake yesterday
 	// daily(now_ts);
@@ -1178,7 +1166,7 @@ static void fronius() {
 	// wait for sunspec threads to produce data
 	sleep(3);
 
-	// once upon start: calculate global state, init discharge and choose program of the day
+	// once upon start: calculate global state + discharge rate and choose program of the day
 	calculate_discharge_rate(now_ts);
 	calculate_gstate(now_ts);
 	choose_program();
@@ -1197,8 +1185,8 @@ static void fronius() {
 
 		// get actual calendar time - and make a copy as subsequent calls to localtime() will override them
 		now_ts = time(NULL);
-		ltstatic = localtime(&now_ts);
-		memcpy(now, ltstatic, sizeof(*ltstatic));
+		localtime(&now_ts);
+		memcpy(now, lt, sizeof(*lt));
 
 		// monthly tasks
 		if (mon != now->tm_mon) {
@@ -1277,15 +1265,17 @@ static int init() {
 	ZEROP(pstate_history);
 	ZEROP(gstate_history);
 	ZEROP(counter_history);
-	ZERO(discharge);
 
 	load_blob(COUNTER_FILE, counter_history, sizeof(counter_history));
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
-	load_blob(DISCHARGE_FILE, discharge, sizeof(discharge));
 
 	meter = sunspec_init("Meter", "192.168.25.230", 200, &update_meter);
 	f10 = sunspec_init("Fronius10", "192.168.25.230", 1, &update_f10);
 	f7 = sunspec_init("Fronius7", "192.168.25.231", 2, &update_f7);
+
+	// initialize localtime's static structure
+	time_t sec = 0;
+	lt = localtime(&sec);
 
 	return 0;
 }
@@ -1298,7 +1288,6 @@ static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
 	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
-	store_blob(DISCHARGE_FILE, discharge, sizeof(discharge));
 #endif
 
 	if (sock)
