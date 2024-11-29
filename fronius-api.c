@@ -1,3 +1,6 @@
+/**
+ * !!! Warning !!! deprecated and untested code, use fronius-modbus.c
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
