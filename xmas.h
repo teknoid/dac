@@ -1,10 +1,10 @@
 #include "tasmota-devices.h"
 
 // light on: ↑earlier, ↓later
-#define SUNDOWN			100
+#define SUNDOWN			50
 
 // light off: ↑later ↓earlier
-#define SUNRISE			200
+#define SUNRISE			100
 
 // the remote control unit
 #define WHITE1				1

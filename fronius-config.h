@@ -227,8 +227,8 @@ typedef struct potd_t {
 	device_t *modest[ARRAY_SIZE(DEVICES)];
 } potd_t;
 
-// charge: all power goes into akku
-static const potd_t CHARGE = { .name = "CHARGE", .greedy = { 0 }, .modest = { 0 } };
+// charge: all power goes into akku, only boiler1 takes Fronius7 surplus power
+static const potd_t CHARGE = { .name = "CHARGE", .greedy = { 0 }, .modest = { &b1, 0 } };
 
 // cloudy weather with akku empty: first charge akku, then boiler1, then rest
 static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
