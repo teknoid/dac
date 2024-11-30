@@ -872,15 +872,6 @@ static void calculate_pstate() {
 	if (!deltas)
 		pstate->flags |= FLAG_STABLE;
 
-	// calculate expected load
-	pstate->xload = BASELOAD;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		pstate->xload += (*d)->load;
-	pstate->xload *= -1;
-
-	// deviation of calculated load to actual load in %
-	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
-
 	// all devices in standby or off?
 	pstate->flags |= FLAG_ALL_STANDBY;
 	pstate->flags |= FLAG_ALL_OFF;
@@ -908,8 +899,17 @@ static void calculate_pstate() {
 	else
 		pstate->tendence = 0;
 
-	// indicate standby check when deviation between actual load and calculated load is three times above 50%
-	if (pstate->dxload > 50 && h1->dxload > 50 && h2->dxload > 50)
+	// calculate expected load
+	pstate->xload = BASELOAD;
+	for (device_t **d = DEVICES; *d != 0; d++)
+		pstate->xload += (*d)->load;
+	pstate->xload *= -1;
+
+	// deviation of calculated load to actual load in %
+	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
+
+	// indicate standby check when deviation between actual load and calculated load is three times above 33%
+	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// surplus is akku charge + grid upload
@@ -932,6 +932,8 @@ static void calculate_pstate() {
 		pstate->modest = 0;
 	if (PSTATE_ALL_OFF && pstate->modest < 0)
 		pstate->modest = 0; // nothing to ramp down
+	if (pstate->greedy < pstate->modest)
+		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 
 	pstate->flags |= FLAG_VALID;
 
@@ -1173,10 +1175,10 @@ static void fronius() {
 
 		// wait for regulation to take effect or for new values
 		if (device) {
-			if (potd == &MODEST)
-				sleep(WAIT_RAMP);
-			else
+			if (pstate->soc < 900)
 				sleep(WAIT_AKKU);
+			else
+				sleep(WAIT_RAMP);
 		} else
 			sleep(WAIT_NEXT);
 
