@@ -40,13 +40,14 @@ static int pstate_history_ptr = 0;
 static volatile pstate_t *pstate = &pstate_history[0];
 
 // hourly state
-static gstate_t gstate_history[24], *gstate = &gstate_history[0];
-
-static struct tm *lt, now_tm, *now = &now_tm;
-static int sock = 0;
+static gstate_t gstate_history[24];
+static volatile gstate_t *gstate = &gstate_history[0];
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
+
+static struct tm *lt, now_tm, *now = &now_tm;
+static int sock = 0;
 
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
@@ -693,10 +694,6 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate(time_t now_ts) {
-	// update current gstate slot and clear values
-	gstate = &gstate_history[now->tm_hour];
-	ZEROP(gstate);
-
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_history(-1);
 	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
@@ -705,8 +702,8 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
 	gstate->pv = gstate->pv10 + gstate->pv7;
 
-	// get last hour gstate to calculate deltas
-	gstate_t *h = &gstate_history[now->tm_hour > 0 ? now->tm_hour - 1 : 23];
+	// get previous gstate slot to calculate deltas
+	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
 
 	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
 	gstate->soc = pstate->soc;
@@ -1099,12 +1096,17 @@ static void hourly(time_t now_ts) {
 	if (PSTATE_OFFLINE)
 		set_all_devices(0);
 
-	// calculate global state for last hour
+	// recalculate global state of elapsed hour
 	calculate_gstate(now_ts);
 
 	// dump full gstate history at midnight
 	if (now->tm_hour == 0)
 		dump_gstate();
+
+	// update pointer to current hour slot and take over old values
+	gstate_t *gstate_new = &gstate_history[now->tm_hour];
+	memcpy(gstate_new, (void*) gstate, sizeof(gstate_t));
+	gstate = gstate_new; // atomic update current gstate pointer
 
 	// update voltage minimum/maximum
 //	minimum_maximum(now_ts);
@@ -1138,6 +1140,7 @@ static void fronius() {
 	sleep(3);
 
 	// once upon start: calculate global state + discharge rate and choose program of the day
+	gstate = &gstate_history[now->tm_hour];
 	calculate_gstate(now_ts);
 	choose_program();
 

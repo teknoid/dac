@@ -7,7 +7,7 @@
 
 #define ARRAY_SIZE(x)				(sizeof(x) / sizeof(x[0]))
 
-#define ZEROP(x)					memset(x, 0, sizeof(*x))
+#define ZEROP(x)					memset((void*) x, 0, sizeof(*x))
 #define ZERO(x)						memset((void*) &x, 0, sizeof(x))
 
 #define SWAP16(x)					(((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
