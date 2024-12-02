@@ -253,8 +253,6 @@ static void dump_pstate(int back) {
 }
 
 static void bump_counter(time_t now_ts) {
-	counter->timestamp = now_ts;
-
 	// calculate new counter pointer
 	if (++counter_history_ptr == COUNTER_HISTORY)
 		counter_history_ptr = 0;
@@ -263,11 +261,10 @@ static void bump_counter(time_t now_ts) {
 	// take over all values
 	memcpy(counter_new, (void*) counter, sizeof(counter_t));
 	counter = counter_new; // atomic update current counter pointer
+	counter->timestamp = now_ts; // mark actual day
 }
 
 static void bump_gstate(time_t now_ts) {
-	gstate->timestamp = now_ts;
-
 	// calculate new gstate pointer
 	if (++gstate_history_ptr == GSTATE_HISTORY)
 		gstate_history_ptr = 0;
@@ -276,6 +273,7 @@ static void bump_gstate(time_t now_ts) {
 	// take over all values
 	memcpy(gstate_new, (void*) gstate, sizeof(gstate_t));
 	gstate = gstate_new; // atomic update current gstate pointer
+	gstate->timestamp = now_ts; // mark actual hour
 }
 
 static void bump_pstate() {
@@ -916,6 +914,7 @@ static void calculate_pstate() {
 	pstate->surplus = (pstate->grid + pstate->akku) * -1;
 
 	// greedy power = akku + grid
+	// pstate->greedy = (pstate->surplus + h1->surplus + h2->surplus) / 3;
 	pstate->greedy = pstate->surplus;
 	if (pstate->greedy > 0)
 		pstate->greedy -= NOISE; // threshold for ramp up
@@ -924,7 +923,8 @@ static void calculate_pstate() {
 	if (PSTATE_ALL_OFF && pstate->greedy < 0)
 		pstate->greedy = 0; // nothing to ramp down
 
-	// modest power = only pure grid upload
+	// modest power = only grid upload
+	// pstate->modest = (pstate->grid + h1->grid + h2->grid) / -3;
 	pstate->modest = pstate->grid * -1;
 	if (pstate->modest > 0)
 		pstate->modest -= NOISE; // threshold for ramp up
@@ -1110,9 +1110,6 @@ static void daily(time_t now_ts) {
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
 //	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
 #endif
-
-	// dump full gstate history
-	dump_gstate(GSTATE_HISTORY);
 }
 
 static void hourly(time_t now_ts) {
@@ -1130,15 +1127,19 @@ static void hourly(time_t now_ts) {
 	if (PSTATE_OFFLINE)
 		set_all_devices(0);
 
-	// bump gstate history before writing new values into
+	// calculate global state for last hour
+	calculate_gstate(now_ts);
+
+	// dump full gstate history at midnight
+	if (now->tm_hour == 0)
+		dump_gstate(GSTATE_HISTORY);
+
+	// bump gstate history and take over old values
 	bump_gstate(now_ts);
 
 	// update voltage minimum/maximum
 //	minimum_maximum(now_ts);
 //	print_minimum_maximum();
-
-	// calculate global state
-	calculate_gstate(now_ts);
 
 	// choose program of the day
 	choose_program();
@@ -1187,10 +1188,10 @@ static void fronius() {
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
 
-		// monthly tasks
-		if (mon != now->tm_mon) {
-			mon = now->tm_mon;
-			monthly(now_ts);
+		// hourly tasks
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
+			hourly(now_ts);
 		}
 
 		// daily tasks
@@ -1199,10 +1200,10 @@ static void fronius() {
 			daily(now_ts);
 		}
 
-		// hourly tasks
-		if (hour != now->tm_hour) {
-			hour = now->tm_hour;
-			hourly(now_ts);
+		// monthly tasks
+		if (mon != now->tm_mon) {
+			mon = now->tm_mon;
+			monthly(now_ts);
 		}
 
 		// no device and no pstate value changes -> nothing to do
