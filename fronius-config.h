@@ -1,7 +1,6 @@
 #include "tasmota-devices.h"
 
 #define COUNTER_HISTORY			30		// days
-#define GSTATE_HISTORY			24		// hours
 #define PSTATE_HISTORY			32		// samples
 #define OVERRIDE				600
 #define STANDBY_RESET			60 * 30
@@ -106,7 +105,6 @@ struct _counter {
 typedef struct _gstate gstate_t;
 
 struct _gstate {
-	int timestamp;
 	int pv;
 	int pv10;
 	int pv7;
@@ -115,8 +113,10 @@ struct _gstate {
 	int today;
 	int tomorrow;
 	int expected;
-	int akku;
 	int soc;
+	int akku;
+	int dakku;
+	int baseload;
 	int ttl;
 	int noon;
 	int mosmix;

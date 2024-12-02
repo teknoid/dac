@@ -58,7 +58,7 @@ static counter_t counter_history[COUNTER_HISTORY], *counter = &counter_history[0
 static int counter_history_ptr = 0;
 
 // global state with total counters and daily calculations
-static gstate_t gstate_history[GSTATE_HISTORY], *gstate = &gstate_history[0];
+static gstate_t gstate_history[24], *gstate = &gstate_history[0];
 static int gstate_history_ptr = 0;
 
 // power state with actual power flow and state calculations
@@ -224,9 +224,9 @@ static counter_t* get_counter_history(int offset) {
 static gstate_t* get_gstate_history(int offset) {
 	int i = gstate_history_ptr + offset;
 	if (i < 0)
-		i += GSTATE_HISTORY;
-	if (i >= GSTATE_HISTORY)
-		i -= GSTATE_HISTORY;
+		i += 24;
+	if (i >= 24)
+		i -= 24;
 	return &gstate_history[i];
 }
 
@@ -307,10 +307,10 @@ static void bump_counter(time_t now_ts) {
 }
 
 static void bump_gstate(time_t now_ts) {
-	gstate->timestamp = now_ts;
+//	gstate->timestamp = now_ts;
 
 	// calculate new gstate pointer
-	if (++gstate_history_ptr == GSTATE_HISTORY)
+	if (++gstate_history_ptr == 24)
 		gstate_history_ptr = 0;
 	gstate_t *gstate_new = &gstate_history[gstate_history_ptr];
 
@@ -895,10 +895,10 @@ static int calculate_baseload() {
 			continue;
 
 		int lost = AKKU_CAPACITY_SOC(start->soc) - AKKU_CAPACITY_SOC(stop->soc);
-		time_t tstart = start->timestamp, tstop = stop->timestamp;
-		localtime(&tstart);
+//		time_t tstart = start->timestamp, tstop = stop->timestamp;
+//		localtime(&tstart);
 		int start_hour = lt->tm_hour;
-		localtime(&tstop);
+//		localtime(&tstop);
 		int stop_hour = lt->tm_hour;
 		xdebug("FRONIUS discharge %02d->%02d: %d Wh", start_hour, stop_hour, lost);
 		sum += lost;
@@ -930,7 +930,7 @@ static void calculate_gstate(time_t now_ts) {
 		counter->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
 
 	// take over raw values - gstate
-	gstate->timestamp = now_ts;
+//	gstate->timestamp = now_ts;
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
 
 	// yesterdays counters
@@ -1203,7 +1203,7 @@ static void daily(time_t now_ts) {
 #endif
 
 	// dump full gstate history
-	dump_gstate(GSTATE_HISTORY);
+	dump_gstate(24);
 }
 
 static void hourly(time_t now_ts) {
@@ -1574,7 +1574,7 @@ static int init() {
 static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
-	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), GSTATE_HISTORY, gstate_history_ptr);
+	store_blob_offset(GSTATE_FILE, gstate_history, sizeof(*gstate), 24, gstate_history_ptr);
 	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
 #endif
 
