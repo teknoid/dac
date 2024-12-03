@@ -1149,10 +1149,10 @@ static void fronius() {
 
 		// wait for regulation to take effect or for new values
 		if (device) {
-			if (pstate->soc < 900)
-				sleep(WAIT_AKKU);
+			if (device->dload < 0 && pstate->soc < 900)
+				sleep(WAIT_AKKU); // slow ramp up while akku not yet full
 			else
-				sleep(WAIT_RAMP);
+				sleep(WAIT_RAMP); // fast ramp down + ramp up when full
 		} else
 			sleep(WAIT_NEXT);
 
