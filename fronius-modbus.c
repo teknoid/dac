@@ -693,52 +693,7 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void calculate_gstate(time_t now_ts) {
-	// calculate daily values - when we have actual values and values from yesterday
-	counter_t *y = get_counter_history(-1);
-	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
-	gstate->consumed = !counter->consumed || !y->consumed ? 0 : counter->consumed - y->consumed;
-	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
-	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
-	gstate->pv = gstate->pv10 + gstate->pv7;
-
-	// get previous gstate slot to calculate deltas
-	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
-
-	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
-	gstate->soc = pstate->soc;
-	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
-	if (range_ok)
-		gstate->dakku = AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc);
-
-	// calculate baseload from mean akku discharge
-	int sum = 0, count = 0;
-	for (int i = 0; i < 24; i++) {
-		gstate_t *g = &gstate_history[i];
-		if (g->dakku < 0) { // discharge
-			xdebug("FRONIUS discharge at %02d:00: %d Wh", i, g->dakku);
-			sum += g->dakku;
-			count++;
-		}
-	}
-
-	// check if baseload is available (e.g. not if akku is empty)
-	gstate->baseload = count ? sum / count * -1 : 0;
-	if (gstate->baseload)
-		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
-	else {
-		gstate->baseload = gstate->consumed - h->consumed;
-		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->baseload);
-	}
-	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
-		gstate->baseload = BASELOAD;
-		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->baseload);
-	}
-
-	// akku time to live calculated from baseload
-	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
-
+static void calculate_mosmix(time_t now_ts) {
 	// reload mosmix data
 	if (mosmix_load(CHEMNITZ))
 		return;
@@ -788,6 +743,53 @@ static void calculate_gstate(time_t now_ts) {
 	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
 	gstate->noon = noon * 10.0;
 	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
+}
+
+static void calculate_gstate() {
+	// calculate daily values - when we have actual values and values from yesterday
+	counter_t *y = get_counter_history(-1);
+	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
+	gstate->consumed = !counter->consumed || !y->consumed ? 0 : counter->consumed - y->consumed;
+	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
+	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
+	gstate->pv = gstate->pv10 + gstate->pv7;
+
+	// get previous gstate slot to calculate deltas
+	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
+	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
+
+	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
+	int range_ok = pstate->soc > 100 && pstate->soc < 900 && h->soc > 100 && h->soc < 900;
+	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(pstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
+	gstate->soc = pstate->soc;
+
+	// calculate baseload from mean akku discharge
+	int sum = 0, count = 0;
+	for (int i = 0; i < 24; i++) {
+		gstate_t *g = &gstate_history[i];
+		if (g->dakku < 0) { // discharge
+			xdebug("FRONIUS discharge at %02d:00: %d Wh", i, g->dakku);
+			sum += g->dakku;
+			count++;
+		}
+	}
+
+	// check if baseload is available (e.g. not if akku is empty)
+	gstate->baseload = count ? sum / count * -1 : 0;
+	if (gstate->baseload)
+		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
+	else {
+		gstate->baseload = gstate->consumed - h->consumed;
+		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->baseload);
+	}
+	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
+		gstate->baseload = BASELOAD;
+		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->baseload);
+	}
+
+	// akku time to live calculated from baseload
+	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
+	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
 }
 
 static void calculate_pstate() {
@@ -1097,11 +1099,11 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// recalculate global state of elapsed hour
-	calculate_gstate(now_ts);
+	calculate_gstate();
 
 	// dump full gstate history at midnight
-	if (now->tm_hour == 0)
-		dump_gstate();
+//	if (now->tm_hour == 0)
+	dump_gstate();
 
 	// update pointer to current hour slot and take over old values
 	gstate_t *gstate_new = &gstate_history[now->tm_hour];
@@ -1112,7 +1114,8 @@ static void hourly(time_t now_ts) {
 //	minimum_maximum(now_ts);
 //	print_minimum_maximum();
 
-	// choose program of the day
+	// recalculate mosmix and choose program of the day
+	calculate_mosmix(now_ts);
 	choose_program();
 }
 
@@ -1141,7 +1144,8 @@ static void fronius() {
 
 	// once upon start: calculate global state + discharge rate and choose program of the day
 	gstate = &gstate_history[now->tm_hour];
-	calculate_gstate(now_ts);
+	calculate_gstate();
+	calculate_mosmix(now_ts);
 	choose_program();
 
 	// the FRONIUS main loop

@@ -883,7 +883,7 @@ static device_t* response(device_t *d) {
 }
 
 // collect hourly akku discharge rates from gstate history and calculate baseload
-static int calculate_baseload() {
+static void calculate_baseload() {
 	int sum = 0, count = 0;
 	for (int i = -23; i < 0; i++) {
 		gstate_t *start = get_gstate_history(i);
@@ -906,19 +906,58 @@ static int calculate_baseload() {
 	}
 
 	// check if baseload is available (e.g. not if akku is empty)
-	int baseload = count ? sum / count : 0;
-	if (baseload)
-		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, baseload);
+	gstate->baseload = count ? sum / count : 0;
+	if (gstate->baseload)
+		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
 	else {
-		int gridload = gstate->consumed - get_gstate_history(-1)->consumed;
-		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gridload);
-		baseload = gridload;
+		gstate->baseload = gstate->consumed - get_gstate_history(-1)->consumed;
+		xdebug("FRONIUS no calculated baseload available, using last hour gridload %d as default", gstate->baseload);
 	}
-	if (baseload < NOISE || baseload > BASELOAD * 2) {
-		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", BASELOAD);
-		baseload = BASELOAD;
+	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
+		gstate->baseload = BASELOAD;
+		xdebug("FRONIUS no reliable baseload available, using BASELOAD %d as default", gstate->baseload);
 	}
-	return baseload;
+}
+
+static void calculate_mosmix(time_t now_ts) {
+	// reload mosmix data
+	if (mosmix_load(CHEMNITZ))
+		return;
+
+	// sod+eod - values from midnight to now and now till next midnight
+	mosmix_t sod, eod;
+	mosmix_sod(&sod, now_ts);
+	mosmix_eod(&eod, now_ts);
+
+	// actual mosmix factor: till now produced vs. till now predicted
+	float mosmix = sod.Rad1h == 0 || gstate->pv == 0 ? 1 : ((float) gstate->pv) / ((float) sod.Rad1h);
+	gstate->mosmix = mosmix * 10.0; // store as x10 scaled
+
+	// expected pv power till end of day
+	gstate->expected = eod.Rad1h * mosmix;
+
+	// calculate survival factor from needed to survive next night vs. available (expected + akku)
+	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int available = gstate->expected + gstate->akku;
+	float survive = needed ? ((float) available) / ((float) needed) : 0;
+	gstate->survive = survive * 10.0; // store as x10 scaled
+	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
+
+	// mosmix total expected today and tomorrow
+	mosmix_t m0, m1;
+	mosmix_24h(&m0, now_ts, 0);
+	mosmix_24h(&m1, now_ts, 1);
+	gstate->today = m0.Rad1h * mosmix;
+	gstate->tomorrow = m1.Rad1h * mosmix;
+	xdebug("FRONIUS mosmix sod=%d eod=%d Rad1h/SunD1 today %d/%d, tomorrow %d/%d", sod.Rad1h, eod.Rad1h, m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1);
+
+	// mosmix total expected forenoon/afternoon
+	mosmix_t bn, an;
+	mosmix_noon(&bn, &an, now_ts);
+	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
+	gstate->noon = noon * 10.0;
+	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 }
 
 static void calculate_gstate(time_t now_ts) {
@@ -942,54 +981,14 @@ static void calculate_gstate(time_t now_ts) {
 	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
 	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
 	gstate->pv = gstate->pv10 + gstate->pv7;
-}
 
-static void calculate_mosmix(time_t now_ts) {
 	// calculate baseload from mean akku discharge rate or grid load
-	int baseload = calculate_baseload();
+	calculate_baseload();
 
 	// akku time to live calculated from baseload
 	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / baseload; // minutes
+	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
 
-	// reload mosmix data
-	if (mosmix_load(CHEMNITZ))
-		return;
-
-	// sod+eod - values from midnight to now and now till next midnight
-	mosmix_t sod, eod;
-	mosmix_sod(&sod, now_ts);
-	mosmix_eod(&eod, now_ts);
-
-	// actual mosmix factor: till now produced vs. till now predicted
-	float mosmix = sod.Rad1h == 0 || gstate->pv == 0 ? 1 : ((float) gstate->pv) / ((float) sod.Rad1h);
-	gstate->mosmix = mosmix * 10.0; // store as x10 scaled
-
-	// expected pv power till end of day
-	gstate->expected = eod.Rad1h * mosmix;
-
-	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
-	int available = gstate->expected + gstate->akku;
-	float survive = needed ? ((float) available) / ((float) needed) : 0;
-	gstate->survive = survive * 10.0; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
-
-	// mosmix total expected today and tomorrow
-	mosmix_t m0, m1;
-	mosmix_24h(&m0, now_ts, 0);
-	mosmix_24h(&m1, now_ts, 1);
-	gstate->today = m0.Rad1h * mosmix;
-	gstate->tomorrow = m1.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix sod=%d eod=%d Rad1h/SunD1 today %d/%d, tomorrow %d/%d", sod.Rad1h, eod.Rad1h, m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1);
-
-	// mosmix total expected forenoon/afternoon
-	mosmix_t bn, an;
-	mosmix_noon(&bn, &an, now_ts);
-	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
-	gstate->noon = noon * 10.0;
-	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 }
 
 static void calculate_pstate1() {
