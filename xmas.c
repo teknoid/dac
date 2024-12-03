@@ -136,7 +136,7 @@ static void xmas() {
 	}
 
 	// elevate realtime priority for flamingo 433MHz transmit
-	if (elevate_realtime(3) < 0) {
+	if (elevate_realtime(2) < 0) {
 		xlog("XMAS Error elevating realtime");
 		return;
 	}
