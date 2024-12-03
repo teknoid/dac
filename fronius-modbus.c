@@ -1230,6 +1230,143 @@ static void fronius() {
 	}
 }
 
+// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
+// - Nur Nachts
+// - Akku aus
+// - Külschränke aus
+// - Heizung aus
+// - Rechner aus
+static int calibrate(char *name) {
+	const char *addr = resolve_ip(name);
+	char message[16];
+	int voltage, closest, target;
+	int offset_start = 0, offset_end = 0;
+	int measure[1000], raster[101];
+
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	meter = sunspec_init("Meter", "192.168.25.230", 200, &update_meter);
+	sleep(3); // wait for thread to produce data
+
+	printf("starting calibration on %s (%s)\n", name, addr);
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// average offset power at start
+	printf("calculating offset start");
+	for (int i = 0; i < 10; i++) {
+		offset_start += pstate->grid;
+		printf(" %d", pstate->grid);
+		sleep(1);
+	}
+	offset_start /= 10;
+	printf(" --> average %d\n", offset_start);
+
+	printf("waiting for heat up 100%%...\n");
+	snprintf(message, 16, "v:10000:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// get maximum power, calculate 1%
+	int max_power = round100(pstate->grid - offset_start);
+	int onepercent = max_power / 100;
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+
+	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
+	for (int i = 0; i < 1000; i++) {
+		voltage = 10000 - (i * 10);
+		snprintf(message, 16, "v:%d:%d", voltage, 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		sleep(1);
+		measure[i] = pstate->grid - offset_start;
+		printf("%5d %5d\n", voltage, measure[i]);
+	}
+
+	// build raster table
+	raster[0] = 10000;
+	raster[100] = 0;
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power -i%
+		target = max_power - (onepercent * i);
+
+		// find closest power to target power
+		int min_diff = max_power;
+		for (int j = 0; j < 1000; j++) {
+			int diff = abs(measure[j] - target);
+			if (diff < min_diff) {
+				min_diff = diff;
+				closest = j;
+			}
+		}
+
+		// find all closest voltages that match target power
+		int sum = 0, count = 0;
+		printf("closest voltages to target power %5d matching %5d: ", target, measure[closest]);
+		for (int j = 0; j < 1000; j++)
+			if (measure[j] == measure[closest]) {
+				printf("%5d", j);
+				sum += 10000 - (j * 10);
+				count++;
+			}
+
+		// average of all closest voltages
+		raster[i] = sum / count;
+
+		printf(" --> average %5d\n", raster[i]);
+	}
+
+	// average offset power at end
+	printf("calculating offset end");
+	for (int i = 0; i < 10; i++) {
+		offset_end += pstate->grid;
+		printf(" %d", pstate->grid);
+		sleep(1);
+	}
+	offset_end /= 10;
+	printf(" --> average %d\n", offset_end);
+
+	// validate - values in measure table should shrink, not grow
+	for (int i = 1; i < 1000; i++)
+		if (measure[i - 1] < (measure[i] - 5)) { // with 5 watt tolerance
+			int v_x = 10000 - (i * 10);
+			int m_x = measure[i - 1];
+			int v_y = 10000 - ((i - 1) * 10);
+			int m_y = measure[i];
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
+		}
+	if (offset_start != offset_end)
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
+
+	// dump raster table in ascending order
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
+	printf("%d, ", raster[100]);
+	for (int i = 99; i >= 0; i--) {
+		printf("%d, ", raster[i]);
+		if (i % 10 == 0)
+			printf("\\\n");
+	}
+
+	// cleanup
+	close(sock);
+	sunspec_stop(meter);
+	return 0;
+}
+
+static int test() {
+	return 0;
+}
+
 static int init() {
 	set_debug(1);
 
@@ -1288,9 +1425,33 @@ int fronius_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	init();
-	fronius();
-	stop();
+	// no arguments - main loop
+	if (argc == 1) {
+		init();
+		fronius();
+		pause();
+		stop();
+		return 0;
+	}
+
+	init_all_devices();
+
+	int c;
+	while ((c = getopt(argc, argv, "c:o:t")) != -1) {
+		printf("getopt %c\n", c);
+		switch (c) {
+		case 'c':
+			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
+			return calibrate(optarg);
+		case 'o':
+			return fronius_override(optarg);
+		case 't':
+			test();
+			printf("test\n");
+			return 0;
+		}
+	}
+
 	return 0;
 }
 
