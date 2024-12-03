@@ -345,6 +345,74 @@ static void print_pstate(const char *message) {
 	xlogl_end(line, strlen(line), message);
 }
 
+static void update_f10(sunspec_t *ss) {
+	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
+	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
+
+	switch (ss->inverter->St) {
+	case I_STATUS_MPPT:
+		pstate->pv10_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->pv10_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		uint32_t x = SWAP32(ss->mppt->DCWH1);
+		uint32_t y = SWAP32(ss->mppt->DCWH2);
+		counter->pv10 = SFUI(x + y, ss->mppt->DCWH_SF);
+		ss->poll = POLL_TIME_ACTIVE;
+		ss->active = 1;
+		break;
+
+	case I_STATUS_SLEEPING:
+		// let the inverter sleep
+		ss->poll = POLL_TIME_SLEEPING;
+		ss->active = 0;
+		break;
+
+	default:
+		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->active = 0;
+		ss->poll = POLL_TIME_FAULT;
+	}
+
+	// akku power is DC power minus PV - calculate here as we need it in delta()
+	pstate->akku = pstate->dc10 - (pstate->pv10_1 + pstate->pv10_2);
+}
+
+static void update_f7(sunspec_t *ss) {
+	pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
+	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+
+	switch (ss->inverter->St) {
+	case I_STATUS_MPPT:
+		pstate->pv7_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->pv7_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		uint32_t x = SWAP32(ss->mppt->DCWH1);
+		uint32_t y = SWAP32(ss->mppt->DCWH2);
+		counter->pv7 = SFUI(x + y, ss->mppt->DCWH_SF);
+		ss->poll = POLL_TIME_ACTIVE;
+		ss->active = 1;
+		break;
+
+	case I_STATUS_SLEEPING:
+		// let the inverter sleep
+		ss->poll = POLL_TIME_SLEEPING;
+		ss->active = 0;
+		break;
+
+	default:
+		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->active = 0;
+		ss->poll = POLL_TIME_FAULT;
+	}
+}
+
+static void update_meter(sunspec_t *ss) {
+	uint32_t x = SWAP32(ss->meter->TotWhExp);
+	uint32_t y = SWAP32(ss->meter->TotWhImp);
+	counter->produced = SFUI(x, ss->meter->TotWh_SF);
+	counter->consumed = SFUI(y, ss->meter->TotWh_SF);
+	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
+}
+
 static int select_program(const potd_t *p) {
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	if (potd != p) {
@@ -742,6 +810,8 @@ static void calculate_mosmix(time_t now_ts) {
 }
 
 static void calculate_gstate() {
+	gstate->soc = pstate->soc;
+
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_history(-1);
 	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
@@ -755,9 +825,8 @@ static void calculate_gstate() {
 	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
 
 	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
-	int range_ok = pstate->soc > 100 && pstate->soc < 900 && h->soc > 100 && h->soc < 900;
-	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(pstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
-	gstate->soc = pstate->soc;
+	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
+	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 
 	// calculate baseload from mean akku discharge
 	int sum = 0, count = 0;
@@ -934,74 +1003,6 @@ static void calculate_pstate() {
 	}
 }
 
-static void update_f10(sunspec_t *ss) {
-	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
-	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
-
-	switch (ss->inverter->St) {
-	case I_STATUS_MPPT:
-		pstate->pv10_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
-		pstate->pv10_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		uint32_t x = SWAP32(ss->mppt->DCWH1);
-		uint32_t y = SWAP32(ss->mppt->DCWH2);
-		counter->pv10 = SFUI(x + y, ss->mppt->DCWH_SF);
-		ss->poll = POLL_TIME_ACTIVE;
-		ss->active = 1;
-		break;
-
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		ss->poll = POLL_TIME_SLEEPING;
-		ss->active = 0;
-		break;
-
-	default:
-		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
-		ss->active = 0;
-		ss->poll = POLL_TIME_FAULT;
-	}
-
-	// akku power is DC power minus PV - calculate here as we need it in delta()
-	pstate->akku = pstate->dc10 - (pstate->pv10_1 + pstate->pv10_2);
-}
-
-static void update_f7(sunspec_t *ss) {
-	pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
-	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-
-	switch (ss->inverter->St) {
-	case I_STATUS_MPPT:
-		pstate->pv7_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
-		pstate->pv7_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		uint32_t x = SWAP32(ss->mppt->DCWH1);
-		uint32_t y = SWAP32(ss->mppt->DCWH2);
-		counter->pv7 = SFUI(x + y, ss->mppt->DCWH_SF);
-		ss->poll = POLL_TIME_ACTIVE;
-		ss->active = 1;
-		break;
-
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		ss->poll = POLL_TIME_SLEEPING;
-		ss->active = 0;
-		break;
-
-	default:
-		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
-		ss->active = 0;
-		ss->poll = POLL_TIME_FAULT;
-	}
-}
-
-static void update_meter(sunspec_t *ss) {
-	uint32_t x = SWAP32(ss->meter->TotWhExp);
-	uint32_t y = SWAP32(ss->meter->TotWhImp);
-	counter->produced = SFUI(x, ss->meter->TotWh_SF);
-	counter->consumed = SFUI(y, ss->meter->TotWh_SF);
-	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
-}
-
 static int delta() {
 	// 3x history values
 	pstate_t *h1 = get_pstate_history(-1);
@@ -1106,13 +1107,13 @@ static void hourly(time_t now_ts) {
 	memcpy(gstate_new, (void*) gstate, sizeof(gstate_t));
 	gstate = gstate_new; // atomic update current gstate pointer
 
-	// update voltage minimum/maximum
-//	minimum_maximum(now_ts);
-//	print_minimum_maximum();
-
 	// recalculate mosmix and choose program of the day
 	calculate_mosmix(now_ts);
 	choose_program();
+
+	// update voltage minimum/maximum
+//	minimum_maximum(now_ts);
+//	print_minimum_maximum();
 }
 
 static void fronius() {
