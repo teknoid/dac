@@ -325,7 +325,7 @@ int flamingo_main(int argc, char *argv[]) {
 
 		// initialize without receive support (clear pattern + default handler)
 		// elevate realtime priority for sending thread
-		if (elevate_realtime(3) < 0)
+		if (elevate_realtime(1) < 0)
 			return -2;
 
 		init();
