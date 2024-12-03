@@ -373,21 +373,16 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// enough pv available
-	// if (gstate->survive > 20)
-	if (gstate->survive > 40)
-		return select_program(&SUNNY);
-
-	// afternoon is less sunny than forenoon - charge akku earlier
-	if (gstate->noon < 10)
+	// survive but afternoon is less sunny than forenoon - charge akku earlier
+	if (gstate->survive < 20 && gstate->noon < 10)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// default
-	return select_program(&MODEST);
+	// enough pv available
+	return select_program(&SUNNY);
 }
 
 // minimum available power for ramp up
@@ -741,7 +736,7 @@ static void calculate_mosmix(time_t now_ts) {
 	// mosmix sunshine duration ratio forenoon/afternoon
 	mosmix_t bn, an;
 	mosmix_noon(&bn, &an, now_ts);
-	float noon = bn.SunD1 ? ((float) an.SunD1) / ((float) bn.SunD1) : 0;
+	float noon = bn.SunD1 ? ((float) an.SunD1 / (float) bn.SunD1) : 0;
 	gstate->noon = noon * 10.0;
 	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 }
