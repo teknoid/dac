@@ -265,7 +265,7 @@ static void bump_pstate() {
 	pstate = pstate_new; // atomic update current pstate pointer
 }
 
-static void print_dstate(int wait) {
+static void print_dstate() {
 	char message[128], value[5];
 
 	strcpy(message, "FRONIUS device power ");
@@ -288,11 +288,6 @@ static void print_dstate(int wait) {
 		snprintf(value, 5, "%d", (*d)->noresponse);
 		strcat(message, value);
 	}
-
-	strcat(message, "   wait ");
-	snprintf(value, 5, "%d", wait);
-	strcat(message, value);
-
 	xlog(message);
 }
 
@@ -974,10 +969,10 @@ static void calculate_pstate() {
 
 	pstate->flags |= FLAG_VALID;
 
-	//clear flag if values not valid
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2;
-	if (abs(sum) > SUSPICIOUS) {
-		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
+	// check and clear flag if values not valid
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
+	if (abs(sum) > 100) {
+		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
 //		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
@@ -1188,7 +1183,7 @@ static void fronius() {
 		calculate_pstate();
 
 		// print actual gstate and pstate
-		print_gstate(NULL);
+//		print_gstate(NULL);
 		print_pstate(NULL);
 
 		// check emergency
@@ -1221,12 +1216,16 @@ static void fronius() {
 				device = standby();
 		}
 
-		// set history pointer to next slot
+		// print pstate history and device state when whe have active devices
 		pstate->wait = now_ts - last_ts;
 		last_ts = now_ts;
-		dump_pstate(3);
+		if (!PSTATE_ALL_OFF) {
+			dump_pstate(3);
+			print_dstate();
+		}
+
+		// set history pointer to next slot
 		bump_pstate();
-		print_dstate(pstate->wait);
 	}
 }
 
@@ -1239,9 +1238,15 @@ static void fronius() {
 static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
 	char message[16];
-	int voltage, closest, target;
+	int grid, voltage, closest, target;
 	int offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
+
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
+	ss->inverter = 0;
+	ss->storage = 0;
+	ss->mppt = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -1254,9 +1259,6 @@ static int calibrate(char *name) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	meter = sunspec_init("Meter", "192.168.25.230", 200, &update_meter);
-	sleep(3); // wait for thread to produce data
-
 	printf("starting calibration on %s (%s)\n", name, addr);
 	snprintf(message, 16, "v:0:0");
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
@@ -1265,8 +1267,10 @@ static int calibrate(char *name) {
 	// average offset power at start
 	printf("calculating offset start");
 	for (int i = 0; i < 10; i++) {
-		offset_start += pstate->grid;
-		printf(" %d", pstate->grid);
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF);
+		printf(" %d", grid);
+		offset_start += grid;
 		sleep(1);
 	}
 	offset_start /= 10;
@@ -1278,7 +1282,9 @@ static int calibrate(char *name) {
 	sleep(5);
 
 	// get maximum power, calculate 1%
-	int max_power = round100(pstate->grid - offset_start);
+	sunspec_read(ss);
+	grid = SFI(ss->meter->W, ss->meter->W_SF);
+	int max_power = round100(grid - offset_start);
 	int onepercent = max_power / 100;
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 
@@ -1287,8 +1293,9 @@ static int calibrate(char *name) {
 		voltage = 10000 - (i * 10);
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		sleep(1);
-		measure[i] = pstate->grid - offset_start;
+		msleep(500);
+		sunspec_read(ss);
+		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
 		printf("%5d %5d\n", voltage, measure[i]);
 	}
 
@@ -1329,8 +1336,10 @@ static int calibrate(char *name) {
 	// average offset power at end
 	printf("calculating offset end");
 	for (int i = 0; i < 10; i++) {
-		offset_end += pstate->grid;
-		printf(" %d", pstate->grid);
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF);
+		printf(" %d", grid);
+		offset_end += grid;
 		sleep(1);
 	}
 	offset_end /= 10;
@@ -1346,7 +1355,7 @@ static int calibrate(char *name) {
 			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
 		}
 	if (offset_start != offset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
 
 	// dump raster table in ascending order
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
@@ -1359,7 +1368,7 @@ static int calibrate(char *name) {
 
 	// cleanup
 	close(sock);
-	sunspec_stop(meter);
+	sunspec_stop(ss);
 	return 0;
 }
 
@@ -1380,9 +1389,9 @@ static int init() {
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 	load_blob(COUNTER_FILE, counter_history, sizeof(counter_history));
 
-	meter = sunspec_init("Meter", "192.168.25.230", 200, &update_meter);
-	f10 = sunspec_init("Fronius10", "192.168.25.230", 1, &update_f10);
-	f7 = sunspec_init("Fronius7", "192.168.25.231", 2, &update_f7);
+	meter = sunspec_init_poll("Meter", "192.168.25.230", 200, &update_meter);
+	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
+	f7 = sunspec_init_poll("Fronius7", "192.168.25.231", 2, &update_f7);
 
 	// initialize localtime's static structure
 	time_t sec = 0;

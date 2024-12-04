@@ -72,7 +72,7 @@ static void collect_models(sunspec_t *ss) {
 }
 
 static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, uint16_t *model) {
-	// xdebug("SUNSPEC %s read_model %d", i->name, id);
+	// xdebug("SUNSPEC %s read_model %d", ss->name, id);
 
 	// zero model
 	memset(model, 0, size * sizeof(uint16_t) + 2);
@@ -153,12 +153,54 @@ static void* poll(void *arg) {
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
+		ss->mb = 0;
 	}
 
 	return (void*) 0;
 }
 
-sunspec_t* sunspec_init(const char *name, const char *ip, int slave, const sunspec_callback_t callback) {
+void sunspec_read(sunspec_t *ss) {
+	if (ss->inverter)
+		read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);
+
+	if (ss->mppt)
+		read_model(ss, ss->mppt_id, ss->mppt_addr, ss->mppt_size, (uint16_t*) ss->mppt);
+
+	if (ss->storage)
+		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+
+	if (ss->meter)
+		read_model(ss, ss->meter_id, ss->meter_addr, ss->meter_size, (uint16_t*) ss->meter);
+}
+
+sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
+	sunspec_t *ss = malloc(sizeof(sunspec_t));
+	ZEROP(ss);
+
+	ss->ip = ip;
+	ss->name = name;
+	ss->slave = slave;
+	ss->poll = POLL_TIME_ACTIVE;
+
+	ss->mb = modbus_new_tcp(ss->ip, 502);
+	modbus_set_response_timeout(ss->mb, 5, 0);
+	modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
+
+	int rc = modbus_set_slave(ss->mb, ss->slave);
+	if (rc == -1)
+		xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
+
+	if (modbus_connect(ss->mb) == -1) {
+		xlog("SUNSPEC connection to %s failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+		modbus_free(ss->mb);
+		return 0;
+	}
+
+	collect_models(ss);
+	return ss;
+}
+
+sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const sunspec_callback_t callback) {
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
@@ -179,11 +221,19 @@ void sunspec_stop(sunspec_t *ss) {
 	if (!ss)
 		return;
 
-	if (pthread_cancel(ss->thread))
-		xerr("SUNSPEC Error canceling %s poll thread", ss->name);
+	if (ss->thread)
+		if (pthread_cancel(ss->thread))
+			xerr("SUNSPEC Error canceling %s poll thread", ss->name);
 
-	if (pthread_join(ss->thread, NULL))
-		xerr("SUNSPEC Error joining %s poll thread", ss->name);
+	if (ss->thread)
+		if (pthread_join(ss->thread, NULL))
+			xerr("SUNSPEC Error joining %s poll thread", ss->name);
+
+	if (ss->mb)
+		modbus_close(ss->mb);
+
+	if (ss->mb)
+		modbus_free(ss->mb);
 
 	xlog("SUNSPEC stopped %s", ss->name);
 	free(ss);
