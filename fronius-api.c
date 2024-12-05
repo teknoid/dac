@@ -749,8 +749,8 @@ static int force_standby() {
 }
 
 static device_t* standby() {
-	// do we have powered devices?
-	if (PSTATE_ALL_OFF)
+	// do we have active devices?
+	if (!PSTATE_ACTIVE)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -1016,15 +1016,14 @@ static void calculate_pstate2() {
 	if (!deltas)
 		pstate->flags |= FLAG_STABLE;
 
-	// all devices in standby or off?
+	// check if we have active devices / all devices in standby
 	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->flags |= FLAG_ALL_OFF;
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		if (d->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 		if (d->power)
-			pstate->flags &= ~FLAG_ALL_OFF;
+			pstate->flags |= FLAG_ACTIVE;
 	}
 
 	// distortion when delta pv is too big
@@ -1066,8 +1065,8 @@ static void calculate_pstate2() {
 		pstate->greedy -= NOISE; // threshold for ramp up
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
-	if (PSTATE_ALL_OFF && pstate->greedy < 0)
-		pstate->greedy = 0; // nothing to ramp down
+	if (!PSTATE_ACTIVE && pstate->greedy < 0)
+		pstate->greedy = 0; // no active devices - nothing to ramp down
 
 	// modest power = only grid upload
 	// pstate->modest = (pstate->grid + h1->grid + h2->grid) / -3;
@@ -1076,8 +1075,8 @@ static void calculate_pstate2() {
 		pstate->modest -= NOISE; // threshold for ramp up
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
-	if (PSTATE_ALL_OFF && pstate->modest < 0)
-		pstate->modest = 0; // nothing to ramp down
+	if (!PSTATE_ACTIVE && pstate->modest < 0)
+		pstate->modest = 0; // no active devices - nothing to ramp down
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 
@@ -1284,10 +1283,6 @@ static void fronius() {
 		if (errors > 10)
 			set_all_devices(0);
 
-		// dump and bump pstate history before writing new values into
-		dump_pstate(5);
-		bump_pstate();
-
 		// make Fronius10 API call and calculate first pstate
 		errors += curl_perform(curl10, &memory, &parse_fronius10);
 		calculate_pstate1();
@@ -1311,7 +1306,7 @@ static void fronius() {
 		}
 
 		// print actual gstate and pstate
-		print_gstate(NULL);
+//		print_gstate(NULL);
 		print_pstate(NULL);
 
 		// prio1: check response from previous action
@@ -1334,7 +1329,15 @@ static void fronius() {
 
 		// determine wait for next round
 		wait = pstate->wait = calculate_next_round(device);
-		print_dstate(wait);
+
+		// print pstate history and device state when we have active devices
+		if (PSTATE_ACTIVE) {
+			dump_pstate(3);
+			print_dstate(wait);
+		}
+
+		// set history pointer to next slot
+		bump_pstate();
 		errors = 0;
 	}
 }

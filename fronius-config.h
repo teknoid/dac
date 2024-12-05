@@ -54,7 +54,7 @@
 #define FLAG_EMERGENCY			(1 << 4)
 #define FLAG_BURNOUT			(1 << 5)
 #define FLAG_ALL_STANDBY		(1 << 6)
-#define FLAG_ALL_OFF			(1 << 7)
+#define FLAG_ACTIVE				(1 << 7)
 #define FLAG_OFFLINE			(1 << 15)
 
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
@@ -64,7 +64,7 @@
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_ALL_STANDBY		(pstate->flags & FLAG_ALL_STANDBY)
-#define PSTATE_ALL_OFF			(pstate->flags & FLAG_ALL_OFF)
+#define PSTATE_ACTIVE			(pstate->flags & FLAG_ACTIVE)
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 enum dstate {

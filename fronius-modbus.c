@@ -658,8 +658,8 @@ static int force_standby() {
 }
 
 static device_t* standby() {
-	// do we have powered devices?
-	if (PSTATE_ALL_OFF)
+	// do we have active devices?
+	if (!PSTATE_ACTIVE)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -902,15 +902,14 @@ static void calculate_pstate() {
 	if (!deltas)
 		pstate->flags |= FLAG_STABLE;
 
-	// all devices in standby or off?
+	// check if we have active devices / all devices in standby
 	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->flags |= FLAG_ALL_OFF;
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		if (d->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 		if (d->power)
-			pstate->flags &= ~FLAG_ALL_OFF;
+			pstate->flags |= FLAG_ACTIVE;
 	}
 
 	// distortion when delta pv is too big
@@ -952,8 +951,8 @@ static void calculate_pstate() {
 		pstate->greedy -= NOISE; // threshold for ramp up
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
-	if (PSTATE_ALL_OFF && pstate->greedy < 0)
-		pstate->greedy = 0; // nothing to ramp down
+	if (!PSTATE_ACTIVE && pstate->greedy < 0)
+		pstate->greedy = 0; // no active devices - nothing to ramp down
 
 	// modest power = only grid upload
 	// pstate->modest = (pstate->grid + h1->grid + h2->grid) / -3;
@@ -962,8 +961,8 @@ static void calculate_pstate() {
 		pstate->modest -= NOISE; // threshold for ramp up
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
-	if (PSTATE_ALL_OFF && pstate->modest < 0)
-		pstate->modest = 0; // nothing to ramp down
+	if (!PSTATE_ACTIVE && pstate->modest < 0)
+		pstate->modest = 0; // no active devices - nothing to ramp down
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 
@@ -1216,10 +1215,10 @@ static void fronius() {
 				device = standby();
 		}
 
-		// print pstate history and device state when whe have active devices
+		// print pstate history and device state when we have active devices
 		pstate->wait = now_ts - last_ts;
 		last_ts = now_ts;
-		if (!PSTATE_ALL_OFF) {
+		if (PSTATE_ACTIVE) {
 			dump_pstate(3);
 			print_dstate();
 		}
