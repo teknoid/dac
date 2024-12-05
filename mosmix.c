@@ -118,7 +118,7 @@ int mosmix_survive(time_t now_ts, int rad1h_min) {
 
 	// define 24h range: +/-12h around midnight
 	int from = midnight, to = midnight;
-	int min = midnight - 11 > 0 ? midnight - 11 : 0;
+	int min = midnight - 12 > 0 ? midnight - 12 : 0;
 	int max = midnight + 12 < ARRAY_SIZE(mosmix) ? midnight + 12 : ARRAY_SIZE(mosmix);
 
 	// go backward starting at midnight
@@ -131,9 +131,20 @@ int mosmix_survive(time_t now_ts, int rad1h_min) {
 		if (mosmix[to].Rad1h > rad1h_min)
 			break; // sunrise or 12 noon
 
-	int hours = to - from + 1;
-	xlog("MOSMIX survive=%dh from=%d/%d midnight=%d/%d to=%d/%d min=%d", hours, from, mosmix[from].Rad1h, midnight, mosmix[midnight].Rad1h, to, mosmix[to].Rad1h, rad1h_min);
-	return hours;
+	// prepare output
+	int h = to - from;
+	localtime_r(&mosmix[from].ts, &tm);
+	int fh = tm.tm_hour;
+	int fRad1h = mosmix[from].Rad1h;
+	localtime_r(&mosmix[to].ts, &tm);
+	int th = tm.tm_hour;
+	int tRad1h = mosmix[to].Rad1h;
+	localtime_r(&mosmix[midnight].ts, &tm);
+	int mh = tm.tm_hour;
+	int mRad1h = mosmix[midnight].Rad1h;
+
+	xlog("MOSMIX survive hours=%d min=%d from=%d:%d:%d midnight=%d:%d:%d to=%d:%d:%d", h, rad1h_min, from, fh, fRad1h, midnight, mh, mRad1h, to, th, tRad1h);
+	return h;
 }
 
 mosmix_t* mosmix_current_slot(time_t now_ts) {
