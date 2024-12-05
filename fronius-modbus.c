@@ -1293,7 +1293,8 @@ static int calibrate(char *name) {
 		voltage = 10000 - (i * 10);
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		msleep(500);
+		int sleep = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
+		msleep(sleep);
 		sunspec_read(ss);
 		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
 		printf("%5d %5d\n", voltage, measure[i]);
@@ -1366,6 +1367,16 @@ static int calibrate(char *name) {
 			printf("\\\n");
 	}
 
+	// validate
+	for (int i = 0; i <= 100; i++) {
+		snprintf(message, 16, "v:%d:%d", raster[i], 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		sleep(1);
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
+		printf("%3d %5d\n", raster[i], grid);
+	}
+
 	// cleanup
 	close(sock);
 	sunspec_stop(ss);
@@ -1373,6 +1384,21 @@ static int calibrate(char *name) {
 }
 
 static int test() {
+	float grid;
+
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
+	ss->inverter = 0;
+	ss->storage = 0;
+	ss->mppt = 0;
+
+	while (1) {
+		sunspec_read(ss);
+		grid = SFF(ss->meter->W, ss->meter->W_SF);
+		printf("%.1f\n", grid);
+		msleep(600);
+	}
+
 	return 0;
 }
 
