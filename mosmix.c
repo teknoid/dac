@@ -123,8 +123,8 @@ int mosmix_survive(time_t now_ts, int rad1h_min) {
 
 	// go backward starting at midnight
 	while (--from > min)
-		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts < now_ts)
-			break; // sundown or now or 12 noon
+		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts <= now_ts)
+			break; // sundown or 12 noon or now
 
 	// go forward starting at midnight
 	while (++to < max)
