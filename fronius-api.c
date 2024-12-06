@@ -850,8 +850,7 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
-	mosmix_sod(&sod, now_ts);
-	mosmix_eod(&eod, now_ts);
+	mosmix_sod_eod(now_ts, &sod, &eod);
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
 	float mosmix;
@@ -867,17 +866,11 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
-	mosmix_24h(&m0, now_ts, 0);
-	mosmix_24h(&m1, now_ts, 1);
+	mosmix_24h(now_ts, 0, &m0);
+	mosmix_24h(now_ts, 1, &m1);
 	gstate->today = m0.Rad1h * mosmix;
 	gstate->tomorrow = m1.Rad1h * mosmix;
 	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
-
-	// mosmix validate sod+eod == today total
-	if ((sod.Rad1h + eod.Rad1h) != m0.Rad1h)
-		xdebug("FRONIUS mosmix calculation error: Rad1h sod+eod != today");
-	if ((sod.SunD1 + eod.SunD1) != m0.SunD1)
-		xdebug("FRONIUS mosmix calculation error: SunD1 sod+eod != today");
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
 	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
@@ -889,10 +882,9 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// mosmix sunshine duration ratio forenoon/afternoon
 	mosmix_t bn, an;
-	mosmix_noon(&bn, &an, now_ts);
+	mosmix_noon(now_ts, &bn, &an);
 	float noon = bn.SunD1 ? ((float) an.SunD1 / (float) bn.SunD1) : 0;
 	gstate->noon = noon * 10.0;
-	xdebug("FRONIUS mosmix forenoon %d/%d, afternoon %d/%d, noon=%.1f", bn.Rad1h, bn.SunD1, an.Rad1h, an.SunD1, noon);
 }
 
 static void calculate_gstate() {
