@@ -9,6 +9,7 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <ansi-color-codes.h>
 
 #include "fronius-config.h"
 #include "fronius.h"
@@ -208,11 +209,14 @@ static void dump_counter(int back) {
 
 static void dump_gstate() {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
+	int highlight = now->tm_hour > 0 ? now->tm_hour - 1 : 23;
 
 	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp    soc   akku  dakku  bload    ttl   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < 24; y++) {
 		strcpy(line, "FRONIUS gstate ");
+		if (y == highlight)
+			strcat(line, BOLD);
 		snprintf(value, 16, "[%3d] ", y);
 		strcat(line, value);
 		int *vv = (int*) &gstate_history[y];
@@ -220,6 +224,8 @@ static void dump_gstate() {
 			snprintf(value, 12, "%6d ", vv[x]);
 			strcat(line, value);
 		}
+		if (y == highlight)
+			strcat(line, RESET);
 		xdebug(line);
 	}
 }
@@ -1084,14 +1090,16 @@ static void hourly(time_t now_ts) {
 	// recalculate global state of elapsed hour
 	calculate_gstate();
 
-	// dump full gstate history at midnight
-//	if (now->tm_hour == 0)
+	// dump full gstate history
 	dump_gstate();
 
 	// update pointer to current hour slot and take over old values
 	gstate_t *gstate_new = &gstate_history[now->tm_hour];
 	memcpy(gstate_new, (void*) gstate, sizeof(gstate_t));
 	gstate = gstate_new; // atomic update current gstate pointer
+
+	// print actual gstate
+	print_gstate(NULL);
 
 	// recalculate mosmix and choose program of the day
 	calculate_mosmix(now_ts);
@@ -1173,8 +1181,7 @@ static void fronius() {
 		// calculate new state
 		calculate_pstate();
 
-		// print actual gstate and pstate
-//		print_gstate(NULL);
+		// print actual pstate
 		print_pstate(NULL);
 
 		// check emergency
