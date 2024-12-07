@@ -763,21 +763,24 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(CHEMNITZ))
 		return;
 
+	// gstate of last hour to match till now produced vs. till now predicted
+	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
+
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
 	mosmix_sod_eod(now_ts, &sod, &eod);
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
 	float mosmix;
-	if (gstate->pv && sod.Rad1h) {
-		mosmix = (float) gstate->pv / (float) sod.Rad1h;
+	if (h->pv && sod.Rad1h) {
+		mosmix = (float) h->pv / (float) sod.Rad1h;
 		gstate->mosmix = mosmix * 10.0; // store as x10 scaled
 	} else
 		mosmix = gstate->mosmix / 10.0; // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
+	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", h->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -1201,17 +1204,17 @@ static void fronius() {
 			device = response(device);
 
 		if (PSTATE_VALID) {
-			// prio2: ramp up/down
+			// prio2: perform standby check logic
 			if (!device)
-				device = ramp();
+				device = standby();
 
 			// prio3: check if higher priorized device can steal from lower priorized
 			if (!device)
 				device = steal();
 
-			// prio4: perform standby check logic
+			// prio4: ramp up/down
 			if (!device)
-				device = standby();
+				device = ramp();
 		}
 
 		// print pstate history and device state when we have active devices
