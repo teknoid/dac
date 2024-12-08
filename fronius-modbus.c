@@ -825,7 +825,7 @@ static void calculate_gstate() {
 	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
 
 	// calculate akku energy and and delta (+)charge (-)discharge when soc between 10-90%
-	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
+	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 

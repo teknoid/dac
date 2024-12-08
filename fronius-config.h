@@ -21,7 +21,7 @@
 #define DISCHARGE_FILE			"/work/fronius-discharge.bin"
 
 #define AKKU_BURNOUT			1
-#define AKKU_CAPACITY			11000
+#define AKKU_CAPACITY			10225	// 11059 total - 7% minimum SoC
 #define BASELOAD				300
 #define SUSPICIOUS				250
 #define NOISE					25
