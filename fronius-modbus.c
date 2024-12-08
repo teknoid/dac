@@ -1038,7 +1038,7 @@ static void emergency() {
 }
 
 static void offline() {
-	xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
+	// xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
 }
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
@@ -1241,7 +1241,7 @@ static int calibrate(char *name) {
 	char message[16];
 	int grid, voltage, closest, target;
 	int offset_start = 0, offset_end = 0;
-	int measure[1000], raster[101];
+	int measure[1000], raster[101], xraster[101];
 
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
@@ -1288,6 +1288,8 @@ static int calibrate(char *name) {
 	int max_power = round100(grid - offset_start);
 	int onepercent = max_power / 100;
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+
+	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
 
 	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
 	for (int i = 0; i < 1000; i++) {
@@ -1359,23 +1361,31 @@ static int calibrate(char *name) {
 	if (offset_start != offset_end)
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
 
-	// dump raster table in ascending order
+	// create new ascending table
+	int y = 0;
+	xraster[y++] = 0;
+	for (int i = 99; i >= 0; i--)
+		xraster[y++] = raster[i];
+
+	// dump table
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[100]);
-	for (int i = 99; i >= 0; i--) {
-		printf("%d, ", raster[i]);
+	printf("%d, ", xraster[0]);
+	for (int i = 1; i <= 100; i++) {
+		printf("%d, ", xraster[i]);
 		if (i % 10 == 0)
 			printf("\\\n");
 	}
 
 	// validate
 	for (int i = 0; i <= 100; i++) {
-		snprintf(message, 16, "v:%d:%d", raster[i], 0);
+		snprintf(message, 16, "v:%d:%d", xraster[i], 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 		sleep(1);
 		sunspec_read(ss);
 		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
-		printf("%3d %5d\n", raster[i], grid);
+		int expected = onepercent * i;
+		float error = grid ? expected * 100 / grid : 0;
+		printf("%3d %4d expected %4d actual %4d error %.2f\n", i, xraster[i], expected, grid, error);
 	}
 
 	// cleanup
