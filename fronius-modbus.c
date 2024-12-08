@@ -930,7 +930,7 @@ static void calculate_pstate() {
 		pstate->tendence = 0;
 
 	// calculate expected load - use average load between 03 and 04 or default BASELOAD
-	pstate->xload = gstate_history[4].load ? gstate_history[4].load : BASELOAD;
+	pstate->xload = gstate_history[4].load ? gstate_history[4].load * -1 : BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;

@@ -344,13 +344,13 @@ void xlogl_end(char *line, size_t len, const char *s) {
 }
 
 void xlog_array_int(int array[], size_t size, const char *prefix) {
-	int len = size * 6 + strlen(prefix) + 10;
+	int len = size * 8 + strlen(prefix) + 10;
 	// xdebug("UTILS xlog_int_array length %d", len);
-	char line[len], value[6];
+	char line[len], value[8];
 	strcpy(line, prefix);
 	strcat(line, " [");
 	for (int i = 0; i < size; i++) {
-		snprintf(value, 6, "%d%s", array[i], i < size - 1 ? ", " : "");
+		snprintf(value, 8, "%d%s", array[i], i < size - 1 ? ", " : "");
 		strcat(line, value);
 	}
 	strcat(line, "]");
