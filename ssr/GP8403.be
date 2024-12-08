@@ -6,14 +6,14 @@
 class GP8403: Driver
   static NAME = "GP8403"	# module name
   static ADDR = 0x5f		# I2C address of module
-  static LED = 2			# LED
 
-  static LED_DARK = [ 30, 30, 30, 30, 30, 27, 22, 17, 13, 10, 8, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0 ]
+  static LED = 2			# LED
+  static LED_FLASH = [ 30, 30, 30, 30, 30, 27, 22, 17, 13, 10, 8, 6, 5, 4, 3, 2, 1, 0, 0, 0, 0 ]
 
   var wire
   var vc0					# voltage channel 0
   var vc1					# voltage channel 1
-  var dark
+  var flash
 
   def init()
     gpio.digital_write(self.LED, 0)
@@ -28,7 +28,7 @@ class GP8403: Driver
 
     self.vc0 = -1
     self.vc1 = -1
-    self.dark = 0
+    self.flash = 0
 
     self.set_volt(0, 0)
     self.set_volt(1, 0)
@@ -101,8 +101,8 @@ class GP8403: Driver
   def every_50ms()
     if gpio.digital_read(self.LED) == 0
       if self.vc0 > 0
-        if self.dark > 0
-          self.dark = self.dark - 1
+        if self.flash > 0
+          self.flash = self.flash - 1
           return
         end
       	gpio.digital_write(self.LED, 1)			# switch LED on when timer is expired and voltage > 0 
@@ -111,8 +111,8 @@ class GP8403: Driver
       if self.vc0 < 10000
         gpio.digital_write(self.LED, 0)			# switch LED off when not at full voltage
         var index = self.vc0 / 500				# 0->0 10000->20
-        self.dark = self.LED_DARK[index]		# start timer for next switch on
-        # print(self.dark)
+        self.flash = self.LED_FLASH[index]		# start timer for next switch on
+        # print(self.flash)
       end
     end
   end
