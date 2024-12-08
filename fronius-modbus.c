@@ -846,7 +846,7 @@ static void calculate_gstate() {
 
 	// calculate average load of last hour
 	// TODO nachts wahrscheinlich zu wenig pstate werte weil zu wenig bewegung um diese zeit ???
-	xlog_int_array(load_history, 60, "FRONIUS load");
+	xlog_array_int(load_history, 60, "FRONIUS load");
 	gstate->load = average_non_zero(load_history, 60);
 	ZERO(load_history);
 	xdebug("FRONIUS last hour mean load  %d", gstate->load);
