@@ -1290,6 +1290,7 @@ static int calibrate(char *name) {
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 
 	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
+	// siehe misc/boiler2.txt validate ganz unten: ab 15% plötzlich 300 Watt, vorher nix !!!
 
 	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
 	for (int i = 0; i < 1000; i++) {
