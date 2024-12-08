@@ -113,10 +113,11 @@ struct _gstate {
 	int today;
 	int tomorrow;
 	int expected;
+	int load;
 	int soc;
 	int akku;
 	int dakku;
-	int baseload;
+	int duty;
 	int ttl;
 	int noon;
 	int mosmix;

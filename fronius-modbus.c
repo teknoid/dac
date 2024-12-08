@@ -44,6 +44,9 @@ static volatile pstate_t *pstate = &pstate_history[0];
 static gstate_t gstate_history[24];
 static volatile gstate_t *gstate = &gstate_history[0];
 
+// load history over 1h
+static int load_history[60];
+
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 
@@ -211,7 +214,7 @@ static void dump_gstate() {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 	int highlight = now->tm_hour > 0 ? now->tm_hour - 1 : 23;
 
-	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp    soc   akku  dakku  bload    ttl   noon   mosm   surv");
+	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp   load    soc   akku  dakku   duty    ttl   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < 24; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -308,9 +311,10 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "Load", gstate->load);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_int(line, 0, 0, "BLoad", gstate->baseload);
+	xlogl_int(line, 0, 0, "Duty", gstate->duty);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 0, 0, "Noon", FLOAT10(gstate->noon));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
@@ -791,8 +795,8 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int rad1h_min = gstate->duty / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int needed = gstate->duty * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? ((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10.0; // store as x10 scaled
@@ -820,11 +824,12 @@ static void calculate_gstate() {
 	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
 	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
 
-	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
+	// calculate akku energy and and delta (+)charge (-)discharge when soc between 10-90%
+	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 
-	// calculate baseload from mean akku discharge
+	// calculate akku duty charge from mean akku discharge
 	int sum = 0, count = 0;
 	for (int i = 0; i < 24; i++) {
 		gstate_t *g = &gstate_history[i];
@@ -835,22 +840,15 @@ static void calculate_gstate() {
 		}
 	}
 
-	// check if baseload is available (e.g. not if akku is empty)
-	gstate->baseload = count ? sum / count * -1 : 0;
-	if (gstate->baseload)
-		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
-	else {
-		gstate->baseload = gstate->consumed - h->consumed;
-		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->baseload);
-	}
-	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
-		gstate->baseload = BASELOAD;
-		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->baseload);
-	}
+	// calculated akku duty charge and time to live
+	gstate->duty = count ? sum / count * -1 : 0;
+	gstate->ttl = gstate->duty ? gstate->akku * 60 / gstate->duty : 0; // minutes
 
-	// akku time to live calculated from baseload
-	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
+	// calculate average load of last hour
+	gstate->load = 0;
+	for (int i = 0; i < 60; i++)
+		gstate->load += load_history[i];
+	gstate->load /= 60;
 }
 
 static void calculate_pstate() {
@@ -872,8 +870,9 @@ static void calculate_pstate() {
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0;
 
-	// calculate load manually
+	// calculate load manually and store to minutely history
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
+	load_history[now->tm_min] = pstate->load;
 
 	// calculate delta load
 	pstate->dload = pstate->load - h1->load;
@@ -929,8 +928,8 @@ static void calculate_pstate() {
 	else
 		pstate->tendence = 0;
 
-	// calculate expected load
-	pstate->xload = BASELOAD;
+	// calculate expected load - use average load between 03 and 04 or default BASELOAD
+	pstate->xload = gstate_history[4].load ? gstate_history[4].load : BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;
@@ -1419,6 +1418,9 @@ static int init() {
 
 	init_all_devices();
 	set_all_devices(0);
+
+	for (int i = 0; i < 60; i++)
+		load_history[i] = BASELOAD;
 
 	ZEROP(pstate_history);
 	ZEROP(gstate_history);

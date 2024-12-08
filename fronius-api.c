@@ -342,7 +342,7 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_int(line, 0, 0, "BLoad", gstate->baseload);
+	xlogl_int(line, 0, 0, "Duty", gstate->duty);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 0, 0, "Noon", FLOAT10(gstate->noon));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
@@ -879,8 +879,8 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = gstate->baseload / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = gstate->baseload * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	int rad1h_min = gstate->duty / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int needed = gstate->duty * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? ((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10.0; // store as x10 scaled
@@ -930,21 +930,21 @@ static void calculate_gstate() {
 	}
 
 	// check if baseload is available (e.g. not if akku is empty)
-	gstate->baseload = count ? sum / count * -1 : 0;
-	if (gstate->baseload)
-		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->baseload);
+	gstate->duty = count ? sum / count * -1 : 0;
+	if (gstate->duty)
+		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->duty);
 	else {
-		gstate->baseload = gstate->consumed - h->consumed;
-		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->baseload);
+		gstate->duty = gstate->consumed - h->consumed;
+		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->duty);
 	}
-	if (gstate->baseload < NOISE || gstate->baseload > BASELOAD * 2) {
-		gstate->baseload = BASELOAD;
-		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->baseload);
+	if (gstate->duty < NOISE || gstate->duty > BASELOAD * 2) {
+		gstate->duty = BASELOAD;
+		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->duty);
 	}
 
 	// akku time to live calculated from baseload
 	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / gstate->baseload; // minutes
+	gstate->ttl = gstate->akku * 60 / gstate->duty; // minutes
 }
 
 static void calculate_pstate1() {
