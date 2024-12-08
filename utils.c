@@ -343,6 +343,20 @@ void xlogl_end(char *line, size_t len, const char *s) {
 	xlog(line);
 }
 
+void xlog_array_int(int array[], size_t size, const char *prefix) {
+	int len = size * 6 + strlen(prefix) + 10;
+	// xdebug("UTILS xlog_int_array length %d", len);
+	char line[len], value[6];
+	strcpy(line, prefix);
+	strcat(line, " [");
+	for (int i = 0; i < size; i++) {
+		snprintf(value, 6, "%d%s", array[i], i < size - 1 ? ", " : "");
+		strcat(line, value);
+	}
+	strcat(line, "]");
+	xlog(line);
+}
+
 //
 // The RT scheduler problem
 //
@@ -665,11 +679,11 @@ int maximum(int count, ...) {
 	return max;
 }
 
-int average_non_zero(int values[], size_t size) {
+int average_non_zero(int array[], size_t size) {
 	int sum = 0, count = 0;
 	for (int i = 0; i < size; i++)
-		if (values[i]) { // sum up only non zero values
-			sum += values[i];
+		if (array[i]) { // sum up only non zero values
+			sum += array[i];
 			count++;
 		}
 	return count == 0 ? 0 : sum / count;

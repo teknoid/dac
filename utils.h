@@ -67,6 +67,7 @@ void xlogl_int_g(char *line, const char *name, int value);
 void xlogl_int_b(char *line, const char *name, int value);
 void xlogl_int_B(char *line, const char *name, int value);
 void xlogl_end(char *line, size_t len, const char *s);
+void xlog_array_int(int array[], size_t size, const char *prefix);
 
 int elevate_realtime(int cpu);
 
@@ -94,7 +95,7 @@ int round10(int n);
 int round100(int n);
 
 int maximum(int, ...);
-int average_non_zero(int values[], size_t size);
+int average_non_zero(int array[], size_t size);
 
 void append_timeframe(char *message, int sec);
 

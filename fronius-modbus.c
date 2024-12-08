@@ -44,7 +44,7 @@ static volatile pstate_t *pstate = &pstate_history[0];
 static gstate_t gstate_history[24];
 static volatile gstate_t *gstate = &gstate_history[0];
 
-// load history over 1h
+// load history during 1 hour
 static int load_history[60];
 
 // SunSpec modbus devices
@@ -834,7 +834,7 @@ static void calculate_gstate() {
 	for (int i = 0; i < 24; i++) {
 		gstate_t *g = &gstate_history[i];
 		if (g->dakku < 0) { // discharge
-			xdebug("FRONIUS discharge at %02d:00: %d Wh", i, g->dakku);
+			xdebug("FRONIUS akku duty discharge at %02d:00: %d Wh", i, g->dakku);
 			sum += g->dakku;
 			count++;
 		}
@@ -845,10 +845,11 @@ static void calculate_gstate() {
 	gstate->ttl = gstate->duty ? gstate->akku * 60 / gstate->duty : 0; // minutes
 
 	// calculate average load of last hour
-	gstate->load = 0;
-	for (int i = 0; i < 60; i++)
-		gstate->load += load_history[i];
-	gstate->load /= 60;
+	// TODO nachts wahrscheinlich zu wenig pstate werte weil zu wenig bewegung um diese zeit ???
+	xlog_int_array(load_history, 60, "FRONIUS load");
+	gstate->load = average_non_zero(load_history, 60);
+	ZERO(load_history);
+	xdebug("FRONIUS last hour mean load  %d", gstate->load);
 }
 
 static void calculate_pstate() {
@@ -1419,12 +1420,10 @@ static int init() {
 	init_all_devices();
 	set_all_devices(0);
 
-	for (int i = 0; i < 60; i++)
-		load_history[i] = BASELOAD;
-
 	ZEROP(pstate_history);
 	ZEROP(gstate_history);
 	ZEROP(counter_history);
+	ZERO(load_history);
 
 	load_blob(GSTATE_FILE, gstate_history, sizeof(gstate_history));
 	load_blob(COUNTER_FILE, counter_history, sizeof(counter_history));
