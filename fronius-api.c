@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -64,6 +65,9 @@ static int pstate_history_ptr = 0;
 
 // global state with total counters and daily calculations
 static gstate_t gstate_history[24], *gstate = &gstate_history[0];
+
+// load history during 1 hour
+static int load_history[60];
 
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;
@@ -238,7 +242,7 @@ static void dump_gstate() {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 	int highlight = now->tm_hour > 0 ? now->tm_hour - 1 : 23;
 
-	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp    soc   akku  dakku  bload    ttl   noon   mosm   surv");
+	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp   load    soc   akku  dakku   duty    ttl   noon   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < 24; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -340,6 +344,7 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "Load", gstate->load);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_int(line, 0, 0, "Duty", gstate->duty);
@@ -466,13 +471,13 @@ static int parse_fronius7(response_t *resp) {
 	return 0;
 }
 
-static int parse_meter(response_t *resp) {
-	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { "JMMPP JMMC JMMP" } } }", &r->p, &r->consumed, &r->produced);
-	if (ret != 3)
-		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
-
-	return 0;
-}
+//static int parse_meter(response_t *resp) {
+//	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { "JMMPP JMMC JMMP" } } }", &r->p, &r->consumed, &r->produced);
+//	if (ret != 3)
+//		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
+//
+//	return 0;
+//}
 
 static int parse_readable(response_t *resp) {
 	int ret;
@@ -854,21 +859,24 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(CHEMNITZ))
 		return;
 
+	// gstate of last hour to match till now produced vs. till now predicted
+	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
+
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
 	mosmix_sod_eod(now_ts, &sod, &eod);
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
 	float mosmix;
-	if (gstate->pv && sod.Rad1h) {
-		mosmix = (float) gstate->pv / (float) sod.Rad1h;
-		gstate->mosmix = mosmix * 10.0; // store as x10 scaled
+	if (h->pv && sod.Rad1h) {
+		mosmix = (float) h->pv / (float) sod.Rad1h;
+		gstate->mosmix = mosmix * 10; // store as x10 scaled
 	} else
-		mosmix = gstate->mosmix / 10.0; // take over existing value
+		mosmix = lround((float) gstate->mosmix / 10.0); // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
+	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", h->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -882,15 +890,15 @@ static void calculate_mosmix(time_t now_ts) {
 	int rad1h_min = gstate->duty / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int needed = gstate->duty * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
-	float survive = needed ? ((float) available) / ((float) needed) : 0;
-	gstate->survive = survive * 10.0; // store as x10 scaled
+	float survive = needed ? lround((float) available) / ((float) needed) : 0;
+	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// mosmix sunshine duration ratio forenoon/afternoon
 	mosmix_t bn, an;
 	mosmix_noon(now_ts, &bn, &an);
 	float noon = bn.SunD1 ? ((float) an.SunD1 / (float) bn.SunD1) : 0;
-	gstate->noon = noon * 10.0;
+	gstate->noon = noon * 10;
 }
 
 static void calculate_gstate() {
@@ -914,37 +922,32 @@ static void calculate_gstate() {
 	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
 	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
 
-	// calculate akku delta (+)charge (-)discharge when soc between 10-90%
+	// calculate akku energy and and delta (+)charge (-)discharge when soc between 10-90%
+	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 
-	// calculate baseload from mean akku discharge
+	// calculate akku duty charge from mean akku discharge
 	int sum = 0, count = 0;
 	for (int i = 0; i < 24; i++) {
 		gstate_t *g = &gstate_history[i];
 		if (g->dakku < 0) { // discharge
-			xdebug("FRONIUS discharge at %02d:00: %d Wh", i, g->dakku);
+			xdebug("FRONIUS akku duty discharge at %02d:00: %d Wh", i, g->dakku);
 			sum += g->dakku;
 			count++;
 		}
 	}
 
-	// check if baseload is available (e.g. not if akku is empty)
+	// calculated akku duty charge and time to live
 	gstate->duty = count ? sum / count * -1 : 0;
-	if (gstate->duty)
-		xlog("FRONIUS calculated baseload from mean discharge rate within %d hours: %d Wh", count, gstate->duty);
-	else {
-		gstate->duty = gstate->consumed - h->consumed;
-		xlog("FRONIUS no calculated baseload available, using last hour gridload %d as baseload", gstate->duty);
-	}
-	if (gstate->duty < NOISE || gstate->duty > BASELOAD * 2) {
-		gstate->duty = BASELOAD;
-		xlog("FRONIUS no reliable baseload available, using default BASELOAD %d as baseload", gstate->duty);
-	}
+	gstate->ttl = gstate->duty ? gstate->akku * 60 / gstate->duty : 0; // minutes
 
-	// akku time to live calculated from baseload
-	gstate->akku = AKKU_CAPACITY * (gstate->soc > 70 ? gstate->soc - 70 : 0) / 1000; // minus 7% minimum SoC
-	gstate->ttl = gstate->akku * 60 / gstate->duty; // minutes
+	// calculate average load of last hour
+	// TODO nachts wahrscheinlich zu wenig pstate werte weil zu wenig bewegung um diese zeit ???
+	xlog_array_int(load_history, 60, "FRONIUS load");
+	gstate->load = average_non_zero(load_history, 60);
+	ZERO(load_history);
+	xdebug("FRONIUS last hour mean load  %d", gstate->load);
 }
 
 static void calculate_pstate1() {
@@ -1040,8 +1043,8 @@ static void calculate_pstate2() {
 	else
 		pstate->tendence = 0;
 
-	// calculate expected load
-	pstate->xload = BASELOAD;
+	// calculate expected load - use average load between 03 and 04 or default BASELOAD
+	pstate->xload = gstate_history[4].load ? gstate_history[4].load * -1 : BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;
@@ -1313,17 +1316,17 @@ static void fronius() {
 			device = response(device);
 
 		if (PSTATE_VALID) {
-			// prio2: ramp up/down
+			// prio2: perform standby check logic
 			if (!device)
-				device = ramp();
+				device = standby();
 
 			// prio3: check if higher priorized device can steal from lower priorized
 			if (!device)
 				device = steal();
 
-			// prio4: perform standby check logic
+			// prio4: ramp up/down
 			if (!device)
-				device = standby();
+				device = ramp();
 		}
 
 		// determine wait for next round
@@ -1339,153 +1342,6 @@ static void fronius() {
 		bump_pstate();
 		errors = 0;
 	}
-}
-
-// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
-// - Nur Nachts
-// - Akku aus
-// - Külschränke aus
-// - Heizung aus
-// - Rechner aus
-static int calibrate(char *name) {
-	const char *addr = resolve_ip(name);
-	char message[16];
-	int voltage, closest, target;
-	float offset_start = 0, offset_end = 0;
-	int measure[1000], raster[101];
-	response_t memory = { 0 };
-
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-	// write IP and port into sockaddr structure
-	struct sockaddr_in sock_addr_in = { 0 };
-	sock_addr_in.sin_family = AF_INET;
-	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
-	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
-
-	CURL *curl = curl_init(URL_METER, &memory);
-	if (curl == NULL)
-		perror("Error initializing libcurl");
-
-	printf("starting calibration on %s (%s)\n", name, addr);
-	snprintf(message, 16, "v:0:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	sleep(5);
-
-	// average offset power at start
-	printf("calculating offset start");
-	for (int i = 0; i < 10; i++) {
-		curl_perform(curl, &memory, &parse_meter);
-		offset_start += r->grid;
-		printf(" %.1f", r->grid);
-		sleep(1);
-	}
-	offset_start /= 10;
-	printf(" --> average %.1f\n", offset_start);
-
-	printf("waiting for heat up 100%%...\n");
-	snprintf(message, 16, "v:10000:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	sleep(5);
-
-	// get maximum power
-	curl_perform(curl, &memory, &parse_meter);
-	int max_power = round100(r->grid - offset_start);
-
-	int onepercent = max_power / 100;
-	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
-
-	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
-	for (int i = 0; i < 1000; i++) {
-		voltage = 10000 - (i * 10);
-
-		snprintf(message, 16, "v:%d:%d", voltage, 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-
-		// give SSR time to set voltage and smart meter to measure
-		if (2000 < voltage && voltage < 8000)
-			usleep(1000 * 1000); // more time between 8 and 2 volts
-		else
-			usleep(1000 * 600);
-
-		curl_perform(curl, &memory, &parse_meter);
-		measure[i] = r->grid - offset_start;
-		printf("%5d %5d\n", voltage, measure[i]);
-	}
-
-	// build raster table
-	raster[0] = 10000;
-	raster[100] = 0;
-	for (int i = 1; i < 100; i++) {
-
-		// calculate next target power -i%
-		target = max_power - (onepercent * i);
-
-		// find closest power to target power
-		int min_diff = max_power;
-		for (int j = 0; j < 1000; j++) {
-			int diff = abs(measure[j] - target);
-			if (diff < min_diff) {
-				min_diff = diff;
-				closest = j;
-			}
-		}
-
-		// find all closest voltages that match target power
-		int sum = 0, count = 0;
-		printf("closest voltages to target power %5d matching %5d: ", target, measure[closest]);
-		for (int j = 0; j < 1000; j++)
-			if (measure[j] == measure[closest]) {
-				printf("%5d", j);
-				sum += 10000 - (j * 10);
-				count++;
-			}
-
-		// average of all closest voltages
-		raster[i] = sum / count;
-
-		printf(" --> average %5d\n", raster[i]);
-	}
-
-	// average offset power at end
-	printf("calculating offset end");
-	for (int i = 0; i < 10; i++) {
-		curl_perform(curl, &memory, &parse_meter);
-		offset_end += r->grid;
-		printf(" %.1f", r->grid);
-		sleep(1);
-	}
-	offset_end /= 10;
-	printf(" --> average %.1f\n", offset_end);
-
-	// validate - values in measure table should shrink, not grow
-	for (int i = 1; i < 1000; i++)
-		if (measure[i - 1] < (measure[i] - 5)) { // with 5 watt tolerance
-			int v_x = 10000 - (i * 10);
-			int m_x = measure[i - 1];
-			int v_y = 10000 - ((i - 1) * 10);
-			int m_y = measure[i];
-			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
-		}
-	if (offset_start != offset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
-
-	// dump raster table in ascending order
-	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[100]);
-	for (int i = 99; i >= 0; i--) {
-		printf("%d, ", raster[i]);
-		if (i % 10 == 0)
-			printf("\\\n");
-	}
-
-	// cleanup
-	close(sock);
-	curl_easy_cleanup(curl);
-	return 0;
 }
 
 static int test() {
@@ -1606,9 +1462,6 @@ int fronius_main(int argc, char **argv) {
 	while ((c = getopt(argc, argv, "c:o:t")) != -1) {
 		printf("getopt %c\n", c);
 		switch (c) {
-		case 'c':
-			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
-			return calibrate(optarg);
 		case 'o':
 			return fronius_override(optarg);
 		case 't':

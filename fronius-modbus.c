@@ -3,9 +3,8 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <string.h>
-#include <errno.h>
+#include <time.h>
 #include <math.h>
-#include <signal.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -971,7 +970,7 @@ static void calculate_pstate() {
 
 	// check and clear flag if values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
-	if (abs(sum) > 100) {
+	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
 //		pstate->flags &= ~FLAG_VALID;
 	}
