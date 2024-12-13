@@ -1,5 +1,6 @@
 #-
- - control GP8403 via UDP messages 
+ - control GP8403 via UDP messages
+ - example: for i in 10 20 30 40 50 60 70 80 90 100; do echo p:$i | socat - udp:boiler1:1975; sleep 1; done
  -#
 
 class GP8403_UDP: Driver
@@ -51,12 +52,12 @@ class GP8403_UDP: Driver
 
       if b[0] == 0x70					# 'p'
         gp8403.set_percent(0, v0)
-        gp8403.set_percent(1, v1)
+        # gp8403.set_percent(1, v1)
       end
 
       if b[0] == 0x76					# 'v'
         gp8403.set_volt(0, v0)
-        gp8403.set_volt(1, v1)
+        # gp8403.set_volt(1, v1)
       end
 
       b = self.u.read()

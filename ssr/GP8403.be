@@ -16,6 +16,10 @@ class GP8403: Driver
   var flash
 
   def init()
+    self.vc0 = -1
+    self.vc1 = -1
+    self.flash = 0
+
     gpio.digital_write(self.LED, 0)
     self.wire = tasmota.wire_scan(self.ADDR)
 
@@ -25,10 +29,6 @@ class GP8403: Driver
     else
       return
     end
-
-    self.vc0 = -1
-    self.vc1 = -1
-    self.flash = 0
 
     self.set_volt(0, 0)
     self.set_volt(1, 0)
