@@ -23,7 +23,7 @@
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
-#define SFF(x, y)			(y == 0 ? x : (x) * pow(10.0, y))
+#define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
 
@@ -778,9 +778,9 @@ static void calculate_mosmix(time_t now_ts) {
 	float mosmix;
 	if (h->pv && sod.Rad1h) {
 		mosmix = (float) h->pv / (float) sod.Rad1h;
-		gstate->mosmix = mosmix * 10.0; // store as x10 scaled
+		gstate->mosmix = mosmix * 10; // store as x10 scaled
 	} else
-		mosmix = gstate->mosmix / 10.0; // take over existing value
+		mosmix = lround((float) gstate->mosmix / 10.0); // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
@@ -798,15 +798,15 @@ static void calculate_mosmix(time_t now_ts) {
 	int rad1h_min = gstate->duty / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int needed = gstate->duty * mosmix_survive(now_ts, rad1h_min); // discharge * hours
 	int available = gstate->expected + gstate->akku;
-	float survive = needed ? ((float) available) / ((float) needed) : 0;
-	gstate->survive = survive * 10.0; // store as x10 scaled
+	float survive = needed ? lround((float) available) / ((float) needed) : 0;
+	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// mosmix sunshine duration ratio forenoon/afternoon
 	mosmix_t bn, an;
 	mosmix_noon(now_ts, &bn, &an);
 	float noon = bn.SunD1 ? ((float) an.SunD1 / (float) bn.SunD1) : 0;
-	gstate->noon = noon * 10.0;
+	gstate->noon = noon * 10;
 }
 
 static void calculate_gstate() {
@@ -1241,7 +1241,7 @@ static int calibrate(char *name) {
 	char message[16];
 	int grid, voltage, closest, target;
 	int offset_start = 0, offset_end = 0;
-	int measure[1000], raster[101], xraster[101];
+	int measure[1000], raster[101];
 
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
@@ -1265,6 +1265,22 @@ static int calibrate(char *name) {
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
+	// get maximum power, calculate 1%
+//	printf("waiting for heat up 100%%...\n");
+//	snprintf(message, 16, "v:10000:0");
+//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+//	sleep(5);
+//	sunspec_read(ss);
+//	grid = SFI(ss->meter->W, ss->meter->W_SF);
+//	int max_power = round100(grid - offset_start);
+	// TODO cmdline parameter
+	int max_power = 2000;
+	int onepercent = max_power / 100;
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+
+	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
+	// siehe misc/boiler2.txt validate ganz unten: ab 15% plötzlich 300 Watt, vorher nix !!!
+
 	// average offset power at start
 	printf("calculating offset start");
 	for (int i = 0; i < 10; i++) {
@@ -1274,27 +1290,13 @@ static int calibrate(char *name) {
 		offset_start += grid;
 		sleep(1);
 	}
-	offset_start /= 10;
+	offset_start = lround((float) offset_start / 10.0);
 	printf(" --> average %d\n", offset_start);
-
-	printf("waiting for heat up 100%%...\n");
-	snprintf(message, 16, "v:10000:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
-	// get maximum power, calculate 1%
-	sunspec_read(ss);
-	grid = SFI(ss->meter->W, ss->meter->W_SF);
-	int max_power = round100(grid - offset_start);
-	int onepercent = max_power / 100;
-	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
-
-	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
-	// siehe misc/boiler2.txt validate ganz unten: ab 15% plötzlich 300 Watt, vorher nix !!!
-
-	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
+	// do a full drive over SSR characteristic load curve from cold to hot and capture power
 	for (int i = 0; i < 1000; i++) {
-		voltage = 10000 - (i * 10);
+		voltage = i * 10;
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 		int sleep = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
@@ -1304,13 +1306,31 @@ static int calibrate(char *name) {
 		printf("%5d %5d\n", voltage, measure[i]);
 	}
 
+	// switch off
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// average offset power at end
+	printf("calculating offset end");
+	for (int i = 0; i < 10; i++) {
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF);
+		printf(" %d", grid);
+		offset_end += grid;
+		sleep(1);
+	}
+	offset_end = lround((float) offset_end / 10.0);
+	printf(" --> average %d\n", offset_end);
+	sleep(1);
+
 	// build raster table
-	raster[0] = 10000;
-	raster[100] = 0;
+	raster[0] = 0;
+	raster[100] = 10000;
 	for (int i = 1; i < 100; i++) {
 
-		// calculate next target power -i%
-		target = max_power - (onepercent * i);
+		// calculate next target power for table index (percent)
+		target = onepercent * i;
 
 		// find closest power to target power
 		int min_diff = max_power;
@@ -1322,72 +1342,59 @@ static int calibrate(char *name) {
 			}
 		}
 
-		// find all closest voltages that match target power
+		// find all closest voltages that match target power +/- 5 watt
 		int sum = 0, count = 0;
-		printf("closest voltages to target power %5d matching %5d: ", target, measure[closest]);
+		printf("closest voltages to target power %5d matching %5d within +/-5 watt: ", target, measure[closest]);
 		for (int j = 0; j < 1000; j++)
-			if (measure[j] == measure[closest]) {
-				printf("%5d", j);
-				sum += 10000 - (j * 10);
+			if (measure[closest] - 5 < measure[j] && measure[j] < measure[closest] + 5) {
+				printf(" %d:%d", measure[j], j * 10);
+				sum += j * 10;
 				count++;
 			}
 
 		// average of all closest voltages
-		raster[i] = sum / count;
-
-		printf(" --> average %5d\n", raster[i]);
+		raster[i] = count ? lround((float) sum / (float) count) : 0;
+		printf(" --> %dW %dmV\n", target, raster[i]);
 	}
 
-	// average offset power at end
-	printf("calculating offset end");
-	for (int i = 0; i < 10; i++) {
-		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF);
-		printf(" %d", grid);
-		offset_end += grid;
-		sleep(1);
-	}
-	offset_end /= 10;
-	printf(" --> average %d\n", offset_end);
-
-	// validate - values in measure table should shrink, not grow
+	// validate - values in measure table should grow, not shrink
 	for (int i = 1; i < 1000; i++)
-		if (measure[i - 1] < (measure[i] - 5)) { // with 5 watt tolerance
-			int v_x = 10000 - (i * 10);
+		if (measure[i - 1] > measure[i]) {
+			int v_x = i * 10;
 			int m_x = measure[i - 1];
-			int v_y = 10000 - ((i - 1) * 10);
+			int v_y = (i - 1) * 10;
 			int m_y = measure[i];
-			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d > %d:%d\n", v_x, m_x, v_y, m_y);
 		}
 	if (offset_start != offset_end)
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
 
-	// create new ascending table
-	int y = 0;
-	xraster[y++] = 0;
-	for (int i = 99; i >= 0; i--)
-		xraster[y++] = raster[i];
-
 	// dump table
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", xraster[0]);
+	printf("%d, ", raster[0]);
 	for (int i = 1; i <= 100; i++) {
-		printf("%d, ", xraster[i]);
+		printf("%d, ", raster[i]);
 		if (i % 10 == 0)
-			printf("\\\n");
+			printf("\\\n   ");
 	}
 
 	// validate
+	printf("waiting 60s for cool down\n");
+	sleep(60);
 	for (int i = 0; i <= 100; i++) {
-		snprintf(message, 16, "v:%d:%d", xraster[i], 0);
+		snprintf(message, 16, "v:%d:%d", raster[i], 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 		sleep(1);
 		sunspec_read(ss);
 		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
 		int expected = onepercent * i;
-		float error = grid ? expected * 100 / grid : 0;
-		printf("%3d %4d expected %4d actual %4d error %.2f\n", i, xraster[i], expected, grid, error);
+		float error = grid ? 100.0 - expected * 100.0 / (float) grid : 0;
+		printf("%3d%% %5dmV expected %4dW actual %4dW error %.2f\n", i, raster[i], expected, grid, error);
 	}
+
+	// switch off
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 
 	// cleanup
 	close(sock);
