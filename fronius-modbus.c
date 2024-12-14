@@ -446,7 +446,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// survive but afternoon is less sunny than forenoon - charge akku earlier
-	if (gstate->survive < 20 && gstate->noon < 10)
+	if (gstate->survive < 30 && gstate->noon < 10)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
