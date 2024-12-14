@@ -242,7 +242,7 @@ static void dump_gstate() {
 	char line[sizeof(pstate_t) * 12 + 16], value[16];
 	int highlight = now->tm_hour > 0 ? now->tm_hour - 1 : 23;
 
-	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    exp   load    soc   akku  dakku   duty    ttl   noon   mosm   surv");
+	strcpy(line, "FRONIUS gstate   idx     pv   pv10    pv7  ↑grid  ↓grid  today   tomo    sun    exp   load    soc   akku  dakku   duty    ttl   mosm   surv");
 	xdebug(line);
 	for (int y = 0; y < 24; y++) {
 		strcpy(line, "FRONIUS gstate ");
@@ -341,15 +341,15 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, 0, 0, "Sun", gstate->sun);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
-	xlogl_int(line, 0, 0, "Tomorrow", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Expected", gstate->expected);
+	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
+	xlogl_int(line, 0, 0, "Exp", gstate->expected);
 	xlogl_int(line, 0, 0, "Load", gstate->load);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_int(line, 0, 0, "Duty", gstate->duty);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 0, 0, "Noon", FLOAT10(gstate->noon));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
@@ -538,8 +538,8 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// survive but afternoon is less sunny than forenoon - charge akku earlier
-	if (gstate->survive < 20 && gstate->noon < 10)
+	// survive and less than 1h sun
+	if (gstate->sun < 3600)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -893,12 +893,6 @@ static void calculate_mosmix(time_t now_ts) {
 	float survive = needed ? lround((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
-
-	// mosmix sunshine duration ratio forenoon/afternoon
-	mosmix_t bn, an;
-	mosmix_noon(now_ts, &bn, &an);
-	float noon = bn.SunD1 ? ((float) an.SunD1 / (float) bn.SunD1) : 0;
-	gstate->noon = noon * 10;
 }
 
 static void calculate_gstate() {

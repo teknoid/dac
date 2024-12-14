@@ -112,6 +112,7 @@ struct _gstate {
 	int consumed;
 	int today;
 	int tomorrow;
+	int sun;
 	int expected;
 	int load;
 	int soc;
@@ -119,7 +120,6 @@ struct _gstate {
 	int dakku;
 	int duty;
 	int ttl;
-	int noon;
 	int mosmix;
 	int survive;
 };
