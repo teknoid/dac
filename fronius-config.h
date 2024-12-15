@@ -1,7 +1,5 @@
 #include "tasmota-devices.h"
 
-#define COUNTER_HISTORY			30		// days
-#define PSTATE_HISTORY			32		// samples
 #define OVERRIDE				600
 #define STANDBY_RESET			60 * 30
 #define STANDBY_NORESPONSE		5
@@ -14,11 +12,9 @@
 // hexdump -v -e '16 "%6d ""\n"' /work/fronius-gstate.bin
 #define GSTATE_FILE				"/work/fronius-gstate.bin"
 
-// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
-#define MINMAX_FILE				"/work/fronius-minmax.bin"
-
-// hexdump -v -e '24 "%6d""\n"' /work/fronius-discharge.bin
-#define DISCHARGE_FILE			"/work/fronius-discharge.bin"
+// hexdump -v -e '23 "%6d ""\n"' /work/fronius-pstate.bin
+#define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
+#define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 
 #define AKKU_BURNOUT			1
 #define AKKU_CAPACITY			10225	// 11059 total - 7% minimum SoC
@@ -47,17 +43,19 @@
 #define FLOAT10(x)				((float) x / 10.0)
 #define FLOAT60(x)				((float) x / 60.0)
 
-#define FLAG_VALID				(1 << 0)
-#define FLAG_STABLE				(1 << 1)
-#define FLAG_DISTORTION			(1 << 2)
-#define FLAG_CHECK_STANDBY		(1 << 3)
-#define FLAG_EMERGENCY			(1 << 4)
-#define FLAG_BURNOUT			(1 << 5)
+#define FLAG_DELTA				(1 << 0)
+#define FLAG_RAMP				(1 << 1)
+#define FLAG_STABLE				(1 << 2)
+#define FLAG_DISTORTION			(1 << 3)
+#define FLAG_CHECK_STANDBY		(1 << 4)
+#define FLAG_EMERGENCY			(1 << 5)
 #define FLAG_ALL_STANDBY		(1 << 6)
 #define FLAG_ACTIVE				(1 << 7)
+#define FLAG_BURNOUT			(1 << 14)
 #define FLAG_OFFLINE			(1 << 15)
 
-#define PSTATE_VALID			(pstate->flags & FLAG_VALID)
+#define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
+#define PSTATE_RAMP				(pstate->flags & FLAG_RAMP)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
 #define PSTATE_CHECK_STANDBY	(pstate->flags & FLAG_CHECK_STANDBY)
@@ -71,29 +69,7 @@ enum dstate {
 	Disabled, Active, Standby, Standby_Check
 };
 
-typedef struct _raw raw_t;
-
-struct _raw {
-	float akku;
-	float grid;
-	float load;
-	float pv10;
-	float pv10_total1;
-	float pv10_total2;
-	float pv7;
-	float pv7_total;
-	float soc;
-	float produced;
-	float consumed;
-	float p;
-	float v1;
-	float v2;
-	float v3;
-	float f;
-};
-
 typedef struct _counter counter_t;
-
 struct _counter {
 	int timestamp;
 	int pv10;
@@ -103,7 +79,8 @@ struct _counter {
 };
 
 typedef struct _gstate gstate_t;
-
+#define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
+#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   sun   exp   soc  akku dakku   ttl  mosm  surv"
 struct _gstate {
 	int pv;
 	int pv10;
@@ -114,18 +91,17 @@ struct _gstate {
 	int tomorrow;
 	int sun;
 	int expected;
-	int load;
 	int soc;
 	int akku;
 	int dakku;
-	int duty;
 	int ttl;
 	int mosmix;
 	int survive;
 };
 
 typedef struct _pstate pstate_t;
-
+#define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
+#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid  akku  ac10   ac7  load Δload xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -148,13 +124,11 @@ struct _pstate {
 	int greedy;
 	int modest;
 	int tendence;
-	int wait;
 	int soc;
 	int flags;
 };
 
 typedef struct _minmax minmax_t;
-
 struct _minmax {
 	int v1min_ts;
 	int v1min;
@@ -187,9 +161,7 @@ struct _minmax {
 };
 
 typedef struct _device device_t;
-
 typedef int (set_function_t)(device_t*, int);
-
 struct _device {
 	const unsigned int id;
 	const unsigned int r;
@@ -203,6 +175,7 @@ struct _device {
 	int dload;
 	int greedy;
 	int noresponse;
+	int timer;
 	time_t override;
 	set_function_t *set_function;
 };

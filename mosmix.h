@@ -18,5 +18,5 @@ int mosmix_load(const char *filename);
 void mosmix_24h(time_t now_ts, int day, mosmix_t *sum);
 void mosmix_sod_eod(time_t now_ts, mosmix_t *sod, mosmix_t *eod);
 float mosmix_noon(time_t now_ts, mosmix_t *forenoon, mosmix_t *afternoon);
-int mosmix_survive(time_t now_ts, int rad1h_min);
+int mosmix_survive(time_t now_ts, int rad1h_min, int *pfrom, int *pto);
 mosmix_t* mosmix_current_slot(time_t now_ts);

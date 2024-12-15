@@ -343,20 +343,6 @@ void xlogl_end(char *line, size_t len, const char *s) {
 	xlog(line);
 }
 
-void xlog_array_int(int array[], size_t size, const char *prefix) {
-	int len = size * 8 + strlen(prefix) + 10;
-	// xdebug("UTILS xlog_int_array length %d", len);
-	char line[len], value[8];
-	strcpy(line, prefix);
-	strcat(line, " [");
-	for (int i = 0; i < size; i++) {
-		snprintf(value, 8, "%d%s", array[i], i < size - 1 ? ", " : "");
-		strcat(line, value);
-	}
-	strcat(line, "]");
-	xlog(line);
-}
-
 //
 // The RT scheduler problem
 //
@@ -752,4 +738,65 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	fclose(fp);
 	xlog("UTILS stored %d bytes to %s", ret * rsize, filename);
 	return 0;
+}
+
+void aggregate_table(int *target, int *table, int xx, int yy) {
+	memset(target, 0, sizeof(int) * xx);
+	for (int x = 0; x < xx; x++) {
+		int count = 0;
+		for (int y = 0; y < yy; y++) {
+			int *i = table + y * xx + x;
+			if (*i) { // ignore 0
+				target[x] += *i;
+				count++;
+			}
+		}
+		if (count) {
+			int z = (target[x] * 10) / count;
+			target[x] = z / 10 + (z % 10 < 5 ? 0 : 1);
+		}
+	}
+}
+
+void dump_table(const char *title, int *table, int x, int y, int highlight_line, const char *header) {
+	char c[x * 8 + 16], v[16];
+
+	if (title)
+		xdebug(title);
+
+	if (header) {
+		strcpy(c, "idx ");
+		strcat(c, header);
+		xdebug(c);
+	}
+
+	for (int yy = 0; yy < y; yy++) {
+		snprintf(v, 16, "[%2d] ", yy);
+		strcpy(c, v);
+		if (yy == highlight_line)
+			strcat(c, BOLD);
+		for (int xx = 0; xx < x; xx++) {
+			int *i = table + yy * x + xx;
+			snprintf(v, 8, "%5d ", *i);
+			strcat(c, v);
+		}
+		if (yy == highlight_line)
+			strcat(c, RESET);
+		xdebug(c);
+	}
+}
+
+void dump_line(const char *title, int *line, int x) {
+	char c[x * 8 + 16], v[16];
+
+	if (title)
+		xdebug(title);
+
+	snprintf(v, 16, "[++] ");
+	strcpy(c, v);
+	for (int xx = 0; xx < x; xx++) {
+		snprintf(v, 8, "%5d ", line[xx]);
+		strcat(c, v);
+	}
+	xdebug(c);
 }

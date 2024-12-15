@@ -67,7 +67,6 @@ void xlogl_int_g(char *line, const char *name, int value);
 void xlogl_int_b(char *line, const char *name, int value);
 void xlogl_int_B(char *line, const char *name, int value);
 void xlogl_end(char *line, size_t len, const char *s);
-void xlog_array_int(int array[], size_t size, const char *prefix);
 
 int elevate_realtime(int cpu);
 
@@ -102,3 +101,7 @@ void append_timeframe(char *message, int sec);
 int load_blob(const char *filename, void *data, size_t size);
 int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);
+
+void aggregate_table(int *target, int *table, int xx, int yy);
+void dump_table(const char *title, int *table, int x, int y, int highlight_line, const char *header);
+void dump_line(const char *title, int *line, int x);

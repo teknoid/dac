@@ -22,6 +22,12 @@
 #include "curl.h"
 #include "mcp.h"
 
+// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
+#define MINMAX_FILE				"/work/fronius-minmax.bin"
+
+#define COUNTER_HISTORY		30		// days
+#define PSTATE_HISTORY		32		// samples
+
 #define URL_READABLE		"http://fronius/components/readable"
 #define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -52,6 +58,27 @@
 #define JMMC				" EnergyReal_WAC_Sum_Consumed:%f "
 #define JMMP				" EnergyReal_WAC_Sum_Produced:%f "
 
+typedef struct _raw raw_t;
+
+struct _raw {
+	float akku;
+	float grid;
+	float load;
+	float pv10;
+	float pv10_total1;
+	float pv10_total2;
+	float pv7;
+	float pv7_total;
+	float soc;
+	float produced;
+	float consumed;
+	float p;
+	float v1;
+	float v2;
+	float v3;
+	float f;
+};
+
 // program of the day - choose by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -65,9 +92,6 @@ static int pstate_history_ptr = 0;
 
 // global state with total counters and daily calculations
 static gstate_t gstate_history[24], *gstate = &gstate_history[0];
-
-// load history during 1 hour
-static int load_history[60];
 
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;
@@ -345,10 +369,8 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Exp", gstate->expected);
-	xlogl_int(line, 0, 0, "Load", gstate->load);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_int(line, 0, 0, "Duty", gstate->duty);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
@@ -886,9 +908,14 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->tomorrow = m1.Rad1h * mosmix;
 	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
 
-	// calculate survival factor from needed to survive next night vs. available (expected + akku)
-	int rad1h_min = gstate->duty / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int needed = gstate->duty * mosmix_survive(now_ts, rad1h_min); // discharge * hours
+	// calculate survival factor
+	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
+	int from, to;
+	mosmix_survive(now_ts, rad1h_min, &from, &to);
+	int needed = 0;
+	// sum up load for darkness hours - take values from yesterday
+	for (int i = from; i < to; i++)
+		needed += gstate_history[i].dakku;
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? lround((float) available) / ((float) needed) : 0;
 	gstate->survive = survive * 10; // store as x10 scaled
@@ -916,32 +943,11 @@ static void calculate_gstate() {
 	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
 	// xdebug("gstate %d, h %d", (long) gstate, (long) h);
 
-	// calculate akku energy and and delta (+)charge (-)discharge when soc between 10-90%
+	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
-
-	// calculate akku duty charge from mean akku discharge
-	int sum = 0, count = 0;
-	for (int i = 0; i < 24; i++) {
-		gstate_t *g = &gstate_history[i];
-		if (g->dakku < 0) { // discharge
-			xdebug("FRONIUS akku duty discharge at %02d:00: %d Wh", i, g->dakku);
-			sum += g->dakku;
-			count++;
-		}
-	}
-
-	// calculated akku duty charge and time to live
-	gstate->duty = count ? sum / count * -1 : 0;
-	gstate->ttl = gstate->duty ? gstate->akku * 60 / gstate->duty : 0; // minutes
-
-	// calculate average load of last hour
-	// TODO nachts wahrscheinlich zu wenig pstate werte weil zu wenig bewegung um diese zeit ???
-	xlog_array_int(load_history, 60, "FRONIUS load");
-	gstate->load = average_non_zero(load_history, 60);
-	ZERO(load_history);
-	xdebug("FRONIUS last hour mean load  %d", gstate->load);
+	gstate->ttl = gstate->dakku < 0 ? gstate->akku * 60 / gstate->dakku : 60 * 24; // minutes
 }
 
 static void calculate_pstate1() {
@@ -977,7 +983,7 @@ static void calculate_pstate1() {
 		return;
 	}
 
-	pstate->flags |= FLAG_VALID;
+	pstate->flags |= FLAG_RAMP;
 }
 
 static void calculate_pstate2() {
@@ -985,7 +991,7 @@ static void calculate_pstate2() {
 	pstate->pv7_1 = r->pv7;
 
 	// clear VALID flag
-	pstate->flags &= ~FLAG_VALID;
+	pstate->flags &= ~FLAG_RAMP;
 
 	// get 2x history back
 	pstate_t *h1 = get_pstate_history(-1);
@@ -1038,7 +1044,7 @@ static void calculate_pstate2() {
 		pstate->tendence = 0;
 
 	// calculate expected load - use average load between 03 and 04 or default BASELOAD
-	pstate->xload = gstate_history[4].load ? gstate_history[4].load * -1 : BASELOAD;
+	pstate->xload = BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;
@@ -1075,30 +1081,30 @@ static void calculate_pstate2() {
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 
-	pstate->flags |= FLAG_VALID;
+	pstate->flags |= FLAG_RAMP;
 
 	//clear flag if values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (pstate->load > 0) {
 		xdebug("FRONIUS positive load detected");
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (pstate->grid - h1->grid > 500) { // e.g. refrigerator starts !!!
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - h1->grid, h1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!potd) {
 		xlog("FRONIUS No potd selected!");
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags &= ~FLAG_RAMP;
 	}
 }
 
@@ -1120,7 +1126,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
-	if (!PSTATE_VALID || PSTATE_DISTORTION || pstate->tendence || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
+	if (!PSTATE_RAMP || PSTATE_DISTORTION || pstate->tendence || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
 		return WAIT_NEXT;
 
 	if (PSTATE_ALL_STANDBY)
@@ -1171,7 +1177,7 @@ static void daily(time_t now_ts) {
 	// store to disk
 #ifndef FRONIUS_MAIN
 	store_blob_offset(COUNTER_FILE, counter_history, sizeof(*counter), COUNTER_HISTORY, counter_history_ptr);
-//	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
+	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
 #endif
 }
 
@@ -1296,7 +1302,7 @@ static void fronius() {
 		if (PSTATE_BURNOUT)
 			burnout();
 
-		if (PSTATE_VALID) {
+		if (PSTATE_RAMP) {
 			// make Fronius7 API call and calculate second pstate
 			errors += curl_perform(curl7, &memory, &parse_fronius7);
 			calculate_pstate2();
@@ -1309,7 +1315,7 @@ static void fronius() {
 		if (device)
 			device = response(device);
 
-		if (PSTATE_VALID) {
+		if (PSTATE_RAMP) {
 			// prio2: perform standby check logic
 			if (!device)
 				device = standby();
@@ -1324,7 +1330,7 @@ static void fronius() {
 		}
 
 		// determine wait for next round
-		wait = pstate->wait = calculate_next_round(device);
+		wait = calculate_next_round(device);
 
 		// print pstate history and device state when we have active devices
 		if (PSTATE_ACTIVE) {
