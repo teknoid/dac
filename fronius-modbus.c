@@ -33,13 +33,13 @@ static potd_t *potd = 0;
 static counter_t counter_days[31];
 static volatile counter_t *counter = 0;
 
-// pstate history every second, minute, hour
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
-static volatile pstate_t *pstate = 0;
-
 // gstate history every hour over one day
 static gstate_t gstate_hours[24];
 static volatile gstate_t *gstate = 0;
+
+// pstate history every second, minute, hour
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
+static volatile pstate_t *pstate = 0;
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
@@ -299,6 +299,7 @@ static void update_f10(sunspec_t *ss) {
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
+	gstate->soc = pstate->soc;
 
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
@@ -765,8 +766,6 @@ static void calculate_mosmix(time_t now_ts) {
 }
 
 static void calculate_gstate() {
-	gstate->soc = pstate->soc;
-
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_days(-1);
 	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
@@ -782,7 +781,7 @@ static void calculate_gstate() {
 	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
-	gstate->ttl = gstate->dakku < 0 ? gstate->akku * 60 / gstate->dakku : 60 * 24; // minutes
+	gstate->ttl = gstate->dakku < 0 ? gstate->akku * -60 / gstate->dakku : (60 * 24); // minutes
 }
 
 static void calculate_pstate() {
@@ -1276,7 +1275,6 @@ static int calibrate(char *name) {
 }
 
 static int test() {
-	float grid;
 
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
@@ -1284,6 +1282,7 @@ static int test() {
 	ss->storage = 0;
 	ss->mppt = 0;
 
+	float grid;
 	while (1) {
 		sunspec_read(ss);
 		grid = SFF(ss->meter->W, ss->meter->W_SF);
@@ -1315,12 +1314,23 @@ static int init() {
 	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
 	f7 = sunspec_init_poll("Fronius7", "192.168.25.231", 2, &update_f7);
 
-	// initialize POTD
-	choose_program();
-
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
 	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
+	// initialize POTD
+	choose_program();
+
+	// TODO debug
+	gstate = get_gstate_hours(0);
+	counter = get_counter_days(0);
+	pstate = get_pstate_seconds(0);
+	calculate_gstate();
+	calculate_mosmix(now_ts);
+	dump_table("FRONIUS gstate", (int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, GSTATE_HEADER);
+	choose_program();
+	exit(0);
 
 	return 0;
 }
