@@ -776,8 +776,8 @@ void dump_table(const char *title, int *table, int x, int y, int highlight_line,
 		if (yy == highlight_line)
 			strcat(c, BOLD);
 		for (int xx = 0; xx < x; xx++) {
-			int *i = table + yy * x + xx;
-			snprintf(v, 8, "%5d ", *i);
+			// int *i = table + yy * x + xx;
+			snprintf(v, 8, "%5d ", *table++);
 			strcat(c, v);
 		}
 		if (yy == highlight_line)
@@ -786,7 +786,7 @@ void dump_table(const char *title, int *table, int x, int y, int highlight_line,
 	}
 }
 
-void dump_line(const char *title, int *line, int x) {
+void dump_struct(const char *title, int *line, int x) {
 	char c[x * 8 + 16], v[16];
 
 	if (title)

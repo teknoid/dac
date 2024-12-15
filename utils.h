@@ -104,4 +104,4 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 
 void aggregate_table(int *target, int *table, int xx, int yy);
 void dump_table(const char *title, int *table, int x, int y, int highlight_line, const char *header);
-void dump_line(const char *title, int *line, int x);
+void dump_struct(const char *title, int *line, int x);

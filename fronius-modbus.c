@@ -385,6 +385,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
+	if (!gstate)
+		return select_program(&MODEST);
 
 	// charging akku has priority
 	if (gstate->soc < 100)
@@ -987,7 +989,7 @@ static void hourly(time_t now_ts) {
 	dump_table("FRONIUS pstate_minutes", (int*) pstate_minutes, PSTATE_SIZE, 60, -1, PSTATE_HEADER);
 	pstate_t *ph = get_pstate_hours(0);
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	dump_line(0, (int*) ph, PSTATE_SIZE);
+	dump_struct(0, (int*) ph, PSTATE_SIZE);
 
 	// recalculate global state of elapsed hour
 	calculate_gstate();
@@ -1012,7 +1014,7 @@ static void minly(time_t now_ts) {
 	// dump_table("FRONIUS pstate_seconds", (int*) pstate_seconds, PSTATE_SIZE, 60, -1, PSTATE_HEADER);
 	pstate_t *pm = get_pstate_minutes(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_line(0, (int*) pm, PSTATE_SIZE);
+	// dump_struct(0, (int*) pm, PSTATE_SIZE);
 }
 
 static void fronius() {
@@ -1037,7 +1039,7 @@ static void fronius() {
 		counter = get_counter_days(0);
 		pstate = get_pstate_seconds(0);
 
-		// wait for new second, now sunspec threads update pstate values
+		// wait for new second, now sunspec threads are updating pstate values
 		while (now_ts == time(NULL))
 			msleep(333);
 
@@ -1313,8 +1315,8 @@ static int init() {
 	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
 	f7 = sunspec_init_poll("Fronius7", "192.168.25.231", 2, &update_f7);
 
-	// default POTD
-	select_program(&MODEST);
+	// initialize POTD
+	choose_program();
 
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
