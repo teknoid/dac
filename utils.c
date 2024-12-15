@@ -740,12 +740,12 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
-void aggregate_table(int *target, int *table, int xx, int yy) {
-	memset(target, 0, sizeof(int) * xx);
-	for (int x = 0; x < xx; x++) {
+void aggregate_table(int *target, int *table, int cols, int rows) {
+	memset(target, 0, sizeof(int) * cols);
+	for (int x = 0; x < cols; x++) {
 		int count = 0;
-		for (int y = 0; y < yy; y++) {
-			int *i = table + y * xx + x;
+		for (int y = 0; y < rows; y++) {
+			int *i = table + y * cols + x;
 			if (*i) { // ignore 0
 				target[x] += *i;
 				count++;
@@ -758,8 +758,8 @@ void aggregate_table(int *target, int *table, int xx, int yy) {
 	}
 }
 
-void dump_table(const char *title, int *table, int x, int y, int highlight_line, const char *header) {
-	char c[x * 8 + 16], v[16];
+void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
+	char c[cols * 8 + 16], v[16];
 
 	if (title)
 		xdebug(title);
@@ -770,32 +770,32 @@ void dump_table(const char *title, int *table, int x, int y, int highlight_line,
 		xdebug(c);
 	}
 
-	for (int yy = 0; yy < y; yy++) {
-		snprintf(v, 16, "[%2d] ", yy);
+	for (int y = 0; y < rows; y++) {
+		snprintf(v, 16, "[%2d] ", y);
 		strcpy(c, v);
-		if (yy == highlight_line)
+		if (y == highlight_row)
 			strcat(c, BOLD);
-		for (int xx = 0; xx < x; xx++) {
+		for (int x = 0; x < cols; x++) {
 			// int *i = table + yy * x + xx;
 			snprintf(v, 8, "%5d ", *table++);
 			strcat(c, v);
 		}
-		if (yy == highlight_line)
+		if (y == highlight_row)
 			strcat(c, RESET);
 		xdebug(c);
 	}
 }
 
-void dump_struct(const char *title, int *line, int x) {
-	char c[x * 8 + 16], v[16];
+void dump_struct(int *values, int size, const char *title) {
+	char c[size * 8 + 16], v[16];
 
 	if (title)
 		xdebug(title);
 
 	snprintf(v, 16, "[++] ");
 	strcpy(c, v);
-	for (int xx = 0; xx < x; xx++) {
-		snprintf(v, 8, "%5d ", line[xx]);
+	for (int xx = 0; xx < size; xx++) {
+		snprintf(v, 8, "%5d ", values[xx]);
 		strcat(c, v);
 	}
 	xdebug(c);

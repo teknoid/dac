@@ -910,8 +910,8 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int from, to;
-	mosmix_survive(now_ts, rad1h_min, &from, &to);
+	int hours, from, to;
+	mosmix_survive(now_ts, rad1h_min, &hours, &from, &to);
 	int needed = 0;
 	// sum up load for darkness hours - take values from yesterday
 	for (int i = from; i < to; i++)

@@ -102,6 +102,6 @@ int load_blob(const char *filename, void *data, size_t size);
 int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);
 
-void aggregate_table(int *target, int *table, int xx, int yy);
-void dump_table(const char *title, int *table, int x, int y, int highlight_line, const char *header);
-void dump_struct(const char *title, int *line, int x);
+void aggregate_table(int *target, int *table, int cols, int rows);
+void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header);
+void dump_struct(int *values, int size, const char *title);

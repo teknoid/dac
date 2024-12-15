@@ -115,7 +115,7 @@ float mosmix_noon(time_t now_ts, mosmix_t *forenoon, mosmix_t *afternoon) {
 }
 
 // calculate hours to survive next night
-int mosmix_survive(time_t now_ts, int rad1h_min, int *pfrom, int *pto) {
+void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to) {
 	struct tm tm;
 	localtime_r(&now_ts, &tm);
 	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
@@ -128,36 +128,32 @@ int mosmix_survive(time_t now_ts, int rad1h_min, int *pfrom, int *pto) {
 			break;
 
 	// define 24h range: +/-12h around midnight
-	int from = midnight, to = midnight;
+	int from_index = midnight, to_index = midnight;
 	int min = midnight - 12 > 0 ? midnight - 12 : 0;
 	int max = midnight + 12 < ARRAY_SIZE(mosmix) ? midnight + 12 : ARRAY_SIZE(mosmix);
 
 	// go backward starting at midnight
-	while (--from > min)
-		if (mosmix[from].Rad1h > rad1h_min || mosmix[from].ts <= now_ts)
+	while (--from_index > min)
+		if (mosmix[from_index].Rad1h > rad1h_min || mosmix[from_index].ts <= now_ts)
 			break; // sundown or 12 noon or now
 
 	// go forward starting at midnight
-	while (++to < max)
-		if (mosmix[to].Rad1h > rad1h_min)
+	while (++to_index < max)
+		if (mosmix[to_index].Rad1h > rad1h_min)
 			break; // sunrise or 12 noon
 
 	// prepare output
-	int h = to - from;
-	localtime_r(&mosmix[from].ts, &tm);
-	int fh = tm.tm_hour;
-	int fRad1h = mosmix[from].Rad1h;
-	localtime_r(&mosmix[to].ts, &tm);
-	int th = tm.tm_hour;
-	int tRad1h = mosmix[to].Rad1h;
+	*hours = to_index - from_index;
+	localtime_r(&mosmix[from_index].ts, &tm);
+	*from = tm.tm_hour;
+	int fRad1h = mosmix[from_index].Rad1h;
+	localtime_r(&mosmix[to_index].ts, &tm);
+	*to = tm.tm_hour;
+	int tRad1h = mosmix[to_index].Rad1h;
 	localtime_r(&mosmix[midnight].ts, &tm);
 	int mh = tm.tm_hour;
 	int mRad1h = mosmix[midnight].Rad1h;
-
-	xdebug("MOSMIX survive hours=%d min=%d from=%d:%d:%d midnight=%d:%d:%d to=%d:%d:%d", h, rad1h_min, from, fh, fRad1h, midnight, mh, mRad1h, to, th, tRad1h);
-	*pfrom = from;
-	*pto = to;
-	return h;
+	xdebug("MOSMIX survive hours=%d min=%d from=%d:%d:%d midnight=%d:%d:%d to=%d:%d:%d", *hours, rad1h_min, from_index, *from, fRad1h, midnight, mh, mRad1h, to_index, *to, tRad1h);
 }
 
 mosmix_t* mosmix_current_slot(time_t now_ts) {
@@ -202,7 +198,7 @@ int mosmix_load(const char *filename) {
 }
 
 int mosmix_main(int argc, char **argv) {
-	int from, to;
+	int hours, from, to;
 
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
@@ -236,10 +232,10 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_noon(now_ts, &bn, &an);
 
 	// calculate survive time in hours for min Rad1h=100
-	mosmix_survive(now_ts, 100, &from, &to);
+	mosmix_survive(now_ts, 100, &hours, &from, &to);
 
 	// calculate survive time in hours for min Rad1h=1000 -> should be full 24hours when run before noon
-	mosmix_survive(now_ts, 1000, &from, &to);
+	mosmix_survive(now_ts, 1000, &hours, &from, &to);
 	return 0;
 }
 

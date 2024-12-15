@@ -26,7 +26,7 @@
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
 
-// program of the day - choose by mosmix forecast data
+// program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
 // counter history every day over one month
@@ -367,7 +367,7 @@ static void update_meter(sunspec_t *ss) {
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 }
 
-static int select_program(const potd_t *p) {
+static int select_potd(const potd_t *p) {
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	if (potd != p) {
 		potd = (potd_t*) p;
@@ -385,28 +385,28 @@ static int select_program(const potd_t *p) {
 }
 
 // choose program of the day
-static int choose_program() {
+static int choose_potd() {
 	if (!gstate)
-		return select_program(&MODEST);
+		return select_potd(&MODEST);
 
 	// charging akku has priority
 	if (gstate->soc < 100)
-		return select_program(&CHARGE);
+		return select_potd(&CHARGE);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
-		return select_program(&MODEST);
+		return select_potd(&MODEST);
 
 	// survive and less than 1h sun
 	if (gstate->sun < 3600)
-		return select_program(&MODEST);
+		return select_potd(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
-		return select_program(&GREEDY);
+		return select_potd(&GREEDY);
 
 	// enough pv available
-	return select_program(&SUNNY);
+	return select_potd(&SUNNY);
 }
 
 // minimum available power for ramp up
@@ -753,12 +753,15 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
-	int from, to;
-	mosmix_survive(now_ts, rad1h_min, &from, &to);
+	int hours, from, to;
+	mosmix_survive(now_ts, rad1h_min, &hours, &from, &to);
 	int needed = 0;
-	// sum up load for darkness hours - take values from yesterday
-	for (int i = from; i < to; i++)
-		needed += pstate_hours[i].load * -1;
+	for (int i = 0; i < hours; i++) {
+		int hour = from + i;
+		if (hour >= 24)
+			hour -= 24;
+		needed += pstate_hours[hour].load * -1;
+	}
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
@@ -781,7 +784,12 @@ static void calculate_gstate() {
 	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
-	gstate->ttl = gstate->dakku < 0 ? gstate->akku * -60 / gstate->dakku : (60 * 24); // minutes
+	if (gstate->dakku < 0)
+		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use last hour's discharge rate (minutes)
+	else if (gstate->soc > 70)
+		gstate->ttl = gstate->akku * 60 / BASELOAD; // not yet in discharge phase - use BASELOAD (minutes)
+	else
+		gstate->ttl = 0;
 }
 
 static void calculate_pstate() {
@@ -962,10 +970,14 @@ static void burnout() {
 static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+
 	// store to disk
 #ifndef FRONIUS_MAIN
 	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
-//	store_blob(MINMAX_FILE, minmax, sizeof(minmax_t));
+	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 #endif
 }
 
@@ -985,22 +997,20 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// aggregate 59 minutes into current hour
-	dump_table("FRONIUS pstate_minutes", (int*) pstate_minutes, PSTATE_SIZE, 60, -1, PSTATE_HEADER);
+	dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = get_pstate_hours(0);
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	dump_struct(0, (int*) ph, PSTATE_SIZE);
+	dump_struct((int*) ph, PSTATE_SIZE, 0);
 
-	// recalculate global state of elapsed hour
+	// recalculate gstate, mosmix and potd
 	calculate_gstate();
-
-	// recalculate mosmix and choose program of the day
 	calculate_mosmix(now_ts);
-	choose_program();
+	choose_potd();
 
 	// copy gstate values to next hour
 	gstate_t *gh1 = get_gstate_hours(1);
 	memcpy((void*) gh1, (void*) gstate, sizeof(gstate_t));
-	dump_table("FRONIUS gstate", (int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, GSTATE_HEADER);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate", GSTATE_HEADER);
 
 	// print actual gstate
 	print_gstate(NULL);
@@ -1013,7 +1023,7 @@ static void minly(time_t now_ts) {
 	// dump_table("FRONIUS pstate_seconds", (int*) pstate_seconds, PSTATE_SIZE, 60, -1, PSTATE_HEADER);
 	pstate_t *pm = get_pstate_minutes(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct(0, (int*) pm, PSTATE_SIZE);
+	// dump_struct((int*) pm, PSTATE_SIZE, 0);
 }
 
 static void fronius() {
@@ -1033,9 +1043,9 @@ static void fronius() {
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
 
-		// update gstate and counter pointers
-		gstate = get_gstate_hours(0);
+		// update state and counter pointers
 		counter = get_counter_days(0);
+		gstate = get_gstate_hours(0);
 		pstate = get_pstate_seconds(0);
 
 		// wait for new second, now sunspec threads are updating pstate values
@@ -1319,18 +1329,20 @@ static int init() {
 	lt = localtime(&now_ts);
 	memcpy(now, lt, sizeof(*lt));
 
-	// initialize POTD
-	choose_program();
+	// initialize program of the day
+	choose_potd();
 
 	// TODO debug
-	gstate = get_gstate_hours(0);
-	counter = get_counter_days(0);
-	pstate = get_pstate_seconds(0);
-	calculate_gstate();
-	calculate_mosmix(now_ts);
-	dump_table("FRONIUS gstate", (int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, GSTATE_HEADER);
-	choose_program();
-	exit(0);
+//	gstate = get_gstate_hours(0);
+//	counter = get_counter_days(0);
+//	pstate = get_pstate_seconds(0);
+//	sleep(1);
+//	calculate_gstate();
+//	calculate_mosmix(now_ts);
+//	dump_table("FRONIUS gstate", (int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, GSTATE_HEADER);
+//	choose_program();
+//	print_gstate(NULL);
+//	exit(0);
 
 	return 0;
 }
