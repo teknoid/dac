@@ -845,7 +845,9 @@ static void calculate_pstate() {
 	}
 
 	// emergency shutdown when three times extreme akku discharge or grid download
-	if (pstate->akku > EMERGENCY && s1->akku > EMERGENCY && s2->akku > EMERGENCY && pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY) {
+	int e_akku = pstate->akku > EMERGENCY && s1->akku > EMERGENCY && s2->akku > EMERGENCY;
+	int e_grid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY;
+	if (e_akku || e_grid) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
@@ -950,7 +952,7 @@ static void calculate_pstate() {
 }
 
 static void emergency() {
-	xlog("FRONIUS emergency shutdown at %.1f akku discharge", FLOAT10(pstate->akku));
+	xlog("FRONIUS emergency shutdown at %d akku discharge / %d grid download", pstate->akku, pstate->grid);
 	set_all_devices(0);
 }
 
