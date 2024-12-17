@@ -1178,8 +1178,8 @@ static int calibrate(char *name) {
 		voltage = i * 10;
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		int sleep = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
-		msleep(sleep);
+		int ms = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
+		msleep(ms);
 		sunspec_read(ss);
 		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
 		printf("%5d %5d\n", voltage, measure[i]);
@@ -1223,7 +1223,7 @@ static int calibrate(char *name) {
 
 		// find all closest voltages that match target power +/- 5 watt
 		int sum = 0, count = 0;
-		printf("closest voltages to target power %5d matching %5d within +/-5 watt: ", target, measure[closest]);
+		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, measure[closest]);
 		for (int j = 0; j < 1000; j++)
 			if (measure[closest] - 5 < measure[j] && measure[j] < measure[closest] + 5) {
 				printf(" %d:%d", measure[j], j * 10);
@@ -1261,12 +1261,12 @@ static int calibrate(char *name) {
 	}
 
 	// validate
-	printf("waiting 60s for cool down\n");
+	printf("\nwaiting 60s for cool down\n");
 	sleep(60);
 	for (int i = 0; i <= 100; i++) {
 		snprintf(message, 16, "v:%d:%d", raster[i], 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		sleep(1);
+		msleep(2000);
 		sunspec_read(ss);
 		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
 		int expected = onepercent * i;
