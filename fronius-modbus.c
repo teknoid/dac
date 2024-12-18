@@ -180,39 +180,39 @@ static pstate_t* get_pstate_seconds(int offset) {
 }
 
 static pstate_t* get_pstate_minutes(int offset) {
-	int index = now->tm_min + offset;
-	while (index < 0)
-		index += 60;
-	while (index >= 60)
-		index -= 60;
-	return &pstate_minutes[index];
+	int i = now->tm_min + offset;
+	while (i < 0)
+		i += 60;
+	while (i >= 60)
+		i -= 60;
+	return &pstate_minutes[i];
 }
 
 static pstate_t* get_pstate_hours(int offset) {
-	int index = now->tm_hour + offset;
-	while (index < 0)
-		index += 24;
-	while (index >= 24)
-		index -= 24;
-	return &pstate_hours[index];
+	int i = now->tm_hour + offset;
+	while (i < 0)
+		i += 24;
+	while (i >= 24)
+		i -= 24;
+	return &pstate_hours[i];
 }
 
 static gstate_t* get_gstate_hours(int offset) {
-	int index = now->tm_hour + offset;
-	while (index < 0)
-		index += 24;
-	while (index >= 24)
-		index -= 24;
-	return &gstate_hours[index];
+	int i = now->tm_hour + offset;
+	while (i < 0)
+		i += 24;
+	while (i >= 24)
+		i -= 24;
+	return &gstate_hours[i];
 }
 
 static counter_t* get_counter_days(int offset) {
-	int index = now->tm_wday + offset;
-	while (index < 0)
-		index += 7;
-	while (index >= 7)
-		index -= 7;
-	return &counter_days[index];
+	int i = now->tm_wday + offset;
+	while (i < 0)
+		i += 7;
+	while (i >= 7)
+		i -= 7;
+	return &counter_days[i];
 }
 
 static void print_dstate() {
@@ -296,7 +296,7 @@ static void print_pstate(const char *message) {
 }
 
 static void update_f10(sunspec_t *ss) {
-	if (!pstate || !counter)
+	if (!pstate || !gstate || !counter)
 		return;
 
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
@@ -1292,25 +1292,6 @@ static int calibrate(char *name) {
 	return 0;
 }
 
-static int test() {
-
-	// create a sunspec handle and remove models not needed
-	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
-	ss->inverter = 0;
-	ss->storage = 0;
-	ss->mppt = 0;
-
-	float grid;
-	while (1) {
-		sunspec_read(ss);
-		grid = SFF(ss->meter->W, ss->meter->W_SF);
-		printf("%.1f\n", grid);
-		msleep(666);
-	}
-
-	return 0;
-}
-
 static int init() {
 	set_debug(1);
 
@@ -1387,6 +1368,48 @@ int fronius_override(const char *name) {
 	return fronius_override_seconds(name, OVERRIDE);
 }
 
+static void fake_yesterday() {
+	counter_t c;
+	gstate_t g;
+	pstate_t p;
+
+	counter = &c;
+	gstate = &g;
+	pstate = &p;
+
+	ZEROP(counter);
+	ZERO(gstate);
+	ZEROP(pstate);
+
+	init();
+	sleep(3);
+	stop();
+
+	for (int i = 0; i < 7; i++)
+		memcpy(&counter_days[i], (void*) counter, sizeof(counter_t));
+
+	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
+}
+
+static int test() {
+
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
+	ss->inverter = 0;
+	ss->storage = 0;
+	ss->mppt = 0;
+
+	float grid;
+	while (1) {
+		sunspec_read(ss);
+		grid = SFF(ss->meter->W, ss->meter->W_SF);
+		printf("%.1f\n", grid);
+		msleep(666);
+	}
+
+	return 0;
+}
+
 int fronius_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
@@ -1403,8 +1426,8 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "c:o:t")) != -1) {
-		printf("getopt %c\n", c);
+	while ((c = getopt(argc, argv, "c:o:ty")) != -1) {
+		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
@@ -1415,6 +1438,8 @@ int fronius_main(int argc, char **argv) {
 			test();
 			printf("test\n");
 			return 0;
+		case 'y':
+			fake_yesterday();
 		}
 	}
 
