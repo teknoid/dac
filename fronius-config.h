@@ -59,9 +59,9 @@
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
 #define PSTATE_CHECK_STANDBY	(pstate->flags & FLAG_CHECK_STANDBY)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
-#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_ALL_STANDBY		(pstate->flags & FLAG_ALL_STANDBY)
 #define PSTATE_ACTIVE			(pstate->flags & FLAG_ACTIVE)
+#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 enum dstate {

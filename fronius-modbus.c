@@ -860,16 +860,6 @@ static void calculate_pstate() {
 	if (abs(pstate->dgrid) < NOISE && abs(s1->dgrid) < NOISE && abs(s2->dgrid) < NOISE)
 		pstate->flags |= FLAG_STABLE;
 
-	// check if we have active devices / all devices in standby
-	pstate->flags |= FLAG_ALL_STANDBY;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		if (d->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
-		if (d->power)
-			pstate->flags |= FLAG_ACTIVE;
-	}
-
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
 	if (pstate->sdpv > 10000 || m1->sdpv > 1000 || m2->sdpv > 1000) {
 		pstate->flags |= FLAG_DISTORTION;
@@ -884,11 +874,21 @@ static void calculate_pstate() {
 	else
 		pstate->tendence = 0;
 
-	// calculate expected load - use average load between 03 and 04 or default BASELOAD
-//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
+	// device loop:
+	// - active devices
+	// - all devices in standby
+	// - expected load
+	pstate->flags |= FLAG_ALL_STANDBY;
+	//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
 	pstate->xload = BASELOAD;
-	for (device_t **d = DEVICES; *d != 0; d++)
-		pstate->xload += (*d)->load;
+	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		device_t *d = *dd;
+		pstate->xload += d->load;
+		if (d->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+		if (d->power)
+			pstate->flags |= FLAG_ACTIVE;
+	}
 	pstate->xload *= -1;
 
 	// deviation of calculated load to actual load in %
