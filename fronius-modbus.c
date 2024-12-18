@@ -823,7 +823,7 @@ static void calculate_pstate() {
 	pstate->dload = pstate->load - s1->load;
 	pstate->sdload = s1->sdload + abs(pstate->dload);
 
-	// check if we have delta on any ac power values
+	// check if we have delta on any ac power flows
 	if (abs(pstate->grid - s1->grid) > NOISE)
 		pstate->flags |= FLAG_DELTA;
 	if (abs(pstate->ac10 - s1->ac10) > NOISE)
@@ -837,7 +837,7 @@ static void calculate_pstate() {
 		pstate->akku = 0;
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv < PV_MIN && s1->pv < PV_MIN && s2->pv < PV_MIN) {
+	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
@@ -926,7 +926,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_RAMP;
 
 	// clear RAMP flag when values not valid
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
 //		pstate->flags &= ~FLAG_RAMP;

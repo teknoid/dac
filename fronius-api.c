@@ -966,7 +966,7 @@ static void calculate_pstate1() {
 	pstate_t *h2 = get_pstate_history(-2);
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv10_1 < PV_MIN && h1->pv10_1 < PV_MIN && h2->pv10_1 < PV_MIN) {
+	if (pstate->pv10_1 < NOISE && h1->pv10_1 < NOISE && h2->pv10_1 < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
