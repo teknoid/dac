@@ -29,8 +29,8 @@
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
-// counter history every day over one month
-static counter_t counter_days[31];
+// counter history every day over one week
+static counter_t counter_days[7];
 static volatile counter_t *counter = 0;
 
 // gstate history every hour over one day
@@ -207,12 +207,12 @@ static gstate_t* get_gstate_hours(int offset) {
 }
 
 static counter_t* get_counter_days(int offset) {
-	// yesterdays counters to calculate deltas
-	time_t t = time(NULL);
-	localtime(&t);
-	lt->tm_mday += offset;
-	mktime(lt);
-	return &counter_days[lt->tm_mday];
+	int index = now->tm_wday + offset;
+	while (index < 0)
+		index += 7;
+	while (index >= 7)
+		index -= 7;
+	return &counter_days[index];
 }
 
 static void print_dstate() {

@@ -312,7 +312,6 @@ static void bump_counter(time_t now_ts) {
 	// take over all values
 	memcpy(counter_new, (void*) counter, sizeof(counter_t));
 	counter = counter_new; // atomic update current counter pointer
-	counter->timestamp = now_ts; // mark actual day
 }
 
 static void bump_pstate() {

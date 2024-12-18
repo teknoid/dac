@@ -4,15 +4,13 @@
 #define STANDBY_RESET			60 * 30
 #define STANDBY_NORESPONSE		5
 
-// date --date='@1728165335'
-
-// hexdump -v -e '5 "%10d ""\n"' /work/fronius-counter.bin
+// hexdump -v -e '4 "%10d ""\n"' /work/fronius-counter.bin
 #define COUNTER_FILE			"/work/fronius-counter.bin"
 
 // hexdump -v -e '16 "%6d ""\n"' /work/fronius-gstate.bin
 #define GSTATE_FILE				"/work/fronius-gstate.bin"
 
-// hexdump -v -e '23 "%6d ""\n"' /work/fronius-pstate.bin
+// hexdump -v -e '26 "%6d ""\n"' /work/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 
@@ -70,7 +68,6 @@ enum dstate {
 
 typedef struct _counter counter_t;
 struct _counter {
-	int timestamp;
 	int pv10;
 	int pv7;
 	int produced;
