@@ -1,9 +1,5 @@
 #include "tasmota-devices.h"
 
-#define OVERRIDE				600
-#define STANDBY_RESET			60 * 30
-#define STANDBY_NORESPONSE		5
-
 // hexdump -v -e '4 "%10d ""\n"' /work/fronius-counter.bin
 #define COUNTER_FILE			"/work/fronius-counter.bin"
 
@@ -20,6 +16,8 @@
 #define SUSPICIOUS				250
 #define NOISE					25
 #define EMERGENCY				(AKKU_CAPACITY / 10)
+#define OVERRIDE				600
+#define STANDBY_NORESPONSE		5
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN					22.0
