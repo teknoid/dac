@@ -1064,7 +1064,7 @@ static void fronius() {
 		calculate_pstate();
 
 		// print actual pstate
-		if (PSTATE_DELTA || PSTATE_RAMP)
+		if (PSTATE_DELTA)
 			print_pstate(NULL);
 
 		// check emergency
@@ -1098,7 +1098,7 @@ static void fronius() {
 		}
 
 		// print current device states when we have active devices
-		if (PSTATE_ACTIVE)
+		if (device)
 			print_dstate();
 
 		// minutely tasks
