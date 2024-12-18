@@ -101,17 +101,20 @@ struct _gstate {
 
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid  akku  ac10   ac7  load Δload xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
+	int sdpv;
 	int grid;
 	int dgrid;
+	int sdgrid;
 	int akku;
 	int ac10;
 	int ac7;
 	int load;
 	int dload;
+	int sdload;
 	int xload;
 	int dxload;
 	int dc10;

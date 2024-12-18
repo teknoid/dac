@@ -281,12 +281,15 @@ static void print_pstate(const char *message) {
 	xlogl_int_b(line, "PV10", pstate->pv10_1 + pstate->pv10_2);
 	xlogl_int_b(line, "PV7", pstate->pv7_1 + pstate->pv7_2);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
+	xlogl_int(line, 1, 1, "ΔGrid", pstate->dgrid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Surp", pstate->surplus);
 	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
 	xlogl_int(line, 1, 0, "Modest", pstate->modest);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
 	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
+	xlogl_int(line, 0, 0, "XLoad", pstate->xload);
+	xlogl_int(line, 0, 0, "dXLoad", pstate->dxload);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
 	xlogl_bits16(line, "Flags", pstate->flags);
 	xlogl_end(line, strlen(line), message);
@@ -397,8 +400,8 @@ static int choose_potd() {
 	if (gstate->survive < 10)
 		return select_potd(&MODEST);
 
-	// survive and less than 1h sun
-	if (gstate->sun < 3600)
+	// survive and less than 2h sun
+	if (gstate->sun < 7200)
 		return select_potd(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -805,21 +808,18 @@ static void calculate_pstate() {
 	// total PV produced by both inverters
 	pstate->pv = pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
 	pstate->dpv = pstate->pv - s1->pv;
-	if (pstate->pv < NOISE)
-		pstate->pv = 0;
+	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
-	// calculate delta grid
+	// calculate delta grid + sum
 	pstate->dgrid = pstate->grid - s1->grid;
-	if (abs(pstate->dgrid) < NOISE)
-		pstate->dgrid = 0;
+	pstate->sdgrid = s1->sdgrid + abs(pstate->dgrid);
 
 	// calculate load manually
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
 
-	// calculate delta load
+	// calculate delta load + sum
 	pstate->dload = pstate->load - s1->load;
-	if (abs(pstate->dload) < NOISE)
-		pstate->dload = 0;
+	pstate->sdload = s1->sdload + abs(pstate->dload);
 
 	// check if we have delta on any ac power values
 	if (abs(pstate->grid - s1->grid) > NOISE)
@@ -853,8 +853,7 @@ static void calculate_pstate() {
 	}
 
 	// state is stable when we have three times no grid changes
-	int deltas = pstate->dgrid + s1->dgrid + s2->dgrid;
-	if (!deltas)
+	if (abs(pstate->dgrid) < NOISE && abs(s1->dgrid) < NOISE && abs(s2->dgrid) < NOISE)
 		pstate->flags |= FLAG_STABLE;
 
 	// check if we have active devices / all devices in standby
@@ -867,10 +866,11 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_ACTIVE;
 	}
 
-	// distortion when last two deltas too big
-	if (abs(m1->dpv) > 100 && abs(m2->dpv) > 100)
+	// distortion when last two sum deltas too big
+	if (abs(m1->sdpv) > 10000 || abs(m2->sdpv) > 10000) {
 		pstate->flags |= FLAG_DISTORTION;
-	// xdebug("FRONIUS distortion=%d m1 %d m2 %d", PSTATE_DISTORTION, m1->dpv, m2->dpv);
+		xdebug("FRONIUS distortion=%d m1 %d m2 %d", PSTATE_DISTORTION, m1->sdpv, m2->sdpv);
+	}
 
 	// pv tendence
 	if (pstate->dpv < -NOISE && s1->dpv < -NOISE && s2->dpv < -NOISE)
@@ -881,7 +881,8 @@ static void calculate_pstate() {
 		pstate->tendence = 0;
 
 	// calculate expected load - use average load between 03 and 04 or default BASELOAD
-	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
+//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
+	pstate->xload = BASELOAD;
 	for (device_t **d = DEVICES; *d != 0; d++)
 		pstate->xload += (*d)->load;
 	pstate->xload *= -1;
@@ -897,7 +898,6 @@ static void calculate_pstate() {
 	pstate->surplus = (pstate->grid + pstate->akku) * -1;
 
 	// greedy power = akku + grid
-	// pstate->greedy = (pstate->surplus + h1->surplus + h2->surplus) / 3;
 	pstate->greedy = pstate->surplus;
 	if (pstate->greedy > 0)
 		pstate->greedy -= NOISE; // threshold for ramp up
@@ -907,7 +907,6 @@ static void calculate_pstate() {
 		pstate->greedy = 0; // no active devices - nothing to ramp down
 
 	// modest power = only grid upload
-	// pstate->modest = (pstate->grid + h1->grid + h2->grid) / -3;
 	pstate->modest = pstate->grid * -1;
 	if (pstate->modest > 0)
 		pstate->modest -= NOISE; // threshold for ramp up
@@ -1022,10 +1021,13 @@ static void minly(time_t now_ts) {
 	// xlog("FRONIUS executing minutely tasks...");
 
 	// aggregate 59 seconds into current minute
-	// dump_table("FRONIUS pstate_seconds", (int*) pstate_seconds, PSTATE_SIZE, 60, -1, PSTATE_HEADER);
+//	dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	pstate_t *pm = get_pstate_minutes(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct((int*) pm, PSTATE_SIZE, 0);
+//	dump_struct((int*) pm, PSTATE_SIZE, 0);
+
+	// clear sum counters
+	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
 }
 
 static void fronius() {
