@@ -810,7 +810,9 @@ static void calculate_pstate() {
 	pstate->dpv = pstate->pv - s1->pv;
 	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
-	// calculate delta grid + sum
+	// shape grid, calculate delta grid + sum
+	if (abs(pstate->grid) < NOISE)
+		pstate->grid = 0;
 	pstate->dgrid = pstate->grid - s1->grid;
 	pstate->sdgrid = s1->sdgrid + abs(pstate->dgrid);
 
@@ -831,6 +833,8 @@ static void calculate_pstate() {
 
 	// akku power is DC power minus PV
 	pstate->akku = pstate->dc10 - (pstate->pv10_1 + pstate->pv10_2);
+	if (abs(pstate->akku) < NOISE)
+		pstate->akku = 0;
 
 	// offline mode when 3x not enough PV production
 	if (pstate->pv < PV_MIN && s1->pv < PV_MIN && s2->pv < PV_MIN) {
