@@ -870,10 +870,10 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_ACTIVE;
 	}
 
-	// distortion when last two sum deltas too big
-	if (abs(m1->sdpv) > 10000 || abs(m2->sdpv) > 10000) {
+	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+	if (pstate->sdpv > 10000 || m1->sdpv > 1000 || m2->sdpv > 1000) {
 		pstate->flags |= FLAG_DISTORTION;
-		xdebug("FRONIUS distortion=%d m1 %d m2 %d", PSTATE_DISTORTION, m1->sdpv, m2->sdpv);
+		xdebug("FRONIUS distortion=%d pstate->sdpv %d m1->sdpv %d m2->sdpv %d", PSTATE_DISTORTION, pstate->sdpv, m1->sdpv, m2->sdpv);
 	}
 
 	// pv tendence
@@ -1097,7 +1097,7 @@ static void fronius() {
 				device = ramp();
 		}
 
-		// print current device states when we have active devices
+		// print device states when we had an action
 		if (device)
 			print_dstate();
 
