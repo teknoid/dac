@@ -1368,8 +1368,10 @@ static void stop() {
 		close(sock);
 }
 
-// create dummy history files
+// fake state and counter records from actual values and write history files
 static int fake() {
+	time_t now_ts = time(NULL);
+
 	counter_t c;
 	gstate_t g;
 	pstate_t p;
@@ -1388,6 +1390,7 @@ static int fake() {
 
 	calculate_pstate();
 	calculate_gstate();
+	calculate_mosmix(now_ts);
 
 	for (int i = 0; i < 7; i++)
 		memcpy(&counter_days[i], (void*) counter, sizeof(counter_t));
