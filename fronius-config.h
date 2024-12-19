@@ -3,7 +3,7 @@
 // hexdump -v -e '4 "%10d ""\n"' /work/fronius-counter.bin
 #define COUNTER_FILE			"/work/fronius-counter.bin"
 
-// hexdump -v -e '16 "%6d ""\n"' /work/fronius-gstate.bin
+// hexdump -v -e '15 "%6d ""\n"' /work/fronius-gstate.bin
 #define GSTATE_FILE				"/work/fronius-gstate.bin"
 
 // hexdump -v -e '26 "%6d ""\n"' /work/fronius-pstate*.bin

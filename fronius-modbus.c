@@ -47,6 +47,22 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
+int fronius_override_seconds(const char *name, int seconds) {
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if (!strcmp((*d)->name, name)) {
+			xlog("FRONIUS Activating Override on %s", (*d)->name);
+			(*d)->override = time(NULL) + seconds;
+			(*d)->state = Active;
+			((*d)->set_function)((*d), 100);
+		}
+	}
+	return 0;
+}
+
+int fronius_override(const char *name) {
+	return fronius_override_seconds(name, OVERRIDE);
+}
+
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
 	if (power < 0)
@@ -1352,23 +1368,8 @@ static void stop() {
 		close(sock);
 }
 
-int fronius_override_seconds(const char *name, int seconds) {
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		if (!strcmp((*d)->name, name)) {
-			xlog("FRONIUS Activating Override on %s", (*d)->name);
-			(*d)->override = time(NULL) + seconds;
-			(*d)->state = Active;
-			((*d)->set_function)((*d), 100);
-		}
-	}
-	return 0;
-}
-
-int fronius_override(const char *name) {
-	return fronius_override_seconds(name, OVERRIDE);
-}
-
-static void fake_yesterday() {
+// create dummy history files
+static int fake() {
 	counter_t c;
 	gstate_t g;
 	pstate_t p;
@@ -1378,17 +1379,31 @@ static void fake_yesterday() {
 	pstate = &p;
 
 	ZEROP(counter);
-	ZERO(gstate);
+	ZEROP(gstate);
 	ZEROP(pstate);
 
 	init();
 	sleep(3);
 	stop();
 
+	calculate_pstate();
+	calculate_gstate();
+
 	for (int i = 0; i < 7; i++)
 		memcpy(&counter_days[i], (void*) counter, sizeof(counter_t));
+	for (int i = 0; i < 24; i++)
+		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
+	for (int i = 0; i < 24; i++)
+		memcpy(&pstate_hours[i], (void*) pstate, sizeof(pstate_t));
+	for (int i = 0; i < 60; i++)
+		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
 	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
+	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+
+	return 0;
 }
 
 static int test() {
@@ -1426,7 +1441,7 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "c:o:ty")) != -1) {
+	while ((c = getopt(argc, argv, "c:o:tf")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'c':
@@ -1435,11 +1450,9 @@ int fronius_main(int argc, char **argv) {
 		case 'o':
 			return fronius_override(optarg);
 		case 't':
-			test();
-			printf("test\n");
-			return 0;
-		case 'y':
-			fake_yesterday();
+			return test();
+		case 'f':
+			return fake();
 		}
 	}
 
