@@ -102,8 +102,9 @@ int set_heater(device_t *heater, int power) {
 	// update power values and timer: slow ramp up while akku not yet full, fast ramp down + ramp up when full
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
-	heater->dload = power ? heater->total * -1 : heater->total;
-	heater->timer = heater->dload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
+	heater->aload = pstate ? pstate->load : 0;
+	heater->xload = power ? heater->total * -1 : heater->total;
+	heater->timer = heater->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -169,8 +170,9 @@ int set_boiler(device_t *boiler, int power) {
 	// update power values and timer: slow ramp up while akku not yet full, fast ramp down + ramp up when full
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
-	boiler->dload = boiler->total * step / -100;
-	boiler->timer = boiler->dload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
+	boiler->aload = pstate ? pstate->load : 0;
+	boiler->xload = boiler->total * step / -100;
+	boiler->timer = boiler->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -237,48 +239,6 @@ static counter_t* get_counter_days(int offset) {
 	return &counter_days[i];
 }
 
-static void print_dstate() {
-	char message[128], value[16];
-
-	strcpy(message, "FRONIUS device power ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		if ((*d)->adjustable)
-			snprintf(value, 5, " %3d", (*d)->power);
-		else
-			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
-		strcat(message, value);
-	}
-
-	strcat(message, "   state ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->state);
-		strcat(message, value);
-	}
-
-	strcat(message, "   noresponse ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->noresponse);
-		strcat(message, value);
-	}
-
-	if (f10 && f10->inverter) {
-		snprintf(value, 16, " F10:%d", f10->inverter->St);
-		strcat(message, value);
-	}
-
-	if (f7 && f7->inverter) {
-		snprintf(value, 16, " F7:%d", f7->inverter->St);
-		strcat(message, value);
-	}
-
-	snprintf(value, 16, " grid:%5d", pstate->grid);
-	strcat(message, value);
-	snprintf(value, 16, " akku:%5d", pstate->akku);
-	strcat(message, value);
-
-	xlog(message);
-}
-
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS gstate");
@@ -301,24 +261,51 @@ static void print_gstate(const char *message) {
 	xlogl_end(line, strlen(line), message);
 }
 
-static void print_pstate(const char *message) {
-	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS pstate");
-	xlogl_int_b(line, "PV", pstate->pv);
-	xlogl_int_b(line, "PV10", pstate->pv10_1 + pstate->pv10_2);
-	xlogl_int_b(line, "PV7", pstate->pv7_1 + pstate->pv7_2);
+static void print_state(const char *message) {
+	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "FRONIUS");
+
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		if ((*d)->adjustable)
+			snprintf(value, 5, " %3d", (*d)->power);
+		else
+			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
+		strcat(line, value);
+	}
+
+	strcat(line, "   state ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->state);
+		strcat(line, value);
+	}
+
+	strcat(line, "   nores ");
+	for (device_t **d = DEVICES; *d != 0; d++) {
+		snprintf(value, 5, "%d", (*d)->noresponse);
+		strcat(line, value);
+	}
+
+	if (f10 && f10->inverter) {
+		snprintf(value, 16, "   F10:%d", f10->inverter->St);
+		strcat(line, value);
+	}
+
+	if (f7 && f7->inverter) {
+		snprintf(value, 16, "   F7:%d", f7->inverter->St);
+		strcat(line, value);
+	}
+
+	xlogl_bits16(line, "  Flags", pstate->flags);
+	xlogl_int_b(line, "  PV", pstate->pv);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
-	xlogl_int(line, 1, 1, "ΔGrid", pstate->dgrid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
-	xlogl_int(line, 1, 0, "Surp", pstate->surplus);
-	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
-	xlogl_int(line, 1, 0, "Modest", pstate->modest);
+	if (pstate->greedy)
+		xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
+	if (pstate->modest)
+		xlogl_int(line, 1, 0, "Modest", pstate->modest);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
-	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
-	xlogl_int(line, 0, 0, "XLoad", pstate->xload);
-	xlogl_int(line, 0, 0, "dXLoad", pstate->dxload);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
-	xlogl_bits16(line, "Flags", pstate->flags);
+
 	xlogl_end(line, strlen(line), message);
 }
 
@@ -586,7 +573,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, GREEDY_MODEST(v), v->name, GREEDY_MODEST(t), t->name, t->total);
 	ramp_device(v, v->load * -1);
 	ramp_device(t, power);
-	t->dload = 0; // force WAIT but no response expected as we put power from one to another device
+	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
 	return 1;
 }
 
@@ -682,34 +669,34 @@ static device_t* response(device_t *d) {
 	if (d->timer--)
 		return d;
 
-	// no delta power - no response to check
-	int delta = d->dload;
-	if (!delta)
+	// no expected delta load - no response to check
+	if (!d->xload)
 		return 0;
 
-	// reset
-	d->dload = 0;
+	int delta = pstate->load - d->aload;
+	int expected = d->xload;
+	d->xload = 0; // reset
 
-	// ignore response below NOISE
-	if (abs(delta) < NOISE) {
-		xdebug("FRONIUS ignoring expected response below NOISE %d from %s", delta, d->name);
+	// ignore responses below NOISE
+	if (abs(expected) < NOISE) {
+		xdebug("FRONIUS ignoring expected response below NOISE %d from %s", expected, d->name);
 		d->state = Active;
 		return 0;
 	}
 
 	// valid response is at least 1/3 of expected
-	int response = pstate->dload != 0 && (delta > 0 ? (pstate->dload > delta / 3) : (pstate->dload < delta / 3));
+	int response = expected > 0 ? (delta > expected / 3) : (delta < expected / 3);
 
 	// response OK
 	if (d->state == Active && response) {
-		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, delta, pstate->dload);
+		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		return 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && response) {
-		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, delta, pstate->dload);
+		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
 		return d; // continue main loop
@@ -717,11 +704,11 @@ static device_t* response(device_t *d) {
 
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
-		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, pstate->dload);
+		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, expected, delta);
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
-		d->dload = 0; // no response expected
+		d->xload = 0; // no response expected
 		return d; // continue main loop
 	}
 
@@ -877,7 +864,8 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (pstate->sdpv > 10000 || m1->sdpv > 1000 || m2->sdpv > 1000) {
+	// if (pstate->sdpv > 10000 || m1->sdpv > 1000 || m2->sdpv > 1000) {
+	if (pstate->sdpv > 10000 || m1->sdpv > 5000) {
 		pstate->flags |= FLAG_DISTORTION;
 		xdebug("FRONIUS distortion=%d pstate->sdpv %d m1->sdpv %d m2->sdpv %d", PSTATE_DISTORTION, pstate->sdpv, m1->sdpv, m2->sdpv);
 	}
@@ -1071,10 +1059,6 @@ static void fronius() {
 		// calculate new pstate
 		calculate_pstate();
 
-		// print actual pstate
-		if (PSTATE_DELTA)
-			print_pstate(NULL);
-
 		// check emergency
 		if (PSTATE_EMERGENCY)
 			emergency();
@@ -1105,9 +1089,9 @@ static void fronius() {
 				device = ramp();
 		}
 
-		// print device states when we had an action
-		if (device)
-			print_dstate();
+		// print combined device and pstate when we had delta or action
+		if (PSTATE_DELTA || device)
+			print_state(NULL);
 
 		// minutely tasks
 		if (now->tm_sec == 59) {
@@ -1393,7 +1377,7 @@ static int fake() {
 	for (int i = 0; i < 60; i++)
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
-	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
+	// store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));

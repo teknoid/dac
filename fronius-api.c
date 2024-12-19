@@ -138,7 +138,7 @@ int set_heater(device_t *heater, int power) {
 	// update power values
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
-	heater->dload = power ? heater->total * -1 : heater->total;
+	heater->xload = power ? heater->total * -1 : heater->total;
 	return 1; // loop done
 }
 
@@ -204,7 +204,7 @@ int set_boiler(device_t *boiler, int power) {
 	// update power values
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
-	boiler->dload = boiler->total * step / -100;
+	boiler->xload = boiler->total * step / -100;
 	return 1; // loop done
 }
 
@@ -718,7 +718,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, GREEDY_MODEST(v), v->name, GREEDY_MODEST(t), t->name, t->total);
 	ramp_device(v, v->load * -1);
 	ramp_device(t, power);
-	t->dload = 0; // force WAIT but no response expected as we put power from one to another device
+	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
 	return 1;
 }
 
@@ -810,12 +810,12 @@ static device_t* standby() {
 
 static device_t* response(device_t *d) {
 	// no delta power - no response to check
-	int delta = d->dload;
+	int delta = d->xload;
 	if (!delta)
 		return 0;
 
 	// reset
-	d->dload = 0;
+	d->xload = 0;
 
 	// ignore response below NOISE
 	if (abs(delta) < NOISE) {
@@ -848,7 +848,7 @@ static device_t* response(device_t *d) {
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
-		d->dload = 0; // no response expected
+		d->xload = 0; // no response expected
 		return d; // continue main loop
 	}
 

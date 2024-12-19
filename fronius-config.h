@@ -168,7 +168,8 @@ struct _device {
 	enum dstate state;
 	int power;
 	int load;
-	int dload;
+	int aload;
+	int xload;
 	int greedy;
 	int noresponse;
 	int timer;
