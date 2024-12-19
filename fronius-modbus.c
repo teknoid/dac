@@ -871,19 +871,19 @@ static void calculate_pstate() {
 	}
 
 	// device loop:
+	// - expected load
 	// - active devices
 	// - all devices in standby
-	// - expected load
 	pstate->flags |= FLAG_ALL_STANDBY;
 	//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
 	pstate->xload = BASELOAD;
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
 		pstate->xload += d->load;
-		if (d->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
 		if (d->power)
 			pstate->flags |= FLAG_ACTIVE;
+		if (d->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
 	pstate->xload *= -1;
 
@@ -1089,7 +1089,7 @@ static void fronius() {
 				device = ramp();
 		}
 
-		// print combined device and pstate when we had delta or action
+		// print combined device and pstate when we had delta or device action
 		if (PSTATE_DELTA || device)
 			print_state(NULL);
 
@@ -1344,7 +1344,7 @@ static void stop() {
 		close(sock);
 }
 
-// fake state and counter records from actual values and write history files
+// fake state and counter records from actual values and copy to history records
 static int fake() {
 	time_t now_ts = time(NULL);
 
