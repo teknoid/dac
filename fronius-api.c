@@ -584,19 +584,9 @@ static int rampup_min(device_t *d) {
 static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->total / 100);
-	xdebug("FRONIUS step1 %d", step);
 
 	if (!step)
 		return 0;
-
-	// adjust step when ramp and tendence is same direction
-	if (pstate->tendence) {
-		if (power < 0 && pstate->tendence < 0)
-			step--;
-		if (power > 0 && pstate->tendence > 0)
-			step++;
-		xdebug("FRONIUS step2 %d", step);
-	}
 
 	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
 	if (PSTATE_DISTORTION || pstate->soc < 1000) {
@@ -604,7 +594,6 @@ static int calculate_step(device_t *d, int power) {
 			step /= 2;
 		if (step < -1)
 			step *= 2;
-		xdebug("FRONIUS step3 %d", step);
 	}
 
 	return step;
@@ -972,7 +961,7 @@ static void calculate_pstate1() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->tendence = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
 		return;
 	}
 
@@ -1033,14 +1022,6 @@ static void calculate_pstate2() {
 	if (dpv_sum > 1000)
 		pstate->flags |= FLAG_DISTORTION;
 	// xdebug("FRONIUS distortion=%d sum=%d", PSTATE_DISTORTION, dpv_sum);
-
-	// pv tendence
-	if (pstate->dpv < -NOISE && h1->dpv < -NOISE && h2->dpv < -NOISE)
-		pstate->tendence = -1; // pv is continuously falling
-	else if (pstate->dpv > NOISE && h1->dpv > NOISE && h2->dpv > NOISE)
-		pstate->tendence = 1; // pv is continuously raising
-	else
-		pstate->tendence = 0;
 
 	// calculate expected load - use average load between 03 and 04 or default BASELOAD
 	pstate->xload = BASELOAD;
@@ -1125,7 +1106,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
-	if (!PSTATE_RAMP || PSTATE_DISTORTION || pstate->tendence || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
+	if (!PSTATE_RAMP || PSTATE_DISTORTION || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
 		return WAIT_NEXT;
 
 	if (PSTATE_ALL_STANDBY)

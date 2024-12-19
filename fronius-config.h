@@ -95,7 +95,7 @@ struct _gstate {
 
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst  tend   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  surp  grdy modst   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -120,7 +120,6 @@ struct _pstate {
 	int surplus;
 	int greedy;
 	int modest;
-	int tendence;
 	int soc;
 	int flags;
 };
@@ -209,3 +208,6 @@ static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4,
 
 // sunny weather: plenty of power but modest boilers to catch all power when we have short sun spikes
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
+
+// force boiler heating
+static const potd_t WATER = { .name = "WATER", .greedy = { &b1, &b2, &b3, 0 }, .modest = { 0 } };

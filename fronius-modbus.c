@@ -47,6 +47,12 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
+static int select_potd(const potd_t *p);
+
+int fronius_water() {
+	return select_potd(&WATER);
+}
+
 int fronius_override_seconds(const char *name, int seconds) {
 	for (device_t **d = DEVICES; *d != 0; d++) {
 		if (!strcmp((*d)->name, name)) {
@@ -265,6 +271,11 @@ static void print_dstate() {
 		strcat(message, value);
 	}
 
+	snprintf(value, 16, " grid:%5d", pstate->grid);
+	strcat(message, value);
+	snprintf(value, 16, " akku:%5d", pstate->akku);
+	strcat(message, value);
+
 	xlog(message);
 }
 
@@ -441,19 +452,9 @@ static int rampup_min(device_t *d) {
 static int calculate_step(device_t *d, int power) {
 	// power steps
 	int step = power / (d->total / 100);
-	xdebug("FRONIUS step1 %d", step);
 
 	if (!step)
 		return 0;
-
-	// adjust step when ramp and tendence is same direction
-	if (pstate->tendence) {
-		if (power < 0 && pstate->tendence < 0)
-			step--;
-		if (power > 0 && pstate->tendence > 0)
-			step++;
-		xdebug("FRONIUS step2 %d", step);
-	}
 
 	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
 	if (PSTATE_DISTORTION || pstate->soc < 1000) {
@@ -461,7 +462,6 @@ static int calculate_step(device_t *d, int power) {
 			step /= 2;
 		if (step < -1)
 			step *= 2;
-		xdebug("FRONIUS step3 %d", step);
 	}
 
 	return step;
@@ -860,7 +860,7 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->tendence = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
 		return;
 	}
 
@@ -881,14 +881,6 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_DISTORTION;
 		xdebug("FRONIUS distortion=%d pstate->sdpv %d m1->sdpv %d m2->sdpv %d", PSTATE_DISTORTION, pstate->sdpv, m1->sdpv, m2->sdpv);
 	}
-
-	// pv tendence
-	if (pstate->dpv < -NOISE && s1->dpv < -NOISE && s2->dpv < -NOISE)
-		pstate->tendence = -1; // pv is continuously falling
-	else if (pstate->dpv > NOISE && s1->dpv > NOISE && s2->dpv > NOISE)
-		pstate->tendence = 1; // pv is continuously raising
-	else
-		pstate->tendence = 0;
 
 	// device loop:
 	// - active devices

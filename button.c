@@ -53,16 +53,17 @@ static void handle_button(unsigned char c) {
 	case 16:
 		system("/m/party.sh");
 		break;
+#ifdef FRONIUS
 	case 32:
-#ifdef FRONIUS
 		fronius_override_seconds("tisch", 3600);
-#endif
 		break;
-	case 160:
-#ifdef FRONIUS
+	case 160: // shift
 		fronius_override_seconds("wozi", 3600);
-#endif
 		break;
+	case 64:
+		fronius_water();
+		break;
+#endif
 	}
 }
 
