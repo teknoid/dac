@@ -27,8 +27,6 @@
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
 
-#define WINTER				(now->tm_mon == 11 || now->tm_mon == 12 || now->tm_mon == 1)
-
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -1020,17 +1018,14 @@ static void hourly(time_t now_ts) {
 
 	// winter mode
 	if (WINTER) {
-
-		// generally no discharge during xmas between 15:00 and 22:00
-		if (now->tm_mon == 12 && 15 <= now->tm_hour && now->tm_hour < 22) {
+		if (gstate->soc < 500 && now->tm_mon == 12 && 15 <= now->tm_hour && now->tm_hour < 22)
+			// generally no discharge during xmas between 15:00 and 22:00 when below 50%
 			sunspec_storage_charge_only(f10);
-			return;
-		}
-
-		// do not go below 25%
-		if (gstate->soc < 250)
+		else if (gstate->soc < 250)
+			// do not go below 25%
 			sunspec_storage_charge_only(f10);
 		else
+			// normal mode
 			sunspec_storage_both(f10);
 	}
 }

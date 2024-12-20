@@ -263,7 +263,7 @@ int sunspec_storage_discharge_only(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d\n", storCtl_Mod, inWRte, outWRte);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
 	return storCtl_Mod == 1;
 }
 
@@ -275,7 +275,7 @@ int sunspec_storage_charge_only(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d\n", storCtl_Mod, inWRte, outWRte);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
 	return storCtl_Mod == 2;
 }
 
@@ -288,7 +288,7 @@ int sunspec_storage_both(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d\n", storCtl_Mod, inWRte, outWRte);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
 	return storCtl_Mod == 0;
 }
 

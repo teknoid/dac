@@ -27,7 +27,8 @@
 #define TEMP_OUT				sensors->sht31_temp
 #endif
 
-#define SUMMER					(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) // April - September
+#define SUMMER					(4 < now->tm_mon && now->tm_mon < 8 && TEMP_OUT > 10 && TEMP_IN > 20) 	// April - September
+#define WINTER					(now->tm_mon == 11 || now->tm_mon == 12 || now->tm_mon == 1)			// November, Dezember, Januar
 
 #define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 
