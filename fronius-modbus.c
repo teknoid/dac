@@ -793,7 +793,7 @@ static void calculate_gstate() {
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 	if (gstate->dakku < 0)
-		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use last hour's discharge rate (minutes)
+		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
 	else if (gstate->soc > MIN_SOC)
 		gstate->ttl = gstate->akku * 60 / BASELOAD; // not yet in discharge phase - use BASELOAD (minutes)
 	else
