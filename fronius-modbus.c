@@ -902,22 +902,20 @@ static void calculate_pstate() {
 	// greedy power = akku + grid
 	pstate->greedy = pstate->surplus;
 	if (pstate->greedy > 0)
-		pstate->greedy -= NOISE; // threshold for ramp up
+		pstate->greedy -= NOISE; // threshold for ramp up - allow small akku charging
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
 
 	// modest power = only grid upload
-	pstate->modest = pstate->grid * -1;
-	if (pstate->modest > 0)
-		pstate->modest -= NOISE; // threshold for ramp up
+	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
+	if (pstate->greedy < pstate->modest)
+		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
 	if (!PSTATE_ACTIVE && pstate->modest < 0)
 		pstate->modest = 0; // no active devices - nothing to ramp down
-	if (pstate->greedy < pstate->modest)
-		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 
 	// ramp on grid download or akku discharge or when we have greedy/modest power
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->greedy || pstate->modest)
