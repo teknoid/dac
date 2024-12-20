@@ -866,7 +866,7 @@ static device_t* response(device_t *d) {
 
 static void calculate_mosmix(time_t now_ts) {
 	// reload mosmix data
-	if (mosmix_load(CHEMNITZ))
+	if (mosmix_load(now_ts, CHEMNITZ))
 		return;
 
 	// gstate of last hour to match till now produced vs. till now predicted
