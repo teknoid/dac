@@ -1018,7 +1018,7 @@ static void hourly(time_t now_ts) {
 	// print actual gstate
 	print_gstate(NULL);
 
-	// winter mode: from 15:00 (day) to 02:00 (night) no akku discharge when below 50%
+	// winter mode: from 15:00 to 02:00 no akku discharge when below 50%
 	if (now->tm_hour == 15 && gstate->soc < 500 && WINTER)
 		sunspec_storage_charge_only(f10);
 
