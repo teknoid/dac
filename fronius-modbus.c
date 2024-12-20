@@ -23,6 +23,10 @@
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
+#define StorCtl_Mod			5
+#define OutWRte				12
+#define InWRte				13
+
 #define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
@@ -1404,6 +1408,45 @@ static int test() {
 	return 0;
 }
 
+static int battery(char *arg) {
+	uint16_t storCtl_Mod, inWRte, outWRte;
+
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
+	ss->inverter = 0;
+	ss->meter = 0;
+	ss->mppt = 0;
+
+	int mode = atoi(arg);
+	switch (mode) {
+	case -1:
+		printf("setting CHARGE ONLY mode\n");
+		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 2);
+		sunspec_write_reg(ss, ss->storage_addr + OutWRte, 0);
+		break;
+	case 1:
+		printf("setting DISCHARGE ONLY mode\n");
+		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 1);
+		sunspec_write_reg(ss, ss->storage_addr + InWRte, 0);
+		break;
+	case 0:
+		printf("setting CHARGE/DISCHARGE (default) mode\n");
+		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 0);
+		sunspec_write_reg(ss, ss->storage_addr + InWRte, 10000);
+		sunspec_write_reg(ss, ss->storage_addr + OutWRte, 10000);
+		break;
+	default:
+		printf("invalid mode %d, allowed -1, 0, 1\n", mode);
+	}
+
+	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
+	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
+	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
+	printf("StorCtl_Mod=%d InWRte=%d OutWRte=%d\n", storCtl_Mod, inWRte, outWRte);
+
+	return 0;
+}
+
 int fronius_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
@@ -1420,9 +1463,12 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "c:o:tf")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:o:tf")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
+		case 'b':
+			// -1: charge only, 1: discharge only, 0: charge and discharge
+			return battery(optarg);
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
 			return calibrate(optarg);

@@ -159,6 +159,18 @@ static void* poll(void *arg) {
 	return (void*) 0;
 }
 
+void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value) {
+	int rc = modbus_write_register(ss->mb, addr, value);
+	if (rc == -1)
+		xerr("SUNSPEC %s modbus_write_register %s", ss->name, modbus_strerror(errno));
+}
+
+void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
+	int rc = modbus_read_registers(ss->mb, addr, 1, value);
+	if (rc == -1)
+		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+}
+
 void sunspec_read(sunspec_t *ss) {
 	if (ss->inverter)
 		read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);

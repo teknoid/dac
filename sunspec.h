@@ -250,5 +250,9 @@ struct _sunspec {
 
 sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const sunspec_callback_t callback);
 sunspec_t* sunspec_init(const char *name, const char *ip, int slave);
+
+void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value);
+void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
+
 void sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
