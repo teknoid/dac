@@ -777,10 +777,10 @@ static void calculate_mosmix(time_t now_ts) {
 static void calculate_gstate() {
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_days(-1);
-	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
-	gstate->consumed = !counter->consumed || !y->consumed ? 0 : counter->consumed - y->consumed;
-	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
-	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
+	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced : 0;
+	gstate->consumed = counter->consumed && y->consumed ? counter->consumed - y->consumed : 0;
+	gstate->pv10 = counter->pv10 && y->pv10 ? counter->pv10 - y->pv10 : 0;
+	gstate->pv7 = counter->pv7 && y->pv7 ? counter->pv7 - y->pv7 : 0;
 	gstate->pv = gstate->pv10 + gstate->pv7;
 
 	// get previous gstate slot to calculate deltas
