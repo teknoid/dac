@@ -18,7 +18,8 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define WAIT_AKKU			10
+#define WAIT_AKKU_DUMB		10
+#define WAIT_AKKU_ADJ		5
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
@@ -104,7 +105,7 @@ int set_heater(device_t *heater, int power) {
 	heater->load = power ? heater->total : 0;
 	heater->aload = pstate ? pstate->load : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->timer = heater->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
+	heater->timer = heater->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU_DUMB : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -172,7 +173,7 @@ int set_boiler(device_t *boiler, int power) {
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->xload = boiler->total * step / -100;
-	boiler->timer = boiler->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU : WAIT_RAMP;
+	boiler->timer = boiler->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU_ADJ : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -385,19 +386,21 @@ static void update_meter(sunspec_t *ss) {
 }
 
 static int select_potd(const potd_t *p) {
+	if (potd == p)
+		return 0;
+
+	// potd has changed - reset all devices
+	set_all_devices(0);
+
 	xlog("FRONIUS selecting %s program of the day", p->name);
-	if (potd != p) {
-		potd = (potd_t*) p;
+	potd = (potd_t*) p;
 
-		// potd has changed - reset all devices
-		set_all_devices(0);
+	// mark devices greedy/modest
+	for (device_t **d = potd->greedy; *d != 0; d++)
+		(*d)->greedy = 1;
+	for (device_t **d = potd->modest; *d != 0; d++)
+		(*d)->greedy = 0;
 
-		// mark devices greedy/modest
-		for (device_t **d = potd->greedy; *d != 0; d++)
-			(*d)->greedy = 1;
-		for (device_t **d = potd->modest; *d != 0; d++)
-			(*d)->greedy = 0;
-	}
 	return 0;
 }
 
@@ -666,7 +669,7 @@ static device_t* standby() {
 static device_t* response(device_t *d) {
 
 	// ramp timer not yet expired -> continue main loop
-	if (d->timer--)
+	if (d->timer-- > 0)
 		return d;
 
 	// no expected delta load - no response to check
@@ -699,7 +702,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		return d; // continue main loop
+		return 0; // next ramp
 	}
 
 	// standby check was positive -> set device into standby
@@ -708,8 +711,7 @@ static device_t* response(device_t *d) {
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
-		d->xload = 0; // no response expected
-		return d; // continue main loop
+		return 0; // next ramp
 	}
 
 	// ignore standby check when power was released
