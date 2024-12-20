@@ -23,13 +23,11 @@
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
-#define StorCtl_Mod			5
-#define OutWRte				12
-#define InWRte				13
-
 #define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
+
+#define WINTER				(now->tm_mon == 11 || now->tm_mon == 12 || now->tm_mon == 1)
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -1019,6 +1017,14 @@ static void hourly(time_t now_ts) {
 
 	// print actual gstate
 	print_gstate(NULL);
+
+	// winter mode: from 15:00 (day) to 02:00 (night) no akku discharge when below 50%
+	if (now->tm_hour == 15 && gstate->soc < 500 && WINTER)
+		sunspec_storage_charge_only(f10);
+
+	// allow both charge and discharge
+	if (now->tm_hour == 2)
+		sunspec_storage_both(f10);
 }
 
 static void minly(time_t now_ts) {
@@ -1390,7 +1396,6 @@ static int fake() {
 }
 
 static int test() {
-
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
 	ss->inverter = 0;
@@ -1409,8 +1414,6 @@ static int test() {
 }
 
 static int battery(char *arg) {
-	uint16_t storCtl_Mod, inWRte, outWRte;
-
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
 	ss->inverter = 0;
@@ -1419,30 +1422,15 @@ static int battery(char *arg) {
 
 	int mode = atoi(arg);
 	switch (mode) {
-	case -1:
-		printf("setting CHARGE ONLY mode\n");
-		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 2);
-		sunspec_write_reg(ss, ss->storage_addr + OutWRte, 0);
-		break;
 	case 1:
-		printf("setting DISCHARGE ONLY mode\n");
-		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 1);
-		sunspec_write_reg(ss, ss->storage_addr + InWRte, 0);
-		break;
+		return sunspec_storage_discharge_only(ss);
+	case -1:
+		return sunspec_storage_charge_only(ss);
 	case 0:
-		printf("setting CHARGE/DISCHARGE (default) mode\n");
-		sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 0);
-		sunspec_write_reg(ss, ss->storage_addr + InWRte, 10000);
-		sunspec_write_reg(ss, ss->storage_addr + OutWRte, 10000);
-		break;
+		return sunspec_storage_both(ss);
 	default:
 		printf("invalid mode %d, allowed -1, 0, 1\n", mode);
 	}
-
-	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
-	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
-	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
-	printf("StorCtl_Mod=%d InWRte=%d OutWRte=%d\n", storCtl_Mod, inWRte, outWRte);
 
 	return 0;
 }

@@ -256,3 +256,8 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 
 void sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
+
+int sunspec_storage_discharge_only(sunspec_t *ss);
+int sunspec_storage_charge_only(sunspec_t *ss);
+int sunspec_storage_both(sunspec_t *ss);
+
