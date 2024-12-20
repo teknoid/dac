@@ -1065,7 +1065,7 @@ static void fronius() {
 		gstate = get_gstate_hours(0);
 		pstate = get_pstate_seconds(0);
 
-		// wait for new second, now sunspec threads are updating pstate values
+		// wait till this second is over, meanwhile sunspec threads have updated values
 		while (now_ts == time(NULL))
 			msleep(333);
 
