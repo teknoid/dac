@@ -1018,13 +1018,21 @@ static void hourly(time_t now_ts) {
 	// print actual gstate
 	print_gstate(NULL);
 
-	// winter mode: from 15:00 to 02:00 no akku discharge when below 50%
-	if (now->tm_hour == 15 && gstate->soc < 500 && WINTER)
-		sunspec_storage_charge_only(f10);
+	// winter mode
+	if (WINTER) {
 
-	// allow both charge and discharge
-	if (now->tm_hour == 2)
-		sunspec_storage_both(f10);
+		// generally no discharge during xmas between 15:00 and 22:00
+		if (now->tm_mon == 12 && 15 <= now->tm_hour && now->tm_hour < 22) {
+			sunspec_storage_charge_only(f10);
+			return;
+		}
+
+		// do not go below 25%
+		if (gstate->soc < 250)
+			sunspec_storage_charge_only(f10);
+		else
+			sunspec_storage_both(f10);
+	}
 }
 
 static void minly(time_t now_ts) {
