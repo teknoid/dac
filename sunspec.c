@@ -257,6 +257,11 @@ void sunspec_stop(sunspec_t *ss) {
 
 int sunspec_storage_discharge_only(sunspec_t *ss) {
 	uint16_t storCtl_Mod, inWRte, outWRte;
+
+	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
+	if (storCtl_Mod == 1)
+		return 0;
+
 	xlog("SUNSPEC setting DISCHARGE ONLY mode");
 	sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 1);
 	sunspec_write_reg(ss, ss->storage_addr + InWRte, 0);
@@ -264,11 +269,17 @@ int sunspec_storage_discharge_only(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
-	return storCtl_Mod == 1;
+
+	return storCtl_Mod == 1 ? 0 : -1;
 }
 
 int sunspec_storage_charge_only(sunspec_t *ss) {
 	uint16_t storCtl_Mod, inWRte, outWRte;
+
+	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
+	if (storCtl_Mod == 2)
+		return 0;
+
 	xlog("SUNSPEC setting CHARGE ONLY mode");
 	sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 2);
 	sunspec_write_reg(ss, ss->storage_addr + OutWRte, 0);
@@ -276,11 +287,17 @@ int sunspec_storage_charge_only(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
-	return storCtl_Mod == 2;
+
+	return storCtl_Mod == 2 ? 0 : -1;
 }
 
 int sunspec_storage_both(sunspec_t *ss) {
 	uint16_t storCtl_Mod, inWRte, outWRte;
+
+	sunspec_read_reg(ss, ss->storage_addr + StorCtl_Mod, &storCtl_Mod);
+	if (storCtl_Mod == 0)
+		return 0;
+
 	xlog("SUNSPEC setting CHARGE/DISCHARGE (default) mode");
 	sunspec_write_reg(ss, ss->storage_addr + StorCtl_Mod, 0);
 	sunspec_write_reg(ss, ss->storage_addr + InWRte, 10000);
@@ -289,7 +306,8 @@ int sunspec_storage_both(sunspec_t *ss) {
 	sunspec_read_reg(ss, ss->storage_addr + InWRte, &inWRte);
 	sunspec_read_reg(ss, ss->storage_addr + OutWRte, &outWRte);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
-	return storCtl_Mod == 0;
+
+	return storCtl_Mod == 0 ? 0 : -1;
 }
 
 int test(int argc, char **argv) {
