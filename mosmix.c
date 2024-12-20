@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "mcp.h"
 
+// all values and today's 24h slots
 static mosmix_t mosmix[256], mosmix24[24];
 
 // gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
