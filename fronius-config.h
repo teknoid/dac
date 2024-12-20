@@ -11,7 +11,8 @@
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 
 #define AKKU_BURNOUT			1
-#define AKKU_CAPACITY			10225	// 11059 total - 7% minimum SoC
+#define AKKU_CAPACITY			11059
+#define MIN_SOC					70
 #define BASELOAD				300
 #define SUSPICIOUS				250
 #define NOISE					25
@@ -118,7 +119,6 @@ struct _pstate {
 	int dc7;
 	int pv7_1;
 	int pv7_2;
-	int surplus;
 	int greedy;
 	int modest;
 	int soc;

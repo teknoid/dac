@@ -542,8 +542,8 @@ static device_t* ramp() {
 			return d;
 	}
 
-	// ramp up only when state is stable or enough surplus power
-	int ok = PSTATE_STABLE || pstate->surplus > 2000;
+	// ramp up only when state is stable or enough power
+	int ok = PSTATE_STABLE || pstate->greedy > 2000 || pstate->modest > 2000;
 	if (!ok)
 		return 0;
 
@@ -773,7 +773,7 @@ static void calculate_mosmix(time_t now_ts) {
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS mosmix needed=%d %d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 }
 
 static void calculate_gstate() {
@@ -789,12 +789,12 @@ static void calculate_gstate() {
 	gstate_t *h = get_gstate_hours(-1);
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
-	gstate->akku = AKKU_CAPACITY * gstate->soc / 1000;
+	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY * (gstate->soc - MIN_SOC) / 1000 : 0;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 	if (gstate->dakku < 0)
 		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use last hour's discharge rate (minutes)
-	else if (gstate->soc > 70)
+	else if (gstate->soc > MIN_SOC)
 		gstate->ttl = gstate->akku * 60 / BASELOAD; // not yet in discharge phase - use BASELOAD (minutes)
 	else
 		gstate->ttl = 0;
@@ -849,7 +849,7 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
 		return;
 	}
 
@@ -896,11 +896,8 @@ static void calculate_pstate() {
 	if (pstate->dxload > 33 && s1->dxload > 33 && s2->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
-	// surplus is akku charge + grid upload
-	pstate->surplus = (pstate->grid + pstate->akku) * -1;
-
 	// greedy power = akku + grid
-	pstate->greedy = pstate->surplus;
+	pstate->greedy = (pstate->grid + pstate->akku) * -1;
 	if (pstate->greedy > 0)
 		pstate->greedy -= NOISE; // threshold for ramp up - allow small akku charging
 	if (abs(pstate->greedy) < NOISE)
@@ -908,7 +905,7 @@ static void calculate_pstate() {
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
 
-	// modest power = only grid upload
+	// modest power = only grid
 	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest

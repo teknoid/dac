@@ -386,7 +386,6 @@ static void print_pstate(const char *message) {
 	xlogl_int_b(line, "PV7", pstate->pv7_1 + pstate->pv7_2);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
-	xlogl_int(line, 1, 0, "Surp", pstate->surplus);
 	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
 	xlogl_int(line, 1, 0, "Modest", pstate->modest);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
@@ -684,8 +683,8 @@ static device_t* ramp() {
 			return d;
 	}
 
-	// ramp up only when state is stable or enough surplus power
-	int ok = PSTATE_STABLE || pstate->surplus > 2000;
+	// ramp up only when state is stable or enough power
+	int ok = PSTATE_STABLE || pstate->greedy > 2000 || pstate->modest > 2000;
 	if (!ok)
 		return 0;
 
@@ -961,7 +960,7 @@ static void calculate_pstate1() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->surplus = pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
 		return;
 	}
 
@@ -1036,12 +1035,8 @@ static void calculate_pstate2() {
 	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
-	// surplus is akku charge + grid upload
-	pstate->surplus = (pstate->grid + pstate->akku) * -1;
-
 	// greedy power = akku + grid
-	// pstate->greedy = (pstate->surplus + h1->surplus + h2->surplus) / 3;
-	pstate->greedy = pstate->surplus;
+	pstate->greedy = (pstate->grid + pstate->akku) * -1;
 	if (pstate->greedy > 0)
 		pstate->greedy -= NOISE; // threshold for ramp up
 	if (abs(pstate->greedy) < NOISE)
@@ -1049,11 +1044,8 @@ static void calculate_pstate2() {
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
 
-	// modest power = only grid upload
-	// pstate->modest = (pstate->grid + h1->grid + h2->grid) / -3;
-	pstate->modest = pstate->grid * -1;
-	if (pstate->modest > 0)
-		pstate->modest -= NOISE; // threshold for ramp up
+	// modest power = only grid
+	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
 	if (abs(pstate->modest) < NOISE)
 		pstate->modest = 0;
 	if (!PSTATE_ACTIVE && pstate->modest < 0)
