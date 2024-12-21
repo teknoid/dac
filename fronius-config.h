@@ -6,7 +6,7 @@
 // hexdump -v -e '15 "%6d ""\n"' /work/fronius-gstate.bin
 #define GSTATE_FILE				"/work/fronius-gstate.bin"
 
-// hexdump -v -e '26 "%6d ""\n"' /work/fronius-pstate*.bin
+// hexdump -v -e '24 "%6d ""\n"' /work/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 
