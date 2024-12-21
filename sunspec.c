@@ -13,11 +13,26 @@
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread
 
 static void collect_models(sunspec_t *ss) {
+	uint32_t sunspec_id;
+
 	uint16_t index[2] = { 0, 0 };
 	uint16_t *id = &index[0];
 	uint16_t *size = &index[1];
 
-	int address = SUNSPEC_BASE_ADDRESS - 1;
+	int address = SUNSPEC_BASE_ADDRESS;
+	modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
+
+	// TODO exchange
+	// 0x53756e53 ('SunS')
+	// 0x6e535375
+	if (sunspec_id != 0x6e535375) {
+		xlog("SUNSPEC %s no 'SunS' found at address %d", ss->name, address);
+		return;
+	}
+
+	xlog("SUNSPEC %s found 'SunS' at address %d", ss->name, address);
+	address += 2;
+
 	while (1) {
 		modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
 
@@ -25,6 +40,15 @@ static void collect_models(sunspec_t *ss) {
 			break;
 
 		switch (*id) {
+
+		case 001:
+			ss->common_addr = address;
+			ss->common_size = *size;
+			ss->common_id = *id;
+			if (!ss->common)
+				ss->common = malloc(sizeof(sunspec_common_t));
+			ZEROP(ss->common);
+			break;
 
 		case 101:
 		case 102:
@@ -46,6 +70,42 @@ static void collect_models(sunspec_t *ss) {
 			if (!ss->meter)
 				ss->meter = malloc(sizeof(sunspec_meter_t));
 			ZEROP(ss->meter);
+			break;
+
+		case 120:
+			ss->nameplate_addr = address;
+			ss->nameplate_size = *size;
+			ss->nameplate_id = *id;
+			if (!ss->nameplate)
+				ss->nameplate = malloc(sizeof(sunspec_nameplate_t));
+			ZEROP(ss->nameplate);
+			break;
+
+		case 121:
+			ss->basic_addr = address;
+			ss->basic_size = *size;
+			ss->basic_id = *id;
+			if (!ss->basic)
+				ss->basic = malloc(sizeof(sunspec_basic_t));
+			ZEROP(ss->basic);
+			break;
+
+		case 122:
+			ss->extended_addr = address;
+			ss->extended_size = *size;
+			ss->extended_id = *id;
+			if (!ss->extended)
+				ss->extended = malloc(sizeof(sunspec_extended_t));
+			ZEROP(ss->extended);
+			break;
+
+		case 123:
+			ss->immediate_addr = address;
+			ss->immediate_size = *size;
+			ss->immediate_id = *id;
+			if (!ss->immediate)
+				ss->immediate = malloc(sizeof(sunspec_immediate_t));
+			ZEROP(ss->immediate);
 			break;
 
 		case 124:
@@ -119,12 +179,23 @@ static void* poll(void *arg) {
 
 		collect_models(ss);
 
-		// TODO read static models once here:
-		// common
-		// nameplate
-		// basic
-		// extended
+		// TODO read more static models once here:
 		// immediate
+
+		if (ss->common)
+			errors += read_model(ss, ss->common_id, ss->common_addr, ss->common_size, (uint16_t*) ss->common);
+
+		if (ss->nameplate)
+			errors += read_model(ss, ss->nameplate_id, ss->nameplate_addr, ss->nameplate_size, (uint16_t*) ss->nameplate);
+
+		if (ss->basic)
+			errors += read_model(ss, ss->basic_id, ss->basic_addr, ss->basic_size, (uint16_t*) ss->basic);
+
+		if (ss->extended)
+			errors += read_model(ss, ss->extended_id, ss->extended_addr, ss->extended_size, (uint16_t*) ss->extended);
+
+		if (ss->immediate)
+			errors += read_model(ss, ss->immediate_id, ss->immediate_addr, ss->immediate_size, (uint16_t*) ss->immediate);
 
 		// read dynamic models in a loop
 		while (errors > -10) {

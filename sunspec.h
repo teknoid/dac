@@ -6,8 +6,7 @@
 
 #define SF_OUT(x, y)		(y == 0 ? x : (x) / pow(10, y))
 
-// modbus address of the first SunSpec model
-#define SUNSPEC_BASE_ADDRESS	40070
+#define SUNSPEC_BASE_ADDRESS	40000
 
 // SunSpec Inverter States
 #define I_STATUS_OFF 			1	// Wechselrichter ist aus
@@ -32,6 +31,137 @@
 //
 // sunspec models generated from Fronius documentation copied to misc/sunspec-struct-template.ods
 //
+
+typedef struct sunspec_common_t {
+	uint16_t ID;
+	uint16_t L;
+	char Mn[32];
+	char Md[32];
+	char Opt[16];
+	char Vr[16];
+	char SN[32];
+	uint16_t DA;
+} sunspec_common_t;
+
+typedef struct sunspec_nameplate_t {
+	uint16_t ID;
+	uint16_t L;
+	uint16_t DERTyp;
+	uint16_t WRtg;
+	int16_t WRtg_SF;
+	uint16_t VARtg;
+	int16_t VARtg_SF;
+	int16_t VArRtgQ1;
+	int16_t VArRtgQ2;
+	int16_t VArRtgQ3;
+	int16_t VArRtgQ4;
+	int16_t VArRtg_SF;
+	uint16_t ARtg;
+	int16_t ARtg_SF;
+	int16_t PFRtgQ1;
+	int16_t PFRtgQ2;
+	int16_t PFRtgQ3;
+	int16_t PFRtgQ4;
+	int16_t PFRtg_SF;
+	uint16_t WHRtg;
+	int16_t WHRtg_SF;
+	uint16_t AhrRtg;
+	int16_t AhrRtg_SF;
+	uint16_t MaxChaRte;
+	int16_t MaxChaRte_SF;
+	uint16_t MaxDisChaRte;
+	int16_t MaxDisChaRte_SF;
+	int16_t pad;
+} sunspec_nameplate_t;
+
+typedef struct sunspec_basic_t {
+	uint16_t ID;
+	uint16_t L;
+	uint16_t WMax;
+	uint16_t VRef;
+	int16_t VRefOfs;
+	uint16_t VMax;
+	uint16_t VMin;
+	int16_t VAMax;
+	int16_t VARMaxQ1;
+	int16_t VARMaxQ2;
+	int16_t VARMaxQ3;
+	int16_t VARMaxQ4;
+	uint16_t WGra;
+	int16_t PFMinQ1;
+	int16_t PFMinQ2;
+	int16_t PFMinQ3;
+	int16_t PFMinQ4;
+	uint16_t VArAct;
+	uint16_t ClcTotVA;
+	uint16_t MaxRmpRte;
+	uint16_t ECPNomHz;
+	uint16_t ConnPh;
+	int16_t WMax_SF;
+	int16_t VRef_SF;
+	int16_t VRefOfs_SF;
+	int16_t VMinMax_SF;
+	int16_t VAMax_SF;
+	int16_t VARMax_SF;
+	int16_t WGra_SF;
+	int16_t PFMin_SF;
+	int16_t MaxRmpRte_SF;
+	int16_t ECPNomHz_SF;
+} sunspec_basic_t;
+
+typedef struct sunspec_extended_t {
+	uint16_t ID;
+	uint16_t L;
+	uint16_t PVConn;
+	uint16_t StorConn;
+	uint16_t ECPConn;
+	uint64_t ActWh;
+	uint64_t ActVAh;
+	uint64_t ActVArhQ1;
+	uint64_t ActVArhQ2;
+	uint64_t ActVArhQ3;
+	uint64_t ActVArhQ4;
+	int16_t VArAval;
+	int16_t VArAval_SF;
+	uint16_t WAval;
+	int16_t WAval_SF;
+	uint32_t StSetLimMsk;
+	uint32_t StActCtl;
+	char TmSrc[8];
+	uint32_t Tms;
+	uint16_t RtSt;
+	uint16_t Riso;
+	int16_t Riso_SF;
+} sunspec_extended_t;
+
+typedef struct sunspec_immediate_t {
+	uint16_t ID;
+	uint16_t L;
+	uint16_t Conn_WinTms;
+	uint16_t Conn_RvrtTms;
+	uint16_t Conn;
+	uint16_t WMaxLimPct;
+	uint16_t WMaxLimPct_WinTms;
+	uint16_t WMaxLimPct_RvrtTms;
+	uint16_t WMaxLimPct_RmpTms;
+	uint16_t WMaxLim_Ena;
+	int16_t OutPFSet;
+	uint16_t OutPFSet_WinTms;
+	uint16_t OutPFSet_RvrtTms;
+	uint16_t OutPFSet_RmpTms;
+	uint16_t OutPFSet_Ena;
+	int16_t VArWMaxPct;
+	int16_t VArMaxPct;
+	int16_t VArAvalPct;
+	uint16_t VArPct_WinTms;
+	uint16_t VArPct_RvrtTms;
+	uint16_t VArPct_RmpTms;
+	uint16_t VArPct_Mod;
+	uint16_t VArPct_Ena;
+	int16_t WMaxLimPct_SF;
+	int16_t OutPFSet_SF;
+	int16_t VArPct_SF;
+} sunspec_immediate_t;
 
 typedef struct sunspec_inverter_t {
 	uint16_t ID;
@@ -234,6 +364,31 @@ struct _sunspec {
 	sunspec_callback_t callback;
 	pthread_t thread;
 	modbus_t *mb;
+
+	sunspec_common_t *common;
+	uint16_t common_addr;
+	uint16_t common_size;
+	uint16_t common_id;
+
+	sunspec_nameplate_t *nameplate;
+	uint16_t nameplate_addr;
+	uint16_t nameplate_size;
+	uint16_t nameplate_id;
+
+	sunspec_basic_t *basic;
+	uint16_t basic_addr;
+	uint16_t basic_size;
+	uint16_t basic_id;
+
+	sunspec_extended_t *extended;
+	uint16_t extended_addr;
+	uint16_t extended_size;
+	uint16_t extended_id;
+
+	sunspec_immediate_t *immediate;
+	uint16_t immediate_addr;
+	uint16_t immediate_size;
+	uint16_t immediate_id;
 
 	sunspec_inverter_t *inverter;
 	uint16_t inverter_addr;

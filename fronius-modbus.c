@@ -18,6 +18,9 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define AKKU_CAPACITY_SOC(soc)	(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) * soc / 1000)
+#define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
+
 #define WAIT_AKKU_DUMB		10
 #define WAIT_AKKU_ADJ		5
 #define WAIT_RAMP			3
@@ -785,7 +788,7 @@ static void calculate_gstate() {
 	gstate_t *h = get_gstate_hours(-1);
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
-	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY * (gstate->soc - MIN_SOC) / 1000 : 0;
+	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
 	if (gstate->dakku < 0)

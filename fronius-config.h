@@ -11,12 +11,10 @@
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 
 #define AKKU_BURNOUT			1
-#define AKKU_CAPACITY			11059
 #define MIN_SOC					70
 #define BASELOAD				300
 #define SUSPICIOUS				250
 #define NOISE					25
-#define EMERGENCY				(AKKU_CAPACITY / 10)
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
 
@@ -34,8 +32,6 @@
 #define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 
 #define GREEDY_MODEST(d)		(d->greedy ? "greedy" : "modest")
-
-#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 
 #define FLOAT10(x)				((float) x / 10.0)
 #define FLOAT60(x)				((float) x / 60.0)

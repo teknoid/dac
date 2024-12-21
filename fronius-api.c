@@ -25,38 +25,42 @@
 // hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
 #define MINMAX_FILE				"/work/fronius-minmax.bin"
 
-#define COUNTER_HISTORY		30		// days
-#define PSTATE_HISTORY		32		// samples
+#define URL_READABLE			"http://fronius/components/readable"
+#define URL_METER				"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
+#define URL_FLOW10				"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+#define URL_FLOW7				"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
 
-#define URL_READABLE		"http://fronius/components/readable"
-#define URL_METER			"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
-#define URL_FLOW10			"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
-#define URL_FLOW7			"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+#define COUNTER_HISTORY			30		// days
+#define PSTATE_HISTORY			32		// samples
 
-#define WAIT_OFFLINE		900
-#define WAIT_STANDBY		300
-#define WAIT_STABLE			60
-#define WAIT_INSTABLE		20
-#define WAIT_AKKU			10
-#define WAIT_NEXT			5
-#define WAIT_RAMP			3
+#define AKKU_CAPACITY			11059
+#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
+#define EMERGENCY				(AKKU_CAPACITY / 10)
 
-#define JMC					" SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f "
-#define JMP					" SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f "
-#define JMV1				" SMARTMETER_VOLTAGE_MEAN_01_F64:%f "
-#define JMV2				" SMARTMETER_VOLTAGE_MEAN_02_F64:%f "
-#define JMV3				" SMARTMETER_VOLTAGE_MEAN_03_F64:%f "
-#define JMF					" SMARTMETER_FREQUENCY_MEAN_F64:%f "
+#define WAIT_OFFLINE			900
+#define WAIT_STANDBY			300
+#define WAIT_STABLE				60
+#define WAIT_INSTABLE			20
+#define WAIT_AKKU				10
+#define WAIT_NEXT				5
+#define WAIT_RAMP				3
 
-#define JBSOC				" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
+#define JMC						" SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f "
+#define JMP						" SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f "
+#define JMV1					" SMARTMETER_VOLTAGE_MEAN_01_F64:%f "
+#define JMV2					" SMARTMETER_VOLTAGE_MEAN_02_F64:%f "
+#define JMV3					" SMARTMETER_VOLTAGE_MEAN_03_F64:%f "
+#define JMF						" SMARTMETER_FREQUENCY_MEAN_F64:%f "
 
-#define JIE1				" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
-#define JIE2				" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
-#define JIP					" PV_POWERACTIVE_SUM_F64:%f "
+#define JBSOC					" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
 
-#define JMMPP				" PowerReal_P_Sum:%f "
-#define JMMC				" EnergyReal_WAC_Sum_Consumed:%f "
-#define JMMP				" EnergyReal_WAC_Sum_Produced:%f "
+#define JIE1					" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
+#define JIE2					" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
+#define JIP						" PV_POWERACTIVE_SUM_F64:%f "
+
+#define JMMPP					" PowerReal_P_Sum:%f "
+#define JMMC					" EnergyReal_WAC_Sum_Consumed:%f "
+#define JMMP					" EnergyReal_WAC_Sum_Produced:%f "
 
 typedef struct _raw raw_t;
 
