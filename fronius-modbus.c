@@ -1011,9 +1011,9 @@ static void hourly(time_t now_ts) {
 
 	// winter mode
 	if (WINTER) {
-		if (gstate->soc < 500 && now->tm_mon == 12 && 15 <= now->tm_hour && now->tm_hour < 22)
-			// generally no discharge during xmas between 15:00 and 22:00 when below 50%
-			sunspec_storage_limit_discharge(f10, 0);
+		if (gstate->soc < 500)
+			// limit discharge to BASELOAD when below 50%
+			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else if (gstate->soc < 250)
 			// do not go below 25%
 			sunspec_storage_limit_discharge(f10, 0);
@@ -1416,19 +1416,12 @@ static int battery(char *arg) {
 	ss->meter = 0;
 	ss->mppt = 0;
 
-	int mode = atoi(arg);
-	switch (mode) {
-	case -1:
-		return sunspec_storage_limit_discharge(ss, 0);
-	case 1:
-		return sunspec_storage_limit_charge(ss, 0);
-	case 0:
-		return sunspec_storage_limit_reset(ss);
-	default:
-		printf("invalid mode %d, allowed -1, 0, 1\n", mode);
-	}
-
-	return 0;
+	int wh = atoi(arg);
+	if (wh > 0)
+		return sunspec_storage_limit_discharge(ss, wh);
+	if (wh < 0)
+		return sunspec_storage_limit_charge(ss, wh * -1);
+	return sunspec_storage_limit_reset(ss);
 }
 
 int fronius_main(int argc, char **argv) {

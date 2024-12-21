@@ -252,56 +252,60 @@ void sunspec_stop(sunspec_t *ss) {
 	free(ss);
 }
 
-int sunspec_storage_limit_discharge(sunspec_t *ss, int limit) {
+int sunspec_storage_limit_discharge(sunspec_t *ss, int wcha) {
 	if (!ss->storage)
 		return 0;
-
-	if (limit < 0)
-		limit = 0;
-
-	if (limit > 100)
-		limit = 100;
 
 	if (!ss->thread)
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
 	int sf = ss->storage->InOutWRte_SF;
-	int limit_sf = SFF_OUT(limit, sf);
+	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+
+	if (wcha < 0)
+		wcha = 0;
+	if (wcha > wchaMax)
+		wcha = wchaMax;
+
+	int limit_sf = SF_OUT(wcha, sf) * 100 / wchaMax;
+
 	if (ss->storage->StorCtl_Mod == 2 && ss->storage->OutWRte == limit_sf)
 		return 0; // already set
 
-	xlog("SUNSPEC set discharge limit to %d", limit);
+	xlog("SUNSPEC set discharge limit to %d W", wcha);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 2);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, limit_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%.1f OutWRte=%.1f WchaMax=%d", ss->storage->StorCtl_Mod, SFF(ss->storage->InWRte, sf), SFF(ss->storage->OutWRte, sf), wchaMax);
 
 	return ss->storage->StorCtl_Mod == 2 ? 0 : -1;
 }
 
-int sunspec_storage_limit_charge(sunspec_t *ss, int limit) {
+int sunspec_storage_limit_charge(sunspec_t *ss, int wcha) {
 	if (!ss->storage)
 		return 0;
-
-	if (limit < 0)
-		limit = 0;
-
-	if (limit > 100)
-		limit = 100;
 
 	if (!ss->thread)
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
 	int sf = ss->storage->InOutWRte_SF;
-	int limit_sf = SFF_OUT(limit, sf);
+	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+
+	if (wcha < 0)
+		wcha = 0;
+	if (wcha > wchaMax)
+		wcha = wchaMax;
+
+	int limit_sf = SF_OUT(wcha, sf) * 100 / wchaMax;
+
 	if (ss->storage->StorCtl_Mod == 1 && ss->storage->InWRte == limit_sf)
 		return 0; // already set
 
-	xlog("SUNSPEC set charge limit to %d", limit);
+	xlog("SUNSPEC set charge limit to %d W", wcha);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 1);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%.1f OutWRte=%.1f WchaMax=%d", ss->storage->StorCtl_Mod, SFF(ss->storage->InWRte, sf), SFF(ss->storage->OutWRte, sf), wchaMax);
 
 	return ss->storage->StorCtl_Mod == 1 ? 0 : -1;
 }
@@ -314,16 +318,18 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
 	int sf = ss->storage->InOutWRte_SF;
-	int limit = SFF_OUT(100, sf);
-	if (ss->storage->StorCtl_Mod == 0 && ss->storage->InWRte == limit && ss->storage->OutWRte == limit)
+	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+	int limit_sf = SF_OUT(100, sf);
+
+	if (ss->storage->StorCtl_Mod == 0 && ss->storage->InWRte == limit_sf && ss->storage->OutWRte == limit_sf)
 		return 0; // already set
 
 	xlog("SUNSPEC reset charge/discharge limits");
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 0);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, limit);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit_sf);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, limit_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d WchaMax=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf), wchaMax);
 
 	return ss->storage->StorCtl_Mod == 0 ? 0 : -1;
 }

@@ -4,7 +4,7 @@
 #define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
 
-#define SFF_OUT(x, y)		(y == 0 ? x : (x) / pow(10, y))
+#define SF_OUT(x, y)		(y == 0 ? x : (x) / pow(10, y))
 
 // modbus address of the first SunSpec model
 #define SUNSPEC_BASE_ADDRESS	40070
@@ -265,6 +265,6 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 void sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
 
-int sunspec_storage_limit_discharge(sunspec_t *ss, int limit);
-int sunspec_storage_limit_charge(sunspec_t *ss, int limit);
+int sunspec_storage_limit_discharge(sunspec_t *ss, int wcha);
+int sunspec_storage_limit_charge(sunspec_t *ss, int wcha);
 int sunspec_storage_limit_reset(sunspec_t *ss);
