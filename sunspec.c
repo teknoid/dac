@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 
 #include "sunspec.h"
@@ -78,7 +79,7 @@ static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, 
 	memset(model, 0, size * sizeof(uint16_t) + 2);
 
 	// read
-	int rc = modbus_read_registers(ss->mb, addr, size, model);
+	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
 	if (rc == -1)
 		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
@@ -192,7 +193,7 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
 	ss->ip = ip;
 	ss->name = name;
 	ss->slave = slave;
-	ss->poll = POLL_TIME_ACTIVE;
+	ss->poll = 0;
 
 	ss->mb = modbus_new_tcp(ss->ip, 502);
 	modbus_set_response_timeout(ss->mb, 5, 0);
@@ -251,65 +252,80 @@ void sunspec_stop(sunspec_t *ss) {
 	free(ss);
 }
 
-int sunspec_storage_discharge_only(sunspec_t *ss) {
-	uint16_t storCtl_Mod, inWRte, outWRte;
-
+int sunspec_storage_limit_discharge(sunspec_t *ss, int limit) {
 	if (!ss->storage)
 		return 0;
 
-	if (ss->storage->StorCtl_Mod == 1)
-		return 0;
+	if (limit < 0)
+		limit = 0;
 
-	xlog("SUNSPEC setting DISCHARGE ONLY mode");
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 1);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, 0);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, &storCtl_Mod);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.InWRte, &inWRte);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
+	if (limit > 100)
+		limit = 100;
 
-	return storCtl_Mod == 1 ? 0 : -1;
-}
+	if (!ss->thread)
+		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
-int sunspec_storage_charge_only(sunspec_t *ss) {
-	uint16_t storCtl_Mod, inWRte, outWRte;
+	int sf = ss->storage->InOutWRte_SF;
+	int limit_sf = SFF_OUT(limit, sf);
+	if (ss->storage->StorCtl_Mod == 2 && ss->storage->OutWRte == limit_sf)
+		return 0; // already set
 
-	if (!ss->storage)
-		return 0;
-
-	if (ss->storage->StorCtl_Mod == 2)
-		return 0;
-
-	xlog("SUNSPEC setting CHARGE ONLY mode");
+	xlog("SUNSPEC set discharge limit to %d", limit);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 2);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, 0);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, &storCtl_Mod);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.InWRte, &inWRte);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, limit_sf);
+	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
 
-	return storCtl_Mod == 2 ? 0 : -1;
+	return ss->storage->StorCtl_Mod == 2 ? 0 : -1;
 }
 
-int sunspec_storage_both(sunspec_t *ss) {
-	uint16_t storCtl_Mod, inWRte, outWRte;
-
+int sunspec_storage_limit_charge(sunspec_t *ss, int limit) {
 	if (!ss->storage)
 		return 0;
 
-	if (ss->storage->StorCtl_Mod == 0)
+	if (limit < 0)
+		limit = 0;
+
+	if (limit > 100)
+		limit = 100;
+
+	if (!ss->thread)
+		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+
+	int sf = ss->storage->InOutWRte_SF;
+	int limit_sf = SFF_OUT(limit, sf);
+	if (ss->storage->StorCtl_Mod == 1 && ss->storage->InWRte == limit_sf)
+		return 0; // already set
+
+	xlog("SUNSPEC set charge limit to %d", limit);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 1);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit_sf);
+	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
+
+	return ss->storage->StorCtl_Mod == 1 ? 0 : -1;
+}
+
+int sunspec_storage_limit_reset(sunspec_t *ss) {
+	if (!ss->storage)
 		return 0;
 
-	xlog("SUNSPEC setting CHARGE/DISCHARGE (default) mode");
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 0);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, 10000);
-	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, 10000);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, &storCtl_Mod);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.InWRte, &inWRte);
-	sunspec_read_reg(ss, ss->storage_addr + storage_offset.OutWRte, &outWRte);
-	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", storCtl_Mod, inWRte, outWRte);
+	if (!ss->thread)
+		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
-	return storCtl_Mod == 0 ? 0 : -1;
+	int sf = ss->storage->InOutWRte_SF;
+	int limit = SFF_OUT(100, sf);
+	if (ss->storage->StorCtl_Mod == 0 && ss->storage->InWRte == limit && ss->storage->OutWRte == limit)
+		return 0; // already set
+
+	xlog("SUNSPEC reset charge/discharge limits");
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 0);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.OutWRte, limit);
+	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf));
+
+	return ss->storage->StorCtl_Mod == 0 ? 0 : -1;
 }
 
 int test(int argc, char **argv) {

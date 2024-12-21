@@ -23,10 +23,6 @@
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
-#define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
-#define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
-#define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
-
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -1017,13 +1013,13 @@ static void hourly(time_t now_ts) {
 	if (WINTER) {
 		if (gstate->soc < 500 && now->tm_mon == 12 && 15 <= now->tm_hour && now->tm_hour < 22)
 			// generally no discharge during xmas between 15:00 and 22:00 when below 50%
-			sunspec_storage_charge_only(f10);
+			sunspec_storage_limit_discharge(f10, 0);
 		else if (gstate->soc < 250)
 			// do not go below 25%
-			sunspec_storage_charge_only(f10);
+			sunspec_storage_limit_discharge(f10, 0);
 		else
 			// normal mode
-			sunspec_storage_both(f10);
+			sunspec_storage_limit_reset(f10);
 	}
 }
 
@@ -1422,12 +1418,12 @@ static int battery(char *arg) {
 
 	int mode = atoi(arg);
 	switch (mode) {
-	case 1:
-		return sunspec_storage_discharge_only(ss);
 	case -1:
-		return sunspec_storage_charge_only(ss);
+		return sunspec_storage_limit_discharge(ss, 0);
+	case 1:
+		return sunspec_storage_limit_charge(ss, 0);
 	case 0:
-		return sunspec_storage_both(ss);
+		return sunspec_storage_limit_reset(ss);
 	default:
 		printf("invalid mode %d, allowed -1, 0, 1\n", mode);
 	}

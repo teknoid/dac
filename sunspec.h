@@ -1,5 +1,11 @@
 #include <modbus/modbus.h>
 
+#define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
+#define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
+#define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
+
+#define SFF_OUT(x, y)		(y == 0 ? x : (x) / pow(10, y))
+
 // modbus address of the first SunSpec model
 #define SUNSPEC_BASE_ADDRESS	40070
 
@@ -136,7 +142,7 @@ typedef struct sunspec_storage_t {
 	int16_t InOutWRte_SF;
 } sunspec_storage_t;
 
-static const sunspec_storage_t storage_offset = { .StorCtl_Mod = 5, .OutWRte = 12, .InWRte = 13 };
+static const sunspec_storage_t storage_offset = { .StorCtl_Mod = 5, .MinRsvPct = 7, .OutWRte = 12, .InWRte = 13, .ChaGriSet = 17 };
 
 typedef struct sunspec_meter_t {
 	uint16_t ID;
@@ -259,7 +265,6 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 void sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
 
-int sunspec_storage_discharge_only(sunspec_t *ss);
-int sunspec_storage_charge_only(sunspec_t *ss);
-int sunspec_storage_both(sunspec_t *ss);
-
+int sunspec_storage_limit_discharge(sunspec_t *ss, int limit);
+int sunspec_storage_limit_charge(sunspec_t *ss, int limit);
+int sunspec_storage_limit_reset(sunspec_t *ss);
