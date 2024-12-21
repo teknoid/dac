@@ -136,6 +136,8 @@ typedef struct sunspec_storage_t {
 	int16_t InOutWRte_SF;
 } sunspec_storage_t;
 
+static const sunspec_storage_t storage_offset = { .StorCtl_Mod = 5, .OutWRte = 12, .InWRte = 13 };
+
 typedef struct sunspec_meter_t {
 	uint16_t ID;
 	uint16_t L;
