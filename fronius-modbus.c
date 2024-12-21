@@ -1314,6 +1314,9 @@ static int init() {
 	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
 	f7 = sunspec_init_poll("Fronius7", "192.168.25.231", 2, &update_f7);
 
+	// wait for collecting models
+	sleep(3);
+
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
 	lt = localtime(&now_ts);
