@@ -769,7 +769,7 @@ static void calculate_mosmix(time_t now_ts) {
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d %d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 }
 
 static void calculate_gstate() {
