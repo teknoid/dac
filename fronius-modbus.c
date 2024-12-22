@@ -752,24 +752,25 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, CHEMNITZ))
 		return;
 
-	// gstate of last hour to match till now produced vs. till now predicted
-	gstate_t *h = get_gstate_hours(-1);
-
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
-	mosmix_sod_eod(now_ts, &sod, &eod);
+	mosmix_sod_eod(now_ts + 1, &sod, &eod);
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
 	float mosmix;
-	if (h->pv && sod.Rad1h) {
-		mosmix = (float) h->pv / (float) sod.Rad1h;
+	if (gstate->pv && sod.Rad1h) {
+		mosmix = (float) gstate->pv / (float) sod.Rad1h;
 		gstate->mosmix = mosmix * 10; // store as x10 scaled
 	} else
 		mosmix = gstate->mosmix / 10 + (gstate->mosmix % 10 < 5 ? 0 : 1); // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", h->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
+	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
+
+	// yesterdays forecast error
+	float forecast_error = 1 - (float) gstate->tomorrow / (float) gstate->pv;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", gstate->tomorrow, gstate->pv, forecast_error);
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -783,7 +784,7 @@ static void calculate_mosmix(time_t now_ts) {
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int hours, from, to;
-	mosmix_survive(now_ts, rad1h_min, &hours, &from, &to);
+	mosmix_survive(now_ts + 1, rad1h_min, &hours, &from, &to);
 	int needed = 0;
 	char line[LINEBUF], value[25];
 	strcpy(line, "FRONIUS mosmix load");
@@ -797,7 +798,6 @@ static void calculate_mosmix(time_t now_ts) {
 		strcat(line, value);
 	}
 	xdebug(line);
-
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
@@ -1369,6 +1369,7 @@ static int single() {
 	gstate = get_gstate_hours(0);
 	counter = get_counter_days(0);
 	pstate = get_pstate_seconds(0);
+	sleep(1); // update values
 
 	storage_strategy();
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);

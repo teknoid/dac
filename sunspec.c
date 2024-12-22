@@ -168,6 +168,8 @@ static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, 
 	return 0;
 }
 
+// TODO more int32 mappings
+
 static int read_common(sunspec_t *ss) {
 	if (!ss->common)
 		return 0;
