@@ -417,7 +417,7 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave);
 void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value);
 void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 
-void sunspec_read(sunspec_t *ss);
+int sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
 
 int sunspec_storage_limit_discharge(sunspec_t *ss, int wcha);

@@ -1152,9 +1152,8 @@ static int calibrate(char *name) {
 
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
-	ss->inverter = 0;
-	ss->storage = 0;
-	ss->mppt = 0;
+	sunspec_read(ss);
+	ss->common = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
@@ -1183,7 +1182,6 @@ static int calibrate(char *name) {
 	// TODO cmdline parameter
 	int max_power = 2000;
 	int onepercent = max_power / 100;
-	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 
 	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
 	// siehe misc/boiler2.txt validate ganz unten: ab 15% plötzlich 300 Watt, vorher nix !!!
@@ -1202,6 +1200,7 @@ static int calibrate(char *name) {
 	sleep(5);
 
 	// do a full drive over SSR characteristic load curve from cold to hot and capture power
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
 	for (int i = 0; i < 1000; i++) {
 		voltage = i * 10;
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
@@ -1425,12 +1424,11 @@ static int fake() {
 	return 0;
 }
 
-static int test() {
+static int grid() {
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
-	ss->inverter = 0;
-	ss->storage = 0;
-	ss->mppt = 0;
+	sunspec_read(ss);
+	ss->common = 0;
 
 	float grid;
 	while (1) {
@@ -1446,9 +1444,7 @@ static int test() {
 static int battery(char *arg) {
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
-	ss->inverter = 0;
-	ss->meter = 0;
-	ss->mppt = 0;
+	sunspec_read(ss);
 
 	int wh = atoi(arg);
 	if (wh > 0)
@@ -1456,6 +1452,10 @@ static int battery(char *arg) {
 	if (wh < 0)
 		return sunspec_storage_limit_charge(ss, wh * -1);
 	return sunspec_storage_limit_reset(ss);
+}
+
+static int test() {
+	return 0;
 }
 
 int fronius_main(int argc, char **argv) {
@@ -1474,7 +1474,7 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:o:tf:s")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:o:f:sgt")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1485,12 +1485,14 @@ int fronius_main(int argc, char **argv) {
 			return calibrate(optarg);
 		case 'o':
 			return fronius_override(optarg);
-		case 't':
-			return test();
 		case 'f':
 			return fake();
 		case 's':
 			return single();
+		case 'g':
+			return grid();
+		case 't':
+			return test();
 		}
 	}
 

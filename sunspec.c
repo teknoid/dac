@@ -19,30 +19,6 @@ static void swap_string(char *string, int size) {
 		SWAP16(*x);
 }
 
-static void map_common(sunspec_common_t *m) {
-	swap_string(m->Mn, 32);
-	swap_string(m->Md, 32);
-	swap_string(m->Opt, 16);
-	swap_string(m->Vr, 16);
-	swap_string(m->SN, 32);
-}
-
-static void map_extended(sunspec_extended_t *m) {
-	swap_string(m->TmSrc, 8);
-}
-
-static void map_mppt(sunspec_mppt_t *m) {
-	swap_string(m->IDStr1, 16);
-	swap_string(m->IDStr2, 16);
-	SWAP32(m->DCWH1);
-	SWAP32(m->DCWH2);
-}
-
-static void map_meter(sunspec_meter_t *m) {
-	SWAP32(m->TotWhExp);
-	SWAP32(m->TotWhImp);
-}
-
 static void collect_models(sunspec_t *ss) {
 	uint32_t sunspec_id;
 
@@ -192,6 +168,91 @@ static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, 
 	return 0;
 }
 
+static int read_common(sunspec_t *ss) {
+	if (!ss->common)
+		return 0;
+
+	int rc = read_model(ss, ss->common_id, ss->common_addr, ss->common_size, (uint16_t*) ss->common);
+	swap_string(ss->common->Mn, 32);
+	swap_string(ss->common->Md, 32);
+	swap_string(ss->common->Opt, 16);
+	swap_string(ss->common->Vr, 16);
+	swap_string(ss->common->SN, 32);
+	xlog("SUNSPEC %s found %s %s (%s) version %s serial %s", ss->name, ss->common->Mn, ss->common->Md, ss->common->Opt, ss->common->Vr, ss->common->SN);
+	return rc;
+}
+
+static int read_nameplate(sunspec_t *ss) {
+	if (!ss->nameplate)
+		return 0;
+
+	int rc = read_model(ss, ss->nameplate_id, ss->nameplate_addr, ss->nameplate_size, (uint16_t*) ss->nameplate);
+	return rc;
+}
+
+static int read_basic(sunspec_t *ss) {
+	if (!ss->basic)
+		return 0;
+
+	int rc = read_model(ss, ss->basic_id, ss->basic_addr, ss->basic_size, (uint16_t*) ss->basic);
+	return rc;
+}
+
+static int read_extended(sunspec_t *ss) {
+	if (!ss->extended)
+		return 0;
+
+	int rc = read_model(ss, ss->extended_id, ss->extended_addr, ss->extended_size, (uint16_t*) ss->extended);
+	swap_string(ss->extended->TmSrc, 8);
+	return rc;
+}
+
+static int read_immediate(sunspec_t *ss) {
+	if (!ss->immediate)
+		return 0;
+
+	int rc = read_model(ss, ss->immediate_id, ss->immediate_addr, ss->immediate_size, (uint16_t*) ss->immediate);
+	return rc;
+}
+
+static int read_inverter(sunspec_t *ss) {
+	if (!ss->inverter)
+		return 0;
+
+	int rc = read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);
+	return rc;
+}
+
+static int read_mppt(sunspec_t *ss) {
+	if (!ss->mppt)
+		return 0;
+
+	int rc = read_model(ss, ss->mppt_id, ss->mppt_addr, ss->mppt_size, (uint16_t*) ss->mppt);
+	swap_string(ss->mppt->IDStr1, 16);
+	swap_string(ss->mppt->IDStr2, 16);
+	SWAP32(ss->mppt->DCWH1);
+	SWAP32(ss->mppt->DCWH2);
+	return rc;
+}
+
+static int read_storage(sunspec_t *ss) {
+	if (!ss->storage)
+		return 0;
+
+	int rc = read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+	return rc;
+}
+
+static int read_meter(sunspec_t *ss) {
+	if (!ss->meter)
+		return 0;
+
+	int rc = read_model(ss, ss->meter_id, ss->meter_addr, ss->meter_size, (uint16_t*) ss->meter);
+	SWAP32(ss->meter->TotWhExp);
+	SWAP32(ss->meter->TotWhImp);
+	return rc;
+}
+
 static void* poll(void *arg) {
 	int rc, errors;
 	sunspec_t *ss = (sunspec_t*) arg;
@@ -219,47 +280,21 @@ static void* poll(void *arg) {
 
 		collect_models(ss);
 
-		// read static models once here
+		// read static models once
+		errors += read_common(ss);
+		errors += read_nameplate(ss);
+		errors += read_basic(ss);
+		errors += read_extended(ss);
+		errors += read_immediate(ss);
 
-		if (ss->common) {
-			errors += read_model(ss, ss->common_id, ss->common_addr, ss->common_size, (uint16_t*) ss->common);
-			map_common(ss->common);
-			xlog("SUNSPEC %s found %s %s (%s) version %s serial %s", ss->name, ss->common->Mn, ss->common->Md, ss->common->Opt, ss->common->Vr, ss->common->SN);
-		}
-
-		if (ss->nameplate)
-			errors += read_model(ss, ss->nameplate_id, ss->nameplate_addr, ss->nameplate_size, (uint16_t*) ss->nameplate);
-
-		if (ss->basic)
-			errors += read_model(ss, ss->basic_id, ss->basic_addr, ss->basic_size, (uint16_t*) ss->basic);
-
-		if (ss->extended) {
-			errors += read_model(ss, ss->extended_id, ss->extended_addr, ss->extended_size, (uint16_t*) ss->extended);
-			map_extended(ss->extended);
-		}
-
-		if (ss->immediate)
-			errors += read_model(ss, ss->immediate_id, ss->immediate_addr, ss->immediate_size, (uint16_t*) ss->immediate);
-
-		// read dynamic models in a loop
 		while (errors > -10) {
 			msleep(ss->poll);
 
-			if (ss->inverter)
-				errors += read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);
-
-			if (ss->mppt) {
-				errors += read_model(ss, ss->mppt_id, ss->mppt_addr, ss->mppt_size, (uint16_t*) ss->mppt);
-				map_mppt(ss->mppt);
-			}
-
-			if (ss->storage)
-				errors += read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-
-			if (ss->meter) {
-				errors += read_model(ss, ss->meter_id, ss->meter_addr, ss->meter_size, (uint16_t*) ss->meter);
-				map_meter(ss->meter);
-			}
+			// read dynamic models in the loop
+			errors += read_inverter(ss);
+			errors += read_mppt(ss);
+			errors += read_storage(ss);
+			errors += read_meter(ss);
 
 			// execute the callback function to process model data
 			if (ss->callback)
@@ -291,18 +326,18 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
 		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 }
 
-void sunspec_read(sunspec_t *ss) {
-	if (ss->inverter)
-		read_model(ss, ss->inverter_id, ss->inverter_addr, ss->inverter_size, (uint16_t*) ss->inverter);
-
-	if (ss->mppt)
-		read_model(ss, ss->mppt_id, ss->mppt_addr, ss->mppt_size, (uint16_t*) ss->mppt);
-
-	if (ss->storage)
-		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-
-	if (ss->meter)
-		read_model(ss, ss->meter_id, ss->meter_addr, ss->meter_size, (uint16_t*) ss->meter);
+int sunspec_read(sunspec_t *ss) {
+	int errors = 0;
+	errors += read_common(ss);
+	errors += read_nameplate(ss);
+	errors += read_basic(ss);
+	errors += read_extended(ss);
+	errors += read_immediate(ss);
+	errors += read_inverter(ss);
+	errors += read_mppt(ss);
+	errors += read_storage(ss);
+	errors += read_meter(ss);
+	return errors;
 }
 
 sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
