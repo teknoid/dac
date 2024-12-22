@@ -13,12 +13,10 @@
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread
 
 static void swap_string(char *string, int size) {
-	// printf("%s\n", string);
 	uint16_t *x = (uint16_t*) string;
 	uint16_t *y = (uint16_t*) string + size / 2;
 	for (; x < y; x++)
 		SWAP16(*x);
-	// printf("%s\n", string);
 }
 
 static void map_common(sunspec_common_t *m) {
@@ -221,8 +219,7 @@ static void* poll(void *arg) {
 
 		collect_models(ss);
 
-		// TODO read more static models once here:
-		// immediate
+		// read static models once here
 
 		if (ss->common) {
 			errors += read_model(ss, ss->common_id, ss->common_addr, ss->common_size, (uint16_t*) ss->common);
@@ -268,8 +265,8 @@ static void* poll(void *arg) {
 			if (ss->callback)
 				(ss->callback)(ss);
 
-//			xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
-//			xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
+			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
+			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 		}
 
 		xlog("SUNSPEC aborting %s poll due to too many errors: %d", ss->name, abs(errors));
@@ -504,8 +501,8 @@ int test(int argc, char **argv) {
 
 		modbus_read_registers(mb, 40069, 50, (uint16_t*) &inverter);
 		modbus_read_registers(mb, 40253, 48, (uint16_t*) &mppt);
-//		modbus_set_slave(mb, 200);
-//		modbus_read_registers(mb, METER_OFFSET - 1, METER_SIZE, (uint16_t*) &meter);
+		// modbus_set_slave(mb, 200);
+		// modbus_read_registers(mb, METER_OFFSET - 1, METER_SIZE, (uint16_t*) &meter);
 
 		xlog("inverter model validation ID=%d L=%d", inverter.ID, inverter.L);
 		xlog("mppt     model validation ID=%d L=%d", mppt.ID, mppt.L);
