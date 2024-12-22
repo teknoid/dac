@@ -72,7 +72,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   sun   exp   soc  akku dakku   ttl  mosm  surv"
+#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   sun   exp   soc  akku Δakku   ttl  mosm  surv"
 struct _gstate {
 	int pv;
 	int pv10;
