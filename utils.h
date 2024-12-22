@@ -10,8 +10,8 @@
 #define ZEROP(x)					memset((void*) x, 0, sizeof(*x))
 #define ZERO(x)						memset((void*) &x, 0, sizeof(x))
 
-#define SWAP16(x)					(((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
-#define SWAP32(x)					(((x << 16) & 0xffff0000) | ((x >> 16) & 0x0000ffff))
+#define SWAP16(x)					x = (((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
+#define SWAP32(x)					x = (((x << 16) & 0xffff0000) | ((x >> 16) & 0x0000ffff))
 
 #define msleep(x)					usleep(x * 1000)
 

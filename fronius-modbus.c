@@ -322,9 +322,7 @@ static void update_f10(sunspec_t *ss) {
 	case I_STATUS_MPPT:
 		pstate->pv10_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
 		pstate->pv10_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		uint32_t x = SWAP32(ss->mppt->DCWH1);
-		uint32_t y = SWAP32(ss->mppt->DCWH2);
-		counter->pv10 = SFUI(x + y, ss->mppt->DCWH_SF);
+		counter->pv10 = SFUI(ss->mppt->DCWH1 + ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
 		ss->active = 1;
 		break;
@@ -353,9 +351,7 @@ static void update_f7(sunspec_t *ss) {
 	case I_STATUS_MPPT:
 		pstate->pv7_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
 		pstate->pv7_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		uint32_t x = SWAP32(ss->mppt->DCWH1);
-		uint32_t y = SWAP32(ss->mppt->DCWH2);
-		counter->pv7 = SFUI(x + y, ss->mppt->DCWH_SF);
+		counter->pv7 = SFUI(ss->mppt->DCWH1 + ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
 		ss->active = 1;
 		break;
@@ -377,10 +373,8 @@ static void update_meter(sunspec_t *ss) {
 	if (!pstate || !counter)
 		return;
 
-	uint32_t x = SWAP32(ss->meter->TotWhExp);
-	uint32_t y = SWAP32(ss->meter->TotWhImp);
-	counter->produced = SFUI(x, ss->meter->TotWh_SF);
-	counter->consumed = SFUI(y, ss->meter->TotWh_SF);
+	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
+	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 }
 
