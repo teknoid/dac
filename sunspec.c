@@ -178,7 +178,7 @@ static int read_common(sunspec_t *ss) {
 	swap_string(ss->common->Opt, 16);
 	swap_string(ss->common->Vr, 16);
 	swap_string(ss->common->SN, 32);
-	xlog("SUNSPEC %s found %s %s (%s) version %s serial %s", ss->name, ss->common->Mn, ss->common->Md, ss->common->Opt, ss->common->Vr, ss->common->SN);
+	xlog("SUNSPEC %s device is %s %s (%s) version %s serial %s", ss->name, ss->common->Mn, ss->common->Md, ss->common->Opt, ss->common->Vr, ss->common->SN);
 	return rc;
 }
 
