@@ -29,6 +29,8 @@
 #define I2C				"/dev/i2c-3"
 #endif
 
+#define SHIFT			128
+
 static int i2cfd;
 
 static void handle_button(unsigned char c) {
@@ -57,11 +59,14 @@ static void handle_button(unsigned char c) {
 	case 32:
 		fronius_override_seconds("tisch", 3600);
 		break;
-	case 160: // shift
+	case 32 + SHIFT:
 		fronius_override_seconds("wozi", 3600);
 		break;
 	case 64:
-		fronius_water();
+		fronius_boiler1();
+		break;
+	case 64 + SHIFT:
+		fronius_boiler3();
 		break;
 #endif
 	}

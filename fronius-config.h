@@ -207,4 +207,5 @@ static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4,
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
 
 // force boiler heating
-static const potd_t WATER = { .name = "WATER", .greedy = { &b1, &b2, &b3, 0 }, .modest = { 0 } };
+static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, &b2, &b3, 0 }, .modest = { 0 } };
+static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, &b2, &b1, 0 }, .modest = { 0 } };

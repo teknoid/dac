@@ -50,8 +50,12 @@ static int sock = 0;
 
 static int select_potd(const potd_t *p);
 
-int fronius_water() {
-	return select_potd(&WATER);
+int fronius_boiler1() {
+	return select_potd(&BOILER1);
+}
+
+int fronius_boiler3() {
+	return select_potd(&BOILER3);
 }
 
 int fronius_override_seconds(const char *name, int seconds) {
