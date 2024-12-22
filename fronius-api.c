@@ -33,6 +33,7 @@
 #define COUNTER_HISTORY			30		// days
 #define PSTATE_HISTORY			32		// samples
 
+#define MIN_SOC					70
 #define AKKU_CAPACITY			11059
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)

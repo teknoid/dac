@@ -11,7 +11,6 @@
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
 
 #define AKKU_BURNOUT			1
-#define MIN_SOC					70
 #define BASELOAD				300
 #define SUSPICIOUS				250
 #define NOISE					25

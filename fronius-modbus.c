@@ -20,6 +20,7 @@
 
 #define AKKU_CAPACITY_SOC(soc)	(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) * soc / 1000)
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
+#define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
 #define WAIT_AKKU_DUMB		10
 #define WAIT_AKKU_ADJ		5
