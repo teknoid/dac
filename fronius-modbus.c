@@ -109,7 +109,7 @@ int set_heater(device_t *heater, int power) {
 	heater->load = power ? heater->total : 0;
 	heater->aload = pstate ? pstate->load : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->timer = heater->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU_DUMB : WAIT_RAMP;
+	heater->timer = heater->xload < 0 && pstate && pstate->soc < 900 ? WAIT_AKKU_DUMB : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -177,7 +177,7 @@ int set_boiler(device_t *boiler, int power) {
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->xload = boiler->total * step / -100;
-	boiler->timer = boiler->xload < 0 && gstate && gstate->soc < 900 ? WAIT_AKKU_ADJ : WAIT_RAMP;
+	boiler->timer = boiler->xload < 0 && pstate && pstate->soc < 900 ? WAIT_AKKU_ADJ : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -315,13 +315,12 @@ static void print_state(const char *message) {
 }
 
 static void update_f10(sunspec_t *ss) {
-	if (!pstate || !gstate || !counter)
+	if (!pstate || !counter)
 		return;
 
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
-	gstate->soc = pstate->soc;
 
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
@@ -391,18 +390,21 @@ static void storage_strategy() {
 		// set minimum SoC to 10%
 		sunspec_storage_minimum_soc(f10, 10);
 
-		if (gstate->soc < 500)
+		if (pstate->soc < 500 && now->tm_mon == 11)
+			// limit discharge to BASELOAD + XMAS when below 50% in December
+			sunspec_storage_limit_discharge(f10, BASELOAD + XMAS);
+		else if (pstate->soc < 500)
 			// limit discharge to BASELOAD when below 50%
 			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else
-			// normal mode
+			// no limits
 			sunspec_storage_limit_reset(f10);
 
 	} else {
-		// standard mode
 
-		// set minimum SoC to 5%
+		// standard mode
 		sunspec_storage_minimum_soc(f10, 5);
+		sunspec_storage_limit_reset(f10);
 	}
 }
 
@@ -805,6 +807,9 @@ static void calculate_mosmix(time_t now_ts) {
 }
 
 static void calculate_gstate() {
+	// take over SoC
+	gstate->soc = pstate->soc;
+
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_days(-1);
 	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced : 0;
@@ -837,6 +842,7 @@ static void calculate_pstate() {
 	pstate_t *m2 = get_pstate_minutes(-2);
 	pstate_t *s1 = get_pstate_seconds(-1);
 	pstate_t *s2 = get_pstate_seconds(-2);
+	gstate_t *g1 = get_gstate_hours(-1);
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
@@ -872,7 +878,7 @@ static void calculate_pstate() {
 	// offline mode when 3x not enough PV production
 	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && g1->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
@@ -1036,12 +1042,8 @@ static void hourly(time_t now_ts) {
 	calculate_mosmix(now_ts);
 	choose_potd();
 
-	// copy gstate values to next hour
-	gstate_t *gh1 = get_gstate_hours(1);
-	memcpy((void*) gh1, (void*) gstate, sizeof(gstate_t));
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
-
 	// print actual gstate
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 }
 
@@ -1049,10 +1051,10 @@ static void minly(time_t now_ts) {
 	// xlog("FRONIUS executing minutely tasks...");
 
 	// aggregate 59 seconds into current minute
-//	dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	pstate_t *pm = get_pstate_minutes(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-//	dump_struct((int*) pm, PSTATE_SIZE, 0);
+	// dump_struct((int*) pm, PSTATE_SIZE, 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1182,9 +1184,6 @@ static int calibrate(char *name) {
 	// TODO cmdline parameter
 	int max_power = 2000;
 	int onepercent = max_power / 100;
-
-	// TODO !!! anders rum weil immer rampup gemacht wird und kalt völlige andere kurve
-	// siehe misc/boiler2.txt validate ganz unten: ab 15% plötzlich 300 Watt, vorher nix !!!
 
 	// average offset power at start
 	printf("calculating offset start");
