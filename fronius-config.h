@@ -1,14 +1,14 @@
 #include "tasmota-devices.h"
 
-// hexdump -v -e '4 "%10d ""\n"' /work/fronius-counter.bin
-#define COUNTER_FILE			"/work/fronius-counter.bin"
+// hexdump -v -e '4 "%10d ""\n"' /tmp/fronius-counter.bin
+#define COUNTER_FILE			"/tmp/fronius-counter.bin"
 
-// hexdump -v -e '15 "%6d ""\n"' /work/fronius-gstate.bin
-#define GSTATE_FILE				"/work/fronius-gstate.bin"
+// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-gstate.bin
+#define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 
-// hexdump -v -e '24 "%6d ""\n"' /work/fronius-pstate*.bin
-#define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
-#define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
+// hexdump -v -e '24 "%6d ""\n"' /tmp/fronius-pstate*.bin
+#define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
+#define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
 
 #define AKKU_BURNOUT			1
 #define MIN_SOC					70

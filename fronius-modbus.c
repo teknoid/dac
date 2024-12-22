@@ -763,12 +763,19 @@ static void calculate_mosmix(time_t now_ts) {
 	int hours, from, to;
 	mosmix_survive(now_ts, rad1h_min, &hours, &from, &to);
 	int needed = 0;
+	char line[LINEBUF], value[25];
+	strcpy(line, "FRONIUS mosmix load");
 	for (int i = 0; i < hours; i++) {
 		int hour = from + i;
 		if (hour >= 24)
 			hour -= 24;
-		needed += pstate_hours[hour].load * -1;
+		int load = pstate_hours[hour].load * -1;
+		needed += load;
+		snprintf(value, 25, " %d:%d", hour, load);
+		strcat(line, value);
 	}
+	xdebug(line);
+
 	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
@@ -1014,12 +1021,12 @@ static void hourly(time_t now_ts) {
 
 	// winter mode
 	if (WINTER) {
-		if (gstate->soc < 500)
-			// limit discharge to BASELOAD when below 50%
-			sunspec_storage_limit_discharge(f10, BASELOAD);
-		else if (gstate->soc < 250)
+		if (gstate->soc < 250)
 			// do not go below 25%
 			sunspec_storage_limit_discharge(f10, 0);
+		else if (gstate->soc < 500)
+			// limit discharge to BASELOAD when below 50%
+			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else
 			// normal mode
 			sunspec_storage_limit_reset(f10);
@@ -1332,8 +1339,8 @@ static int init() {
 //	sleep(1);
 //	calculate_gstate();
 //	calculate_mosmix(now_ts);
-//	dump_table("FRONIUS gstate", (int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, GSTATE_HEADER);
-//	choose_program();
+//	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate", GSTATE_HEADER);
+//	choose_potd();
 //	print_gstate(NULL);
 //	exit(0);
 
