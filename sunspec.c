@@ -269,7 +269,7 @@ static void* poll(void *arg) {
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 		}
 
-		xlog("SUNSPEC aborting %s poll due to too many errors: %d", ss->name, abs(errors));
+		xlog("SUNSPEC aborting %s poll due to too many errors");
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
@@ -451,6 +451,25 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d WchaMax=%d", ss->storage->StorCtl_Mod, SFI(ss->storage->InWRte, sf), SFI(ss->storage->OutWRte, sf), wchaMax);
 
 	return ss->storage->StorCtl_Mod == 0 ? 0 : -1;
+}
+
+int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
+	if (!ss->storage)
+		return 0;
+
+	if (!ss->thread)
+		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+
+	int soc_sf = SF_OUT(soc, ss->storage->MinRsvPct_SF);
+	if (ss->storage->MinRsvPct == soc_sf)
+		return 0; // already set
+
+	xlog("SUNSPEC setting minimum SoC to %d", soc);
+	sunspec_write_reg(ss, ss->storage_addr + storage_offset.MinRsvPct, soc_sf);
+	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
+	xlog("SUNSPEC MinRsvPct=%d", SFI(ss->storage->MinRsvPct, ss->storage->MinRsvPct_SF));
+
+	return ss->storage->MinRsvPct == soc_sf ? 0 : -1;
 }
 
 int test(int argc, char **argv) {

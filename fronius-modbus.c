@@ -241,7 +241,7 @@ static counter_t* get_counter_days(int offset) {
 
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS gstate");
+	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", gstate->pv);
 	xlogl_int_b(line, "PV10", gstate->pv10);
 	xlogl_int_b(line, "PV7", gstate->pv7);
@@ -376,6 +376,29 @@ static void update_meter(sunspec_t *ss) {
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
+}
+
+// define storage strategy
+static void storage_strategy() {
+	if (WINTER) {
+		// winter mode
+
+		// set minimum SoC to 10%
+		sunspec_storage_minimum_soc(f10, 10);
+
+		if (gstate->soc < 500)
+			// limit discharge to BASELOAD when below 50%
+			sunspec_storage_limit_discharge(f10, BASELOAD);
+		else
+			// normal mode
+			sunspec_storage_limit_reset(f10);
+
+	} else {
+		// standard mode
+
+		// set minimum SoC to 5%
+		sunspec_storage_minimum_soc(f10, 5);
+	}
 }
 
 static int select_potd(const potd_t *p) {
@@ -994,6 +1017,9 @@ static void hourly(time_t now_ts) {
 	if (PSTATE_OFFLINE)
 		set_all_devices(0);
 
+	// define storage strategy
+	storage_strategy();
+
 	// aggregate 59 minutes into current hour
 	dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = get_pstate_hours(0);
@@ -1008,23 +1034,10 @@ static void hourly(time_t now_ts) {
 	// copy gstate values to next hour
 	gstate_t *gh1 = get_gstate_hours(1);
 	memcpy((void*) gh1, (void*) gstate, sizeof(gstate_t));
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate", GSTATE_HEADER);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 
 	// print actual gstate
 	print_gstate(NULL);
-
-	// winter mode
-	if (WINTER) {
-		if (gstate->soc < 250)
-			// do not go below 25%
-			sunspec_storage_limit_discharge(f10, 0);
-		else if (gstate->soc < 500)
-			// limit discharge to BASELOAD when below 50%
-			sunspec_storage_limit_discharge(f10, BASELOAD);
-		else
-			// normal mode
-			sunspec_storage_limit_reset(f10);
-	}
 }
 
 static void minly(time_t now_ts) {
@@ -1326,18 +1339,6 @@ static int init() {
 	// initialize program of the day
 	choose_potd();
 
-	// TODO debug
-//	gstate = get_gstate_hours(0);
-//	counter = get_counter_days(0);
-//	pstate = get_pstate_seconds(0);
-//	sleep(1);
-//	calculate_gstate();
-//	calculate_mosmix(now_ts);
-//	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate", GSTATE_HEADER);
-//	choose_potd();
-//	print_gstate(NULL);
-//	exit(0);
-
 	return 0;
 }
 
@@ -1355,6 +1356,27 @@ static void stop() {
 
 	if (sock)
 		close(sock);
+}
+
+static int single() {
+	time_t now_ts = time(NULL);
+
+	init();
+	gstate = get_gstate_hours(0);
+	counter = get_counter_days(0);
+	pstate = get_pstate_seconds(0);
+
+	storage_strategy();
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
+	calculate_gstate();
+	calculate_mosmix(now_ts);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	print_gstate(NULL);
+	print_state(NULL);
+	choose_potd();
+	stop();
+
+	return 0;
 }
 
 // fake state and counter records from actual values and copy to history records
@@ -1447,7 +1469,7 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:o:tf")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:o:tf:s")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1462,6 +1484,8 @@ int fronius_main(int argc, char **argv) {
 			return test();
 		case 'f':
 			return fake();
+		case 's':
+			return single();
 		}
 	}
 
