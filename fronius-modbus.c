@@ -764,7 +764,7 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// yesterdays forecast error
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float forecast_error = gstate->pv ? 1 - (float) yesterdays_tomorrow / (float) gstate->pv : 0;
+	float forecast_error = gstate->pv ? (float) yesterdays_tomorrow / (float) gstate->pv : 0;
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", yesterdays_tomorrow, gstate->pv, forecast_error);
 	gstate->fcerror = forecast_error * 10; // store as x10 scaled
 
