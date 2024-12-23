@@ -266,7 +266,7 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 0, 0, "FCError", FLOAT10(gstate->fcerror));
+	xlogl_float(line, 0, 0, "Forecast", FLOAT10(gstate->forecast));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
@@ -768,11 +768,11 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, CHEMNITZ))
 		return;
 
-	// yesterdays forecast error
+	// todays pv / yesterdays forecast ratio
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float forecast_error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", yesterdays_tomorrow, gstate->pv, forecast_error);
-	gstate->fcerror = forecast_error * 10; // store as x10 scaled
+	float forecast = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, ratio %.1f", yesterdays_tomorrow, gstate->pv, forecast);
+	gstate->forecast = forecast * 10; // store as x10 scaled
 
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;

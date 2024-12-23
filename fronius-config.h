@@ -87,7 +87,7 @@ struct _gstate {
 	int dakku;
 	int ttl;
 	int mosmix;
-	int fcerror;
+	int forecast;
 	int survive;
 };
 
