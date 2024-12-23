@@ -1,12 +1,13 @@
 #include <modbus/modbus.h>
 
-#define SFF(x, y)			(y == 0 ? x : (x) * pow(10, y))
-#define SFI(x, y)			(y == 0 ? x : (int)((x) * pow(10, y)))
-#define SFUI(x, y)			(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
-
-#define SF_OUT(x, y)		(y == 0 ? x : (x) / pow(10, y))
+#define SFF(x, y)				(y == 0 ? x : (x) * pow(10, y))
+#define SFI(x, y)				(y == 0 ? x : (int)((x) * pow(10, y)))
+#define SFUI(x, y)				(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
+#define SFOUT(x, y)				(y == 0 ? x : (x) / pow(10, y))
 
 #define SUNSPEC_BASE_ADDRESS	40000
+
+#define OFFSET(model, reg)		(((void*) &reg - (void*) model) / 2)
 
 // SunSpec Inverter States
 #define I_STATUS_OFF 			1	// Wechselrichter ist aus
@@ -271,8 +272,6 @@ typedef struct sunspec_storage_t {
 	int16_t InBatV_SF;
 	int16_t InOutWRte_SF;
 } sunspec_storage_t;
-
-static const sunspec_storage_t storage_offset = { .StorCtl_Mod = 5, .MinRsvPct = 7, .OutWRte = 12, .InWRte = 13, .ChaGriSet = 17 };
 
 typedef struct sunspec_meter_t {
 	uint16_t ID;
