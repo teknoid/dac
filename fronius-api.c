@@ -63,7 +63,7 @@
 #define JMMC					" EnergyReal_WAC_Sum_Consumed:%f "
 #define JMMP					" EnergyReal_WAC_Sum_Produced:%f "
 
-#define MOSMIX					"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
+#define MOSMIX24				"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
 
 typedef struct _raw raw_t;
 
@@ -901,7 +901,7 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_24h(now_ts, 1, &mosmix1);
 	gstate->today = mosmix0.Rad1h * mosmix;
 	gstate->tomorrow = mosmix1.Rad1h * mosmix;
-	xdebug(MOSMIX, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
+	xdebug(MOSMIX24, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore

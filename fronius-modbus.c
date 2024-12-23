@@ -26,7 +26,7 @@
 #define WAIT_RAMP				3
 #define WAIT_NEXT				1
 
-#define MOSMIX					"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
+#define MOSMIX24				"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -756,6 +756,12 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, CHEMNITZ))
 		return;
 
+	// yesterdays forecast error
+	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
+	float forecast_error = gstate->pv ? 1 - (float) yesterdays_tomorrow / (float) gstate->pv : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", yesterdays_tomorrow, gstate->pv, forecast_error);
+	gstate->fcerror = forecast_error * 10; // store as x10 scaled
+
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
 	mosmix_sod_eod(now_ts + 1, &sod, &eod);
@@ -772,18 +778,12 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod.Rad1h * mosmix;
 	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
-	// yesterdays forecast error
-	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float forecast_error = gstate->pv ? 1 - (float) yesterdays_tomorrow / (float) gstate->pv : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", yesterdays_tomorrow, gstate->pv, forecast_error);
-	gstate->fcerror = forecast_error * 10; // store as x10 scaled
-
 	// mosmix total expected today and tomorrow
 	mosmix_24h(now_ts, 0, &mosmix0);
 	mosmix_24h(now_ts, 1, &mosmix1);
 	gstate->today = mosmix0.Rad1h * mosmix;
 	gstate->tomorrow = mosmix1.Rad1h * mosmix;
-	xdebug(MOSMIX, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
+	xdebug(MOSMIX24, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore

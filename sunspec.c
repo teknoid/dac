@@ -473,7 +473,7 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int wcha) {
 	if (ss->storage->StorCtl_Mod == 1 && ss->storage->InWRte == limit_sf)
 		return 0; // already set
 
-	xlog("SUNSPEC set charge limit to %d W", wcha);
+	xlog("SUNSPEC setting charge limit to %d W", wcha);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.StorCtl_Mod, 1);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.InWRte, limit_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
@@ -517,7 +517,7 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (ss->storage->MinRsvPct == soc_sf)
 		return 0; // already set
 
-	xlog("SUNSPEC setting minimum SoC to %d", soc);
+	xlog("SUNSPEC setting minimum SoC to %d%%", soc);
 	sunspec_write_reg(ss, ss->storage_addr + storage_offset.MinRsvPct, soc_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 	xlog("SUNSPEC MinRsvPct=%d", SFI(ss->storage->MinRsvPct, ss->storage->MinRsvPct_SF));
