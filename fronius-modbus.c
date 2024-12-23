@@ -1392,6 +1392,11 @@ static int single() {
 	return 0;
 }
 
+// TODO idea: insert (+1) or remove (-1) columns when gstate structure has changed
+static int migrate(char *arg) {
+	return 0;
+}
+
 // fake state and counter records from actual values and copy to history records
 static int fake() {
 	time_t now_ts = time(NULL);
@@ -1461,11 +1466,6 @@ static int battery(char *arg) {
 	if (wh < 0)
 		return sunspec_storage_limit_charge(ss, wh * -1);
 	return sunspec_storage_limit_reset(ss);
-}
-
-// TODO idea: insert (+1) or remove (-1) columns when gstate structure has changed
-static int migrate(char *arg) {
-	return 0;
 }
 
 static int test() {
