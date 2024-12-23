@@ -52,7 +52,9 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
+// forward declarations
 static int select_program(const potd_t *p);
+static void init_all_devices();
 
 int fronius_boiler1() {
 	return select_program(&BOILER1);
@@ -63,6 +65,10 @@ int fronius_boiler3() {
 }
 
 int fronius_override_seconds(const char *name, int seconds) {
+#ifdef FRONIUS_MAIN
+	init_all_devices();
+#endif
+
 	for (device_t **d = DEVICES; *d != 0; d++) {
 		if (!strcmp((*d)->name, name)) {
 			xlog("FRONIUS Activating Override on %s", (*d)->name);
@@ -1153,6 +1159,8 @@ static int calibrate(char *name) {
 	int offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
 
+	init_all_devices();
+
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
 	sunspec_read(ss);
@@ -1476,8 +1484,6 @@ int fronius_main(int argc, char **argv) {
 		stop();
 		return 0;
 	}
-
-	init_all_devices();
 
 	int c;
 	while ((c = getopt(argc, argv, "b:c:o:m:fgst")) != -1) {
