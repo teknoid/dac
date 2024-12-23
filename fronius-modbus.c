@@ -22,9 +22,11 @@
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
-#define WAIT_AKKU			10
-#define WAIT_RAMP			3
-#define WAIT_NEXT			1
+#define WAIT_AKKU				10
+#define WAIT_RAMP				3
+#define WAIT_NEXT				1
+
+#define MOSMIX					"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -41,20 +43,23 @@ static volatile gstate_t *gstate = 0;
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
 static volatile pstate_t *pstate = 0;
 
+// mosmix 24h forecasts today and tomorrow
+static mosmix_t mosmix0, mosmix1;
+
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
-static int select_potd(const potd_t *p);
+static int select_program(const potd_t *p);
 
 int fronius_boiler1() {
-	return select_potd(&BOILER1);
+	return select_program(&BOILER1);
 }
 
 int fronius_boiler3() {
-	return select_potd(&BOILER3);
+	return select_program(&BOILER3);
 }
 
 int fronius_override_seconds(const char *name, int seconds) {
@@ -251,7 +256,6 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Sun", gstate->sun);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Exp", gstate->expected);
@@ -390,15 +394,13 @@ static void storage_strategy() {
 		// set minimum SoC to 10%
 		sunspec_storage_minimum_soc(f10, 10);
 
-		if (pstate->soc < 500 && now->tm_mon == 11)
-			// limit discharge to BASELOAD + XMAS when below 50% in December
-			sunspec_storage_limit_discharge(f10, BASELOAD + XMAS);
-		else if (pstate->soc < 500)
-			// limit discharge to BASELOAD when below 50%
+		int nosun = mosmix1.SunD1 < 3600;		// tomorrow less than 1h sun
+		int half = pstate->soc < 500;			// SoC below 50%
+
+		if (nosun || half)
 			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else
-			// no limits
-			sunspec_storage_limit_reset(f10);
+			sunspec_storage_limit_reset(f10);	// no limits
 
 	} else {
 
@@ -408,7 +410,7 @@ static void storage_strategy() {
 	}
 }
 
-static int select_potd(const potd_t *p) {
+static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0;
 
@@ -428,28 +430,28 @@ static int select_potd(const potd_t *p) {
 }
 
 // choose program of the day
-static int choose_potd() {
+static int choose_program() {
 	if (!gstate)
-		return select_potd(&MODEST);
+		return select_program(&MODEST);
 
 	// charging akku has priority
 	if (gstate->soc < 100)
-		return select_potd(&CHARGE);
+		return select_program(&CHARGE);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
-		return select_potd(&MODEST);
+		return select_program(&MODEST);
 
 	// survive and less than 2h sun
-	if (gstate->sun < 7200)
-		return select_potd(&MODEST);
+	if (mosmix0.SunD1 < 7200)
+		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
-		return select_potd(&GREEDY);
+		return select_program(&GREEDY);
 
 	// enough pv available
-	return select_potd(&SUNNY);
+	return select_program(&SUNNY);
 }
 
 // minimum available power for ramp up
@@ -777,13 +779,11 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->fcerror = forecast_error * 10; // store as x10 scaled
 
 	// mosmix total expected today and tomorrow
-	mosmix_t m0, m1;
-	mosmix_24h(now_ts, 0, &m0);
-	mosmix_24h(now_ts, 1, &m1);
-	gstate->sun = m0.SunD1;
-	gstate->today = m0.Rad1h * mosmix;
-	gstate->tomorrow = m1.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
+	mosmix_24h(now_ts, 0, &mosmix0);
+	mosmix_24h(now_ts, 1, &mosmix1);
+	gstate->today = mosmix0.Rad1h * mosmix;
+	gstate->tomorrow = mosmix1.Rad1h * mosmix;
+	xdebug(MOSMIX, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
@@ -1041,7 +1041,7 @@ static void hourly(time_t now_ts) {
 	// recalculate gstate, mosmix and potd
 	calculate_gstate();
 	calculate_mosmix(now_ts);
-	choose_potd();
+	choose_program();
 
 	// print actual gstate
 	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
@@ -1341,7 +1341,7 @@ static int init() {
 	memcpy(now, lt, sizeof(*lt));
 
 	// initialize program of the day
-	choose_potd();
+	choose_program();
 
 	return 0;
 }
@@ -1378,7 +1378,7 @@ static int single() {
 	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 	print_state(NULL);
-	choose_potd();
+	choose_program();
 	stop();
 
 	return 0;
@@ -1455,6 +1455,11 @@ static int battery(char *arg) {
 	return sunspec_storage_limit_reset(ss);
 }
 
+// TODO idea: insert (+1) or remove (-1) columns when gstate structure has changed
+static int migrate(char *arg) {
+	return 0;
+}
+
 static int test() {
 	return 0;
 }
@@ -1475,7 +1480,7 @@ int fronius_main(int argc, char **argv) {
 	init_all_devices();
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:o:f:sgt")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:o:m:fgst")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1486,12 +1491,14 @@ int fronius_main(int argc, char **argv) {
 			return calibrate(optarg);
 		case 'o':
 			return fronius_override(optarg);
+		case 'm':
+			return migrate(optarg);
 		case 'f':
 			return fake();
-		case 's':
-			return single();
 		case 'g':
 			return grid();
+		case 's':
+			return single();
 		case 't':
 			return test();
 		}

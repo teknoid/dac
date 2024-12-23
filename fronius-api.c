@@ -63,6 +63,8 @@
 #define JMMC					" EnergyReal_WAC_Sum_Consumed:%f "
 #define JMMP					" EnergyReal_WAC_Sum_Produced:%f "
 
+#define MOSMIX					"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
+
 typedef struct _raw raw_t;
 
 struct _raw {
@@ -97,6 +99,9 @@ static int pstate_history_ptr = 0;
 
 // global state with total counters and daily calculations
 static gstate_t gstate_history[24], *gstate = &gstate_history[0];
+
+// mosmix 24h forecasts today and tomorrow
+static mosmix_t mosmix0, mosmix1;
 
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;
@@ -369,7 +374,6 @@ static void print_gstate(const char *message) {
 	xlogl_int_b(line, "PV7", gstate->pv7);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Sun", gstate->sun);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
 	xlogl_int(line, 0, 0, "Exp", gstate->expected);
@@ -563,8 +567,8 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// survive and less than 1h sun
-	if (gstate->sun < 3600)
+	// survive and less than 2h sun
+	if (mosmix0.SunD1 < 7200)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -893,12 +897,11 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", h->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
 	// mosmix total expected today and tomorrow
-	mosmix_t m0, m1;
-	mosmix_24h(now_ts, 0, &m0);
-	mosmix_24h(now_ts, 1, &m1);
-	gstate->today = m0.Rad1h * mosmix;
-	gstate->tomorrow = m1.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, gstate->today, gstate->tomorrow);
+	mosmix_24h(now_ts, 0, &mosmix0);
+	mosmix_24h(now_ts, 1, &mosmix1);
+	gstate->today = mosmix0.Rad1h * mosmix;
+	gstate->tomorrow = mosmix1.Rad1h * mosmix;
+	xdebug(MOSMIX, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
