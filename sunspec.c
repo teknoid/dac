@@ -27,7 +27,9 @@ static void collect_models(sunspec_t *ss) {
 	uint16_t *size = &index[1];
 
 	int address = SUNSPEC_BASE_ADDRESS;
+	pthread_mutex_lock(&ss->lock);
 	modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
+	pthread_mutex_unlock(&ss->lock);
 
 	// 0x53756e53 = 'SunS'
 	SWAP32(sunspec_id);
@@ -40,7 +42,9 @@ static void collect_models(sunspec_t *ss) {
 	address += 2;
 
 	while (1) {
+		pthread_mutex_lock(&ss->lock);
 		modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
+		pthread_mutex_unlock(&ss->lock);
 
 		if (*id == 0xffff && *size == 0)
 			break;
@@ -155,7 +159,9 @@ static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, 
 	memset(model, 0, size * sizeof(uint16_t) + 2);
 
 	// read
+	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
+	pthread_mutex_unlock(&ss->lock);
 	if (rc == -1)
 		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
@@ -317,13 +323,17 @@ static void* poll(void *arg) {
 }
 
 void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value) {
+	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_write_register(ss->mb, addr, value);
+	pthread_mutex_unlock(&ss->lock);
 	if (rc == -1)
 		xerr("SUNSPEC %s modbus_write_register %s", ss->name, modbus_strerror(errno));
 }
 
 void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
+	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, 1, value);
+	pthread_mutex_unlock(&ss->lock);
 	if (rc == -1)
 		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 }

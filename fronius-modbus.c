@@ -22,8 +22,7 @@
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
-#define WAIT_AKKU_DUMB		10
-#define WAIT_AKKU_ADJ		5
+#define WAIT_AKKU			10
 #define WAIT_RAMP			3
 #define WAIT_NEXT			1
 
@@ -104,12 +103,12 @@ int set_heater(device_t *heater, int power) {
 		tasmota_power(heater->id, heater->r, 0);
 #endif
 
-	// update power values and timer: slow ramp up while akku not yet full, fast ramp down + ramp up when full
+	// update power values and timer: slow ramp up while akku is charging, fast ramp down + ramp up when full
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
 	heater->aload = pstate ? pstate->load : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->timer = heater->xload < 0 && pstate && pstate->soc < 900 ? WAIT_AKKU_DUMB : WAIT_RAMP;
+	heater->timer = heater->xload < 0 && pstate && pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP;
 	return 1; // loop done
 }
 
@@ -172,12 +171,12 @@ int set_boiler(device_t *boiler, int power) {
 		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 #endif
 
-	// update power values and timer: slow ramp up while akku not yet full, fast ramp down + ramp up when full
+	// update power values and timer: slow ramp up while akku is charging, fast ramp down + ramp up when full
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->xload = boiler->total * step / -100;
-	boiler->timer = boiler->xload < 0 && pstate && pstate->soc < 900 ? WAIT_AKKU_ADJ : WAIT_RAMP;
+	boiler->timer = boiler->xload < 0 && pstate && pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP;
 	return 1; // loop done
 }
 
