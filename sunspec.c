@@ -361,6 +361,8 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
 	ss->slave = slave;
 	ss->poll = 0;
 
+	pthread_mutex_init(&ss->lock, NULL);
+
 	ss->mb = modbus_new_tcp(ss->ip, 502);
 	modbus_set_response_timeout(ss->mb, 5, 0);
 	modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
@@ -389,6 +391,8 @@ sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const 
 	ss->callback = callback;
 	ss->poll = POLL_TIME_ACTIVE;
 
+	pthread_mutex_init(&ss->lock, NULL);
+
 	if (pthread_create(&ss->thread, NULL, &poll, ss))
 		xerr("SUNSPEC Error creating %s poll thread", ss->name);
 
@@ -413,6 +417,8 @@ void sunspec_stop(sunspec_t *ss) {
 
 	if (ss->mb)
 		modbus_free(ss->mb);
+
+	pthread_mutex_destroy(&ss->lock);
 
 	xlog("SUNSPEC stopped %s", ss->name);
 	free(ss);

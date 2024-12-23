@@ -40,6 +40,8 @@ static void xlog_open() {
 		perror("error opening logfile!");
 		exit(EXIT_FAILURE);
 	}
+
+	pthread_mutex_init(&lock, NULL);
 	fprintf(xlog_file, "\nlogging initialized\n");
 	fflush(xlog_file);
 }
@@ -58,6 +60,7 @@ void xlog_close() {
 		fclose(xlog_file);
 	}
 
+	pthread_mutex_destroy(&lock);
 	output = XLOG_STDOUT; // switch back to stdout
 }
 
