@@ -3,7 +3,7 @@
 // hexdump -v -e '4 "%10d ""\n"' /tmp/fronius-counter.bin
 #define COUNTER_FILE			"/tmp/fronius-counter.bin"
 
-// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-gstate.bin
+// hexdump -v -e '16 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 
 // hexdump -v -e '24 "%6d ""\n"' /tmp/fronius-pstate*.bin
@@ -72,7 +72,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   sun   exp   soc  akku Δakku   ttl  mosm  surv"
+#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   sun   exp   soc  akku Δakku   ttl  mosm fcerr  surv"
 struct _gstate {
 	int pv;
 	int pv10;
@@ -88,6 +88,7 @@ struct _gstate {
 	int dakku;
 	int ttl;
 	int mosmix;
+	int fcerror;
 	int survive;
 };
 
@@ -208,5 +209,5 @@ static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4,
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
 
 // force boiler heating
-static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, &b2, &b3, 0 }, .modest = { 0 } };
-static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, &b2, &b1, 0 }, .modest = { 0 } };
+static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, &b2, &b3, 0 }, .modest = { &h1, &h2, &h3, &h4, 0 } };
+static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, &b2, &b1, 0 }, .modest = { &h1, &h2, &h3, &h4, 0 } };

@@ -259,6 +259,7 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, 0, 0, "FCError", FLOAT10(gstate->fcerror));
 	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
@@ -771,8 +772,10 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
 
 	// yesterdays forecast error
-	float forecast_error = 1 - (float) gstate->tomorrow / (float) gstate->pv;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", gstate->tomorrow, gstate->pv, forecast_error);
+	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
+	float forecast_error = gstate->pv ? 1 - (float) yesterdays_tomorrow / (float) gstate->pv : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, error %.1f", yesterdays_tomorrow, gstate->pv, forecast_error);
+	gstate->fcerror = forecast_error * 10; // store as x10 scaled
 
 	// mosmix total expected today and tomorrow
 	mosmix_t m0, m1;
@@ -900,8 +903,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	// if (pstate->sdpv > 10000 || m1->sdpv > 1000 || m2->sdpv > 1000) {
-	if (pstate->sdpv > 10000 || m1->sdpv > 5000) {
+	if (pstate->sdpv > 20000 || m1->sdpv > 10000 || m2->sdpv > 10000) {
 		pstate->flags |= FLAG_DISTORTION;
 		xdebug("FRONIUS distortion=%d pstate->sdpv %d m1->sdpv %d m2->sdpv %d", PSTATE_DISTORTION, pstate->sdpv, m1->sdpv, m2->sdpv);
 	}
