@@ -114,12 +114,11 @@ int set_heater(device_t *heater, int power) {
 		tasmota_power(heater->id, heater->r, 0);
 #endif
 
-	// update power values and timer: slow ramp up while akku is charging, fast ramp down + ramp up when full
+	// update power values
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
-	heater->aload = pstate ? pstate->load : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->timer = heater->xload < 0 && pstate && pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP;
+	heater->aload = pstate ? pstate->load : 0;
 	return 1; // loop done
 }
 
@@ -182,12 +181,11 @@ int set_boiler(device_t *boiler, int power) {
 		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 #endif
 
-	// update power values and timer: slow ramp up while akku is charging, fast ramp down + ramp up when full
+	// update power values
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
-	boiler->aload = pstate ? pstate->load : 0;
 	boiler->xload = boiler->total * step / -100;
-	boiler->timer = boiler->xload < 0 && pstate && pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP;
+	boiler->aload = pstate ? pstate->load : 0;
 	return 1; // loop done
 }
 
@@ -562,15 +560,19 @@ static device_t* ramp() {
 	// prio1: no extra power available: ramp down modest devices
 	if (pstate->modest < 0) {
 		d = rampdown(pstate->modest, potd->modest);
-		if (d)
+		if (d) {
+			d->timer = WAIT_RAMP;
 			return d;
+		}
 	}
 
 	// prio2: consuming grid power or discharging akku: ramp down greedy devices too
 	if (pstate->greedy < 0) {
 		d = rampdown(pstate->greedy, potd->greedy);
-		if (d)
+		if (d) {
+			d->timer = WAIT_RAMP;
 			return d;
+		}
 	}
 
 	// ramp up only when state is stable or enough power
@@ -581,15 +583,19 @@ static device_t* ramp() {
 	// prio3: uploading grid power or charging akku: ramp up only greedy devices
 	if (pstate->greedy > 0) {
 		d = rampup(pstate->greedy, potd->greedy);
-		if (d)
+		if (d) {
+			d->timer = pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP; // akku needs ~10 seconds to ramp down charge power !!!
 			return d;
+		}
 	}
 
 	// prio4: extra power available: ramp up modest devices too
 	if (pstate->modest > 0) {
 		d = rampup(pstate->modest, potd->modest);
-		if (d)
+		if (d) {
+			d->timer = WAIT_RAMP;
 			return d;
+		}
 	}
 
 	return 0;
