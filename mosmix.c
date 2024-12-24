@@ -22,6 +22,7 @@ static void parse(char **strings, size_t size) {
 	m->TTT = atof(strings[2]) - 273.15;
 	m->Rad1h = atoi(strings[3]);
 	m->SunD1 = atoi(strings[4]);
+	m->RSunD = atoi(strings[5]);
 }
 
 void mosmix_24h(time_t now_ts, int day, mosmix_t *sum) {
@@ -39,6 +40,8 @@ void mosmix_24h(time_t now_ts, int day, mosmix_t *sum) {
 		if (ts_from < m->ts && m->ts <= ts_to) {
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
+			if (m->RSunD)
+				sum->RSunD = m->RSunD;	// last 24 hours calculated at 0 and 6
 		}
 	}
 }
@@ -200,7 +203,7 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);
-	xlog("MOSMIX Rad1h/SunD1 today %d/%d tomorrow %d/%d tomorrow+1 %d/%d", m0.Rad1h, m0.SunD1, m1.Rad1h, m1.SunD1, m2.Rad1h, m2.SunD1);
+	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	// eod - calculate values till end of day
 	mosmix_t sod, eod;

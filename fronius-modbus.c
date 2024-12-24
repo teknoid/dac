@@ -26,7 +26,7 @@
 #define WAIT_RAMP				3
 #define WAIT_NEXT				1
 
-#define MOSMIX24				"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
+#define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -43,8 +43,8 @@ static volatile gstate_t *gstate = 0;
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
 static volatile pstate_t *pstate = 0;
 
-// mosmix 24h forecasts today and tomorrow
-static mosmix_t mosmix0, mosmix1;
+// mosmix 24h forecasts today, tomorrow and tomorrow+1
+static mosmix_t m0, m1, m2;
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
@@ -398,7 +398,7 @@ static void storage_strategy() {
 		// set minimum SoC to 10%
 		sunspec_storage_minimum_soc(f10, 10);
 
-		int nosun = mosmix1.SunD1 < 3600;		// tomorrow less than 1h sun
+		int nosun = m2.RSunD < 10;				// tomorrow (m2!) less than 10% sun
 		int half = pstate->soc < 500;			// SoC below 50%
 
 		if (nosun || half)
@@ -446,8 +446,8 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// survive and less than 2h sun
-	if (mosmix0.SunD1 < 7200)
+	// survive and today (m1!) less than 50% sun
+	if (m1.RSunD < 50)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -774,6 +774,12 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, ratio %.1f", yesterdays_tomorrow, gstate->pv, forecast);
 	gstate->forecast = forecast * 10; // store as x10 scaled
 
+	// mosmix 24h forecasts today, tomorrow, tomorrow+1
+	mosmix_24h(now_ts, 0, &m0);
+	mosmix_24h(now_ts, 1, &m1);
+	mosmix_24h(now_ts, 2, &m2);
+	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
+
 	// sod+eod - values from midnight to now and now till next midnight
 	mosmix_t sod, eod;
 	mosmix_sod_eod(now_ts + 1, &sod, &eod);
@@ -786,16 +792,16 @@ static void calculate_mosmix(time_t now_ts) {
 	} else
 		mosmix = gstate->mosmix / 10 + (gstate->mosmix % 10 < 5 ? 0 : 1); // take over existing value
 
-	// expected pv power till end of day
-	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", gstate->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
+	// calculate sunny factor from RSunD (found in day+1 !)
+	float s0 = 1 + (float) m1.RSunD / 100;
+	float s1 = 1 + (float) m2.RSunD / 100;
 
-	// mosmix total expected today and tomorrow
-	mosmix_24h(now_ts, 0, &mosmix0);
-	mosmix_24h(now_ts, 1, &mosmix1);
-	gstate->today = mosmix0.Rad1h * mosmix;
-	gstate->tomorrow = mosmix1.Rad1h * mosmix;
-	xdebug(MOSMIX24, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
+	// expected total today/tomorrow and till end of day
+	gstate->today = m0.Rad1h * mosmix * s0;
+	gstate->tomorrow = m1.Rad1h * mosmix * s1;
+	gstate->expected = eod.Rad1h * mosmix * s0;
+	xdebug("FRONIUS mosmix today    total=%d sunny=%.2f mosmix=%.2f sod=%d eod=%d expected=%d", gstate->today, s0, mosmix, sod.Rad1h, eod.Rad1h, gstate->expected);
+	xdebug("FRONIUS mosmix tomorrow total=%d sunny=%.2f mosmix=%.2f ", gstate->tomorrow, s1, mosmix);
 
 	// calculate survival factor
 	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore

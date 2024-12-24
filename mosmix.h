@@ -12,6 +12,7 @@ struct _mosmix {
 	float TTT;
 	int Rad1h;
 	int SunD1;
+	int RSunD;
 };
 
 int mosmix_load(time_t now_ts, const char *filename);

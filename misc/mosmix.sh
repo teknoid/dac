@@ -26,6 +26,7 @@ ID=$1
 P1=$2
 P2=$3
 P3=$4
+P4=$5
 
 cd /tmp
 F=MOSMIX_L_LATEST_$ID.kmz
@@ -58,8 +59,11 @@ fi
 if [ ! -z $P3 ]; then
   V3=($(jq .$NAME.$P3[] $FORECASTS))
 fi
+if [ ! -z $P4 ]; then
+  V4=($(jq .$NAME.$P4[] $FORECASTS))
+fi
 
-echo "idx, ts, $P1, $P2, $P3" > $OUT
+echo "idx, ts, $P1, $P2, $P3, $P4" > $OUT
 for i in "${!K[@]}"; do
-  echo "${i}, ${K[$i]}, ${V1[$i]}, ${V2[$i]}, ${V3[$i]}" >> $OUT
+  echo "${i}, ${K[$i]}, ${V1[$i]}, ${V2[$i]}, ${V3[$i]}, ${V4[$i]}" >> $OUT
 done
