@@ -446,8 +446,8 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
-	// survive and today (m1!) less than 50% sun
-	if (m1.RSunD < 50)
+	// survive and today (m1!) less than 10% sun
+	if (m1.RSunD < 10)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -768,11 +768,19 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, CHEMNITZ))
 		return;
 
-	// todays pv / yesterdays forecast ratio
+	// last hour actual vs. forecast ratio
+	mosmix_t *m = mosmix_current_slot(now_ts);
+	gstate_t *g1 = get_gstate_hours(-1);
+	int ah = gstate->pv - g1->pv;
+	int xh = m->Rad1h * (1 + m->SunD1 / 3600);
+	float lhf = xh ? (float) ah / (float) xh : 0;
+	xdebug("FRONIUS mosmix last hour Rad1h/SunD1 %d/%d expected %d, actual pv %d, ratio %.2f", m->Rad1h, m->SunD1, xh, ah, lhf);
+
+	// actual vs. yesterdays expected ratio
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float forecast = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv today %d, ratio %.1f", yesterdays_tomorrow, gstate->pv, forecast);
-	gstate->forecast = forecast * 10; // store as x10 scaled
+	float yf = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, ratio %.2f", yesterdays_tomorrow, gstate->pv, yf);
+	gstate->forecast = yf * 10; // store as x10 scaled
 
 	// mosmix 24h forecasts today, tomorrow, tomorrow+1
 	mosmix_24h(now_ts, 0, &m0);
