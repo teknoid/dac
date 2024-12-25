@@ -86,7 +86,7 @@ void mosmix_calculate(int *today, int *tomorrow) {
 
 		// xdebug("actual=%d x0=%d factor=%.2f expected=%d", m0->actual, x0, factor, m0->expected);
 	}
-	xdebug("today=%d tomorrow=%d", *today, *tomorrow);
+	xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
 }
 
 void mosmix_update_time(time_t now_ts, int actual) {
