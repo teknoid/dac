@@ -1412,11 +1412,6 @@ static int single() {
 	return 0;
 }
 
-// TODO idea: insert (+1) or remove (-1) columns when gstate structure has changed
-static int migrate(char *arg) {
-	return 0;
-}
-
 // fake state and counter records from actual values and copy to history records
 static int fake() {
 	time_t now_ts = time(NULL);
@@ -1488,6 +1483,15 @@ static int battery(char *arg) {
 	return sunspec_storage_limit_reset(ss);
 }
 
+static int minimum(char *arg) {
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
+	sunspec_read(ss);
+
+	int min = atoi(arg);
+	return sunspec_storage_minimum_soc(ss, min);
+}
+
 static int test() {
 	return 0;
 }
@@ -1506,7 +1510,7 @@ int fronius_main(int argc, char **argv) {
 	}
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:o:m:fgst")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:m:o:fgst")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1515,10 +1519,10 @@ int fronius_main(int argc, char **argv) {
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
 			return calibrate(optarg);
+		case 'm':
+			return minimum(optarg);
 		case 'o':
 			return fronius_override(optarg);
-		case 'm':
-			return migrate(optarg);
 		case 'f':
 			return fake();
 		case 'g':
