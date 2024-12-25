@@ -765,16 +765,17 @@ static device_t* response(device_t *d) {
 
 static void calculate_mosmix(time_t now_ts) {
 	// reload mosmix data
-	if (mosmix_load(now_ts, CHEMNITZ))
+	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
 	// last hour actual vs. forecast ratio
 	mosmix_t *m = mosmix_current_slot(now_ts);
 	gstate_t *g1 = get_gstate_hours(-1);
+	float sunny = 1 + (float) m->SunD1 / 3600;
 	int ah = gstate->pv - g1->pv;
-	int xh = m->Rad1h * (1 + m->SunD1 / 3600);
+	int xh = m->Rad1h * sunny;
 	float lhf = xh ? (float) ah / (float) xh : 0;
-	xdebug("FRONIUS mosmix last hour Rad1h/SunD1 %d/%d expected %d, actual pv %d, ratio %.2f", m->Rad1h, m->SunD1, xh, ah, lhf);
+	xdebug("FRONIUS mosmix last hour Rad1h/SunD1 %d/%d sunny=%.2f expected %d, actual pv %d, ratio %.2f", m->Rad1h, m->SunD1, sunny, xh, ah, lhf);
 
 	// actual vs. yesterdays expected ratio
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
@@ -1400,13 +1401,14 @@ static int single() {
 	sleep(1); // update values
 
 	storage_strategy();
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
+	calculate_pstate();
 	calculate_gstate();
 	calculate_mosmix(now_ts);
+	choose_program();
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
+	print_state(NULL);
 	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
-	print_state(NULL);
-	choose_program();
 	stop();
 
 	return 0;
