@@ -867,11 +867,11 @@ static void calculate_pstate() {
 	pstate->flags = 0;
 
 	// get history pstates
+	gstate_t *g1 = get_gstate_hours(-1);
 	pstate_t *m1 = get_pstate_minutes(-1);
 	pstate_t *m2 = get_pstate_minutes(-2);
 	pstate_t *s1 = get_pstate_seconds(-1);
 	pstate_t *s2 = get_pstate_seconds(-2);
-	gstate_t *g1 = get_gstate_hours(-1);
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
@@ -925,7 +925,7 @@ static void calculate_pstate() {
 	}
 
 	// state is stable when we have three times no grid changes
-	if (abs(pstate->dgrid) < NOISE && abs(s1->dgrid) < NOISE && abs(s2->dgrid) < NOISE)
+	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
