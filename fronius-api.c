@@ -101,7 +101,7 @@ static int pstate_history_ptr = 0;
 static gstate_t gstate_history[24], *gstate = &gstate_history[0];
 
 // mosmix 24h forecasts today and tomorrow
-static mosmix_t mosmix0, mosmix1;
+static mosmix_file_t mosmix0, mosmix1;
 
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;

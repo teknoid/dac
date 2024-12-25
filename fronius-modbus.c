@@ -44,7 +44,7 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
 static volatile pstate_t *pstate = 0;
 
 // mosmix 24h forecasts today, tomorrow and tomorrow+1
-static mosmix_t m0, m1, m2;
+static mosmix_file_t m0, m1, m2;
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
@@ -772,7 +772,7 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
 	// update last hour's pv and recalculate
-	mosmix_update_time(now_ts, gstate->dpv);
+	mosmix_update(now->tm_hour, gstate->dpv);
 	int today, tomorrow;
 	mosmix_calculate(&today, &tomorrow);
 	mosmix_dump_today();
@@ -1492,7 +1492,7 @@ static int test() {
 		int dpv = g->pv - g1->pv;
 		if (dpv < 0)
 			dpv = 0;
-		mosmix_update_hour(i, dpv);
+		mosmix_update(i, dpv);
 	}
 
 	int today, tomorrow;
