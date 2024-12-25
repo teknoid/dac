@@ -380,7 +380,6 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
@@ -885,12 +884,12 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_sod_eod(now_ts, &sod, &eod);
 
 	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
-	float mosmix;
-	if (h->pv && sod.Rad1h) {
-		mosmix = (float) h->pv / (float) sod.Rad1h;
-		gstate->mosmix = mosmix * 10; // store as x10 scaled
-	} else
-		mosmix = lround((float) gstate->mosmix / 10.0); // take over existing value
+	float mosmix = 0;
+//	if (h->pv && sod.Rad1h) {
+//		mosmix = (float) h->pv / (float) sod.Rad1h;
+//		gstate->mosmix = mosmix * 10; // store as x10 scaled
+//	} else
+//		mosmix = lround((float) gstate->mosmix / 10.0); // take over existing value
 
 	// expected pv power till end of day
 	gstate->expected = eod.Rad1h * mosmix;

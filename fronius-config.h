@@ -3,7 +3,7 @@
 // hexdump -v -e '4 "%10d ""\n"' /tmp/fronius-counter.bin
 #define COUNTER_FILE			"/tmp/fronius-counter.bin"
 
-// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-gstate.bin
+// hexdump -v -e '14 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 
 // hexdump -v -e '24 "%6d ""\n"' /tmp/fronius-pstate*.bin
@@ -72,9 +72,10 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv  pv10   pv7 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  mosm fcerr  surv"
+#define GSTATE_HEADER	"    pv   Δpv  pv10   pv7 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  surv"
 struct _gstate {
 	int pv;
+	int dpv;
 	int pv10;
 	int pv7;
 	int produced;
@@ -86,8 +87,6 @@ struct _gstate {
 	int akku;
 	int dakku;
 	int ttl;
-	int mosmix;
-	int forecast;
 	int survive;
 };
 

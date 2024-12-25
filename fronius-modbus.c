@@ -266,8 +266,6 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 0, 0, "Forecast", FLOAT10(gstate->forecast));
-	xlogl_float(line, 0, 0, "Mosmix", FLOAT10(gstate->mosmix));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
@@ -768,20 +766,16 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
-	// last hour actual vs. forecast ratio
-	mosmix_t *m = mosmix_current_slot(now_ts);
-	gstate_t *g1 = get_gstate_hours(-1);
-	float sunny = 1 + (float) m->SunD1 / 3600;
-	int ah = gstate->pv - g1->pv;
-	int xh = m->Rad1h * sunny;
-	float lhf = xh ? (float) ah / (float) xh : 0;
-	xdebug("FRONIUS mosmix last hour Rad1h/SunD1 %d/%d sunny=%.2f expected %d, actual pv %d, ratio %.2f", m->Rad1h, m->SunD1, sunny, xh, ah, lhf);
-
 	// actual vs. yesterdays expected ratio
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float yf = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, ratio %.2f", yesterdays_tomorrow, gstate->pv, yf);
-	gstate->forecast = yf * 10; // store as x10 scaled
+	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+
+	// update last hour's pv and recalculate
+	mosmix_update_time(now_ts, gstate->dpv);
+	int today, tomorrow;
+	mosmix_calculate(&today, &tomorrow);
+	mosmix_dump_today();
 
 	// mosmix 24h forecasts today, tomorrow, tomorrow+1
 	mosmix_24h(now_ts, 0, &m0);
@@ -793,29 +787,15 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_t sod, eod;
 	mosmix_sod_eod(now_ts + 1, &sod, &eod);
 
-	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
-	float mosmix;
-	if (gstate->pv && sod.Rad1h) {
-		mosmix = (float) gstate->pv / (float) sod.Rad1h;
-		gstate->mosmix = mosmix * 10; // store as x10 scaled
-	} else
-		mosmix = gstate->mosmix / 10 + (gstate->mosmix % 10 < 5 ? 0 : 1); // take over existing value
-
-	// calculate sunny factor from RSunD (found in day+1 !)
-	float s0 = 1 + (float) m1.RSunD / 100;
-	float s1 = 1 + (float) m2.RSunD / 100;
-
-	// expected total today/tomorrow and till end of day
-	gstate->today = m0.Rad1h * mosmix * s0;
-	gstate->tomorrow = m1.Rad1h * mosmix * s1;
-	gstate->expected = eod.Rad1h * mosmix * s0;
-	xdebug("FRONIUS mosmix today    total=%d sunny=%.2f mosmix=%.2f sod=%d eod=%d expected=%d", gstate->today, s0, mosmix, sod.Rad1h, eod.Rad1h, gstate->expected);
-	xdebug("FRONIUS mosmix tomorrow total=%d sunny=%.2f mosmix=%.2f ", gstate->tomorrow, s1, mosmix);
+	// save expected today and tomorrow
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->expected = eod.expected;
 
 	// calculate survival factor
-	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int hours, from, to;
-	mosmix_survive(now_ts + 1, rad1h_min, &hours, &from, &to);
+	// TODO check factor/expected
+	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
 	int needed = 0;
 	char line[LINEBUF], value[25];
 	strcpy(line, "FRONIUS mosmix load");
@@ -839,6 +819,9 @@ static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
+	// get previous gstate slot to calculate deltas
+	gstate_t *h = get_gstate_hours(-1);
+
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_days(-1);
 	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced : 0;
@@ -846,9 +829,7 @@ static void calculate_gstate() {
 	gstate->pv10 = counter->pv10 && y->pv10 ? counter->pv10 - y->pv10 : 0;
 	gstate->pv7 = counter->pv7 && y->pv7 ? counter->pv7 - y->pv7 : 0;
 	gstate->pv = gstate->pv10 + gstate->pv7;
-
-	// get previous gstate slot to calculate deltas
-	gstate_t *h = get_gstate_hours(-1);
+	gstate->dpv = gstate->pv - h->pv;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
@@ -1031,6 +1012,10 @@ static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+
+	// copy tomorrow's forecasts to today
+	mosmix_takeover();
+	mosmix_dump_today();
 
 	// store to disk
 #ifndef FRONIUS_MAIN
@@ -1495,6 +1480,26 @@ static int minimum(char *arg) {
 }
 
 static int test() {
+	time_t now_ts = time(NULL);
+	mosmix_load(now_ts, MARIENBERG);
+
+	ZEROP(gstate_hours);
+	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+
+	for (int i = 0; i < 24; i++) {
+		gstate_t *g = &gstate_hours[i];
+		gstate_t *g1 = &gstate_hours[i != 0 ? i - 1 : 23];
+		int dpv = g->pv - g1->pv;
+		if (dpv < 0)
+			dpv = 0;
+		mosmix_update_hour(i, dpv);
+	}
+
+	int today, tomorrow;
+	mosmix_calculate(&today, &tomorrow);
+	mosmix_dump_today();
+	mosmix_dump_tomorrow();
+
 	return 0;
 }
 
