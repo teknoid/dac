@@ -16,9 +16,17 @@ static mosmix_t mosmix_today[24], mosmix_tomorrow[24];
 
 // gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
 
-static void copy(int idx, mosmix_t *target, mosmix_file_t *source) {
+static void copy(mosmix_t *target, mosmix_file_t *source) {
 	target->Rad1h = source->Rad1h;
 	target->SunD1 = source->SunD1;
+}
+
+static void sum(mosmix_t *s, mosmix_t *m) {
+	s->Rad1h += m->Rad1h;
+	s->SunD1 += m->SunD1;
+	s->x += m->x;
+	s->actual += m->actual;
+	s->expected += m->expected;
 }
 
 void mosmix_dump_today() {
@@ -33,8 +41,7 @@ void mosmix_takeover() {
 	for (int i = 0; i < 24; i++) {
 		mosmix_t *m0 = &mosmix_today[i];
 		mosmix_t *m1 = &mosmix_tomorrow[i];
-		m0->expected = m1->expected;
-		m0->factor = m1->factor;
+		memcpy(m0, m1, sizeof(mosmix_t));
 		m0->actual = 0;
 	}
 }
@@ -63,9 +70,9 @@ void mosmix_calculate(int *today, int *tomorrow) {
 		m1->expected = m1->x * factor;
 		*tomorrow += m1->expected;
 
-		// xdebug("actual=%d x0=%d factor=%.2f expected=%d", m0->actual, x0, factor, m0->expected);
+		// xdebug("MOSMIX actual=%d x0=%d factor=%.2f expected=%d", m0->actual, x0, factor, m0->expected);
 	}
-	xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
+	// xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
 }
 
 void mosmix_update(int hour, int actual) {
@@ -78,17 +85,10 @@ void mosmix_sod_eod(int hour, mosmix_t *sod, mosmix_t *eod) {
 	ZEROP(eod);
 	for (int i = 0; i < 24; i++) {
 		mosmix_t *m = &mosmix_today[i];
-		if (i <= hour) {
-			sod->Rad1h += m->Rad1h;
-			sod->SunD1 += m->SunD1;
-			sod->actual += m->actual;
-			sod->expected += m->expected;
-		} else {
-			eod->Rad1h += m->Rad1h;
-			eod->SunD1 += m->SunD1;
-			eod->actual += m->actual;
-			eod->expected += m->expected;
-		}
+		if (i <= hour)
+			sum(sod, m);
+		else
+			sum(eod, m);
 	}
 }
 
@@ -219,12 +219,14 @@ int mosmix_load(time_t now_ts, const char *filename) {
 			localtime_r(&m->ts, &tm);
 			int d = tm.tm_mday;
 			int h = tm.tm_hour;
+
 			mosmix_t *m0 = &mosmix_today[h];
-			mosmix_t *m1 = &mosmix_tomorrow[h];
 			if (d == today)
-				copy(h, m0, m);
+				copy(m0, m);
+
+			mosmix_t *m1 = &mosmix_tomorrow[h];
 			if (d == tomorrow)
-				copy(h, m1, m);
+				copy(m1, m);
 		}
 	}
 

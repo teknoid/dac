@@ -791,6 +791,7 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
 	gstate->expected = eod.expected;
+	xdebug("FRONIUS mosmix today=%d tomorrow=%d sod=%d eod=%d expected=%d", gstate->today, gstate->tomorrow, sod.expected, eod.expected, gstate->expected);
 
 	// calculate survival factor
 	int hours, from, to;
