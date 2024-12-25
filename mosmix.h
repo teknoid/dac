@@ -6,7 +6,7 @@
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	"   idx                ts Rad1h SunD1 RSunD   fac   exp   act"
+#define MOSMIX_HEADER	"   idx                ts Rad1h SunD1 RSunD   exp   act   fac"
 struct _mosmix {
 	// from file
 	int idx;
@@ -15,9 +15,9 @@ struct _mosmix {
 	int SunD1;
 	int RSunD;
 	// calculations
-	int factor;
 	int expected;
 	int actual;
+	int factor;
 };
 
 void mosmix_dump_today();
