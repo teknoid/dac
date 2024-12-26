@@ -1402,6 +1402,7 @@ static void stop() {
 		close(sock);
 }
 
+// do all calculations in one single round trip and exit
 static int single() {
 	time_t now_ts = time(NULL);
 
@@ -1463,8 +1464,8 @@ static int fake() {
 	return 0;
 }
 
+// sample grid load from meter
 static int grid() {
-	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
 	sunspec_read(ss);
 	ss->common = 0;
@@ -1480,8 +1481,8 @@ static int grid() {
 	return 0;
 }
 
+// set charge(-) / discharge(+) limits or reset when 0
 static int battery(char *arg) {
-	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
 	sunspec_read(ss);
 
@@ -1493,8 +1494,8 @@ static int battery(char *arg) {
 	return sunspec_storage_limit_reset(ss);
 }
 
+// set minimum SoC
 static int minimum(char *arg) {
-	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
 	sunspec_read(ss);
 
