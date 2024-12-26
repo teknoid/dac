@@ -795,13 +795,14 @@ static void calculate_mosmix(time_t now_ts) {
 	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
-	// mosmix 24h forecasts today, tomorrow, tomorrow+1
+	// 24h forecasts today, tomorrow, tomorrow+1
+	// TODO now->tm_hour
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// update this hour pv and recalculate
+	// update produced energy this hour and recalculate forecasts
 	int today, tomorrow, sod, eod;
 	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
@@ -811,7 +812,7 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod;
 
 	// calculate survival factor
-	// TODO check factor/expected
+	// TODO now->tm_hour
 	int hours, from, to;
 	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
 	int available = gstate->expected + gstate->akku;
