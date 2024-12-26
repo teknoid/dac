@@ -692,7 +692,7 @@ static device_t* standby() {
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
-	if (force_standby(now)) {
+	if (force_standby()) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
@@ -1022,13 +1022,13 @@ static void daily(time_t now_ts) {
 	pstate_t pd;
 	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
-	dump_struct((int*) &pd, PSTATE_SIZE, 0);
+	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
 	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
 	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &gd, GSTATE_SIZE, 0);
+	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
 	// copy tomorrow forecasts to today
 	// TODO needed?
@@ -1072,7 +1072,7 @@ static void hourly(time_t now_ts) {
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = get_pstate_hour(0);
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	// dump_struct((int*) ph, PSTATE_SIZE, 0);
+	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
 
 	// recalculate gstate, mosmix and potd
 	calculate_gstate();
@@ -1091,7 +1091,7 @@ static void minly(time_t now_ts) {
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	pstate_t *pm = get_pstate_minute(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct((int*) pm, PSTATE_SIZE, 0);
+	// dump_struct((int*) pm, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1405,8 +1405,8 @@ static void stop() {
 // do all calculations in one single round trip and exit
 static int single() {
 	time_t now_ts = time(NULL);
-
 	init();
+
 	gstate = get_gstate_hour(0);
 	counter = get_counter_hour(0);
 	pstate = get_pstate_second(0);
@@ -1417,12 +1417,22 @@ static int single() {
 	calculate_gstate();
 	calculate_mosmix(now_ts);
 	choose_program();
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
-	print_state(NULL);
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
-	print_gstate(NULL);
-	stop();
 
+	// aggregate 24 pstate hours into one day
+	pstate_t pd;
+	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
+	print_state(NULL);
+
+	// aggregate 24 gstate hours into one day
+	gstate_t gd;
+	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
+	print_gstate(NULL);
+
+	stop();
 	return 0;
 }
 

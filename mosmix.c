@@ -59,11 +59,17 @@ void mosmix_takeover() {
 }
 
 void mosmix_dump_today(int highlight) {
+	mosmix_t m;
+	cumulate_table((int*) &m, (int*) today, MOSMIX_SIZE, 24);
 	dump_table((int*) today, MOSMIX_SIZE, 24, highlight, "MOSMIX today", MOSMIX_HEADER);
+	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
 void mosmix_dump_tomorrow(int highlight) {
+	mosmix_t m;
+	cumulate_table((int*) &m, (int*) tomorrow, MOSMIX_SIZE, 24);
 	dump_table((int*) tomorrow, MOSMIX_SIZE, 24, highlight, "MOSMIX tomorrow", MOSMIX_HEADER);
+	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
 void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -112,16 +118,16 @@ void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) 
 	ZERO(meod);
 
 	for (int i = 0; i < 24; i++) {
-		mosmix_t *slot_today = &today[i];
-		mosmix_t *slot_tomorrow = &tomorrow[i];
-		expected(slot_today);
-		expected(slot_tomorrow);
-		sum(&sum_today, slot_today);
-		sum(&sum_tomorrow, slot_tomorrow);
+		mosmix_t *htoday = &today[i];
+		mosmix_t *htomorrow = &tomorrow[i];
+		expected(htoday);
+		expected(htomorrow);
+		sum(&sum_today, htoday);
+		sum(&sum_tomorrow, htomorrow);
 		if (i <= hour)
-			sum(&msod, slot_today);
+			sum(&msod, htoday);
 		else
-			sum(&meod, slot_today);
+			sum(&meod, htoday);
 	}
 
 	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;

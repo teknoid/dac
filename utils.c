@@ -761,6 +761,15 @@ void aggregate_table(int *target, int *table, int cols, int rows) {
 	}
 }
 
+void cumulate_table(int *target, int *table, int cols, int rows) {
+	memset(target, 0, sizeof(int) * cols);
+	for (int x = 0; x < cols; x++)
+		for (int y = 0; y < rows; y++) {
+			int *i = table + y * cols + x;
+			target[x] += *i;
+		}
+}
+
 void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
 	char c[cols * 8 + 16], v[16];
 
@@ -789,13 +798,13 @@ void dump_table(int *table, int cols, int rows, int highlight_row, const char *t
 	}
 }
 
-void dump_struct(int *values, int size, const char *title) {
+void dump_struct(int *values, int size, const char *idx, const char *title) {
 	char c[size * 8 + 16], v[16];
 
 	if (title)
 		xdebug(title);
 
-	snprintf(v, 16, "[++] ");
+	snprintf(v, 16, "%s ", idx);
 	strcpy(c, v);
 	for (int xx = 0; xx < size; xx++) {
 		snprintf(v, 8, "%5d ", values[xx]);
