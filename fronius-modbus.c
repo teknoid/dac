@@ -1496,9 +1496,10 @@ static int minimum(char *arg) {
 }
 
 static int test() {
+	mosmix_load_state();
+
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, MARIENBERG);
-	mosmix_load_state();
 
 	ZEROP(gstate_hours);
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));

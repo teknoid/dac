@@ -136,6 +136,7 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 }
 
 // calculate hours to survive next night
+// TODO use mosmix_today and tomorrow
 void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to) {
 	struct tm tm;
 	localtime_r(&now_ts, &tm);
@@ -198,6 +199,7 @@ static mosmix_file_t* current_slot(time_t now_ts) {
 	return 0;
 }
 
+// TODO use mosmix_today and tomorrow
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 	struct tm tm;
 
@@ -259,7 +261,8 @@ int mosmix_load(time_t now_ts, const char *filename) {
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_file_t *m = &mosmix[i];
 		if (m->ts) {
-			localtime_r(&m->ts, &tm);
+			time_t t = m->ts - 1; // fix hour
+			localtime_r(&t, &tm);
 			int d = tm.tm_mday;
 			int h = tm.tm_hour;
 
