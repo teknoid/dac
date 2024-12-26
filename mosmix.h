@@ -4,6 +4,11 @@
 
 #define MOSMIX_COLUMNS			5
 
+// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-mosmix-*.bin
+#define TODAY_FILE				"/tmp/fronius-mosmix-today.bin"
+#define TOMORROW_FILE			"/tmp/fronius-mosmix-tomorrow.bin"
+
+
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
 #define MOSMIX_HEADER	" Rad1h SunD1     x  exp1 mppt1  fac1  exp2 mppt2  fac2  exp3 mppt3  fac3  exp4 mppt4  fac4"
@@ -35,6 +40,8 @@ typedef struct mosmix_file_t {
 	int RSunD;
 } mosmix_file_t;
 
+void mosmix_store_state();
+void mosmix_load_state();
 void mosmix_dump_today();
 void mosmix_dump_tomorrow();
 void mosmix_takeover();

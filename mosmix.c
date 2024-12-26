@@ -273,6 +273,18 @@ int mosmix_load(time_t now_ts, const char *filename) {
 	return 0;
 }
 
+void mosmix_load_state() {
+	ZEROP(mosmix_today);
+	ZEROP(mosmix_tomorrow);
+	load_blob(TODAY_FILE, mosmix_today, sizeof(mosmix_today));
+	load_blob(TOMORROW_FILE, mosmix_tomorrow, sizeof(mosmix_tomorrow));
+}
+
+void mosmix_store_state() {
+	store_blob(TODAY_FILE, mosmix_today, sizeof(mosmix_today));
+	store_blob(TOMORROW_FILE, mosmix_tomorrow, sizeof(mosmix_tomorrow));
+}
+
 int mosmix_main(int argc, char **argv) {
 	int hours, from, to;
 

@@ -1349,6 +1349,7 @@ static int init() {
 	load_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	load_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
+	mosmix_load_state();
 
 	meter = sunspec_init_poll("Meter", "192.168.25.230", 200, &update_meter);
 	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
@@ -1378,6 +1379,7 @@ static void stop() {
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	mosmix_store_state();
 #endif
 
 	if (sock)
