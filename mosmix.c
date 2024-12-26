@@ -68,25 +68,27 @@ void mosmix_takeover() {
 }
 
 void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod) {
-	mosmix_t m0, m1, msod, meod;
-	ZERO(m0);
-	ZERO(m1);
+	mosmix_t sum_today, sum_tomorrow, msod, meod;
+	ZERO(sum_today);
+	ZERO(sum_tomorrow);
 	ZERO(msod);
 	ZERO(meod);
 
 	for (int i = 0; i < 24; i++) {
-		expected(&mosmix_today[i]);
-		expected(&mosmix_tomorrow[i]);
-		sum(&m0, &mosmix_today[i]);
-		sum(&m1, &mosmix_tomorrow[i]);
+		mosmix_t *slot_today = &mosmix_today[i];
+		mosmix_t *slot_tomorrow = &mosmix_tomorrow[i];
+		expected(slot_today);
+		expected(slot_tomorrow);
+		sum(&sum_today, slot_today);
+		sum(&sum_tomorrow, slot_tomorrow);
 		if (i <= hour)
-			sum(&msod, &mosmix_today[i]);
+			sum(&msod, slot_today);
 		else
-			sum(&meod, &mosmix_today[i]);
+			sum(&meod, slot_today);
 	}
 
-	*today = m0.exp1 + m0.exp2 + m0.exp3 + m0.exp4;
-	*tomorrow = m1.exp1 + m1.exp2 + m1.exp3 + m1.exp4;
+	*today = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
+	*tomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
 	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
 	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
 	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *today, *tomorrow, *sod, *eod);
