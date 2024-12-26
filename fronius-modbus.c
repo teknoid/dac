@@ -225,12 +225,12 @@ static int collect_pstate_load(int from, int hours) {
 }
 
 static pstate_t* get_pstate_second(int offset) {
-	int index = now->tm_sec + offset;
-	if (index < 0)
-		index += 60;
-	if (index >= 60)
-		index -= 60;
-	return &pstate_seconds[index];
+	int i = now->tm_sec + offset;
+	while (i < 0)
+		i += 60;
+	while (i >= 60)
+		i -= 60;
+	return &pstate_seconds[i];
 }
 
 static pstate_t* get_pstate_minute(int offset) {
