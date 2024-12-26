@@ -224,7 +224,7 @@ static int collect_pstate_load(int from, int hours) {
 	return load;
 }
 
-static pstate_t* get_pstate_seconds(int offset) {
+static pstate_t* get_pstate_second(int offset) {
 	int index = now->tm_sec + offset;
 	if (index < 0)
 		index += 60;
@@ -233,7 +233,7 @@ static pstate_t* get_pstate_seconds(int offset) {
 	return &pstate_seconds[index];
 }
 
-static pstate_t* get_pstate_minutes(int offset) {
+static pstate_t* get_pstate_minute(int offset) {
 	int i = now->tm_min + offset;
 	while (i < 0)
 		i += 60;
@@ -242,7 +242,7 @@ static pstate_t* get_pstate_minutes(int offset) {
 	return &pstate_minutes[i];
 }
 
-static pstate_t* get_pstate_hours(int offset) {
+static pstate_t* get_pstate_hour(int offset) {
 	int i = now->tm_hour + offset;
 	while (i < 0)
 		i += 24;
@@ -251,7 +251,7 @@ static pstate_t* get_pstate_hours(int offset) {
 	return &pstate_hours[i];
 }
 
-static gstate_t* get_gstate_hours(int offset) {
+static gstate_t* get_gstate_hour(int offset) {
 	int i = now->tm_hour + offset;
 	while (i < 0)
 		i += 24;
@@ -260,7 +260,7 @@ static gstate_t* get_gstate_hours(int offset) {
 	return &gstate_hours[i];
 }
 
-static counter_t* get_counter_hours(int offset) {
+static counter_t* get_counter_hour(int offset) {
 	int i = now->tm_hour + offset;
 	while (i < 0)
 		i += 24;
@@ -801,7 +801,7 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_24h(now_ts, 2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// update last hour pv and recalculate
+	// update this hour pv and recalculate
 	int today, tomorrow, sod, eod;
 	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
@@ -826,8 +826,8 @@ static void calculate_gstate() {
 	gstate->soc = pstate->soc;
 
 	// get previous values to calculate deltas
-	gstate_t *g = get_gstate_hours(-1);
-	counter_t *c = get_counter_hours(-1);
+	gstate_t *g = get_gstate_hour(-1);
+	counter_t *c = get_counter_hour(-1);
 
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
@@ -854,11 +854,11 @@ static void calculate_pstate() {
 	pstate->flags = 0;
 
 	// get history pstates
-	gstate_t *g1 = get_gstate_hours(-1);
-	pstate_t *m1 = get_pstate_minutes(-1);
-	pstate_t *m2 = get_pstate_minutes(-2);
-	pstate_t *s1 = get_pstate_seconds(-1);
-	pstate_t *s2 = get_pstate_seconds(-2);
+	gstate_t *g1 = get_gstate_hour(-1);
+	pstate_t *m1 = get_pstate_minute(-1);
+	pstate_t *m2 = get_pstate_minute(-2);
+	pstate_t *s1 = get_pstate_second(-1);
+	pstate_t *s2 = get_pstate_second(-2);
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
@@ -1064,12 +1064,12 @@ static void hourly(time_t now_ts) {
 //	storage_strategy();
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
-	counter_t *c1 = get_counter_hours(1);
+	counter_t *c1 = get_counter_hour(1);
 	memcpy(c1, (void*) counter, sizeof(counter_t));
 
 	// aggregate 59 minutes into current hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-	pstate_t *ph = get_pstate_hours(0);
+	pstate_t *ph = get_pstate_hour(0);
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) ph, PSTATE_SIZE, 0);
 
@@ -1088,7 +1088,7 @@ static void minly(time_t now_ts) {
 
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-	pstate_t *pm = get_pstate_minutes(0);
+	pstate_t *pm = get_pstate_minute(0);
 	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
 	// dump_struct((int*) pm, PSTATE_SIZE, 0);
 
@@ -1114,9 +1114,9 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 
 		// update state and counter pointers
-		counter = get_counter_hours(0);
-		gstate = get_gstate_hours(0);
-		pstate = get_pstate_seconds(0);
+		counter = get_counter_hour(0);
+		gstate = get_gstate_hour(0);
+		pstate = get_pstate_second(0);
 
 		// wait till this second is over, meanwhile sunspec threads have updated values
 		while (now_ts == time(NULL))
@@ -1405,9 +1405,9 @@ static int single() {
 	time_t now_ts = time(NULL);
 
 	init();
-	gstate = get_gstate_hours(0);
-	counter = get_counter_hours(0);
-	pstate = get_pstate_seconds(0);
+	gstate = get_gstate_hour(0);
+	counter = get_counter_hour(0);
+	pstate = get_pstate_second(0);
 	sleep(1); // update values
 
 //	storage_strategy();
