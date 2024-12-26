@@ -436,6 +436,10 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
+
+	// TODO
+	return select_program(&GREEDY);
+
 	if (!gstate || now->tm_mon == 11)
 		return select_program(&MODEST);
 
@@ -1043,6 +1047,7 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// define storage strategy
+// TODO
 //	storage_strategy();
 
 	// aggregate 59 minutes into current hour
@@ -1388,7 +1393,7 @@ static int single() {
 	pstate = get_pstate_seconds(0);
 	sleep(1); // update values
 
-	storage_strategy();
+//	storage_strategy();
 	calculate_pstate();
 	calculate_gstate();
 	calculate_mosmix(now_ts);
