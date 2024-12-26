@@ -785,8 +785,7 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	// update last hour's pv and recalculate
-	gstate_t *h = get_gstate_hours(-1);
-	mosmix_mppt(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
+	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 	int today, tomorrow, sod, eod;
 	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
@@ -824,17 +823,15 @@ static void calculate_gstate() {
 	// get previous gstate slot to calculate deltas
 	gstate_t *h = get_gstate_hours(-1);
 
-	// calculate daily values - when we have actual values and values from yesterday
+	// calculate delta values - when we have actual and yesterdays counters
 	counter_t *y = get_counter_days(-1);
-	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced : 0;
-	gstate->consumed = counter->consumed && y->consumed ? counter->consumed - y->consumed : 0;
-	gstate->mppt1 = counter->mppt1 && y->mppt1 ? counter->mppt1 - y->mppt1 : 0;
-	gstate->mppt2 = counter->mppt2 && y->mppt2 ? counter->mppt2 - y->mppt2 : 0;
-	gstate->mppt3 = counter->mppt3 && y->mppt3 ? counter->mppt3 - y->mppt3 : 0;
-	gstate->mppt4 = counter->mppt4 && y->mppt4 ? counter->mppt4 - y->mppt4 : 0;
+	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced - h->produced : 0;
+	gstate->consumed = counter->consumed && y->consumed ? counter->consumed - y->consumed - h->consumed : 0;
+	gstate->mppt1 = counter->mppt1 && y->mppt1 ? counter->mppt1 - y->mppt1 - h->mppt1 : 0;
+	gstate->mppt2 = counter->mppt2 && y->mppt2 ? counter->mppt2 - y->mppt2 - h->mppt2 : 0;
+	gstate->mppt3 = counter->mppt3 && y->mppt3 ? counter->mppt3 - y->mppt3 - h->mppt3 : 0;
+	gstate->mppt4 = counter->mppt4 && y->mppt4 ? counter->mppt4 - y->mppt4 - h->mppt4 : 0;
 	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
-	if (gstate->pv < 0)
-		gstate->pv = 0;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
@@ -1016,7 +1013,17 @@ static void burnout() {
 static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
+	// aggregate 24 pstate hours into one day
+	pstate_t pd;
+	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+	dump_struct((int*) &pd, PSTATE_SIZE, 0);
+
+	// aggregate 24 gstate hours into one day
+	gstate_t gd;
+	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_struct((int*) &gd, GSTATE_SIZE, 0);
 
 	// copy tomorrow's forecasts to today
 	mosmix_takeover();
@@ -1028,6 +1035,7 @@ static void daily(time_t now_ts) {
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	mosmix_store_state();
 #endif
 }
 
@@ -1062,7 +1070,7 @@ static void hourly(time_t now_ts) {
 	choose_program();
 
 	// print actual gstate
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	// dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 }
 
