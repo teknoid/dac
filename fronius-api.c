@@ -63,7 +63,7 @@
 #define JMMC					" EnergyReal_WAC_Sum_Consumed:%f "
 #define JMMP					" EnergyReal_WAC_Sum_Produced:%f "
 
-#define MOSMIX24				"FRONIUS mosmix Rad1h/SunD1 today %d/%d, tomorrow %d/%d, exp today %d exp tomorrow %d"
+#define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
 typedef struct _raw raw_t;
 
@@ -100,8 +100,8 @@ static int pstate_history_ptr = 0;
 // global state with total counters and daily calculations
 static gstate_t gstate_history[24], *gstate = &gstate_history[0];
 
-// mosmix 24h forecasts today and tomorrow
-static mosmix_file_t mosmix0, mosmix1;
+// mosmix 24h forecasts today, tomorrow and tomorrow+1
+static mosmix_file_t m0, m1, m2;
 
 // storage for holding minimum and maximum voltage values
 static minmax_t mm, *minmax = &mm;
@@ -567,7 +567,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// survive and less than 2h sun
-	if (mosmix0.SunD1 < 7200)
+	if (m0.SunD1 < 7200)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -873,45 +873,40 @@ static device_t* response(device_t *d) {
 
 static void calculate_mosmix(time_t now_ts) {
 	// reload mosmix data
-	if (mosmix_load(now_ts, CHEMNITZ))
+	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
-	// gstate of last hour to match till now produced vs. till now predicted
+	// actual vs. yesterdays expected ratio
+	int yesterdays_tomorrow = gstate_history[23].tomorrow;
+	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+
+	// mosmix 24h forecasts today, tomorrow, tomorrow+1
+	mosmix_24h(now_ts, 0, &m0);
+	mosmix_24h(now_ts, 1, &m1);
+	mosmix_24h(now_ts, 2, &m2);
+	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
+
+	// update last hour's pv and recalculate
 	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
-
-	// sod+eod - values from midnight to now and now till next midnight
-	mosmix_t sod, eod;
-	mosmix_sod_eod(now_ts, &sod, &eod);
-
-	// recalculate mosmix factor when we have pv: till now produced vs. till now predicted
-	float mosmix = 0;
-//	if (h->pv && sod.Rad1h) {
-//		mosmix = (float) h->pv / (float) sod.Rad1h;
-//		gstate->mosmix = mosmix * 10; // store as x10 scaled
-//	} else
-//		mosmix = lround((float) gstate->mosmix / 10.0); // take over existing value
-
-	// expected pv power till end of day
-	gstate->expected = eod.Rad1h * mosmix;
-	xdebug("FRONIUS mosmix pv=%d sod=%d eod=%d expected=%d mosmix=%.1f", h->pv, sod.Rad1h, eod.Rad1h, gstate->expected, mosmix);
-
-	// mosmix total expected today and tomorrow
-	mosmix_24h(now_ts, 0, &mosmix0);
-	mosmix_24h(now_ts, 1, &mosmix1);
-	gstate->today = mosmix0.Rad1h * mosmix;
-	gstate->tomorrow = mosmix1.Rad1h * mosmix;
-	xdebug(MOSMIX24, mosmix0.Rad1h, mosmix0.SunD1, mosmix1.Rad1h, mosmix1.SunD1, gstate->today, gstate->tomorrow);
+	mosmix_mppt(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
+	int today, tomorrow, sod, eod;
+	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->expected = eod;
+	mosmix_dump_today(now->tm_hour);
 
 	// calculate survival factor
-	int rad1h_min = BASELOAD / mosmix; // minimum value when we can live from pv and don't need akku anymore
 	int hours, from, to;
-	mosmix_survive(now_ts, rad1h_min, &hours, &from, &to);
+	// TODO check factor/expected
+	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
 	int needed = 0;
 	// sum up load for darkness hours - take values from yesterday
 	for (int i = from; i < to; i++)
 		needed += gstate_history[i].dakku;
 	int available = gstate->expected + gstate->akku;
-	float survive = needed ? lround((float) available) / ((float) needed) : 0;
+	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
 }

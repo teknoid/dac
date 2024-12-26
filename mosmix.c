@@ -39,12 +39,22 @@ static void sum(mosmix_t *s, mosmix_t *m) {
 	s->exp4 += m->exp4;
 }
 
-void mosmix_dump_today() {
-	dump_table((int*) mosmix_today, MOSMIX_SIZE, 24, -1, "MOSMIX today", MOSMIX_HEADER);
+static void expected(mosmix_t *m) {
+	// m->x = m->Rad1h * (1 + (float) m->SunD1 / 3600 / 2);
+	// m->x = m->Rad1h + m->SunD1 / 10;
+	m->x = m->Rad1h;
+	m->exp1 = m->x * FLOAT100(m->fac1);
+	m->exp2 = m->x * FLOAT100(m->fac2);
+	m->exp3 = m->x * FLOAT100(m->fac3);
+	m->exp4 = m->x * FLOAT100(m->fac4);
 }
 
-void mosmix_dump_tomorrow() {
-	dump_table((int*) mosmix_tomorrow, MOSMIX_SIZE, 24, -1, "MOSMIX tomorrow", MOSMIX_HEADER);
+void mosmix_dump_today(int highlight) {
+	dump_table((int*) mosmix_today, MOSMIX_SIZE, 24, highlight, "MOSMIX today", MOSMIX_HEADER);
+}
+
+void mosmix_dump_tomorrow(int highlight) {
+	dump_table((int*) mosmix_tomorrow, MOSMIX_SIZE, 24, highlight, "MOSMIX tomorrow", MOSMIX_HEADER);
 }
 
 void mosmix_takeover() {
@@ -59,76 +69,68 @@ void mosmix_takeover() {
 	}
 }
 
-void mosmix_sum(int *today, int *tomorrow) {
-	mosmix_t stoday, stomorrow;
-	ZERO(stoday);
-	ZERO(stomorrow);
+void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod) {
+	mosmix_t m0, m1, msod, meod;
+	ZERO(m0);
+	ZERO(m1);
+	ZERO(msod);
+	ZERO(meod);
+
 	for (int i = 0; i < 24; i++) {
-		sum(&stoday, &mosmix_today[i]);
-		sum(&stomorrow, &mosmix_tomorrow[i]);
+		expected(&mosmix_today[i]);
+		expected(&mosmix_tomorrow[i]);
+		sum(&m0, &mosmix_today[i]);
+		sum(&m1, &mosmix_tomorrow[i]);
+		if (i <= hour)
+			sum(&msod, &mosmix_today[i]);
+		else
+			sum(&meod, &mosmix_today[i]);
 	}
-	*today = stoday.exp1 + stoday.exp2 + stoday.exp3 + stoday.exp4;
-	*tomorrow = stomorrow.exp1 + stomorrow.exp2 + stomorrow.exp3 + stomorrow.exp4;
-	xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
+
+	*today = m0.exp1 + m0.exp2 + m0.exp3 + m0.exp4;
+	*tomorrow = m1.exp1 + m1.exp2 + m1.exp3 + m1.exp4;
+	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
+	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
+	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *today, *tomorrow, *sod, *eod);
 }
 
-void mosmix_update(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
+void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	float new;
 
 	// today
 	mosmix_t *m0 = &mosmix_today[hour];
-	m0->x = m0->Rad1h * (1 + (float) m0->SunD1 / 3600 / 2);
+	expected(m0);
 
 	// tomorrow
 	mosmix_t *m1 = &mosmix_tomorrow[hour];
-	m1->x = m1->Rad1h * (1 + (float) m1->SunD1 / 3600 / 2);
+	expected(m1);
 
-	if (m0->x && mppt1 > 0) {
+	if (m0->x && mppt1) {
 		m0->mppt1 = mppt1;
 		new = (float) m0->mppt1 / (float) m0->x;
 		xdebug("MOSMIX MPPT1 factor old %.2f new %.2f", FLOAT100(m0->fac1), new);
-		m0->fac1 = new * 100;
+		m0->fac1 = m1->fac1 = new * 100;
 	}
-	m1->fac1 = m0->fac1;
-	m1->exp1 = m1->x * FLOAT100(m1->fac1);
 
-	if (m0->x && mppt2 > 0) {
+	if (m0->x && mppt2) {
 		m0->mppt2 = mppt2;
 		new = (float) m0->mppt2 / (float) m0->x;
 		xdebug("MOSMIX MPPT2 factor old %.2f new %.2f", FLOAT100(m0->fac2), new);
-		m0->fac2 = new * 100;
+		m0->fac2 = m1->fac2 = new * 100;
 	}
-	m1->fac2 = m0->fac2;
-	m1->exp2 = m1->x * FLOAT100(m1->fac2);
 
-	if (m0->x && mppt3 > 0) {
+	if (m0->x && mppt3) {
 		m0->mppt3 = mppt3;
 		new = (float) m0->mppt3 / (float) m0->x;
 		xdebug("MOSMIX MPPT3 factor old %.2f new %.2f", FLOAT100(m0->fac3), new);
-		m0->fac3 = new * 100;
+		m0->fac3 = m1->fac3 = new * 100;
 	}
-	m1->fac3 = m0->fac3;
-	m1->exp3 = m1->x * FLOAT100(m1->fac3);
 
-	if (m0->x && mppt4 > 0) {
+	if (m0->x && mppt4) {
 		m0->mppt4 = mppt4;
 		new = (float) m0->mppt4 / (float) m0->x;
 		xdebug("MOSMIX MPPT4 factor old %.2f new %.2f", FLOAT100(m0->fac4), new);
-		m0->fac4 = new * 100;
-	}
-	m1->fac4 = m0->fac4;
-	m1->exp4 = m1->x * FLOAT100(m1->fac4);
-}
-
-void mosmix_sod_eod(int hour, mosmix_t *sod, mosmix_t *eod) {
-	ZEROP(sod);
-	ZEROP(eod);
-	for (int i = 0; i < 24; i++) {
-		mosmix_t *m = &mosmix_today[i];
-		if (i <= hour)
-			sum(sod, m);
-		else
-			sum(eod, m);
+		m0->fac4 = m1->fac4 = new * 100;
 	}
 }
 
@@ -286,13 +288,14 @@ void mosmix_store_state() {
 }
 
 int mosmix_main(int argc, char **argv) {
-	int hours, from, to;
+	struct tm tm;
 
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, CHEMNITZ);
+	localtime_r(&now_ts, &tm);
 
 	// find current slot
 	mosmix_file_t *m = current_slot(now_ts);
@@ -310,12 +313,12 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_24h(now_ts, 2, &m2);
 	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// eod - calculate values till end of day
-	mosmix_t sod, eod;
-	mosmix_sod_eod(now_ts, &sod, &eod);
-	xlog("MOSMIX Rad1h/SunD1 sod %d/%d eod %d/%d", sod.Rad1h, sod.SunD1, eod.Rad1h, eod.SunD1);
+	// calculate values today, tomorrow, start of day, end of day
+	int today, tomorrow, sod, eod;
+	mosmix_expected(tm.tm_hour, &today, &tomorrow, &sod, &eod);
 
 	// calculate survive time in hours for min Rad1h=100
+	int hours, from, to;
 	mosmix_survive(now_ts, 100, &hours, &from, &to);
 
 	// calculate survive time in hours for min Rad1h=1000 -> should be full 24hours when run before noon

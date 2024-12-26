@@ -8,10 +8,9 @@
 #define TODAY_FILE				"/tmp/fronius-mosmix-today.bin"
 #define TOMORROW_FILE			"/tmp/fronius-mosmix-tomorrow.bin"
 
-
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	" Rad1h SunD1     x  exp1 mppt1  fac1  exp2 mppt2  fac2  exp3 mppt3  fac3  exp4 mppt4  fac4"
+#define MOSMIX_HEADER	" Rad1h SunD1     X  exp1 mppt1  fac1  exp2 mppt2  fac2  exp3 mppt3  fac3  exp4 mppt4  fac4"
 struct _mosmix {
 	int Rad1h;
 	int SunD1;
@@ -42,12 +41,11 @@ typedef struct mosmix_file_t {
 
 void mosmix_store_state();
 void mosmix_load_state();
-void mosmix_dump_today();
-void mosmix_dump_tomorrow();
 void mosmix_takeover();
-void mosmix_sum(int *today, int *tomorrow);
-void mosmix_update(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
-void mosmix_sod_eod(int hour, mosmix_t *sod, mosmix_t *eod);
+void mosmix_dump_today(int highlight);
+void mosmix_dump_tomorrow(int highlight);
+void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod);
+void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to);
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum);
 int mosmix_load(time_t now_ts, const char *filename);

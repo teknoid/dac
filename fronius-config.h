@@ -74,7 +74,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv   Δpv  pv10   pv7 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  surv"
+#define GSTATE_HEADER	"    pv mppt1 mppt2 mppt3 mppt4 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  surv"
 struct _gstate {
 	int pv;
 	int mppt1;
@@ -95,7 +95,7 @@ struct _gstate {
 
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10  10.1  10.2   dc7   7.1   7.2  grdy modst   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4  grdy modst   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;

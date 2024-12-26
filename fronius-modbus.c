@@ -774,28 +774,21 @@ static void calculate_mosmix(time_t now_ts) {
 	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
-	// update last hour's pv and recalculate
-	gstate_t *h = get_gstate_hours(-1);
-	mosmix_update(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
-	int today, tomorrow;
-	mosmix_sum(&today, &tomorrow);
-	mosmix_dump_today();
-
 	// mosmix 24h forecasts today, tomorrow, tomorrow+1
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// sod+eod - values from midnight to now and now till next midnight
-	mosmix_t sod, eod;
-	mosmix_sod_eod(now_ts + 1, &sod, &eod);
-
-	// save expected today and tomorrow
+	// update last hour's pv and recalculate
+	gstate_t *h = get_gstate_hours(-1);
+	mosmix_mppt(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
+	int today, tomorrow, sod, eod;
+	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
-	gstate->expected = eod.exp1 + eod.exp2 + eod.exp3 + eod.exp4;
-	xdebug("FRONIUS mosmix today=%d tomorrow=%d expected=%d", gstate->today, gstate->tomorrow, gstate->expected);
+	gstate->expected = eod;
+	mosmix_dump_today(now->tm_hour);
 
 	// calculate survival factor
 	int hours, from, to;
@@ -901,7 +894,7 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->dpv = 0;
+		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv = pstate->dpv = pstate->mppt1 = pstate->mppt2 = pstate->mppt3 = pstate->mppt4 = 0;
 		return;
 	}
 
@@ -1023,7 +1016,7 @@ static void daily(time_t now_ts) {
 
 	// copy tomorrow's forecasts to today
 	mosmix_takeover();
-	mosmix_dump_today();
+	mosmix_dump_today(-1);
 
 	// store to disk
 #ifndef FRONIUS_MAIN
@@ -1050,7 +1043,7 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// define storage strategy
-	storage_strategy();
+//	storage_strategy();
 
 	// aggregate 59 minutes into current hour
 	dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
@@ -1492,6 +1485,7 @@ static int minimum(char *arg) {
 static int test() {
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, MARIENBERG);
+	mosmix_load_state();
 
 	ZEROP(gstate_hours);
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -1499,13 +1493,13 @@ static int test() {
 	for (int i = 0; i < 24; i++) {
 		gstate_t *g = &gstate_hours[i];
 		gstate_t *g1 = &gstate_hours[i != 0 ? i - 1 : 23];
-		mosmix_update(i, g->mppt1 - g1->mppt1, g->mppt2 - g1->mppt2, g->mppt3 - g1->mppt3, g->mppt4 - g1->mppt4);
+		mosmix_mppt(i, g->mppt1 - g1->mppt1, g->mppt2 - g1->mppt2, g->mppt3 - g1->mppt3, g->mppt4 - g1->mppt4);
 	}
 
-	int today, tomorrow;
-	mosmix_sum(&today, &tomorrow);
-	mosmix_dump_today();
-	mosmix_dump_tomorrow();
+	int today, tomorrow, sod, eod;
+	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	mosmix_dump_today(-1);
+	mosmix_dump_tomorrow(-1);
 
 	return 0;
 }
