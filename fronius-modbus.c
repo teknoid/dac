@@ -1063,10 +1063,10 @@ static void hourly(time_t now_ts) {
 	memcpy(c1, (void*) counter, sizeof(counter_t));
 
 	// aggregate 59 minutes into current hour
-	dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = get_pstate_hours(0);
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	dump_struct((int*) ph, PSTATE_SIZE, 0);
+	// dump_struct((int*) ph, PSTATE_SIZE, 0);
 
 	// recalculate gstate, mosmix and potd
 	calculate_gstate();
@@ -1074,7 +1074,7 @@ static void hourly(time_t now_ts) {
 	choose_program();
 
 	// print actual gstate
-	// dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 }
 
