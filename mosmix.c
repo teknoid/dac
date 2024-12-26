@@ -12,13 +12,18 @@
 static mosmix_file_t mosmix[256];
 
 // 24h slots for today and tomorrow
-static mosmix_t mosmix_today[24], mosmix_tomorrow[24];
+static mosmix_t today[24], tomorrow[24];
 
 // gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
 
 static void copy(mosmix_t *target, mosmix_file_t *source) {
 	target->Rad1h = source->Rad1h;
 	target->SunD1 = source->SunD1;
+
+	// calculate base value as a combination of Rad1h and SunD1
+	// target->x = target->Rad1h * (1 + (float) target->SunD1 / 3600 / 2);
+	// target->x = target->Rad1h + target->SunD1 / 10;
+	target->x = target->Rad1h;
 }
 
 static void sum(mosmix_t *s, mosmix_t *m) {
@@ -38,72 +43,34 @@ static void sum(mosmix_t *s, mosmix_t *m) {
 }
 
 static void expected(mosmix_t *m) {
-	// m->x = m->Rad1h * (1 + (float) m->SunD1 / 3600 / 2);
-	// m->x = m->Rad1h + m->SunD1 / 10;
-	m->x = m->Rad1h;
 	m->exp1 = m->x * FLOAT100(m->fac1);
 	m->exp2 = m->x * FLOAT100(m->fac2);
 	m->exp3 = m->x * FLOAT100(m->fac3);
 	m->exp4 = m->x * FLOAT100(m->fac4);
 }
 
+void mosmix_takeover() {
+	for (int i = 0; i < 24; i++) {
+		mosmix_t *m0 = &today[i];
+		mosmix_t *m1 = &tomorrow[i];
+		memcpy(m0, m1, sizeof(mosmix_t));
+		m0->mppt1 = m0->mppt2 = m0->mppt3 = m0->mppt4 = 0;
+	}
+}
+
 void mosmix_dump_today(int highlight) {
-	dump_table((int*) mosmix_today, MOSMIX_SIZE, 24, highlight, "MOSMIX today", MOSMIX_HEADER);
+	dump_table((int*) today, MOSMIX_SIZE, 24, highlight, "MOSMIX today", MOSMIX_HEADER);
 }
 
 void mosmix_dump_tomorrow(int highlight) {
-	dump_table((int*) mosmix_tomorrow, MOSMIX_SIZE, 24, highlight, "MOSMIX tomorrow", MOSMIX_HEADER);
-}
-
-void mosmix_takeover() {
-	for (int i = 0; i < 24; i++) {
-		mosmix_t *m0 = &mosmix_today[i];
-		mosmix_t *m1 = &mosmix_tomorrow[i];
-		memcpy(m0, m1, sizeof(mosmix_t));
-		m0->mppt1 = 0;
-		m0->mppt2 = 0;
-		m0->mppt3 = 0;
-		m0->mppt4 = 0;
-	}
-}
-
-void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod) {
-	mosmix_t sum_today, sum_tomorrow, msod, meod;
-	ZERO(sum_today);
-	ZERO(sum_tomorrow);
-	ZERO(msod);
-	ZERO(meod);
-
-	for (int i = 0; i < 24; i++) {
-		mosmix_t *slot_today = &mosmix_today[i];
-		mosmix_t *slot_tomorrow = &mosmix_tomorrow[i];
-		expected(slot_today);
-		expected(slot_tomorrow);
-		sum(&sum_today, slot_today);
-		sum(&sum_tomorrow, slot_tomorrow);
-		if (i <= hour)
-			sum(&msod, slot_today);
-		else
-			sum(&meod, slot_today);
-	}
-
-	*today = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
-	*tomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
-	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
-	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
-	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *today, *tomorrow, *sod, *eod);
+	dump_table((int*) tomorrow, MOSMIX_SIZE, 24, highlight, "MOSMIX tomorrow", MOSMIX_HEADER);
 }
 
 void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	float new;
 
-	// today
-	mosmix_t *m0 = &mosmix_today[hour];
-	expected(m0);
-
-	// tomorrow
-	mosmix_t *m1 = &mosmix_tomorrow[hour];
-	expected(m1);
+	mosmix_t *m0 = &today[hour];
+	mosmix_t *m1 = &tomorrow[hour];
 
 	// update todays MPPT values for this hour
 	m0->mppt1 = mppt1;
@@ -137,8 +104,35 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	}
 }
 
+void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) {
+	mosmix_t sum_today, sum_tomorrow, msod, meod;
+	ZERO(sum_today);
+	ZERO(sum_tomorrow);
+	ZERO(msod);
+	ZERO(meod);
+
+	for (int i = 0; i < 24; i++) {
+		mosmix_t *slot_today = &today[i];
+		mosmix_t *slot_tomorrow = &tomorrow[i];
+		expected(slot_today);
+		expected(slot_tomorrow);
+		sum(&sum_today, slot_today);
+		sum(&sum_tomorrow, slot_tomorrow);
+		if (i <= hour)
+			sum(&msod, slot_today);
+		else
+			sum(&meod, slot_today);
+	}
+
+	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
+	*itomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
+	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
+	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
+	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
+}
+
 // calculate hours to survive next night
-// TODO use mosmix_today and tomorrow
+// TODO use today and tomorrow
 void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to) {
 	struct tm tm;
 	localtime_r(&now_ts, &tm);
@@ -180,28 +174,7 @@ void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to
 	xdebug("MOSMIX survive hours=%d min=%d from=%d:%d:%d midnight=%d:%d:%d to=%d:%d:%d", *hours, rad1h_min, from_index, *from, fRad1h, midnight, mh, mRad1h, to_index, *to, tRad1h);
 }
 
-static void parse(char **strings, size_t size) {
-	int idx = atoi(strings[0]);
-	mosmix_file_t *m = &mosmix[idx];
-
-	m->idx = idx;
-	m->ts = atoi(strings[1]);
-	m->TTT = atof(strings[2]) - 273.15;
-	m->Rad1h = atoi(strings[3]);
-	m->SunD1 = atoi(strings[4]);
-	m->RSunD = atoi(strings[5]);
-}
-
-static mosmix_file_t* current_slot(time_t now_ts) {
-	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
-		mosmix_file_t *m = &mosmix[i];
-		if ((m->ts - 3600) < now_ts && now_ts < m->ts)
-			return m;
-	}
-	return 0;
-}
-
-// TODO use mosmix_today and tomorrow
+// TODO use today and tomorrow
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 	struct tm tm;
 
@@ -221,6 +194,18 @@ void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 				sum->RSunD = m->RSunD;	// last 24 hours calculated at 0 and 6
 		}
 	}
+}
+
+static void parse(char **strings, size_t size) {
+	int idx = atoi(strings[0]);
+	mosmix_file_t *m = &mosmix[idx];
+
+	m->idx = idx;
+	m->ts = atoi(strings[1]);
+	m->TTT = atof(strings[2]) - 273.15;
+	m->Rad1h = atoi(strings[3]);
+	m->SunD1 = atoi(strings[4]);
+	m->RSunD = atoi(strings[5]);
 }
 
 int mosmix_load(time_t now_ts, const char *filename) {
@@ -254,27 +239,23 @@ int mosmix_load(time_t now_ts, const char *filename) {
 	fclose(fp);
 	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 
-	// update 24h slots
+	// update 24h today and tomorrow slots
 	localtime_r(&now_ts, &tm);
-	int today = tm.tm_mday;
+	int dtoday = tm.tm_mday;
 	now_ts += 60 * 60 * 24;
 	localtime_r(&now_ts, &tm);
-	int tomorrow = tm.tm_mday;
+	int dtomorrow = tm.tm_mday;
 	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
 		mosmix_file_t *m = &mosmix[i];
 		if (m->ts) {
 			time_t t = m->ts - 1; // fix hour
 			localtime_r(&t, &tm);
-			int d = tm.tm_mday;
 			int h = tm.tm_hour;
-
-			mosmix_t *m0 = &mosmix_today[h];
-			if (d == today)
-				copy(m0, m);
-
-			mosmix_t *m1 = &mosmix_tomorrow[h];
-			if (d == tomorrow)
-				copy(m1, m);
+			int d = tm.tm_mday;
+			if (d == dtoday)
+				copy(&today[h], m);
+			if (d == dtomorrow)
+				copy(&tomorrow[h], m);
 		}
 	}
 
@@ -282,15 +263,15 @@ int mosmix_load(time_t now_ts, const char *filename) {
 }
 
 void mosmix_load_state() {
-	ZEROP(mosmix_today);
-	ZEROP(mosmix_tomorrow);
-	load_blob(TODAY_FILE, mosmix_today, sizeof(mosmix_today));
-	load_blob(TOMORROW_FILE, mosmix_tomorrow, sizeof(mosmix_tomorrow));
+	ZEROP(today);
+	ZEROP(tomorrow);
+	load_blob(TODAY_FILE, today, sizeof(today));
+	load_blob(TOMORROW_FILE, tomorrow, sizeof(tomorrow));
 }
 
 void mosmix_store_state() {
-	store_blob(TODAY_FILE, mosmix_today, sizeof(mosmix_today));
-	store_blob(TOMORROW_FILE, mosmix_tomorrow, sizeof(mosmix_tomorrow));
+	store_blob(TODAY_FILE, today, sizeof(today));
+	store_blob(TOMORROW_FILE, tomorrow, sizeof(tomorrow));
 }
 
 int mosmix_main(int argc, char **argv) {
@@ -302,15 +283,6 @@ int mosmix_main(int argc, char **argv) {
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, CHEMNITZ);
 	localtime_r(&now_ts, &tm);
-
-	// find current slot
-	mosmix_file_t *m = current_slot(now_ts);
-	if (m != 0) {
-		char *timestr = ctime(&m->ts);
-		timestr[strcspn(timestr, "\n")] = 0; // remove any NEWLINE
-		int exp1h = m->Rad1h * 3; // guessed
-		xlog("MOSMIX current slot index=%d date=%d (%s) Rad1H=%d SunD1=%d, expected %d Wh", m->idx, m->ts, timestr, m->Rad1h, m->SunD1, exp1h);
-	}
 
 	// calculate total daily values
 	mosmix_file_t m0, m1, m2;

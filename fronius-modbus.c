@@ -1026,6 +1026,7 @@ static void daily(time_t now_ts) {
 	dump_struct((int*) &gd, GSTATE_SIZE, 0);
 
 	// copy tomorrow's forecasts to today
+	// TODO needed?
 	mosmix_takeover();
 	mosmix_dump_today(-1);
 
