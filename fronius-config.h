@@ -60,28 +60,28 @@ enum dstate {
 
 typedef struct _counter counter_t;
 struct _counter {
+	int produced;
+	int consumed;
 	int mppt1;
 	int mppt2;
 	int mppt3;
 	int mppt4;
-	int produced;
-	int consumed;
 };
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv mppt1 mppt2 mppt3 mppt4 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  surv"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   exp mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv"
 struct _gstate {
 	int pv;
-	int mppt1;
-	int mppt2;
-	int mppt3;
-	int mppt4;
 	int produced;
 	int consumed;
 	int today;
 	int tomorrow;
 	int expected;
+	int mppt1;
+	int mppt2;
+	int mppt3;
+	int mppt4;
 	int soc;
 	int akku;
 	int dakku;

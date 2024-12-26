@@ -31,8 +31,8 @@
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
-// counter history every day over one week
-static counter_t counter_days[7];
+// counter history every hour over one day
+static counter_t counter_hours[24];
 static volatile counter_t *counter = 0;
 
 // gstate history every hour over one day
@@ -243,13 +243,13 @@ static gstate_t* get_gstate_hours(int offset) {
 	return &gstate_hours[i];
 }
 
-static counter_t* get_counter_days(int offset) {
-	int i = now->tm_wday + offset;
+static counter_t* get_counter_hours(int offset) {
+	int i = now->tm_hour + offset;
 	while (i < 0)
-		i += 7;
-	while (i >= 7)
-		i -= 7;
-	return &counter_days[i];
+		i += 24;
+	while (i >= 24)
+		i -= 24;
+	return &counter_hours[i];
 }
 
 static void print_gstate(const char *message) {
@@ -820,23 +820,22 @@ static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
-	// get previous gstate slot to calculate deltas
-	gstate_t *h = get_gstate_hours(-1);
+	// get previous values to calculate deltas
+	gstate_t *g = get_gstate_hours(-1);
+	counter_t *c = get_counter_hours(-1);
 
-	// calculate delta values - when we have actual and yesterdays counters
-	counter_t *y = get_counter_days(-1);
-	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced - h->produced : 0;
-	gstate->consumed = counter->consumed && y->consumed ? counter->consumed - y->consumed - h->consumed : 0;
-	gstate->mppt1 = counter->mppt1 && y->mppt1 ? counter->mppt1 - y->mppt1 - h->mppt1 : 0;
-	gstate->mppt2 = counter->mppt2 && y->mppt2 ? counter->mppt2 - y->mppt2 - h->mppt2 : 0;
-	gstate->mppt3 = counter->mppt3 && y->mppt3 ? counter->mppt3 - y->mppt3 - h->mppt3 : 0;
-	gstate->mppt4 = counter->mppt4 && y->mppt4 ? counter->mppt4 - y->mppt4 - h->mppt4 : 0;
+	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
+	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
+	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
+	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
+	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
+	gstate->mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
 	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
-	int range_ok = gstate->soc > 100 && gstate->soc < 900 && h->soc > 100 && h->soc < 900;
-	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(h->soc) : 0;
+	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
+	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(g->soc) : 0;
 	if (gstate->dakku < 0)
 		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
 	else if (gstate->soc > MIN_SOC)
@@ -1032,8 +1031,8 @@ static void daily(time_t now_ts) {
 
 	// store to disk
 #ifndef FRONIUS_MAIN
-	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_state();
@@ -1058,6 +1057,10 @@ static void hourly(time_t now_ts) {
 	// define storage strategy
 // TODO
 //	storage_strategy();
+
+	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
+	counter_t *c1 = get_counter_hours(1);
+	memcpy(c1, (void*) counter, sizeof(counter_t));
 
 	// aggregate 59 minutes into current hour
 	dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
@@ -1106,7 +1109,7 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 
 		// update state and counter pointers
-		counter = get_counter_days(0);
+		counter = get_counter_hours(0);
 		gstate = get_gstate_hours(0);
 		pstate = get_pstate_seconds(0);
 
@@ -1346,16 +1349,16 @@ static int init() {
 	init_all_devices();
 	set_all_devices(0);
 
-	ZEROP(pstate_seconds);
-	ZEROP(pstate_minutes);
-	ZEROP(pstate_hours);
-	ZEROP(gstate_hours);
-	ZEROP(counter_days);
+	ZERO(pstate_seconds);
+	ZERO(pstate_minutes);
+	ZERO(pstate_hours);
+	ZERO(gstate_hours);
+	ZERO(counter_hours);
 
 	load_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	load_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	mosmix_load_state();
 
 	meter = sunspec_init_poll("Meter", "192.168.25.230", 200, &update_meter);
@@ -1382,8 +1385,8 @@ static void stop() {
 	sunspec_stop(meter);
 
 #ifndef FRONIUS_MAIN
-	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_state();
@@ -1398,7 +1401,7 @@ static int single() {
 
 	init();
 	gstate = get_gstate_hours(0);
-	counter = get_counter_days(0);
+	counter = get_counter_hours(0);
 	pstate = get_pstate_seconds(0);
 	sleep(1); // update values
 
@@ -1418,8 +1421,6 @@ static int single() {
 
 // fake state and counter records from actual values and copy to history records
 static int fake() {
-	time_t now_ts = time(NULL);
-
 	counter_t c;
 	gstate_t g;
 	pstate_t p;
@@ -1438,10 +1439,9 @@ static int fake() {
 
 	calculate_pstate();
 	calculate_gstate();
-	calculate_mosmix(now_ts);
 
-	for (int i = 0; i < 7; i++)
-		memcpy(&counter_days[i], (void*) counter, sizeof(counter_t));
+	for (int i = 0; i < 24; i++)
+		memcpy(&counter_hours[i], (void*) counter, sizeof(counter_t));
 	for (int i = 0; i < 24; i++)
 		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
@@ -1449,8 +1449,8 @@ static int fake() {
 	for (int i = 0; i < 60; i++)
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
-	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
@@ -1502,7 +1502,7 @@ static int test() {
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, MARIENBERG);
 
-	ZEROP(gstate_hours);
+	ZERO(gstate_hours);
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
 	for (int i = 0; i < 24; i++) {
