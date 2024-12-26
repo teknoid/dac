@@ -207,6 +207,23 @@ static void init_all_devices() {
 	}
 }
 
+static int collect_pstate_load(int from, int hours) {
+	int load = 0;
+	char line[LINEBUF], value[25];
+	strcpy(line, "FRONIUS mosmix load");
+	for (int i = 0; i < hours; i++) {
+		int hour = from + i;
+		if (hour >= 24)
+			hour -= 24;
+		int load = pstate_hours[hour].load * -1;
+		load += load;
+		snprintf(value, 25, " %d:%d", hour, load);
+		strcat(line, value);
+	}
+	xdebug(line);
+	return load;
+}
+
 static pstate_t* get_pstate_seconds(int offset) {
 	int index = now->tm_sec + offset;
 	if (index < 0)
@@ -784,33 +801,21 @@ static void calculate_mosmix(time_t now_ts) {
 	mosmix_24h(now_ts, 2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// update last hour's pv and recalculate
-	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	// update last hour pv and recalculate
 	int today, tomorrow, sod, eod;
+	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	mosmix_dump_today(now->tm_hour);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
 	gstate->expected = eod;
-	mosmix_dump_today(now->tm_hour);
 
 	// calculate survival factor
-	int hours, from, to;
 	// TODO check factor/expected
+	int hours, from, to;
 	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
-	int needed = 0;
-	char line[LINEBUF], value[25];
-	strcpy(line, "FRONIUS mosmix load");
-	for (int i = 0; i < hours; i++) {
-		int hour = from + i;
-		if (hour >= 24)
-			hour -= 24;
-		int load = pstate_hours[hour].load * -1;
-		needed += load;
-		snprintf(value, 25, " %d:%d", hour, load);
-		strcat(line, value);
-	}
-	xdebug(line);
 	int available = gstate->expected + gstate->akku;
+	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
@@ -1024,7 +1029,7 @@ static void daily(time_t now_ts) {
 	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, 0);
 
-	// copy tomorrow's forecasts to today
+	// copy tomorrow forecasts to today
 	// TODO needed?
 	mosmix_takeover();
 	mosmix_dump_today(-1);
