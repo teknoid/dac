@@ -12,7 +12,6 @@
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
-#define XMAS					100
 #define SUSPICIOUS				250
 #define NOISE					25
 #define OVERRIDE				600
@@ -32,9 +31,6 @@
 #define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 
 #define GREEDY_MODEST(d)		(d->greedy ? "greedy" : "modest")
-
-#define FLOAT10(x)				((float) x / 10.0)
-#define FLOAT60(x)				((float) x / 60.0)
 
 #define FLAG_DELTA				(1 << 0)
 #define FLAG_RAMP				(1 << 1)

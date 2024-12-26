@@ -8,8 +8,6 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define FLOAT100(x)				((float) x / 100.0)
-
 // all values
 static mosmix_file_t mosmix[256];
 
@@ -105,31 +103,34 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m1 = &mosmix_tomorrow[hour];
 	expected(m1);
 
-	if (m0->x && mppt1) {
-		m0->mppt1 = mppt1;
+	// update todays MPPT values for this hour
+	m0->mppt1 = mppt1;
+	m0->mppt2 = mppt2;
+	m0->mppt3 = mppt3;
+	m0->mppt4 = mppt4;
+
+	// recalculate factors in today and take over for tomorrow
+	if (m0->x && m0->mppt1) {
 		new = (float) m0->mppt1 / (float) m0->x;
-		xdebug("MOSMIX MPPT1 factor old %.2f new %.2f", FLOAT100(m0->fac1), new);
+		xdebug("MOSMIX hour %d MPPT1 factor old %.2f new %.2f", hour, FLOAT100(m0->fac1), new);
 		m0->fac1 = m1->fac1 = new * 100;
 	}
 
-	if (m0->x && mppt2) {
-		m0->mppt2 = mppt2;
+	if (m0->x && m0->mppt2) {
 		new = (float) m0->mppt2 / (float) m0->x;
-		xdebug("MOSMIX MPPT2 factor old %.2f new %.2f", FLOAT100(m0->fac2), new);
+		xdebug("MOSMIX hour %d MPPT2 factor old %.2f new %.2f", hour, FLOAT100(m0->fac2), new);
 		m0->fac2 = m1->fac2 = new * 100;
 	}
 
-	if (m0->x && mppt3) {
-		m0->mppt3 = mppt3;
+	if (m0->x && m0->mppt3) {
 		new = (float) m0->mppt3 / (float) m0->x;
-		xdebug("MOSMIX MPPT3 factor old %.2f new %.2f", FLOAT100(m0->fac3), new);
+		xdebug("MOSMIX hour %d MPPT3 factor old %.2f new %.2f", hour, FLOAT100(m0->fac3), new);
 		m0->fac3 = m1->fac3 = new * 100;
 	}
 
-	if (m0->x && mppt4) {
-		m0->mppt4 = mppt4;
+	if (m0->x && m0->mppt4) {
 		new = (float) m0->mppt4 / (float) m0->x;
-		xdebug("MOSMIX MPPT4 factor old %.2f new %.2f", FLOAT100(m0->fac4), new);
+		xdebug("MOSMIX hour %d MPPT4 factor old %.2f new %.2f", hour, FLOAT100(m0->fac4), new);
 		m0->fac4 = m1->fac4 = new * 100;
 	}
 }

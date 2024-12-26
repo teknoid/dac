@@ -13,6 +13,10 @@
 #define SWAP16(x)					x = (((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
 #define SWAP32(x)					x = (((x << 16) & 0xffff0000) | ((x >> 16) & 0x0000ffff))
 
+#define FLOAT10(x)					((float) x / 10.0)
+#define FLOAT60(x)					((float) x / 60.0)
+#define FLOAT100(x)					((float) x / 100.0)
+
 #define msleep(x)					usleep(x * 1000)
 
 #define LINEBUF						256
