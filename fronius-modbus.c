@@ -256,8 +256,8 @@ static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->pv10);
-	xlogl_int_b(line, "PV7", gstate->pv7);
+	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
+	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
@@ -307,7 +307,8 @@ static void print_state(const char *message) {
 	}
 
 	xlogl_bits16(line, "  Flags", pstate->flags);
-	xlogl_int_b(line, "  PV", pstate->pv);
+	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
+	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	if (pstate->greedy)
@@ -330,9 +331,10 @@ static void update_f10(sunspec_t *ss) {
 
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
-		pstate->pv10_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
-		pstate->pv10_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		counter->pv10 = SFUI(ss->mppt->DCWH1 + ss->mppt->DCWH2, ss->mppt->DCWH_SF);
+		pstate->mppt1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->mppt2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		counter->mppt1 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
+		counter->mppt2 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
 		ss->active = 1;
 		break;
@@ -359,9 +361,10 @@ static void update_f7(sunspec_t *ss) {
 
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
-		pstate->pv7_1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
-		pstate->pv7_2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
-		counter->pv7 = SFUI(ss->mppt->DCWH1 + ss->mppt->DCWH2, ss->mppt->DCWH_SF);
+		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		counter->mppt3 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
+		counter->mppt4 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->poll = POLL_TIME_ACTIVE;
 		ss->active = 1;
 		break;
@@ -772,9 +775,10 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
 	// update last hour's pv and recalculate
-	mosmix_update(now->tm_hour, gstate->dpv);
+	gstate_t *h = get_gstate_hours(-1);
+	mosmix_update(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
 	int today, tomorrow;
-	mosmix_calculate(&today, &tomorrow);
+	mosmix_sum(&today, &tomorrow);
 	mosmix_dump_today();
 
 	// mosmix 24h forecasts today, tomorrow, tomorrow+1
@@ -790,8 +794,8 @@ static void calculate_mosmix(time_t now_ts) {
 	// save expected today and tomorrow
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
-	gstate->expected = eod.expected;
-	xdebug("FRONIUS mosmix today=%d tomorrow=%d sod=%d eod=%d expected=%d", gstate->today, gstate->tomorrow, sod.expected, eod.expected, gstate->expected);
+	gstate->expected = eod.exp1 + eod.exp2 + eod.exp3 + eod.exp4;
+	xdebug("FRONIUS mosmix today=%d tomorrow=%d expected=%d", gstate->today, gstate->tomorrow, gstate->expected);
 
 	// calculate survival factor
 	int hours, from, to;
@@ -827,10 +831,13 @@ static void calculate_gstate() {
 	counter_t *y = get_counter_days(-1);
 	gstate->produced = counter->produced && y->produced ? counter->produced - y->produced : 0;
 	gstate->consumed = counter->consumed && y->consumed ? counter->consumed - y->consumed : 0;
-	gstate->pv10 = counter->pv10 && y->pv10 ? counter->pv10 - y->pv10 : 0;
-	gstate->pv7 = counter->pv7 && y->pv7 ? counter->pv7 - y->pv7 : 0;
-	gstate->pv = gstate->pv10 + gstate->pv7;
-	gstate->dpv = gstate->pv - h->pv;
+	gstate->mppt1 = counter->mppt1 && y->mppt1 ? counter->mppt1 - y->mppt1 : 0;
+	gstate->mppt2 = counter->mppt2 && y->mppt2 ? counter->mppt2 - y->mppt2 : 0;
+	gstate->mppt3 = counter->mppt3 && y->mppt3 ? counter->mppt3 - y->mppt3 : 0;
+	gstate->mppt4 = counter->mppt4 && y->mppt4 ? counter->mppt4 - y->mppt4 : 0;
+	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
+	if (gstate->pv < 0)
+		gstate->pv = 0;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
@@ -856,7 +863,7 @@ static void calculate_pstate() {
 	pstate_t *s2 = get_pstate_seconds(-2);
 
 	// total PV produced by both inverters
-	pstate->pv = pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
+	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
@@ -881,8 +888,8 @@ static void calculate_pstate() {
 	if (abs(pstate->ac7 - s1->ac7) > NOISE)
 		pstate->flags |= FLAG_DELTA;
 
-	// akku power is DC power minus PV
-	pstate->akku = pstate->dc10 - (pstate->pv10_1 + pstate->pv10_2);
+	// akku power is Fronius10 DC power minus PV
+	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 	if (abs(pstate->akku) < NOISE)
 		pstate->akku = 0;
 
@@ -894,7 +901,7 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->dpv = 0;
 		return;
 	}
 
@@ -1433,7 +1440,7 @@ static int fake() {
 	for (int i = 0; i < 60; i++)
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
-	// store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
+	store_blob(COUNTER_FILE, counter_days, sizeof(counter_days));
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
@@ -1490,14 +1497,11 @@ static int test() {
 	for (int i = 0; i < 24; i++) {
 		gstate_t *g = &gstate_hours[i];
 		gstate_t *g1 = &gstate_hours[i != 0 ? i - 1 : 23];
-		int dpv = g->pv - g1->pv;
-		if (dpv < 0)
-			dpv = 0;
-		mosmix_update(i, dpv);
+		mosmix_update(i, g->mppt1 - g1->mppt1, g->mppt2 - g1->mppt2, g->mppt3 - g1->mppt3, g->mppt4 - g1->mppt4);
 	}
 
 	int today, tomorrow;
-	mosmix_calculate(&today, &tomorrow);
+	mosmix_sum(&today, &tomorrow);
 	mosmix_dump_today();
 	mosmix_dump_tomorrow();
 

@@ -1,9 +1,9 @@
 #include "tasmota-devices.h"
 
-// hexdump -v -e '4 "%10d ""\n"' /tmp/fronius-counter.bin
+// hexdump -v -e '6 "%10d ""\n"' /tmp/fronius-counter.bin
 #define COUNTER_FILE			"/tmp/fronius-counter.bin"
 
-// hexdump -v -e '14 "%6d ""\n"' /tmp/fronius-gstate.bin
+// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 
 // hexdump -v -e '24 "%6d ""\n"' /tmp/fronius-pstate*.bin
@@ -64,8 +64,10 @@ enum dstate {
 
 typedef struct _counter counter_t;
 struct _counter {
-	int pv10;
-	int pv7;
+	int mppt1;
+	int mppt2;
+	int mppt3;
+	int mppt4;
 	int produced;
 	int consumed;
 };
@@ -75,9 +77,10 @@ typedef struct _gstate gstate_t;
 #define GSTATE_HEADER	"    pv   Δpv  pv10   pv7 ↑grid ↓grid today  tomo   exp   soc  akku Δakku   ttl  surv"
 struct _gstate {
 	int pv;
-	int dpv;
-	int pv10;
-	int pv7;
+	int mppt1;
+	int mppt2;
+	int mppt3;
+	int mppt4;
 	int produced;
 	int consumed;
 	int today;
@@ -109,11 +112,11 @@ struct _pstate {
 	int xload;
 	int dxload;
 	int dc10;
-	int pv10_1;
-	int pv10_2;
 	int dc7;
-	int pv7_1;
-	int pv7_2;
+	int mppt1;
+	int mppt2;
+	int mppt3;
+	int mppt4;
 	int greedy;
 	int modest;
 	int soc;

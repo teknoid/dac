@@ -6,14 +6,23 @@
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	" Rad1h SunD1     x   exp   act   fac"
+#define MOSMIX_HEADER	" Rad1h SunD1     x  exp1 mppt1  fac1  exp2 mppt2  fac2  exp3 mppt3  fac3  exp4 mppt4  fac4"
 struct _mosmix {
 	int Rad1h;
 	int SunD1;
 	int x;
-	int expected;
-	int actual;
-	int factor;
+	int exp1;
+	int mppt1;
+	int fac1;
+	int exp2;
+	int mppt2;
+	int fac2;
+	int exp3;
+	int mppt3;
+	int fac3;
+	int exp4;
+	int mppt4;
+	int fac4;
 };
 
 typedef struct mosmix_file_t {
@@ -29,8 +38,8 @@ typedef struct mosmix_file_t {
 void mosmix_dump_today();
 void mosmix_dump_tomorrow();
 void mosmix_takeover();
-void mosmix_calculate(int *today, int *tomorrow);
-void mosmix_update(int hour, int actual);
+void mosmix_sum(int *today, int *tomorrow);
+void mosmix_update(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_sod_eod(int hour, mosmix_t *sod, mosmix_t *eod);
 void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to);
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum);

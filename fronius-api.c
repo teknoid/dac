@@ -370,8 +370,8 @@ static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS gstate");
 	xlogl_int_b(line, "PV", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->pv10);
-	xlogl_int_b(line, "PV7", gstate->pv7);
+	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
+	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
@@ -390,8 +390,8 @@ static void print_pstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS pstate");
 	xlogl_int_b(line, "PV", pstate->pv);
-	xlogl_int_b(line, "PV10", pstate->pv10_1 + pstate->pv10_2);
-	xlogl_int_b(line, "PV7", pstate->pv7_1 + pstate->pv7_2);
+	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
+	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
@@ -919,19 +919,23 @@ static void calculate_mosmix(time_t now_ts) {
 static void calculate_gstate() {
 	// take over raw values
 	gstate->soc = r->soc * 10.0; // store value as promille 0/00
-	counter->pv10 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
+	counter->mppt1 = (r->pv10_total1 / 3600) + (r->pv10_total2 / 3600); // counters are in Ws!
 	counter->produced = r->produced;
 	counter->consumed = r->consumed;
 	if (r->pv7_total > 0.0)
-		counter->pv7 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
+		counter->mppt3 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
 
 	// calculate daily values - when we have actual values and values from yesterday
 	counter_t *y = get_counter_history(-1);
 	gstate->produced = !counter->produced || !y->produced ? 0 : counter->produced - y->produced;
 	gstate->consumed = !counter->consumed || !y->consumed ? 0 : counter->consumed - y->consumed;
-	gstate->pv10 = !counter->pv10 || !y->pv10 ? 0 : counter->pv10 - y->pv10;
-	gstate->pv7 = !counter->pv7 || !y->pv7 ? 0 : counter->pv7 - y->pv7;
-	gstate->pv = gstate->pv10 + gstate->pv7;
+	gstate->mppt1 = counter->mppt1 && y->mppt1 ? counter->mppt1 - y->mppt1 : 0;
+	gstate->mppt2 = counter->mppt2 && y->mppt2 ? counter->mppt2 - y->mppt2 : 0;
+	gstate->mppt3 = counter->mppt3 && y->mppt3 ? counter->mppt3 - y->mppt3 : 0;
+	gstate->mppt4 = counter->mppt4 && y->mppt4 ? counter->mppt4 - y->mppt4 : 0;
+	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
+	if (gstate->pv < 0)
+		gstate->pv = 0;
 
 	// get previous gstate slot to calculate deltas
 	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
@@ -949,7 +953,7 @@ static void calculate_pstate1() {
 	pstate->akku = r->akku;
 	pstate->grid = r->grid;
 	pstate->load = r->load;
-	pstate->pv10_1 = r->pv10;
+	pstate->mppt1 = r->pv10;
 	pstate->soc = r->soc * 10.0;
 
 	// clear all flags
@@ -960,14 +964,14 @@ static void calculate_pstate1() {
 	pstate_t *h2 = get_pstate_history(-2);
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv10_1 < NOISE && h1->pv10_1 < NOISE && h2->pv10_1 < NOISE) {
+	if (pstate->mppt1 < NOISE && h1->mppt1 < NOISE && h2->mppt1 < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && gstate->survive > 10;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv7_1 = pstate->pv7_2 = pstate->dpv = 0;
+		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->dpv = 0;
 		return;
 	}
 
@@ -982,7 +986,7 @@ static void calculate_pstate1() {
 
 static void calculate_pstate2() {
 	// take over raw values from Fronius7
-	pstate->pv7_1 = r->pv7;
+	pstate->mppt3 = r->pv7;
 
 	// clear VALID flag
 	pstate->flags &= ~FLAG_RAMP;
@@ -992,11 +996,11 @@ static void calculate_pstate2() {
 	pstate_t *h2 = get_pstate_history(-2);
 
 	// total pv from both inverters
-	pstate->pv = pstate->pv10_1 + pstate->pv10_2 + pstate->pv7_1 + pstate->pv7_2;
+	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - h1->pv;
 
 	// subtract PV produced by Fronius7
-	pstate->load -= (pstate->pv7_1 + pstate->pv7_2);
+	pstate->load -= (pstate->mppt3 + pstate->mppt4);
 
 	// calculate delta load
 	pstate->dload = pstate->load - h1->load;
@@ -1063,7 +1067,7 @@ static void calculate_pstate2() {
 	pstate->flags |= FLAG_RAMP;
 
 	//clear flag if values not valid
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv10_1 + pstate->pv10_2;
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->mppt1 + pstate->mppt2;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
 		pstate->flags &= ~FLAG_RAMP;

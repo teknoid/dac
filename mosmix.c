@@ -8,6 +8,8 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define FLOAT100(x)				((float) x / 100.0)
+
 // all values
 static mosmix_file_t mosmix[256];
 
@@ -25,8 +27,16 @@ static void sum(mosmix_t *s, mosmix_t *m) {
 	s->Rad1h += m->Rad1h;
 	s->SunD1 += m->SunD1;
 	s->x += m->x;
-	s->actual += m->actual;
-	s->expected += m->expected;
+
+	s->mppt1 += m->mppt1;
+	s->mppt2 += m->mppt2;
+	s->mppt3 += m->mppt3;
+	s->mppt4 += m->mppt4;
+
+	s->exp1 += m->exp1;
+	s->exp2 += m->exp2;
+	s->exp3 += m->exp3;
+	s->exp4 += m->exp4;
 }
 
 void mosmix_dump_today() {
@@ -42,42 +52,72 @@ void mosmix_takeover() {
 		mosmix_t *m0 = &mosmix_today[i];
 		mosmix_t *m1 = &mosmix_tomorrow[i];
 		memcpy(m0, m1, sizeof(mosmix_t));
-		m0->actual = 0;
+		m0->mppt1 = 0;
+		m0->mppt2 = 0;
+		m0->mppt3 = 0;
+		m0->mppt4 = 0;
 	}
 }
 
-void mosmix_calculate(int *today, int *tomorrow) {
-	*today = *tomorrow = 0;
+void mosmix_sum(int *today, int *tomorrow) {
+	mosmix_t stoday, stomorrow;
+	ZERO(stoday);
+	ZERO(stomorrow);
 	for (int i = 0; i < 24; i++) {
-		mosmix_t *m0 = &mosmix_today[i];
-		mosmix_t *m1 = &mosmix_tomorrow[i];
-
-		float factor = m0->factor ? m0->factor / 100.0 : 1.0;
-
-		// today
-		m0->x = m0->Rad1h * (1 + (float) m0->SunD1 / 3600 / 2);
-		if (m0->actual && m0->x) {
-			// recalculate factor when we have actual and forecast
-			factor = (float) m0->actual / (float) m0->x;
-			m0->factor = factor * 100; // store as x100 scaled
-		}
-		m0->expected = m0->x * factor;
-		*today += m0->expected;
-
-		// tomorrow
-		m1->x = m1->Rad1h * (1 + (float) m1->SunD1 / 3600 / 2);
-		m1->factor = m0->factor; // take over
-		m1->expected = m1->x * factor;
-		*tomorrow += m1->expected;
-
-		// xdebug("MOSMIX actual=%d x0=%d factor=%.2f expected=%d", m0->actual, x0, factor, m0->expected);
+		sum(&stoday, &mosmix_today[i]);
+		sum(&stomorrow, &mosmix_tomorrow[i]);
 	}
-	// xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
+	*today = stoday.exp1 + stoday.exp2 + stoday.exp3 + stoday.exp4;
+	*tomorrow = stomorrow.exp1 + stomorrow.exp2 + stomorrow.exp3 + stomorrow.exp4;
+	xdebug("MOSMIX today=%d tomorrow=%d", *today, *tomorrow);
 }
 
-void mosmix_update(int hour, int actual) {
-	mosmix_t *m = &mosmix_today[hour];
-	m->actual = actual;
+void mosmix_update(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
+	float new;
+
+	// today
+	mosmix_t *m0 = &mosmix_today[hour];
+	m0->x = m0->Rad1h * (1 + (float) m0->SunD1 / 3600 / 2);
+
+	// tomorrow
+	mosmix_t *m1 = &mosmix_tomorrow[hour];
+	m1->x = m1->Rad1h * (1 + (float) m1->SunD1 / 3600 / 2);
+
+	if (m0->x && mppt1 > 0) {
+		m0->mppt1 = mppt1;
+		new = (float) m0->mppt1 / (float) m0->x;
+		xdebug("MOSMIX MPPT1 factor old %.2f new %.2f", FLOAT100(m0->fac1), new);
+		m0->fac1 = new * 100;
+	}
+	m1->fac1 = m0->fac1;
+	m1->exp1 = m1->x * FLOAT100(m1->fac1);
+
+	if (m0->x && mppt2 > 0) {
+		m0->mppt2 = mppt2;
+		new = (float) m0->mppt2 / (float) m0->x;
+		xdebug("MOSMIX MPPT2 factor old %.2f new %.2f", FLOAT100(m0->fac2), new);
+		m0->fac2 = new * 100;
+	}
+	m1->fac2 = m0->fac2;
+	m1->exp2 = m1->x * FLOAT100(m1->fac2);
+
+	if (m0->x && mppt3 > 0) {
+		m0->mppt3 = mppt3;
+		new = (float) m0->mppt3 / (float) m0->x;
+		xdebug("MOSMIX MPPT3 factor old %.2f new %.2f", FLOAT100(m0->fac3), new);
+		m0->fac3 = new * 100;
+	}
+	m1->fac3 = m0->fac3;
+	m1->exp3 = m1->x * FLOAT100(m1->fac3);
+
+	if (m0->x && mppt4 > 0) {
+		m0->mppt4 = mppt4;
+		new = (float) m0->mppt4 / (float) m0->x;
+		xdebug("MOSMIX MPPT4 factor old %.2f new %.2f", FLOAT100(m0->fac4), new);
+		m0->fac4 = new * 100;
+	}
+	m1->fac4 = m0->fac4;
+	m1->exp4 = m1->x * FLOAT100(m1->fac4);
 }
 
 void mosmix_sod_eod(int hour, mosmix_t *sod, mosmix_t *eod) {
