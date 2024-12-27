@@ -22,8 +22,8 @@
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
-#define WAIT_NEXT_RAMP_GREEDY	10
-#define WAIT_NEXT_RAMP_MODEST	3
+#define WAIT_NEXT_RAMP_SLOW		10
+#define WAIT_NEXT_RAMP_FAST		3
 #define WAIT_RESPONSE			3
 #define WAIT_NEXT				1
 
@@ -339,7 +339,7 @@ static void print_state(device_t *d) {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
 
 	if (d)
-		xlogl_int(line, 0, 0, "Timer", d->timer);
+		xlogl_int(line, 0, 0, d->name, d->timer);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -421,10 +421,8 @@ static void storage_strategy() {
 		// set minimum SoC to 10%
 		sunspec_storage_minimum_soc(f10, 10);
 
-		int nosun = m2.RSunD < 10;				// tomorrow (m2!) less than 10% sun
-		int half = pstate->soc < 500;			// SoC below 50%
-
-		if (nosun || half)
+		int limit = gstate->survive < 10 || gstate->today < 10000 || gstate->tomorrow < 10000;
+		if (limit)
 			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else
 			sunspec_storage_limit_reset(f10);	// no limits
@@ -459,22 +457,11 @@ static int select_program(const potd_t *p) {
 // choose program of the day
 static int choose_program() {
 
-	// TODO
-	return select_program(&GREEDY);
-
-	if (!gstate || now->tm_mon == 11)
+	if (!gstate)
 		return select_program(&MODEST);
-
-	// charging akku has priority
-	if (gstate->soc < 100)
-		return select_program(&CHARGE);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
-		return select_program(&MODEST);
-
-	// survive and today (m1!) less than 10% sun
-	if (m1.RSunD < 10)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
@@ -752,7 +739,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		d->timer = expected > pstate->modest ? WAIT_NEXT_RAMP_GREEDY : WAIT_NEXT_RAMP_MODEST; // as long as we have enough modest power fast next ramp
+		d->timer = pstate->soc < 1000 ? WAIT_NEXT_RAMP_SLOW : WAIT_NEXT_RAMP_FAST; // akku needs ~10 seconds to ramp down charge power !!!
 		return d;
 	}
 
@@ -761,7 +748,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = expected > pstate->modest ? WAIT_NEXT_RAMP_GREEDY : WAIT_NEXT_RAMP_MODEST; // as long as we have enough modest power fast next ramp
+		d->timer = pstate->soc < 1000 ? WAIT_NEXT_RAMP_SLOW : WAIT_NEXT_RAMP_FAST; // akku needs ~10 seconds to ramp down charge power !!!
 		return d;
 	}
 
@@ -776,7 +763,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// ignore standby check when power was released
-	if (delta > 0)
+	if (expected > 0)
 		return 0;
 
 	// perform standby check when noresponse counter reaches threshold
@@ -906,10 +893,8 @@ static void calculate_pstate() {
 		return;
 	}
 
-	// emergency shutdown when three times extreme akku discharge or grid download
-	int e_akku = pstate->akku > EMERGENCY && s1->akku > EMERGENCY && s2->akku > EMERGENCY;
-	int e_grid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY;
-	if (e_akku || e_grid) {
+	// emergency shutdown when last minute extreme akku discharge or grid download
+	if (m1->akku > EMERGENCY || m1->grid > EMERGENCY) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
@@ -1063,8 +1048,7 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// define storage strategy
-// TODO
-//	storage_strategy();
+	storage_strategy();
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	counter_t *c1 = get_counter_hour(1);
@@ -1127,6 +1111,14 @@ static void fronius() {
 
 		// calculate new pstate
 		calculate_pstate();
+
+		// initialize program of the day if not yet done
+		if (!potd) {
+			calculate_gstate();
+			calculate_mosmix(now_ts);
+			choose_program();
+			continue;
+		}
 
 		// check emergency
 		if (PSTATE_EMERGENCY)
@@ -1381,9 +1373,6 @@ static int init() {
 	lt = localtime(&now_ts);
 	memcpy(now, lt, sizeof(*lt));
 
-	// initialize program of the day
-	choose_program();
-
 	return 0;
 }
 
@@ -1414,7 +1403,7 @@ static int single() {
 	pstate = get_pstate_second(0);
 	sleep(1); // update values
 
-//	storage_strategy();
+	storage_strategy();
 	calculate_pstate();
 	calculate_gstate();
 	calculate_mosmix(now_ts);
