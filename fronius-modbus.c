@@ -426,7 +426,7 @@ static void storage_strategy() {
 		// set minimum SoC to 10%
 		sunspec_storage_minimum_soc(f10, 10);
 
-		int limit = gstate->survive < 10 || gstate->today < 10000 || gstate->tomorrow < 10000;
+		int limit = gstate->survive < 10 || gstate->tomorrow < 10000;
 		if (limit)
 			sunspec_storage_limit_discharge(f10, BASELOAD);
 		else

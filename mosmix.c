@@ -146,10 +146,12 @@ void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) 
 // calculate hours to survive next night
 void mosmix_survive(int hour, int min, int *hours, int *from, int *to) {
 
-	// find sundown starting backwards from 0:00 or now
-	int sundown = hour > 12 ? hour : 23;
+	// 27.12.2024 18:00:00 MOSMIX survive hours=17 min=150 from=15/418 to=8/251
+
+	// find sundown or now starting backwards from 0:00
+	int sundown = 23;
 	int sundown_expected = 0;
-	for (; sundown > 12; sundown--) {
+	for (; sundown > 12 && sundown > hour; sundown--) {
 		mosmix_t *m = &today[sundown];
 		sundown_expected = SUM_EXPECTED(m);
 		if (sundown_expected > min)
@@ -157,7 +159,7 @@ void mosmix_survive(int hour, int min, int *hours, int *from, int *to) {
 	}
 
 	// find sunrise starting from now or 0:00
-	int sunrise = hour <= 12 ? hour : 0;
+	int sunrise = hour < 12 ? hour : 0;
 	int sunrise_expected = 0;
 	for (; sunrise <= 12; sunrise++) {
 		mosmix_t *m = &tomorrow[sunrise];
@@ -169,7 +171,7 @@ void mosmix_survive(int hour, int min, int *hours, int *from, int *to) {
 	*from = sundown;
 	*to = sunrise;
 	*hours = 24 - sundown + sunrise;
-	xdebug("MOSMIX survive hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, sundown, sundown_expected, sunrise, sunrise_expected);
+	xdebug("MOSMIX survive now=%d hours=%d min=%d from=%d/%d to=%d/%d", hour, *hours, min, sundown, sundown_expected, sunrise, sunrise_expected);
 }
 
 // sum up 24 mosmix slots for one day (with offset)
