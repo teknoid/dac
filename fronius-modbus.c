@@ -1057,9 +1057,6 @@ static void hourly(time_t now_ts) {
 	if (PSTATE_OFFLINE)
 		set_all_devices(0);
 
-	// define storage strategy
-	storage_strategy();
-
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	counter_t *c1 = get_counter_hour(1);
 	memcpy(c1, (void*) counter, sizeof(counter_t));
@@ -1070,9 +1067,10 @@ static void hourly(time_t now_ts) {
 	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
 
-	// recalculate gstate, mosmix and potd
+	// recalculate gstate, mosmix, then choose storage strategy potd
 	calculate_gstate();
 	calculate_mosmix(now_ts);
+	storage_strategy();
 	choose_program();
 
 	// print actual gstate
@@ -1119,11 +1117,12 @@ static void fronius() {
 		while (now_ts == time(NULL))
 			msleep(333);
 
-		// initialize program of the day if not yet done
+		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
 			calculate_pstate();
 			calculate_gstate();
 			calculate_mosmix(now_ts);
+			storage_strategy();
 			choose_program();
 			continue;
 		}
@@ -1412,10 +1411,10 @@ static int single() {
 	pstate = get_pstate_second(0);
 	sleep(1); // update values
 
-	storage_strategy();
 	calculate_pstate();
 	calculate_gstate();
 	calculate_mosmix(now_ts);
+	storage_strategy();
 	choose_program();
 
 	// aggregate 24 pstate hours into one day
