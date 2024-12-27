@@ -461,10 +461,6 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-
-	// TODO
-	return select_program(&SUNNY);
-
 	if (!gstate)
 		return select_program(&MODEST);
 
