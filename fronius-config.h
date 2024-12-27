@@ -72,7 +72,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   exp mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   exp mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv  heat"
 struct _gstate {
 	int pv;
 	int produced;
@@ -89,6 +89,7 @@ struct _gstate {
 	int dakku;
 	int ttl;
 	int survive;
+	int heating;
 };
 
 typedef struct _pstate pstate_t;
@@ -195,9 +196,6 @@ typedef struct potd_t {
 	device_t *modest[ARRAY_SIZE(DEVICES)];
 } potd_t;
 
-// charge: all power goes into akku, only boiler1 takes Fronius7 surplus power
-static const potd_t CHARGE = { .name = "CHARGE", .greedy = { 0 }, .modest = { &b1, 0 } };
-
 // cloudy weather with akku empty: first charge akku, then boiler1, then rest
 static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
 
@@ -208,5 +206,5 @@ static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4,
 static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
 
 // force boiler heating
-static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, &b2, &b3, 0 }, .modest = { &h1, &h2, &h3, &h4, 0 } };
-static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, &b2, &b1, 0 }, .modest = { &h1, &h2, &h3, &h4, 0 } };
+static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, 0 }, .modest = { &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
+static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, 0 }, .modest = { &h1, &h2, &h3, &h4, &b2, &b1, 0 } };

@@ -145,46 +145,59 @@ void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) 
 
 // calculate hours to survive next night
 void mosmix_survive(int hour, int min, int *hours, int *from, int *to) {
-	int sundown, sunrise;
-	int sundown_expected = 0, sunrise_expected = 0;
+	int h, from_expected = 0, to_expected = 0;
 
-	if (hour < 12) {
-
-		// find today sunrise or now
-		int sundown = hour;
-		for (sunrise = sundown; sunrise < 12; sunrise++) {
-			mosmix_t *m = &today[sunrise];
-			sunrise_expected = SUM_EXP;
-			if (sunrise_expected > min)
-				break;
-		}
-		*hours = sunrise - sundown;
-		*from = sundown;
-		*to = sunrise;
-
-	} else {
-
-		// find today sundown or now starting backwards from 0:00
-		for (sundown = 23; sundown >= 12 && sundown > hour; sundown--) {
-			mosmix_t *m = &today[sundown];
-			sundown_expected = SUM_EXP;
-			if (sundown_expected > min)
-				break;
-		}
-
-		// find tomorrow sunrise
-		for (sunrise = 0; sunrise < 12; sunrise++) {
-			mosmix_t *m = &tomorrow[sunrise];
-			sunrise_expected = SUM_EXP;
-			if (sunrise_expected > min)
-				break;
-		}
-		*hours = 24 - sundown + sunrise;
-		*from = sundown;
-		*to = sunrise;
+	// find today sundown or now starting backwards from 0:00
+	for (h = 23; h >= 12 && h > hour; h--) {
+		mosmix_t *m = &today[h];
+		from_expected = SUM_EXP;
+		if (from_expected > min)
+			break;
 	}
+	*from = h;
 
-	xdebug("MOSMIX survive hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, sundown, sundown_expected, sunrise, sunrise_expected);
+	// find tomorrow sunrise
+	for (h = 0; h < 12; h++) {
+		mosmix_t *m = &tomorrow[h];
+		to_expected = SUM_EXP;
+		if (to_expected > min)
+			break;
+	}
+	*to = h;
+
+	*hours = 24 - *from + *to;
+	xdebug("MOSMIX survive hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, *from, from_expected, *to, to_expected);
+}
+
+// calculate hours where we have enough power for heating
+void mosmix_heating(int hour, int min, int *hours, int *from, int *to) {
+	int h, from_expected = 0, to_expected = 0;
+
+	// find first hour with enough expected
+	for (h = hour; h < 24; h++) {
+		mosmix_t *m = &today[h];
+		from_expected = SUM_EXP;
+		if (from_expected > min)
+			break;
+	}
+	*from = h;
+
+	// find last hour with enough expected
+	for (h = 23; h >= hour; h--) {
+		mosmix_t *m = &today[h];
+		to_expected = SUM_EXP;
+		if (to_expected > min)
+			break;
+	}
+	*to = h;
+
+	// validate
+	if (*from < *to)
+		*hours = *to - *from;
+	else
+		*hours = *to = *from = 0;
+
+	xdebug("MOSMIX heating hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, *from, from_expected, *to, to_expected);
 }
 
 // sum up 24 mosmix slots for one day (with offset)
@@ -316,6 +329,8 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_survive(tm.tm_hour, 150, &hours, &from, &to);
 	// mosmix_survive(17, 150, &hours, &from, &to);
 	mosmix_survive(12, 10000, &hours, &from, &to); // -> should be full 24hours
+	// mosmix_heating(tm.tm_hour, 1500, &hours, &from, &to);
+	mosmix_heating(9, 1500, &hours, &from, &to);
 
 	return 0;
 }

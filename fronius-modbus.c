@@ -472,8 +472,11 @@ static int choose_program() {
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// enough pv available
-	return select_program(&SUNNY);
+	// enough pv available for heating + survive
+	if (gstate->heating > 10)
+		return select_program(&SUNNY);
+
+	return select_program(&MODEST);
 }
 
 // minimum available power for ramp up
@@ -810,7 +813,14 @@ static void calculate_mosmix(time_t now_ts) {
 	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.2f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) survive=%.2f", needed, available, gstate->expected, gstate->akku, survive);
+
+	// calculate heating factor TODO auto collect heating power from devices
+	mosmix_heating(now->tm_hour, 1500, &hours, &from, &to);
+	needed += 1500 * hours; // survive + heating
+	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
+	gstate->heating = heating * 10; // store as x10 scaled
+	xdebug("FRONIUS heating needed=%d expected=%d heating=%.2f", needed, gstate->expected, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
@@ -818,7 +828,7 @@ static void calculate_mosmix(time_t now_ts) {
 		actual += gstate_hours[i].pv;
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
 	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
+	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
 }
 
 static void calculate_gstate() {

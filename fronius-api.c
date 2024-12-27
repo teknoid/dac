@@ -558,10 +558,6 @@ static int select_program(const potd_t *p) {
 // choose program of the day
 static int choose_program() {
 
-	// charging akku has priority
-	if (gstate->soc < 100)
-		return select_program(&CHARGE);
-
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
