@@ -215,9 +215,9 @@ static int collect_pstate_load(int from, int hours) {
 		int hour = from + i;
 		if (hour >= 24)
 			hour -= 24;
-		int load = pstate_hours[hour].load * -1;
-		load += load;
-		snprintf(value, 25, " %d:%d", hour, load);
+		int hload = pstate_hours[hour].load * -1;
+		load += hload;
+		snprintf(value, 25, " %d:%d", hour, hload);
 		strcat(line, value);
 	}
 	xdebug(line);
