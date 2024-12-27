@@ -783,7 +783,7 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
-	// update produced energy this hour and recalculate mosmix factors
+	// update produced energy this hour and recalculate mosmix factors for each mppt
 	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 
 	// dump
@@ -810,7 +810,7 @@ static void calculate_mosmix(time_t now_ts) {
 	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.2f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
@@ -818,7 +818,7 @@ static void calculate_mosmix(time_t now_ts) {
 		actual += gstate_hours[i].pv;
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
 	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, actual, error);
+	xdebug("FRONIUS mosmix yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
 }
 
 static void calculate_gstate() {
