@@ -382,6 +382,11 @@ static void update_f7(sunspec_t *ss) {
 	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 
 	switch (ss->inverter->St) {
+	// TODO workaround meter - silently ignore
+	case I_STATUS_FAULT:
+		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		break;
+
 	case I_STATUS_MPPT:
 		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
@@ -982,11 +987,11 @@ static void calculate_pstate() {
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f10->active) {
-		xlog("FRONIUS Fronius10 is not active! ac=%d dc=%d", pstate->ac10, pstate->dc10);
+		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f7->active) {
-		xlog("FRONIUS Fronius7 is not active! ac=%d dc=%d", pstate->ac7, pstate->dc7);
+		xlog("FRONIUS Fronius7 is not active!");
 	}
 }
 
