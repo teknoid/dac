@@ -472,7 +472,7 @@ static int choose_program() {
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// enough pv available for heating + survive
+	// enough pv available for survive + heating
 	if (gstate->heating > 10)
 		return select_program(&SUNNY);
 
