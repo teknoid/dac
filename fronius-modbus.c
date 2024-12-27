@@ -783,19 +783,21 @@ static void calculate_mosmix(time_t now_ts) {
 	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
-	// update produced energy this hour and recalculate forecasts
-	int today, tomorrow, sod, eod;
+	// update produced energy this hour and recalculate mosmix factors
 	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->expected = eod;
 
 	// dump
 	mosmix_dump_today(now->tm_hour);
 	mosmix_dump_tomorrow(now->tm_hour);
 
-	// 24h forecasts today, tomorrow, tomorrow+1
+	// calculate expected
+	int today, tomorrow, sod, eod;
+	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->expected = eod;
+
+	// calculate total daily values
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);

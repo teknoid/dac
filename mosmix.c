@@ -300,13 +300,11 @@ int mosmix_main(int argc, char **argv) {
 	// load state and update forecasts
 	mosmix_load_state();
 	mosmix_load(now_ts, MARIENBERG);
+	mosmix_dump_today(tm.tm_hour);
+	mosmix_dump_tomorrow(tm.tm_hour);
 
 	// calculate expected
 	mosmix_expected(tm.tm_hour, &today, &tomorrow, &sod, &eod);
-
-	// dump
-	mosmix_dump_today(tm.tm_hour);
-	mosmix_dump_tomorrow(tm.tm_hour);
 
 	// calculate total daily values
 	mosmix_file_t m0, m1, m2;
