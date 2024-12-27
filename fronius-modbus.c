@@ -788,9 +788,12 @@ static void calculate_mosmix(time_t now_ts) {
 		return;
 
 	// actual vs. yesterdays expected ratio
+	int actual = 0;
+	for (int i = 0; i <= now->tm_hour; i++)
+		actual += gstate_hours[i].pv;
 	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
-	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, actual, error);
 
 	// 24h forecasts today, tomorrow, tomorrow+1
 	mosmix_24h(now_ts, 0, &m0);
