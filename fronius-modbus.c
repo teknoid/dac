@@ -287,6 +287,7 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), message);
@@ -813,14 +814,14 @@ static void calculate_mosmix(time_t now_ts) {
 	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) survive=%.2f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// calculate heating factor TODO auto collect heating power from devices
 	mosmix_heating(now->tm_hour, 1500, &hours, &from, &to);
 	needed += 1500 * hours; // survive + heating
 	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d expected=%d heating=%.2f", needed, gstate->expected, heating);
+	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed, gstate->expected, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
@@ -1428,6 +1429,7 @@ static int loop() {
 // do all calculations in one single round trip and exit
 static int single() {
 	time_t now_ts = time(NULL);
+
 	init();
 
 	gstate = get_gstate_hour(0);
@@ -1444,14 +1446,14 @@ static int single() {
 	// aggregate 24 pstate hours into one day
 	pstate_t pd;
 	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
 	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
 	print_state(NULL);
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
 	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 	print_gstate(NULL);
 
