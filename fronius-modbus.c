@@ -594,7 +594,7 @@ static device_t* ramp() {
 	}
 
 	// ramp up only when state is stable or enough power
-	int ok = PSTATE_STABLE || pstate->greedy > 2000 || pstate->modest > 2000;
+	int ok = PSTATE_STABLE || pstate->greedy > 2000 || pstate->modest > 1000;
 	if (!ok)
 		return 0;
 
@@ -1116,7 +1116,7 @@ static void fronius() {
 		gstate = get_gstate_hour(0);
 		pstate = get_pstate_second(0);
 
-		// wait till this second is over, meanwhile sunspec threads have updated values
+		// wait till this second is over, meanwhile sunspec threads have values updated
 		while (now_ts == time(NULL))
 			msleep(333);
 
@@ -1148,19 +1148,17 @@ static void fronius() {
 		if (device)
 			device = response(device);
 
-		if (PSTATE_RAMP) {
-			// prio2: perform standby check logic
-			if (!device)
-				device = standby();
+		// prio2: perform standby check logic
+		if (!device)
+			device = standby();
 
-			// prio3: check if higher priorized device can steal from lower priorized
-			if (!device)
-				device = steal();
+		// prio3: check if higher priorized device can steal from lower priorized
+		if (!device)
+			device = steal();
 
-			// prio4: ramp up/down
-			if (!device)
-				device = ramp();
-		}
+		// prio4: ramp up/down
+		if (!device && PSTATE_RAMP)
+			device = ramp();
 
 		// print combined device and pstate when we had delta or device action
 		if (PSTATE_DELTA || device)
