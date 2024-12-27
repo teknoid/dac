@@ -1406,6 +1406,15 @@ static void stop() {
 		close(sock);
 }
 
+// run the main loop forever
+static int loop() {
+	init();
+	fronius();
+	pause();
+	stop();
+	return 0;
+}
+
 // do all calculations in one single round trip and exit
 static int single() {
 	time_t now_ts = time(NULL);
@@ -1525,17 +1534,12 @@ int fronius_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	// no arguments - main loop
-	if (argc == 1) {
-		init();
-		fronius();
-		pause();
-		stop();
-		return 0;
-	}
+	// no arguments - run one single roundtrip
+	if (argc == 1)
+		return single();
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:m:o:fgst")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:m:o:fglt")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1552,8 +1556,8 @@ int fronius_main(int argc, char **argv) {
 			return fake();
 		case 'g':
 			return grid();
-		case 's':
-			return single();
+		case 'l':
+			return loop();
 		case 't':
 			return test();
 		}
