@@ -863,10 +863,12 @@ static void calculate_pstate() {
 	pstate->dpv = pstate->pv - s1->pv;
 	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
-	// shape grid, calculate delta grid + sum
+	// grid, delta grid and sum
 	if (abs(pstate->grid) < NOISE)
-		pstate->grid = 0;
+		pstate->grid = 0; // shape
 	pstate->dgrid = pstate->grid - s1->grid;
+	if (abs(pstate->dgrid) < NOISE)
+		pstate->dgrid = 0; // shape
 	pstate->sdgrid = s1->sdgrid + abs(pstate->dgrid);
 
 	// calculate load manually
