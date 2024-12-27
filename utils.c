@@ -777,13 +777,13 @@ void dump_table(int *table, int cols, int rows, int highlight_row, const char *t
 		xdebug(title);
 
 	if (header) {
-		strcpy(c, "idx ");
+		strcpy(c, " idx");
 		strcat(c, header);
 		xdebug(c);
 	}
 
 	for (int y = 0; y < rows; y++) {
-		snprintf(v, 16, "[%2d] ", y);
+		snprintf(v, 16, "[%02d] ", y);
 		strcpy(c, v);
 		if (y == highlight_row)
 			strcat(c, BOLD);
