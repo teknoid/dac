@@ -457,6 +457,9 @@ static int select_program(const potd_t *p) {
 // choose program of the day
 static int choose_program() {
 
+	// TODO
+	return select_program(&SUNNY);
+
 	if (!gstate)
 		return select_program(&MODEST);
 
@@ -979,8 +982,11 @@ static void calculate_pstate() {
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f10->active) {
-		xlog("FRONIUS Fronius10 is not active!");
+		xlog("FRONIUS Fronius10 is not active! ac=%d dc=%d", pstate->ac10, pstate->dc10);
 		pstate->flags &= ~FLAG_RAMP;
+	}
+	if (!f7->active) {
+		xlog("FRONIUS Fronius7 is not active! ac=%d dc=%d", pstate->ac7, pstate->dc7);
 	}
 }
 
@@ -1109,16 +1115,17 @@ static void fronius() {
 		while (now_ts == time(NULL))
 			msleep(333);
 
-		// calculate new pstate
-		calculate_pstate();
-
 		// initialize program of the day if not yet done
 		if (!potd) {
+			calculate_pstate();
 			calculate_gstate();
 			calculate_mosmix(now_ts);
 			choose_program();
 			continue;
 		}
+
+		// calculate new pstate
+		calculate_pstate();
 
 		// check emergency
 		if (PSTATE_EMERGENCY)

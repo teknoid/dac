@@ -26,7 +26,7 @@
 
 #define CONNECT_RETRY_TIME		900 		// seconds
 #define POLL_TIME_ACTIVE		500 		// milliseconds
-#define POLL_TIME_FAULT			1000 * 60	// 1 min
+#define POLL_TIME_FAULT			1000 * 10	// 10 sec
 #define POLL_TIME_SLEEPING		1000 * 900 	// 15 min
 
 //
