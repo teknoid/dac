@@ -382,9 +382,9 @@ static void update_f7(sunspec_t *ss) {
 	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 
 	switch (ss->inverter->St) {
-	// TODO workaround meter - silently ignore
 	case I_STATUS_FAULT:
-		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		// TODO workaround meter - silently ignore
+		// xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
 		break;
 
 	case I_STATUS_MPPT:
@@ -793,7 +793,6 @@ static void calculate_mosmix(time_t now_ts) {
 	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
 	// 24h forecasts today, tomorrow, tomorrow+1
-	// TODO now->tm_hour
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);
@@ -809,9 +808,8 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod;
 
 	// calculate survival factor
-	// TODO now->tm_hour
 	int hours, from, to;
-	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
+	mosmix_survive(now->tm_hour, BASELOAD / 2, &hours, &from, &to);
 	int available = gstate->expected + gstate->akku;
 	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
@@ -1522,17 +1520,10 @@ static int test() {
 	time_t now_ts = time(NULL);
 	mosmix_load(now_ts, MARIENBERG);
 
-	ZERO(gstate_hours);
-	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-
-	for (int i = 0; i < 24; i++) {
-		gstate_t *g = &gstate_hours[i];
-		gstate_t *g1 = &gstate_hours[i != 0 ? i - 1 : 23];
-		mosmix_mppt(i, g->mppt1 - g1->mppt1, g->mppt2 - g1->mppt2, g->mppt3 - g1->mppt3, g->mppt4 - g1->mppt4);
-	}
-
 	int today, tomorrow, sod, eod;
 	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	int hours, from, to;
+	mosmix_survive(now->tm_hour, BASELOAD / 2, &hours, &from, &to);
 	mosmix_dump_today(-1);
 	mosmix_dump_tomorrow(-1);
 

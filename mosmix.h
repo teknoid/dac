@@ -46,6 +46,6 @@ void mosmix_dump_today(int highlight);
 void mosmix_dump_tomorrow(int highlight);
 void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod);
-void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to);
+void mosmix_survive(int hour, int min, int *hours, int *from, int *to);
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum);
 int mosmix_load(time_t now_ts, const char *filename);

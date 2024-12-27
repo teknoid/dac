@@ -8,6 +8,9 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define SUM_EXPECTED(m)				(m->exp1 + m->exp2 + m->exp3 + m->exp4)
+#define SUM_MPPT(m)					(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
+
 // all values
 static mosmix_file_t mosmix[256];
 
@@ -110,6 +113,7 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	}
 }
 
+// calculate total expected today, tomorrow and till end of day / start of day
 void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) {
 	mosmix_t sum_today, sum_tomorrow, msod, meod;
 	ZERO(sum_today);
@@ -135,52 +139,40 @@ void mosmix_expected(int hour, int *itoday, int *itomorrow, int *sod, int *eod) 
 	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
 	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
 	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
+	if (*itoday != *sod + *eod) // validate
+		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
 }
 
 // calculate hours to survive next night
-// TODO use today and tomorrow
-void mosmix_survive(time_t now_ts, int rad1h_min, int *hours, int *from, int *to) {
-	struct tm tm;
-	localtime_r(&now_ts, &tm);
-	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-	time_t ts_midnight = mktime(&tm) + 60 * 60 * 24; // last midnight + 1 day
+void mosmix_survive(int hour, int min, int *hours, int *from, int *to) {
 
-	// find midnight slot
-	int midnight;
-	for (midnight = 0; midnight < ARRAY_SIZE(mosmix); midnight++)
-		if (mosmix[midnight].ts == ts_midnight)
+	// find sundown starting backwards from 0:00 or now
+	int sundown = hour > 12 ? hour : 23;
+	int sundown_expected = 0;
+	for (; sundown > 12; sundown--) {
+		mosmix_t *m = &today[sundown];
+		sundown_expected = SUM_EXPECTED(m);
+		if (sundown_expected > min)
 			break;
+	}
 
-	// define 24h range: +/-12h around midnight
-	int from_index = midnight, to_index = midnight;
-	int min = midnight - 12 > 0 ? midnight - 12 : 0;
-	int max = midnight + 12 < ARRAY_SIZE(mosmix) ? midnight + 12 : ARRAY_SIZE(mosmix);
+	// find sunrise starting from now or 0:00
+	int sunrise = hour <= 12 ? hour : 0;
+	int sunrise_expected = 0;
+	for (; sunrise <= 12; sunrise++) {
+		mosmix_t *m = &tomorrow[sunrise];
+		sunrise_expected = SUM_EXPECTED(m);
+		if (sunrise_expected > min)
+			break;
+	}
 
-	// go backward starting at midnight
-	while (--from_index > min)
-		if (mosmix[from_index].Rad1h > rad1h_min || mosmix[from_index].ts <= now_ts)
-			break; // sundown or 12 noon or now
-
-	// go forward starting at midnight
-	while (++to_index < max)
-		if (mosmix[to_index].Rad1h > rad1h_min)
-			break; // sunrise or 12 noon
-
-	// prepare output
-	*hours = to_index - from_index;
-	localtime_r(&mosmix[from_index].ts, &tm);
-	*from = tm.tm_hour;
-	int fRad1h = mosmix[from_index].Rad1h;
-	localtime_r(&mosmix[to_index].ts, &tm);
-	*to = tm.tm_hour;
-	int tRad1h = mosmix[to_index].Rad1h;
-	localtime_r(&mosmix[midnight].ts, &tm);
-	int mh = tm.tm_hour;
-	int mRad1h = mosmix[midnight].Rad1h;
-	xdebug("MOSMIX survive hours=%d min=%d from=%d:%d:%d midnight=%d:%d:%d to=%d:%d:%d", *hours, rad1h_min, from_index, *from, fRad1h, midnight, mh, mRad1h, to_index, *to, tRad1h);
+	*from = sundown;
+	*to = sunrise;
+	*hours = 24 - sundown + sunrise;
+	xdebug("MOSMIX survive hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, sundown, sundown_expected, sunrise, sunrise_expected);
 }
 
-// TODO use today and tomorrow
+// sum up 24 mosmix slots for one day (with offset)
 void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 	struct tm tm;
 
