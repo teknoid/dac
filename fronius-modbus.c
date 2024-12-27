@@ -22,8 +22,9 @@
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
-#define WAIT_AKKU				10
-#define WAIT_RAMP				3
+#define WAIT_NEXT_RAMP_GREEDY	10
+#define WAIT_NEXT_RAMP_MODEST	3
+#define WAIT_RESPONSE			3
 #define WAIT_NEXT				1
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
@@ -119,6 +120,7 @@ int set_heater(device_t *heater, int power) {
 	heater->load = power ? heater->total : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
 	heater->aload = pstate ? pstate->load : 0;
+	heater->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -186,6 +188,7 @@ int set_boiler(device_t *boiler, int power) {
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->xload = boiler->total * step / -100;
 	boiler->aload = pstate ? pstate->load : 0;
+	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -289,7 +292,7 @@ static void print_gstate(const char *message) {
 	xlogl_end(line, strlen(line), message);
 }
 
-static void print_state(const char *message) {
+static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
@@ -335,7 +338,9 @@ static void print_state(const char *message) {
 	xlogl_int(line, 0, 0, "Load", pstate->load);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
 
-	xlogl_end(line, strlen(line), message);
+	if (d)
+		xlogl_int(line, 0, 0, "Timer", d->timer);
+	xlogl_end(line, strlen(line), 0);
 }
 
 static void update_f10(sunspec_t *ss) {
@@ -582,19 +587,15 @@ static device_t* ramp() {
 	// prio1: no extra power available: ramp down modest devices
 	if (pstate->modest < 0) {
 		d = rampdown(pstate->modest, potd->modest);
-		if (d) {
-			d->timer = WAIT_RAMP;
+		if (d)
 			return d;
-		}
 	}
 
 	// prio2: consuming grid power or discharging akku: ramp down greedy devices too
 	if (pstate->greedy < 0) {
 		d = rampdown(pstate->greedy, potd->greedy);
-		if (d) {
-			d->timer = WAIT_RAMP;
+		if (d)
 			return d;
-		}
 	}
 
 	// ramp up only when state is stable or enough power
@@ -605,19 +606,15 @@ static device_t* ramp() {
 	// prio3: uploading grid power or charging akku: ramp up only greedy devices
 	if (pstate->greedy > 0) {
 		d = rampup(pstate->greedy, potd->greedy);
-		if (d) {
-			d->timer = pstate->soc < 1000 ? WAIT_AKKU : WAIT_RAMP; // akku needs ~10 seconds to ramp down charge power !!!
+		if (d)
 			return d;
-		}
 	}
 
 	// prio4: extra power available: ramp up modest devices too
 	if (pstate->modest > 0) {
 		d = rampup(pstate->modest, potd->modest);
-		if (d) {
-			d->timer = WAIT_RAMP;
+		if (d)
 			return d;
-		}
 	}
 
 	return 0;
@@ -728,8 +725,10 @@ static device_t* standby() {
 static device_t* response(device_t *d) {
 
 	// ramp timer not yet expired -> continue main loop
-	if (d->timer-- > 0)
+	if (d->timer > 0) {
+		d->timer--;
 		return d;
+	}
 
 	// no expected delta load - no response to check
 	if (!d->xload)
@@ -753,7 +752,8 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		return 0;
+		d->timer = expected > pstate->modest ? WAIT_NEXT_RAMP_GREEDY : WAIT_NEXT_RAMP_MODEST; // as long as we have enough modest power fast next ramp
+		return d;
 	}
 
 	// standby check was negative - we got a response
@@ -761,7 +761,8 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		return 0; // next ramp
+		d->timer = expected > pstate->modest ? WAIT_NEXT_RAMP_GREEDY : WAIT_NEXT_RAMP_MODEST; // as long as we have enough modest power fast next ramp
+		return d;
 	}
 
 	// standby check was positive -> set device into standby
@@ -770,7 +771,8 @@ static device_t* response(device_t *d) {
 		(d->set_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
-		return 0; // next ramp
+		d->xload = 0; // no response from switch off expected
+		return d; // recalculate in next round
 	}
 
 	// ignore standby check when power was released
@@ -1158,7 +1160,7 @@ static void fronius() {
 
 		// print combined device and pstate when we had delta or device action
 		if (PSTATE_DELTA || device)
-			print_state(NULL);
+			print_state(device);
 
 		// minutely tasks
 		if (now->tm_sec == 59) {
