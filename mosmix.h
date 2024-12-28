@@ -4,9 +4,8 @@
 
 #define MOSMIX_COLUMNS			5
 
-// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-mosmix-*.bin
-#define TODAY_FILE				"/tmp/fronius-mosmix-today.bin"
-#define TOMORROW_FILE			"/tmp/fronius-mosmix-tomorrow.bin"
+// hexdump -v -e '15 "%6d ""\n"' /tmp/fronius-mosmix.bin
+#define MOSMIX_FILE				"/tmp/fronius-mosmix.bin"
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
@@ -41,12 +40,11 @@ typedef struct mosmix_csv_t {
 
 void mosmix_store_state();
 void mosmix_load_state();
-void mosmix_takeover();
-void mosmix_dump_today(int highlight);
-void mosmix_dump_tomorrow(int highlight);
-void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
-void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod);
-void mosmix_survive(int hour, int min, int *hours, int *from, int *to);
-void mosmix_heating(int hour, int min, int *hours, int *from, int *to);
+void mosmix_dump_today(struct tm *now);
+void mosmix_dump_tomorrow(struct tm *now);
+void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
+void mosmix_expected(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
+void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);
+void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to);
 void mosmix_24h(time_t now_ts, int day, mosmix_csv_t *sum);
 int mosmix_load(time_t now_ts, const char *filename);

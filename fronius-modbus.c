@@ -42,9 +42,9 @@ static volatile counter_t *counter = 0;
 // 24h slots over one week and access pointers
 static gstate_t gstate_hours[24 * 7];
 static volatile gstate_t *gstate = 0;
-#define GSTATE_NOW				(&gstate_hours[7 * now->tm_wday + now->tm_hour])
-#define GSTATE_LAST				(&gstate_hours[7 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
-#define GSTATE_HOUR(h)			(&gstate_hours[7 * now->tm_wday + h])
+#define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
+#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
+#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + h])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
 // pstate history every second/minute/hour and access pointers
@@ -758,15 +758,15 @@ static void calculate_mosmix(time_t now_ts) {
 		return;
 
 	// update produced energy this hour and recalculate mosmix factors for each mppt
-	mosmix_mppt(now->tm_hour, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 
 	// dump
-	mosmix_dump_today(now->tm_hour);
-	mosmix_dump_tomorrow(now->tm_hour);
+	mosmix_dump_today(now);
+	mosmix_dump_tomorrow(now);
 
 	// calculate expected
 	int today, tomorrow, sod, eod;
-	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
+	mosmix_expected(now, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
 	gstate->expected = eod;
@@ -779,7 +779,7 @@ static void calculate_mosmix(time_t now_ts) {
 
 	// calculate survival factor
 	int hours, from, to;
-	mosmix_survive(now->tm_hour, BASELOAD / 2, &hours, &from, &to);
+	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
 	int available = gstate->expected + gstate->akku;
 	int needed = collect_pstate_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
@@ -789,7 +789,7 @@ static void calculate_mosmix(time_t now_ts) {
 	// calculate heating factor
 	// TODO auto collect heating power from devices
 	// TODO calculation: expected - heating > survive - akku
-	mosmix_heating(now->tm_hour, 1500, &hours, &from, &to);
+	mosmix_heating(now, 1500, &hours, &from, &to);
 	needed += 1500 * hours; // survive + heating
 	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
 	gstate->heating = heating * 10; // store as x10 scaled
@@ -1015,10 +1015,8 @@ static void daily(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
-	// copy tomorrow forecasts to today
-	// TODO needed?
-	mosmix_takeover();
-	mosmix_dump_today(-1);
+	// dump mosmix today table
+	mosmix_dump_today(now);
 
 	// store to disk
 	// TODO csv

@@ -868,43 +868,58 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_mosmix(time_t now_ts) {
-	// reload mosmix data
+	// update forecasts
 	if (mosmix_load(now_ts, MARIENBERG))
 		return;
 
-	// actual vs. yesterdays expected ratio
-	int yesterdays_tomorrow = gstate_history[23].tomorrow;
-	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS mosmix yesterdays pv forecast for today %d, actual pv %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+	// update produced energy this hour and recalculate mosmix factors for each mppt
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 
-	// mosmix 24h forecasts today, tomorrow, tomorrow+1
+	// dump
+	mosmix_dump_today(now);
+	mosmix_dump_tomorrow(now);
+
+	// calculate expected
+	int today, tomorrow, sod, eod;
+	mosmix_expected(now, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->expected = eod;
+
+	// calculate total daily values
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// update last hour's pv and recalculate
-	gstate_t *h = (gstate_t*) (gstate != &gstate_history[0] ? gstate - 1 : &gstate_history[23]);
-	mosmix_mppt(now->tm_hour, gstate->mppt1 - h->mppt1, gstate->mppt2 - h->mppt2, gstate->mppt3 - h->mppt3, gstate->mppt4 - h->mppt4);
-	int today, tomorrow, sod, eod;
-	mosmix_expected(now->tm_hour, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->expected = eod;
-	mosmix_dump_today(now->tm_hour);
-
 	// calculate survival factor
 	int hours, from, to;
-	// TODO check factor/expected
-	mosmix_survive(now_ts + 1, BASELOAD, &hours, &from, &to);
+	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
+	int available = gstate->expected + gstate->akku;
 	int needed = 0;
 	// sum up load for darkness hours - take values from yesterday
 	for (int i = from; i < to; i++)
 		needed += gstate_history[i].dakku;
-	int available = gstate->expected + gstate->akku;
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS mosmix needed=%d available=%d (%d expected + %d akku) survive=%.1f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
+
+	// calculate heating factor
+	// TODO auto collect heating power from devices
+	// TODO calculation: expected - heating > survive - akku
+	mosmix_heating(now, 1500, &hours, &from, &to);
+	needed += 1500 * hours; // survive + heating
+	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
+	gstate->heating = heating * 10; // store as x10 scaled
+	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed, gstate->expected, heating);
+
+	// actual vs. yesterdays expected ratio
+	int actual = 0;
+	for (int i = 0; i <= now->tm_hour; i++)
+		actual += gstate_history[i].pv;
+	int yesterdays_tomorrow = gstate_history[23].tomorrow;
+	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
 }
 
 static void calculate_gstate() {
