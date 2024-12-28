@@ -867,9 +867,9 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void calculate_mosmix(time_t now_ts) {
+static void calculate_mosmix() {
 	// update forecasts
-	if (mosmix_load(now_ts, MARIENBERG))
+	if (mosmix_load(MARIENBERG))
 		return;
 
 	// update produced energy this hour and recalculate mosmix factors for each mppt
@@ -887,9 +887,9 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod;
 
 	// calculate total daily values
-	mosmix_24h(now_ts, 0, &m0);
-	mosmix_24h(now_ts, 1, &m1);
-	mosmix_24h(now_ts, 2, &m2);
+	mosmix_24h(0, &m0);
+	mosmix_24h(1, &m1);
+	mosmix_24h(2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	// calculate survival factor
@@ -1238,7 +1238,7 @@ static void fronius() {
 	gstate = &gstate_history[now->tm_hour];
 	curl_perform(curl_readable, &memory, &parse_readable);
 	calculate_gstate();
-	calculate_mosmix(now_ts);
+	calculate_mosmix();
 	choose_program();
 
 	// the FRONIUS main loop

@@ -752,9 +752,9 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void calculate_mosmix(time_t now_ts) {
+static void calculate_mosmix() {
 	// update forecasts
-	if (mosmix_load(now_ts, MARIENBERG))
+	if (mosmix_load(MARIENBERG))
 		return;
 
 	// update produced energy this hour and recalculate mosmix factors for each mppt
@@ -772,9 +772,9 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->expected = eod;
 
 	// calculate total daily values
-	mosmix_24h(now_ts, 0, &m0);
-	mosmix_24h(now_ts, 1, &m1);
-	mosmix_24h(now_ts, 2, &m2);
+	mosmix_24h(0, &m0);
+	mosmix_24h(1, &m1);
+	mosmix_24h(2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	// calculate survival factor
@@ -836,8 +836,7 @@ static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
 
-	// get history pstates
-	gstate_t *g1 = GSTATE_LAST;
+	// get history states
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *s1 = PSTATE_SEC_LAST1;
@@ -879,7 +878,7 @@ static void calculate_pstate() {
 	// offline mode when 3x not enough PV production
 	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150 && g1->survive > 10;
+		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
@@ -1105,7 +1104,7 @@ static void fronius() {
 		if (!potd) {
 			calculate_pstate();
 			calculate_gstate();
-			calculate_mosmix(now_ts);
+			calculate_mosmix();
 			storage_strategy();
 			choose_program();
 			continue;

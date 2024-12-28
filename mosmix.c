@@ -26,16 +26,16 @@ static void copy(mosmix_t *target, mosmix_csv_t *source) {
 	target->Rad1h = source->Rad1h;
 	target->SunD1 = source->SunD1;
 
-	// calculate base value as a combination of Rad1h and SunD1
+	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
 	// target->x = target->Rad1h * (1 + (float) target->SunD1 / 3600 / 2);
 	// target->x = target->Rad1h + target->SunD1 / 10;
-	target->x = target->Rad1h;
+	target->base = target->Rad1h;
 }
 
 static void sum(mosmix_t *s, mosmix_t *m) {
 	s->Rad1h += m->Rad1h;
 	s->SunD1 += m->SunD1;
-	s->x += m->x;
+	s->base += m->base;
 
 	s->mppt1 += m->mppt1;
 	s->mppt2 += m->mppt2;
@@ -49,10 +49,10 @@ static void sum(mosmix_t *s, mosmix_t *m) {
 }
 
 static void expected(mosmix_t *m) {
-	m->exp1 = m->x * FLOAT100(m->fac1);
-	m->exp2 = m->x * FLOAT100(m->fac2);
-	m->exp3 = m->x * FLOAT100(m->fac3);
-	m->exp4 = m->x * FLOAT100(m->fac4);
+	m->exp1 = m->base * FLOAT100(m->fac1);
+	m->exp2 = m->base * FLOAT100(m->fac2);
+	m->exp3 = m->base * FLOAT100(m->fac3);
+	m->exp4 = m->base * FLOAT100(m->fac4);
 }
 
 static void mppt(const char *id, int hour, int *x, int *mppt, int *fact0, int *fact1) {
@@ -88,10 +88,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m0->mppt4 = mppt4;
 
 	// recalculate mosmix factors for each mppt
-	mppt("MPPT1", now->tm_hour, &m0->x, &m0->mppt1, &m0->fac1, &m1->fac1);
-	mppt("MPPT2", now->tm_hour, &m0->x, &m0->mppt2, &m0->fac2, &m1->fac2);
-	mppt("MPPT3", now->tm_hour, &m0->x, &m0->mppt3, &m0->fac3, &m1->fac3);
-	mppt("MPPT4", now->tm_hour, &m0->x, &m0->mppt4, &m0->fac4, &m1->fac4);
+	mppt("MPPT1", now->tm_hour, &m0->base, &m0->mppt1, &m0->fac1, &m1->fac1);
+	mppt("MPPT2", now->tm_hour, &m0->base, &m0->mppt2, &m0->fac2, &m1->fac2);
+	mppt("MPPT3", now->tm_hour, &m0->base, &m0->mppt3, &m0->fac3, &m1->fac3);
+	mppt("MPPT4", now->tm_hour, &m0->base, &m0->mppt4, &m0->fac4, &m1->fac4);
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day
@@ -182,10 +182,11 @@ void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to) {
 }
 
 // sum up 24 mosmix slots for one day (with offset)
-void mosmix_24h(time_t now_ts, int day, mosmix_csv_t *sum) {
+void mosmix_24h(int day, mosmix_csv_t *sum) {
 	struct tm tm;
 
 	// calculate today 0:00:00 as start and +24h as end time frame
+	time_t now_ts = time(NULL);
 	localtime_r(&now_ts, &tm);
 	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
 	time_t ts_from = mktime(&tm) + 60 * 60 * 24 * day;
@@ -215,7 +216,7 @@ static void parse(char **strings, size_t size) {
 	m->RSunD = atoi(strings[5]);
 }
 
-int mosmix_load(time_t now_ts, const char *filename) {
+int mosmix_load(const char *filename) {
 	char *strings[MOSMIX_COLUMNS];
 	char buf[LINEBUF];
 
@@ -281,7 +282,7 @@ int mosmix_main(int argc, char **argv) {
 
 	// load state and update forecasts
 	mosmix_load_state();
-	mosmix_load(now_ts, MARIENBERG);
+	mosmix_load(MARIENBERG);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
@@ -293,9 +294,9 @@ int mosmix_main(int argc, char **argv) {
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;
-	mosmix_24h(now_ts, 0, &m0);
-	mosmix_24h(now_ts, 1, &m1);
-	mosmix_24h(now_ts, 2, &m2);
+	mosmix_24h(0, &m0);
+	mosmix_24h(1, &m1);
+	mosmix_24h(2, &m2);
 	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	mosmix_survive(now, 150, &hours, &from, &to);
