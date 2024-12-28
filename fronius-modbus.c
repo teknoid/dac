@@ -788,12 +788,11 @@ static void calculate_mosmix() {
 
 	// calculate heating factor
 	// TODO auto collect heating power from devices
-	// TODO calculation: expected - heating > survive - akku
 	mosmix_heating(now, 1500, &hours, &from, &to);
 	needed += 1500 * hours; // survive + heating
-	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
+	float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed, gstate->expected, heating);
+	xdebug("FRONIUS heating needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
