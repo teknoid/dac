@@ -52,6 +52,14 @@ static void expected(mosmix_t *m) {
 	m->exp4 = m->x * FLOAT100(m->fac4);
 }
 
+static void mppt(const char *id, int hour, int *x, int *mppt, int *fact0, int *fact1) {
+	float old = FLOAT100(*fact0);
+	float act = *x ? (float) *mppt / (float) *x : 0;
+	float new = old ? (old + act) / 2.0 : act;
+	xdebug("MOSMIX %s hour %d factor old %.2f actual %.2f new %.2f", id, hour, old, act, new);
+	*fact0 = *fact1 = new * 100; // store as x100 scaled
+}
+
 void mosmix_takeover() {
 	for (int i = 0; i < 24; i++) {
 		mosmix_t *m0 = &today[i];
@@ -76,8 +84,6 @@ void mosmix_dump_tomorrow(int highlight) {
 }
 
 void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
-	float old, act, new;
-
 	mosmix_t *m0 = &today[hour];
 	mosmix_t *m1 = &tomorrow[hour];
 
@@ -88,38 +94,10 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m0->mppt4 = mppt4;
 
 	// recalculate mosmix factors for each mppt
-
-	if (m0->x && m0->mppt1) {
-		old = FLOAT100(m0->fac1);
-		act = (float) m0->mppt1 / (float) m0->x;
-		new = old ? (old + act) / 2.0 : act;
-		xdebug("MOSMIX hour %d MPPT1 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
-		m0->fac1 = m1->fac1 = new * 100;
-	}
-
-	if (m0->x && m0->mppt2) {
-		old = FLOAT100(m0->fac2);
-		act = (float) m0->mppt2 / (float) m0->x;
-		new = old ? (old + act) / 2.0 : act;
-		xdebug("MOSMIX hour %d MPPT2 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
-		m0->fac2 = m1->fac2 = new * 100;
-	}
-
-	if (m0->x && m0->mppt3) {
-		old = FLOAT100(m0->fac3);
-		act = (float) m0->mppt3 / (float) m0->x;
-		new = old ? (old + act) / 2.0 : act;
-		xdebug("MOSMIX hour %d MPPT3 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
-		m0->fac3 = m1->fac3 = new * 100;
-	}
-
-	if (m0->x && m0->mppt4) {
-		old = FLOAT100(m0->fac4);
-		act = (float) m0->mppt4 / (float) m0->x;
-		new = old ? (old + act) / 2.0 : act;
-		xdebug("MOSMIX hour %d MPPT4 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
-		m0->fac4 = m1->fac4 = new * 100;
-	}
+	mppt("MPPT1", hour, &m0->x, &m0->mppt1, &m0->fac1, &m1->fac1);
+	mppt("MPPT2", hour, &m0->x, &m0->mppt2, &m0->fac2, &m1->fac2);
+	mppt("MPPT3", hour, &m0->x, &m0->mppt3, &m0->fac3, &m1->fac3);
+	mppt("MPPT4", hour, &m0->x, &m0->mppt4, &m0->fac4, &m1->fac4);
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day
@@ -324,6 +302,9 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_load(now_ts, MARIENBERG);
 	mosmix_dump_today(tm.tm_hour);
 	mosmix_dump_tomorrow(tm.tm_hour);
+
+	// update mppts
+	mosmix_mppt(tm.tm_hour, 4000, 3000, 2000, 1000);
 
 	// calculate expected
 	mosmix_expected(tm.tm_hour, &today, &tomorrow, &sod, &eod);
