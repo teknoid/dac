@@ -283,6 +283,17 @@ int mosmix_main(int argc, char **argv) {
 	// load state and update forecasts
 	mosmix_load_state();
 	mosmix_load(MARIENBERG);
+
+	// copy factors to tomorrow
+	for (int h = 0; h < 24; h++) {
+		mosmix_t *m0 = MOSMIX_TODAY(h);
+		mosmix_t *m1 = MOSMIX_TOMORROW(h);
+		m1->fac1 = m0->fac1;
+		m1->fac2 = m0->fac2;
+		m1->fac3 = m0->fac3;
+		m1->fac4 = m0->fac4;
+	}
+
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
