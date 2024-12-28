@@ -76,7 +76,7 @@ void mosmix_dump_tomorrow(int highlight) {
 }
 
 void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
-	float new;
+	float old, act, new;
 
 	mosmix_t *m0 = &today[hour];
 	mosmix_t *m1 = &tomorrow[hour];
@@ -87,28 +87,37 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m0->mppt3 = mppt3;
 	m0->mppt4 = mppt4;
 
-	// recalculate factors in today and take over for tomorrow
+	// recalculate mosmix factors for each mppt
+
 	if (m0->x && m0->mppt1) {
-		new = (float) m0->mppt1 / (float) m0->x;
-		xdebug("MOSMIX hour %d MPPT1 factor old %.2f new %.2f", hour, FLOAT100(m0->fac1), new);
+		old = FLOAT100(m0->fac1);
+		act = (float) m0->mppt1 / (float) m0->x;
+		new = old ? (old + act) / 2.0 : act;
+		xdebug("MOSMIX hour %d MPPT1 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
 		m0->fac1 = m1->fac1 = new * 100;
 	}
 
 	if (m0->x && m0->mppt2) {
-		new = (float) m0->mppt2 / (float) m0->x;
-		xdebug("MOSMIX hour %d MPPT2 factor old %.2f new %.2f", hour, FLOAT100(m0->fac2), new);
+		old = FLOAT100(m0->fac2);
+		act = (float) m0->mppt2 / (float) m0->x;
+		new = old ? (old + act) / 2.0 : act;
+		xdebug("MOSMIX hour %d MPPT2 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
 		m0->fac2 = m1->fac2 = new * 100;
 	}
 
 	if (m0->x && m0->mppt3) {
-		new = (float) m0->mppt3 / (float) m0->x;
-		xdebug("MOSMIX hour %d MPPT3 factor old %.2f new %.2f", hour, FLOAT100(m0->fac3), new);
+		old = FLOAT100(m0->fac3);
+		act = (float) m0->mppt3 / (float) m0->x;
+		new = old ? (old + act) / 2.0 : act;
+		xdebug("MOSMIX hour %d MPPT3 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
 		m0->fac3 = m1->fac3 = new * 100;
 	}
 
 	if (m0->x && m0->mppt4) {
-		new = (float) m0->mppt4 / (float) m0->x;
-		xdebug("MOSMIX hour %d MPPT4 factor old %.2f new %.2f", hour, FLOAT100(m0->fac4), new);
+		old = FLOAT100(m0->fac4);
+		act = (float) m0->mppt4 / (float) m0->x;
+		new = old ? (old + act) / 2.0 : act;
+		xdebug("MOSMIX hour %d MPPT4 factor old %.2f actual %.2f new %.2f", hour, old, act, new);
 		m0->fac4 = m1->fac4 = new * 100;
 	}
 }
