@@ -1014,8 +1014,9 @@ static void daily(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
-	// dump mosmix today table
-	mosmix_dump_today(now);
+	// dump mosmix tomorrow tables which then will be todays on next run
+	mosmix_clear_tomorrow(now);
+	mosmix_dump_tomorrow(now);
 
 	// store to disk
 	// TODO csv
@@ -1053,7 +1054,7 @@ static void hourly(time_t now_ts) {
 
 	// recalculate gstate, mosmix, then choose storage strategy potd
 	calculate_gstate();
-	calculate_mosmix(now_ts);
+	calculate_mosmix();
 	storage_strategy();
 	choose_program();
 
