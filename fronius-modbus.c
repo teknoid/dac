@@ -36,8 +36,12 @@ static potd_t *potd = 0;
 static counter_t counter_hours[24];
 static volatile counter_t *counter = 0;
 
-// gstate history every hour over one day
-static gstate_t gstate_hours[24];
+// 24h slots over one week and access pointers
+static gstate_t gstate_hours[24 * 7];
+#define GSTATE_NOW				(&gstate_hours[7 * now->tm_wday + now->tm_hour])
+#define GSTATE_LAST				(&gstate_hours[7 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
+#define GSTATE_HOUR(h)			(&gstate_hours[7 * now->tm_wday + h])
+#define GSTATE_TODAY			GSTATE_HOUR(0)
 static volatile gstate_t *gstate = 0;
 
 // pstate history every second, minute, hour
@@ -45,7 +49,7 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
 static volatile pstate_t *pstate = 0;
 
 // mosmix 24h forecasts today, tomorrow and tomorrow+1
-static mosmix_file_t m0, m1, m2;
+static mosmix_csv_t m0, m1, m2;
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
@@ -252,15 +256,6 @@ static pstate_t* get_pstate_hour(int offset) {
 	while (i >= 24)
 		i -= 24;
 	return &pstate_hours[i];
-}
-
-static gstate_t* get_gstate_hour(int offset) {
-	int i = now->tm_hour + offset;
-	while (i < 0)
-		i += 24;
-	while (i >= 24)
-		i -= 24;
-	return &gstate_hours[i];
 }
 
 static counter_t* get_counter_hour(int offset) {
@@ -826,8 +821,8 @@ static void calculate_mosmix(time_t now_ts) {
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
 	for (int i = 0; i <= now->tm_hour; i++)
-		actual += gstate_hours[i].pv;
-	int yesterdays_tomorrow = gstate_hours[23].tomorrow;
+		actual += GSTATE_HOUR(i)->pv;
+	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
 	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
 }
@@ -837,7 +832,7 @@ static void calculate_gstate() {
 	gstate->soc = pstate->soc;
 
 	// get previous values to calculate deltas
-	gstate_t *g = get_gstate_hour(-1);
+	gstate_t *g = GSTATE_LAST;
 	counter_t *c = get_counter_hour(-1);
 
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
@@ -865,7 +860,7 @@ static void calculate_pstate() {
 	pstate->flags = 0;
 
 	// get history pstates
-	gstate_t *g1 = get_gstate_hour(-1);
+	gstate_t *g1 = GSTATE_LAST;
 	pstate_t *m1 = get_pstate_minute(-1);
 	pstate_t *m2 = get_pstate_minute(-2);
 	pstate_t *s1 = get_pstate_second(-1);
@@ -958,15 +953,15 @@ static void calculate_pstate() {
 
 	// greedy power = akku + grid
 	pstate->greedy = (pstate->grid + pstate->akku) * -1;
-	if (pstate->greedy > 0)
-		pstate->greedy -= NOISE; // threshold for ramp up - allow small akku charging
+	pstate->greedy += pstate->greedy > 0 ? -NOISE : NOISE; // thresholds for start ramping
 	if (abs(pstate->greedy) < NOISE)
 		pstate->greedy = 0;
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
 
 	// modest power = only grid
-	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
+	pstate->modest = pstate->grid * -1;
+	pstate->modest += pstate->modest > 0 ? -NOISE : NOISE; // thresholds for start ramping
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
 	if (abs(pstate->modest) < NOISE)
@@ -1039,8 +1034,8 @@ static void daily(time_t now_ts) {
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
-	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
 	// copy tomorrow forecasts to today
@@ -1049,6 +1044,7 @@ static void daily(time_t now_ts) {
 	mosmix_dump_today(-1);
 
 	// store to disk
+	// TODO csv
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
@@ -1090,7 +1086,7 @@ static void hourly(time_t now_ts) {
 	choose_program();
 
 	// print actual gstate
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 }
 
@@ -1126,7 +1122,7 @@ static void fronius() {
 
 		// update state and counter pointers
 		counter = get_counter_hour(0);
-		gstate = get_gstate_hour(0);
+		gstate = GSTATE_NOW;
 		pstate = get_pstate_second(0);
 
 		// wait till this second is over, meanwhile sunspec threads have values updated
@@ -1370,6 +1366,11 @@ static int calibrate(char *name) {
 static int init() {
 	set_debug(1);
 
+	// initialize hourly & daily & monthly
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
 	init_all_devices();
 	set_all_devices(0);
 
@@ -1391,11 +1392,6 @@ static int init() {
 
 	// wait for collecting models
 	sleep(3);
-
-	// initialize hourly & daily & monthly
-	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
 
 	return 0;
 }
@@ -1432,7 +1428,7 @@ static int single() {
 
 	init();
 
-	gstate = get_gstate_hour(0);
+	gstate = GSTATE_NOW;
 	counter = get_counter_hour(0);
 	pstate = get_pstate_second(0);
 	sleep(1); // update values
@@ -1452,8 +1448,8 @@ static int single() {
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
-	aggregate_table((int*) &gd, (int*) gstate_hours, GSTATE_SIZE, 24);
-	dump_table((int*) gstate_hours, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 	print_gstate(NULL);
 
@@ -1484,7 +1480,7 @@ static int fake() {
 
 	for (int i = 0; i < 24; i++)
 		memcpy(&counter_hours[i], (void*) counter, sizeof(counter_t));
-	for (int i = 0; i < 24; i++)
+	for (int i = 0; i < 24 * 7; i++)
 		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
 		memcpy(&pstate_hours[i], (void*) pstate, sizeof(pstate_t));

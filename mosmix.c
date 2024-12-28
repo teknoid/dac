@@ -12,14 +12,19 @@
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
 
 // all values
-static mosmix_file_t mosmix[256];
+static mosmix_csv_t mosmix_csv[256];
 
-// 24h slots for today and tomorrow
+// 24h slots over one week and access pointers
+static mosmix_t mosmix_hours[24 * 7];
+#define MOSMIX_NOW				&mosmix_hours[7 * now->tm_wday + now->tm_hour]
+#define MOSMIX_TODAY(h)			&mosmix_hours[7 * now->tm_wday + h]
+#define MOSMIX_TOMORROW(h)		&mosmix_hours[7 * (now->tm_wday < 6 ? now->tm_wday + 1 : 0) + h]
+
 static mosmix_t today[24], tomorrow[24];
 
 // gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
 
-static void copy(mosmix_t *target, mosmix_file_t *source) {
+static void copy(mosmix_t *target, mosmix_csv_t *source) {
 	target->Rad1h = source->Rad1h;
 	target->SunD1 = source->SunD1;
 
@@ -188,7 +193,7 @@ void mosmix_heating(int hour, int min, int *hours, int *from, int *to) {
 }
 
 // sum up 24 mosmix slots for one day (with offset)
-void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
+void mosmix_24h(time_t now_ts, int day, mosmix_csv_t *sum) {
 	struct tm tm;
 
 	// calculate today 0:00:00 as start and +24h as end time frame
@@ -198,8 +203,8 @@ void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
 	ZEROP(sum);
-	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
-		mosmix_file_t *m = &mosmix[i];
+	for (int i = 0; i < ARRAY_SIZE(mosmix_csv); i++) {
+		mosmix_csv_t *m = &mosmix_csv[i];
 		if (ts_from < m->ts && m->ts <= ts_to) {
 			sum->Rad1h += m->Rad1h;
 			sum->SunD1 += m->SunD1;
@@ -211,7 +216,7 @@ void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum) {
 
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
-	mosmix_file_t *m = &mosmix[idx];
+	mosmix_csv_t *m = &mosmix_csv[idx];
 
 	m->idx = idx;
 	m->ts = atoi(strings[1]);
@@ -226,7 +231,7 @@ int mosmix_load(time_t now_ts, const char *filename) {
 	char buf[LINEBUF];
 	struct tm tm;
 
-	ZEROP(mosmix);
+	ZEROP(mosmix_csv);
 
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL)
@@ -258,8 +263,8 @@ int mosmix_load(time_t now_ts, const char *filename) {
 	now_ts += 60 * 60 * 24;
 	localtime_r(&now_ts, &tm);
 	int dtomorrow = tm.tm_mday;
-	for (int i = 0; i < ARRAY_SIZE(mosmix); i++) {
-		mosmix_file_t *m = &mosmix[i];
+	for (int i = 0; i < ARRAY_SIZE(mosmix_csv); i++) {
+		mosmix_csv_t *m = &mosmix_csv[i];
 		if (m->ts) {
 			time_t t = m->ts - 1; // fix hour
 			localtime_r(&t, &tm);
@@ -310,7 +315,7 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_expected(tm.tm_hour, &today, &tomorrow, &sod, &eod);
 
 	// calculate total daily values
-	mosmix_file_t m0, m1, m2;
+	mosmix_csv_t m0, m1, m2;
 	mosmix_24h(now_ts, 0, &m0);
 	mosmix_24h(now_ts, 1, &m1);
 	mosmix_24h(now_ts, 2, &m2);

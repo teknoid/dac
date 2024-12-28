@@ -696,6 +696,14 @@ void append_timeframe(char *message, int sec) {
 	strcat(message, c);
 }
 
+int load_csv(const char *filename, void *data, size_t cols, size_t rows) {
+	return 0;
+}
+
+int store_csv(const char *filename, void *data, size_t cols, size_t rows) {
+	return 0;
+}
+
 int load_blob(const char *filename, void *data, size_t size) {
 	FILE *fp = fopen(filename, "rb");
 	if (fp == NULL)

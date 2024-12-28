@@ -102,6 +102,9 @@ int average_non_zero(int array[], size_t size);
 
 void append_timeframe(char *message, int sec);
 
+int load_csv(const char *filename, void *data, size_t cols, size_t rows);
+int store_csv(const char *filename, void *data, size_t cols, size_t rows);
+
 int load_blob(const char *filename, void *data, size_t size);
 int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);

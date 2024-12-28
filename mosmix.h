@@ -29,7 +29,7 @@ struct _mosmix {
 	int fac4;
 };
 
-typedef struct mosmix_file_t {
+typedef struct mosmix_csv_t {
 	// from file
 	int idx;
 	time_t ts;
@@ -37,7 +37,7 @@ typedef struct mosmix_file_t {
 	int Rad1h;
 	int SunD1;
 	int RSunD;
-} mosmix_file_t;
+} mosmix_csv_t;
 
 void mosmix_store_state();
 void mosmix_load_state();
@@ -48,5 +48,5 @@ void mosmix_mppt(int hour, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_expected(int hour, int *today, int *tomorrow, int *sod, int *eod);
 void mosmix_survive(int hour, int min, int *hours, int *from, int *to);
 void mosmix_heating(int hour, int min, int *hours, int *from, int *to);
-void mosmix_24h(time_t now_ts, int day, mosmix_file_t *sum);
+void mosmix_24h(time_t now_ts, int day, mosmix_csv_t *sum);
 int mosmix_load(time_t now_ts, const char *filename);
