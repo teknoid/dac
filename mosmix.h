@@ -9,22 +9,22 @@
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	" Rad1h SunD1  base  exp1 mppt1  fac1  exp2 mppt2  fac2  exp3 mppt3  fac3  exp4 mppt4  fac4"
+#define MOSMIX_HEADER	" Rad1h SunD1  base  exp1  err1  fac1  exp2  err2  fac2  exp3  err3  fac3  exp4  err4  fac4"
 struct _mosmix {
 	int Rad1h;
 	int SunD1;
 	int base;
 	int exp1;
-	int mppt1;
+	int err1;
 	int fac1;
 	int exp2;
-	int mppt2;
+	int err2;
 	int fac2;
 	int exp3;
-	int mppt3;
+	int err3;
 	int fac3;
 	int exp4;
-	int mppt4;
+	int err4;
 	int fac4;
 };
 
@@ -42,7 +42,6 @@ void mosmix_store_state();
 void mosmix_load_state();
 void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);
-void mosmix_clear_tomorrow(struct tm *now);
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_expected(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
 void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);

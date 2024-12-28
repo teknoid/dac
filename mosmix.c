@@ -43,11 +43,15 @@ static void sum(mosmix_t *to, mosmix_t *from) {
 	}
 }
 
-static int calc(const char *id, int hour, int fact, int base, int mppt) {
-	float old = FLOAT100(fact);
+static void calc(const char *id, int hour, int base, int exp, int mppt, int *err, int *fac) {
+	// error expected vs. actual
+	float error = exp ? (float) mppt / (float) exp : 0;
+	*err = error * 100; // store as x100 scaled
+	// new factor
+	float old = FLOAT100(*fac);
 	float new = base ? (float) mppt / (float) base : 0;
-	xdebug("MOSMIX %s hour %02d factor old %.2f new %.2f", id, hour, old, new);
-	return new * 100; // store as x100 scaled
+	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
+	*fac = new * 100; // store as x100 scaled
 }
 
 static void expected(mosmix_t *m, mosmix_t *fcts) {
@@ -94,27 +98,14 @@ void mosmix_dump_tomorrow(struct tm *now) {
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
-// clear tomorrows mppt values
-void mosmix_clear_tomorrow(struct tm *now) {
-	for (int h = 0; h < 24; h++) {
-		mosmix_t *m = MOSMIX_TOMORROW(now->tm_hour);
-		m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
-	}
-}
-
-// update mppt for current hour and recalculate factor
+// recalculate factor from actual mppt values
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = MOSMIX_TODAY(now->tm_hour);
 
-	m->mppt1 = mppt1;
-	m->mppt2 = mppt2;
-	m->mppt3 = mppt3;
-	m->mppt4 = mppt4;
-
-	m->fac1 = calc("MPPT1", now->tm_hour, m->fac1, m->base, m->mppt1);
-	m->fac2 = calc("MPPT2", now->tm_hour, m->fac2, m->base, m->mppt2);
-	m->fac3 = calc("MPPT3", now->tm_hour, m->fac3, m->base, m->mppt3);
-	m->fac4 = calc("MPPT4", now->tm_hour, m->fac4, m->base, m->mppt4);
+	calc("MPPT1", now->tm_hour, m->base, m->exp1, mppt1, &m->err1, &m->fac1);
+	calc("MPPT2", now->tm_hour, m->base, m->exp2, mppt2, &m->err2, &m->fac2);
+	calc("MPPT3", now->tm_hour, m->base, m->exp3, mppt3, &m->err3, &m->fac3);
+	calc("MPPT4", now->tm_hour, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day

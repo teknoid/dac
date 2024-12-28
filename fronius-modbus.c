@@ -760,10 +760,6 @@ static void calculate_mosmix() {
 	// update produced energy this hour and recalculate mosmix factors for each mppt
 	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 
-	// dump
-	mosmix_dump_today(now);
-	mosmix_dump_tomorrow(now);
-
 	// calculate expected
 	int today, tomorrow, sod, eod;
 	mosmix_expected(now, &today, &tomorrow, &sod, &eod);
@@ -788,6 +784,7 @@ static void calculate_mosmix() {
 
 	// calculate heating factor
 	// TODO auto collect heating power from devices
+	// TODO nochmal überdenken
 	mosmix_heating(now, 1500, &hours, &from, &to);
 	needed += 1500 * hours; // survive + heating
 	float heating = needed ? (float) available / (float) needed : 0.0;
@@ -801,6 +798,10 @@ static void calculate_mosmix() {
 	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
 	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
+
+	// dump tables
+	mosmix_dump_today(now);
+	mosmix_dump_tomorrow(now);
 }
 
 static void calculate_gstate() {
@@ -1012,10 +1013,6 @@ static void daily(time_t now_ts) {
 	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
-
-	// dump mosmix tomorrow tables which then will be todays on next run
-	mosmix_clear_tomorrow(now);
-	mosmix_dump_tomorrow(now);
 
 	// store to disk
 	// TODO csv
