@@ -34,30 +34,30 @@ static potd_t *potd = 0;
 
 // counter history every hour over one day and access pointers
 static counter_t counter_hours[24];
-#define COUNTER_NOW				(&counter_hours[now->tm_hour])
-#define COUNTER_LAST			(&counter_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
-#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 0])
 static volatile counter_t *counter = 0;
+#define COUNTER_NOW				(&counter_hours[now->tm_hour])
+#define COUNTER_LAST			(&counter_hours[now->tm_hour > 00 ? now->tm_hour - 1 : 23])
+#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 00])
 
 // 24h slots over one week and access pointers
 static gstate_t gstate_hours[24 * 7];
+static volatile gstate_t *gstate = 0;
 #define GSTATE_NOW				(&gstate_hours[7 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[7 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
 #define GSTATE_HOUR(h)			(&gstate_hours[7 * now->tm_wday + h])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
-static volatile gstate_t *gstate = 0;
 
 // pstate history every second/minute/hour and access pointers
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
+static volatile pstate_t *pstate = 0;
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 2 : 58])
+#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : 58])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 2 : 58])
+#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : 58])
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
-static volatile pstate_t *pstate = 0;
 
 // mosmix 24h forecasts today, tomorrow and tomorrow+1
 static mosmix_csv_t m0, m1, m2;
