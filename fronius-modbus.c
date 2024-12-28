@@ -32,8 +32,11 @@
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
-// counter history every hour over one day
+// counter history every hour over one day and access pointers
 static counter_t counter_hours[24];
+#define COUNTER_NOW				(&counter_hours[now->tm_hour])
+#define COUNTER_LAST			(&counter_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
+#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 0])
 static volatile counter_t *counter = 0;
 
 // 24h slots over one week and access pointers
@@ -44,8 +47,16 @@ static gstate_t gstate_hours[24 * 7];
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 static volatile gstate_t *gstate = 0;
 
-// pstate history every second, minute, hour
+// pstate history every second/minute/hour and access pointers
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
+#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
+#define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 2 : 58])
+#define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
+#define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 2 : 58])
+#define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
+#define PSTATE_HOUR(h)			(&pstate_hours[h])
 static volatile pstate_t *pstate = 0;
 
 // mosmix 24h forecasts today, tomorrow and tomorrow+1
@@ -222,49 +233,13 @@ static int collect_pstate_load(int from, int hours) {
 		int hour = from + i;
 		if (hour >= 24)
 			hour -= 24;
-		int hload = pstate_hours[hour].load * -1;
+		int hload = PSTATE_HOUR(hour)->load * -1;
 		load += hload;
 		snprintf(value, 25, " %d:%d", hour, hload);
 		strcat(line, value);
 	}
 	xdebug(line);
 	return load;
-}
-
-static pstate_t* get_pstate_second(int offset) {
-	int i = now->tm_sec + offset;
-	while (i < 0)
-		i += 60;
-	while (i >= 60)
-		i -= 60;
-	return &pstate_seconds[i];
-}
-
-static pstate_t* get_pstate_minute(int offset) {
-	int i = now->tm_min + offset;
-	while (i < 0)
-		i += 60;
-	while (i >= 60)
-		i -= 60;
-	return &pstate_minutes[i];
-}
-
-static pstate_t* get_pstate_hour(int offset) {
-	int i = now->tm_hour + offset;
-	while (i < 0)
-		i += 24;
-	while (i >= 24)
-		i -= 24;
-	return &pstate_hours[i];
-}
-
-static counter_t* get_counter_hour(int offset) {
-	int i = now->tm_hour + offset;
-	while (i < 0)
-		i += 24;
-	while (i >= 24)
-		i -= 24;
-	return &counter_hours[i];
 }
 
 static void print_gstate(const char *message) {
@@ -811,7 +786,9 @@ static void calculate_mosmix(time_t now_ts) {
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
 
-	// calculate heating factor TODO auto collect heating power from devices
+	// calculate heating factor
+	// TODO auto collect heating power from devices
+	// TODO calculation: expected - heating > survive - akku
 	mosmix_heating(now->tm_hour, 1500, &hours, &from, &to);
 	needed += 1500 * hours; // survive + heating
 	float heating = needed ? (float) gstate->expected / (float) needed : 0.0; // without akku
@@ -833,7 +810,7 @@ static void calculate_gstate() {
 
 	// get previous values to calculate deltas
 	gstate_t *g = GSTATE_LAST;
-	counter_t *c = get_counter_hour(-1);
+	counter_t *c = COUNTER_LAST;
 
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
@@ -861,10 +838,10 @@ static void calculate_pstate() {
 
 	// get history pstates
 	gstate_t *g1 = GSTATE_LAST;
-	pstate_t *m1 = get_pstate_minute(-1);
-	pstate_t *m2 = get_pstate_minute(-2);
-	pstate_t *s1 = get_pstate_second(-1);
-	pstate_t *s2 = get_pstate_second(-2);
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	pstate_t *m2 = PSTATE_MIN_LAST2;
+	pstate_t *s1 = PSTATE_SEC_LAST1;
+	pstate_t *s2 = PSTATE_SEC_LAST2;
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
@@ -1070,14 +1047,12 @@ static void hourly(time_t now_ts) {
 		set_all_devices(0);
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
-	counter_t *c1 = get_counter_hour(1);
-	memcpy(c1, (void*) counter, sizeof(counter_t));
+	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 
 	// aggregate 59 minutes into current hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-	pstate_t *ph = get_pstate_hour(0);
-	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
+	aggregate_table((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// recalculate gstate, mosmix, then choose storage strategy potd
 	calculate_gstate();
@@ -1095,9 +1070,8 @@ static void minly(time_t now_ts) {
 
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-	pstate_t *pm = get_pstate_minute(0);
-	aggregate_table((int*) pm, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct((int*) pm, PSTATE_SIZE, "[ØØ]", 0);
+	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+	// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1121,9 +1095,9 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 
 		// update state and counter pointers
-		counter = get_counter_hour(0);
+		counter = COUNTER_NOW;
 		gstate = GSTATE_NOW;
-		pstate = get_pstate_second(0);
+		pstate = PSTATE_NOW;
 
 		// wait till this second is over, meanwhile sunspec threads have values updated
 		while (now_ts == time(NULL))
@@ -1429,8 +1403,8 @@ static int single() {
 	init();
 
 	gstate = GSTATE_NOW;
-	counter = get_counter_hour(0);
-	pstate = get_pstate_second(0);
+	counter = COUNTER_NOW;
+	pstate = PSTATE_NOW;
 	sleep(1); // update values
 
 	calculate_pstate();
