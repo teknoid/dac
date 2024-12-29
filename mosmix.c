@@ -23,14 +23,19 @@ static mosmix_t mosmix_hours[24 * 7];
 #define MOSMIX_TOMORROW(h)		(&mosmix_hours[24 * (now->tm_wday < 6 ? now->tm_wday + 1 : 0) + h])
 #define MOSMIX_SLOT(d, h)		(&mosmix_hours[24 * d + h])
 
-static void copy(mosmix_t *target, mosmix_csv_t *source) {
-	target->Rad1h = source->Rad1h;
-	target->SunD1 = source->SunD1;
+static void update(mosmix_t *old, mosmix_csv_t *new, struct tm *now) {
+	int dRad1h = old->Rad1h != new->Rad1h;
+	int dSunD1 = old->Rad1h != new->Rad1h;
+	if (dRad1h || dSunD1)
+		xdebug("MOSMIX updating slot %d/%d Rad1h old %4d new %4d SunD1 old %4d new %4d", now->tm_wday, now->tm_hour, old->Rad1h, new->Rad1h, old->SunD1, new->SunD1);
+
+	old->Rad1h = new->Rad1h;
+	old->SunD1 = new->SunD1;
 
 	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
 	// target->x = target->Rad1h * (1 + (float) target->SunD1 / 3600 / 2);
 	// target->x = target->Rad1h + target->SunD1 / 10;
-	target->base = target->Rad1h;
+	old->base = old->Rad1h;
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -271,14 +276,14 @@ int mosmix_load(const char *filename) {
 	fclose(fp);
 	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 
-	// update mosmix slots - maximal 24h, 7 days - mosmix forecast contains more(!)
+	// update mosmix slots for next two days (mosmix forecast contains up to 10 days)
 	struct tm now_tm, *now = &now_tm;
-	for (int i = 0; i < 24 * 7; i++) {
+	for (int i = 0; i < 24 * 2; i++) {
 		mosmix_csv_t *m = &mosmix_csv[i];
 		if (m->ts) {
 			time_t t = m->ts - 1; // fix hour
 			localtime_r(&t, now);
-			copy(MOSMIX_NOW, m);
+			update(MOSMIX_NOW, m, now);
 		}
 	}
 

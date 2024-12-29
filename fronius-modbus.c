@@ -848,8 +848,8 @@ static void calculate_pstate() {
 	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
 	// grid, delta grid and sum
-	if (abs(pstate->grid) < NOISE)
-		pstate->grid = 0; // shape
+//	if (abs(pstate->grid) < NOISE)
+//		pstate->grid = 0; // shape
 	pstate->dgrid = pstate->grid - s1->grid;
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0; // shape
@@ -872,8 +872,8 @@ static void calculate_pstate() {
 
 	// akku power is Fronius10 DC power minus PV
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
-	if (abs(pstate->akku) < NOISE)
-		pstate->akku = 0;
+//	if (abs(pstate->akku) < NOISE)
+//		pstate->akku = 0;
 
 	// offline mode when 3x not enough PV production
 	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE) {
@@ -929,21 +929,19 @@ static void calculate_pstate() {
 
 	// greedy power = akku + grid
 	pstate->greedy = (pstate->grid + pstate->akku) * -1;
-	if (pstate->greedy > 0)
-		pstate->greedy -= NOISE; // threshold for ramp up - allow small akku charging
-	if (abs(pstate->greedy) < NOISE)
-		pstate->greedy = 0;
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
+	if (0 < pstate->greedy && pstate->greedy < NOISE * 2) // stable between 0..50
+		pstate->greedy = 0;
 
 	// modest power = only grid
 	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
-	if (pstate->greedy < pstate->modest)
-		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
-	if (abs(pstate->modest) < NOISE)
-		pstate->modest = 0;
 	if (!PSTATE_ACTIVE && pstate->modest < 0)
 		pstate->modest = 0; // no active devices - nothing to ramp down
+	if (0 < pstate->modest && pstate->modest < NOISE * 2) // stable between 0..50
+		pstate->modest = 0;
+	if (pstate->greedy < pstate->modest)
+		pstate->modest = pstate->greedy; // modest can never be bigger than greedy
 
 	// ramp on grid download or akku discharge or when we have greedy/modest power
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->greedy || pstate->modest)
