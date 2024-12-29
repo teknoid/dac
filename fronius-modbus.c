@@ -973,10 +973,6 @@ static void calculate_pstate() {
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_RAMP;
 	}
-	if (!potd) {
-		xlog("FRONIUS no potd selected!");
-		pstate->flags &= ~FLAG_RAMP;
-	}
 	if (!f10->active) {
 		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_RAMP;
@@ -1070,9 +1066,9 @@ static void minly(time_t now_ts) {
 	// xlog("FRONIUS executing minutely tasks...");
 
 	// aggregate 59 seconds into current minute
-	dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+	// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1104,9 +1100,11 @@ static void fronius() {
 		while (now_ts == time(NULL))
 			msleep(333);
 
+		// calculate new pstate
+		calculate_pstate();
+
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
-			calculate_pstate();
 			calculate_gstate();
 			calculate_mosmix();
 			storage_strategy();
@@ -1114,9 +1112,6 @@ static void fronius() {
 			print_state(0);
 			continue;
 		}
-
-		// calculate new pstate
-		calculate_pstate();
 
 		// check emergency
 		if (PSTATE_EMERGENCY)
