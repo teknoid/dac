@@ -53,6 +53,7 @@ static volatile pstate_t *pstate = 0;
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : 58])
+#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : 57])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : 58])
@@ -841,6 +842,7 @@ static void calculate_pstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
+	pstate_t *s3 = PSTATE_SEC_LAST3;
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
@@ -849,14 +851,10 @@ static void calculate_pstate() {
 
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
-	if (abs(pstate->dgrid) < NOISE)
-		pstate->dgrid = 0; // shape
 	pstate->sdgrid = s1->sdgrid + abs(pstate->dgrid);
 
-	// calculate load manually
+	// calculate load, delta load + sum
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
-
-	// calculate delta load + sum
 	pstate->dload = pstate->load - s1->load;
 	pstate->sdload = s1->sdload + abs(pstate->dload);
 
@@ -874,7 +872,7 @@ static void calculate_pstate() {
 //		pstate->akku = 0;
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE) {
+	if (s1->pv < NOISE && s2->pv < NOISE && s3->pv < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
@@ -892,7 +890,7 @@ static void calculate_pstate() {
 	}
 
 	// state is stable when we have three times no grid changes
-	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+	if (!s1->dgrid && !s2->dgrid && !s3->dgrid)
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
@@ -922,7 +920,7 @@ static void calculate_pstate() {
 	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
 
 	// indicate standby check when deviation between actual load and calculated load is three times above 33%
-	if (pstate->dxload > 33 && s1->dxload > 33 && s2->dxload > 33)
+	if (s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// greedy power = akku + grid
@@ -945,11 +943,15 @@ static void calculate_pstate() {
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->greedy || pstate->modest)
 		pstate->flags |= FLAG_RAMP;
 
-	// shape grid and akku
+	// shape values
 //	if (abs(pstate->grid) < NOISE)
 //		pstate->grid = 0;
 //	if (abs(pstate->akku) < NOISE)
 //		pstate->akku = 0;
+	if (abs(pstate->dgrid) < NOISE)
+		pstate->dgrid = 0;
+	if (abs(pstate->dload) < NOISE)
+		pstate->dload = 0;
 
 	// clear RAMP flag when values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
