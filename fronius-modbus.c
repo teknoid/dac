@@ -833,6 +833,18 @@ static void calculate_gstate() {
 		gstate->ttl = 0;
 }
 
+// shape pstate values below NOISE
+static void shape_pstate() {
+	if (abs(pstate->grid) < NOISE)
+		pstate->grid = 0;
+	if (abs(pstate->akku) < NOISE)
+		pstate->akku = 0;
+	if (abs(pstate->dgrid) < NOISE)
+		pstate->dgrid = 0;
+	if (abs(pstate->dload) < NOISE)
+		pstate->dload = 0;
+}
+
 static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
@@ -858,7 +870,7 @@ static void calculate_pstate() {
 	pstate->dload = pstate->load - s1->load;
 	pstate->sdload = s1->sdload + abs(pstate->dload);
 
-	// check if we have delta on any ac power flows
+	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > NOISE)
 		pstate->flags |= FLAG_DELTA;
 	if (abs(pstate->ac10 - s1->ac10) > NOISE)
@@ -868,8 +880,6 @@ static void calculate_pstate() {
 
 	// akku power is Fronius10 DC power minus PV
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
-//	if (abs(pstate->akku) < NOISE)
-//		pstate->akku = 0;
 
 	// offline mode when 3x not enough PV production
 	if (s1->pv < NOISE && s2->pv < NOISE && s3->pv < NOISE) {
@@ -880,6 +890,7 @@ static void calculate_pstate() {
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
 		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->pv = pstate->dpv = pstate->mppt1 = pstate->mppt2 = pstate->mppt3 = pstate->mppt4 = 0;
+		shape_pstate();
 		return;
 	}
 
@@ -943,16 +954,6 @@ static void calculate_pstate() {
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->greedy || pstate->modest)
 		pstate->flags |= FLAG_RAMP;
 
-	// shape values
-//	if (abs(pstate->grid) < NOISE)
-//		pstate->grid = 0;
-//	if (abs(pstate->akku) < NOISE)
-//		pstate->akku = 0;
-	if (abs(pstate->dgrid) < NOISE)
-		pstate->dgrid = 0;
-	if (abs(pstate->dload) < NOISE)
-		pstate->dload = 0;
-
 	// clear RAMP flag when values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) {
@@ -983,6 +984,8 @@ static void calculate_pstate() {
 	if (!f7->active) {
 		xlog("FRONIUS Fronius7 is not active!");
 	}
+
+	shape_pstate();
 }
 
 static void emergency() {
@@ -1067,9 +1070,9 @@ static void minly(time_t now_ts) {
 	// xlog("FRONIUS executing minutely tasks...");
 
 	// aggregate 59 seconds into current minute
-	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+	dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
