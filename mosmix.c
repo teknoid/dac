@@ -18,24 +18,29 @@ static mosmix_csv_t mosmix_csv[256];
 
 // 24h slots over one week and access pointers
 static mosmix_t mosmix_hours[24 * 7];
-#define MOSMIX_NOW				(&mosmix_hours[24 * now->tm_wday + now->tm_hour])
+#define MOSMIX_SLOT(d, h)		(&mosmix_hours[24 * d + h])
 #define MOSMIX_TODAY(h)			(&mosmix_hours[24 * now->tm_wday + h])
 #define MOSMIX_TOMORROW(h)		(&mosmix_hours[24 * (now->tm_wday < 6 ? now->tm_wday + 1 : 0) + h])
-#define MOSMIX_SLOT(d, h)		(&mosmix_hours[24 * d + h])
 
-static void update(mosmix_t *old, mosmix_csv_t *new, struct tm *now) {
-	int dRad1h = old->Rad1h != new->Rad1h;
-	int dSunD1 = old->Rad1h != new->Rad1h;
+static void update(mosmix_csv_t *csv) {
+	struct tm tm;
+	time_t t = csv->ts - 1; // fix hour
+	localtime_r(&t, &tm);
+
+	mosmix_t *m = MOSMIX_SLOT(tm.tm_wday, tm.tm_hour);
+	int dRad1h = m->Rad1h != csv->Rad1h;
+	int dSunD1 = m->Rad1h != csv->Rad1h;
 	if (dRad1h || dSunD1)
-		xdebug("MOSMIX updating slot %d/%d Rad1h old %4d new %4d SunD1 old %4d new %4d", now->tm_wday, now->tm_hour, old->Rad1h, new->Rad1h, old->SunD1, new->SunD1);
+		xdebug("MOSMIX updating slot %d/%2d Rad1h old %4d new %4d SunD1 old %4d new %4d", tm.tm_wday, tm.tm_hour, m->Rad1h, csv->Rad1h, m->SunD1, csv->SunD1);
 
-	old->Rad1h = new->Rad1h;
-	old->SunD1 = new->SunD1;
+	// update
+	m->Rad1h = csv->Rad1h;
+	m->SunD1 = csv->SunD1;
 
 	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
 	// target->x = target->Rad1h * (1 + (float) target->SunD1 / 3600 / 2);
 	// target->x = target->Rad1h + target->SunD1 / 10;
-	old->base = old->Rad1h;
+	m->base = m->Rad1h;
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -277,14 +282,9 @@ int mosmix_load(const char *filename) {
 	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 
 	// update mosmix slots for next two days (mosmix forecast contains up to 10 days)
-	struct tm now_tm, *now = &now_tm;
 	for (int i = 0; i < 24 * 2; i++) {
-		mosmix_csv_t *m = &mosmix_csv[i];
-		if (m->ts) {
-			time_t t = m->ts - 1; // fix hour
-			localtime_r(&t, now);
-			update(MOSMIX_NOW, m, now);
-		}
+		mosmix_csv_t *mcsv = &mosmix_csv[i];
+		update(mcsv);
 	}
 
 	return 0;

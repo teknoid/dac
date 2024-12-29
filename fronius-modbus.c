@@ -848,8 +848,6 @@ static void calculate_pstate() {
 	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
 
 	// grid, delta grid and sum
-//	if (abs(pstate->grid) < NOISE)
-//		pstate->grid = 0; // shape
 	pstate->dgrid = pstate->grid - s1->grid;
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0; // shape
@@ -928,24 +926,30 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// greedy power = akku + grid
-	pstate->greedy = (pstate->grid + pstate->akku) * -1;
+	pstate->greedy = (pstate->grid + pstate->akku) * -1 - NOISE;
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
-	if (0 < pstate->greedy && pstate->greedy < NOISE * 2) // stable between 0..50
+	if (-NOISE < pstate->greedy && pstate->greedy < NOISE) // stable between 0..50
 		pstate->greedy = 0;
 
 	// modest power = only grid
-	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
+	pstate->modest = pstate->grid * -1 - NOISE;
 	if (!PSTATE_ACTIVE && pstate->modest < 0)
 		pstate->modest = 0; // no active devices - nothing to ramp down
-	if (0 < pstate->modest && pstate->modest < NOISE * 2) // stable between 0..50
-		pstate->modest = 0;
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // modest can never be bigger than greedy
+	if (-NOISE < pstate->modest && pstate->modest < NOISE) // stable between 0..50
+		pstate->modest = 0;
 
 	// ramp on grid download or akku discharge or when we have greedy/modest power
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->greedy || pstate->modest)
 		pstate->flags |= FLAG_RAMP;
+
+	// shape grid and akku
+//	if (abs(pstate->grid) < NOISE)
+//		pstate->grid = 0;
+//	if (abs(pstate->akku) < NOISE)
+//		pstate->akku = 0;
 
 	// clear RAMP flag when values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
