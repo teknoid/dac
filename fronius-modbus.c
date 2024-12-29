@@ -1111,6 +1111,7 @@ static void fronius() {
 			calculate_mosmix();
 			storage_strategy();
 			choose_program();
+			print_state(0);
 			continue;
 		}
 
