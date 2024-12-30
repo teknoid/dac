@@ -22,10 +22,18 @@
 #define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 
-#define WAIT_NEXT_RAMP_SLOW		10
-#define WAIT_NEXT_RAMP_FAST		3
+#define WAIT_NEXT_RAMP_SLOW		1
+#define WAIT_NEXT_RAMP_FAST		1
 #define WAIT_RESPONSE			3
 #define WAIT_NEXT				1
+
+// +/-50 around 150 --> stable from 100..200
+#define GREEDY_WINDOW			50
+#define GREEDY_OFFSET			150
+
+// +/-25 around 25 --> stable from 0..50
+#define MODEST_WINDOW			25
+#define MODEST_OFFSET			25
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
@@ -935,19 +943,19 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// greedy power = akku + grid
-	pstate->greedy = (pstate->grid + pstate->akku) * -1 - NOISE;
+	pstate->greedy = (pstate->grid + pstate->akku) * -1 - GREEDY_OFFSET;
 	if (!PSTATE_ACTIVE && pstate->greedy < 0)
 		pstate->greedy = 0; // no active devices - nothing to ramp down
-	if (-NOISE < pstate->greedy && pstate->greedy < NOISE) // stable between 0..50
+	if (-GREEDY_WINDOW < pstate->greedy && pstate->greedy < GREEDY_WINDOW) // stable between 0..50
 		pstate->greedy = 0;
 
 	// modest power = only grid
-	pstate->modest = pstate->grid * -1 - NOISE;
+	pstate->modest = pstate->grid * -1 - MODEST_OFFSET;
 	if (!PSTATE_ACTIVE && pstate->modest < 0)
 		pstate->modest = 0; // no active devices - nothing to ramp down
 	if (pstate->greedy < pstate->modest)
 		pstate->modest = pstate->greedy; // modest can never be bigger than greedy
-	if (-NOISE < pstate->modest && pstate->modest < NOISE) // stable between 0..50
+	if (-MODEST_WINDOW < pstate->modest && pstate->modest < MODEST_WINDOW) // stable between 0..50
 		pstate->modest = 0;
 
 	// ramp on grid download or akku discharge or when we have greedy/modest power
@@ -1133,13 +1141,13 @@ static void fronius() {
 		if (!device)
 			device = standby();
 
-		// prio3: check if higher priorized device can steal from lower priorized
-		if (!device)
-			device = steal();
-
-		// prio4: ramp up/down
+		// prio3: ramp up/down
 		if (!device && PSTATE_RAMP)
 			device = ramp();
+
+		// prio4: check if higher priorized device can steal from lower priorized
+		if (!device)
+			device = steal();
 
 		// print combined device and pstate when we had delta or device action
 		if (PSTATE_DELTA || device)
