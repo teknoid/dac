@@ -835,14 +835,14 @@ static void calculate_gstate() {
 
 // shape pstate values below NOISE
 static void shape_pstate() {
-	if (abs(pstate->grid) < NOISE)
-		pstate->grid = 0;
-	if (abs(pstate->akku) < NOISE)
-		pstate->akku = 0;
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0;
 	if (abs(pstate->dload) < NOISE)
 		pstate->dload = 0;
+//	if (abs(pstate->grid) < NOISE)
+//		pstate->grid = 0;
+//	if (abs(pstate->akku) < NOISE)
+//		pstate->akku = 0;
 }
 
 static void calculate_pstate() {
@@ -882,7 +882,7 @@ static void calculate_pstate() {
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
 	// offline mode when 3x not enough PV production
-	if (s1->pv < NOISE && s2->pv < NOISE && s3->pv < NOISE) {
+	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE && s3->pv < NOISE) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
