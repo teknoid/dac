@@ -493,7 +493,7 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
 	int limit_sf = SFOUT(100, sf);
 
-	if (ss->storage->StorCtl_Mod == 0 && ss->storage->InWRte == limit_sf && ss->storage->OutWRte == limit_sf)
+	if (ss->storage->StorCtl_Mod == 0)
 		return 0; // already set
 
 	xlog("SUNSPEC reset charge/discharge limits");
