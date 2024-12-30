@@ -6,7 +6,7 @@
 // hexdump -v -e '16 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 
-// hexdump -v -e '24 "%6d ""\n"' /tmp/fronius-pstate*.bin
+// hexdump -v -e '23 "%6d ""\n"' /tmp/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
 
@@ -16,6 +16,10 @@
 #define NOISE					25
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
+
+// start ramping when grid is outside between -25..50
+#define RAMP_UP_WINDOW			50
+#define RAMP_DOWN_WINDOW		-25
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN					22.0
@@ -94,7 +98,7 @@ struct _gstate {
 
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4  grdy modst   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4  ramp   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -116,8 +120,7 @@ struct _pstate {
 	int mppt2;
 	int mppt3;
 	int mppt4;
-	int greedy;
-	int modest;
+	int ramp;
 	int soc;
 	int flags;
 };
@@ -155,7 +158,7 @@ struct _minmax {
 };
 
 typedef struct _device device_t;
-typedef int (set_function_t)(device_t*, int);
+typedef int (ramp_function_t)(device_t*, int);
 struct _device {
 	const unsigned int id;
 	const unsigned int r;
@@ -168,43 +171,43 @@ struct _device {
 	int load;
 	int aload;
 	int xload;
-	int greedy;
 	int noresponse;
 	int timer;
 	time_t override;
-	set_function_t *set_function;
+	ramp_function_t *ramp_function;
 };
 
 // set device function signatures
-int set_heater(device_t *device, int power);
-int set_boiler(device_t *device, int power);
+int ramp_heater(device_t *device, int power);
+int ramp_boiler(device_t *device, int power);
+int ramp_akku(device_t *device, int power);
 
 // devices
-static device_t b1 = { .name = "boiler1", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .set_function = &set_boiler, .adjustable = 1 };
-static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .set_function = &set_heater, .adjustable = 0 };
-static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .set_function = &set_heater, .adjustable = 0 };
-static device_t *DEVICES[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
+static device_t a1 = { .name = "akku", .total = 0, .ramp_function = &ramp_akku, .adjustable = 0 };
+static device_t b1 = { .name = "boiler1", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
+static device_t b2 = { .name = "boiler2", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
+static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
+static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
+static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
+static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .ramp_function = &ramp_heater, .adjustable = 0 };
+static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
 
 // program of the day
 typedef struct potd_t {
 	const char *name;
-	device_t *greedy[ARRAY_SIZE(DEVICES)];
-	device_t *modest[ARRAY_SIZE(DEVICES)];
+	device_t *devices[ARRAY_SIZE(DEVICES) + 1];
 } potd_t;
 
-// cloudy weather with akku empty: first charge akku, then boiler1, then rest
-static const potd_t MODEST = { .name = "MODEST", .greedy = { 0 }, .modest = { &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
+// first charge akku, then boilers, then heaters
+static const potd_t MODEST = { .name = "MODEST", .devices = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
 
-// cloudy weather but tomorrow sunny: steal all akku charge power
-static const potd_t GREEDY = { .name = "GREEDY", .greedy = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, 0 }, .modest = { 0 } };
+// steal all akku charge power
+static const potd_t GREEDY = { .name = "GREEDY", .devices = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 } };
 
-// sunny weather: plenty of power but modest boilers to catch all power when we have short sun spikes
-static const potd_t SUNNY = { .name = "SUNNY", .greedy = { &h1, &h2, &h3, &h4, 0 }, .modest = { &b1, &b2, &b3, 0 } };
+// heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
+static const potd_t PLENTY = { .name = "PLENTY", .devices = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 } };
 
-// force boiler heating
-static const potd_t BOILER1 = { .name = "BOILER1", .greedy = { &b1, 0 }, .modest = { &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
-static const potd_t BOILER3 = { .name = "BOILER3", .greedy = { &b3, 0 }, .modest = { &h1, &h2, &h3, &h4, &b2, &b1, 0 } };
+// force boiler heating first
+static const potd_t BOILER1 = { .name = "BOILER1", .devices = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 } };
+static const potd_t BOILER3 = { .name = "BOILER3", .devices = { &b3, &a1, &b2, &b1, &h1, &h2, &h3, &h4, 0 } };

@@ -324,6 +324,14 @@ int mosmix_main(int argc, char **argv) {
 		m1->fac4 = m0->fac4;
 	}
 
+	// correct a factor
+//	for (int d = 0; d < 7; d++) {
+//		mosmix_t *m = MOSMIX_SLOT(d, 9);
+//		m->fac1 = m->fac2 = m->fac3 = m->fac4 = 100;
+//	}
+//	mosmix_store_state();
+//	return 0;
+
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 

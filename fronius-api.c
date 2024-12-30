@@ -115,6 +115,33 @@ static response_t memory = { 0 };
 static raw_t raw, *r = &raw;
 static int errors;
 
+int ramp_akku(device_t *akku, int power) {
+
+	// disable response/standby logic
+	akku->load = akku->xload = 0;
+	akku->power = power;
+
+	// TODO untested logic
+
+	if (power) {
+		// force akku charging by recalculate ramp power only from grid
+		pstate->ramp = (pstate->grid) * -1;
+		if (!PSTATE_ACTIVE && pstate->ramp < 0)
+			pstate->ramp = 0; // no active devices - nothing to ramp down
+		if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+			pstate->ramp = 0;
+	} else {
+		// force akku charge power releasing by recalculate ramp power from grid and akku
+		pstate->ramp = (pstate->grid + pstate->akku) * -1;
+		if (!PSTATE_ACTIVE && pstate->ramp < 0)
+			pstate->ramp = 0; // no active devices - nothing to ramp down
+		if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+			pstate->ramp = 0;
+	}
+
+	return 0; // always continue loop to handle new ramp power
+}
+
 int set_heater(device_t *heater, int power) {
 	// fix power value if out of range
 	if (power < 0)
@@ -220,7 +247,7 @@ int set_boiler(device_t *boiler, int power) {
 
 static void set_all_devices(int power) {
 	for (device_t **d = DEVICES; *d != 0; d++)
-		((*d)->set_function)(*d, power);
+		((*d)->ramp_function)(*d, power);
 }
 
 // initialize all devices with start values
@@ -230,7 +257,7 @@ static void init_all_devices() {
 		d->addr = resolve_ip(d->name);
 		d->state = Active;
 		d->power = -1; // force set to 0
-		(d->set_function)(d, 0);
+		(d->ramp_function)(d, 0);
 		if (d->adjustable && d->addr == 0)
 			d->state = Disabled; // controlled via socket send, so we need an ip address
 	}
@@ -394,8 +421,7 @@ static void print_pstate(const char *message) {
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
 	xlogl_int(line, 1, 1, "Grid", pstate->grid);
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
-	xlogl_int(line, 1, 0, "Greedy", pstate->greedy);
-	xlogl_int(line, 1, 0, "Modest", pstate->modest);
+	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
 	xlogl_int(line, 0, 0, "ΔLoad", pstate->dload);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
@@ -545,33 +571,28 @@ static int select_program(const potd_t *p) {
 
 		// potd has changed - reset all devices
 		set_all_devices(0);
-
-		// mark devices greedy/modest
-		for (device_t **d = potd->greedy; *d != 0; d++)
-			(*d)->greedy = 1;
-		for (device_t **d = potd->modest; *d != 0; d++)
-			(*d)->greedy = 0;
 	}
 	return 0;
 }
 
 // choose program of the day
 static int choose_program() {
+	if (!gstate)
+		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
-		return select_program(&MODEST);
-
-	// survive and less than 2h sun
-	if (m0.SunD1 < 7200)
 		return select_program(&MODEST);
 
 	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// enough pv available
-	return select_program(&SUNNY);
+	// enough pv available for survive + heating
+	if (gstate->heating > 10)
+		return select_program(&PLENTY);
+
+	return select_program(&MODEST);
 }
 
 // minimum available power for ramp up
@@ -616,7 +637,7 @@ static int ramp_adjustable(device_t *d, int power) {
 	if (!step)
 		return 0;
 
-	return (d->set_function)(d, d->power + step);
+	return (d->ramp_function)(d, d->power + step);
 }
 
 static int ramp_dumb(device_t *d, int power) {
@@ -629,11 +650,11 @@ static int ramp_dumb(device_t *d, int power) {
 
 	// switch on when enough power is available
 	if (!d->power && power > min)
-		return (d->set_function)(d, 1);
+		return (d->ramp_function)(d, 1);
 
 	// switch off
 	if (d->power)
-		return (d->set_function)(d, 0);
+		return (d->ramp_function)(d, 0);
 
 	return 0; // continue loop
 }
@@ -673,35 +694,21 @@ static device_t* rampdown(int power, device_t **devices) {
 static device_t* ramp() {
 	device_t *d;
 
-	// prio1: no extra power available: ramp down modest devices
-	if (pstate->modest < 0) {
-		d = rampdown(pstate->modest, potd->modest);
-		if (d)
-			return d;
-	}
-
-	// prio2: consuming grid power or discharging akku: ramp down greedy devices too
-	if (pstate->greedy < 0) {
-		d = rampdown(pstate->greedy, potd->greedy);
+	// prio1: ramp down
+	if (pstate->ramp < 0) {
+		d = rampdown(pstate->ramp, potd->devices);
 		if (d)
 			return d;
 	}
 
 	// ramp up only when state is stable or enough power
-	int ok = PSTATE_STABLE || pstate->greedy > 2000 || pstate->modest > 2000;
+	int ok = PSTATE_STABLE || pstate->ramp > 1000;
 	if (!ok)
 		return 0;
 
-	// prio3: uploading grid power or charging akku: ramp up only greedy devices
-	if (pstate->greedy > 0) {
-		d = rampup(pstate->greedy, potd->greedy);
-		if (d)
-			return d;
-	}
-
-	// prio4: extra power available: ramp up modest devices too
-	if (pstate->modest > 0) {
-		d = rampup(pstate->modest, potd->modest);
+	// prio2: ramp up
+	if (pstate->ramp > 0) {
+		d = rampup(pstate->ramp, potd->devices);
 		if (d)
 			return d;
 	}
@@ -713,33 +720,19 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (t->state != Active || t->power || !v->load)
 		return 0; // thief not active or already on or nothing to steal from victim
 
-	int power = (t->greedy ? pstate->greedy : pstate->modest) + v->load;
 	int min = rampup_min(t);
-	if (power <= min)
+	if (pstate->ramp <= min)
 		return 0; // not enough to steal
 
-	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, GREEDY_MODEST(v), v->name, GREEDY_MODEST(t), t->name, t->total);
+	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, v, v->name, t, t->name, t->total);
 	ramp_device(v, v->load * -1);
-	ramp_device(t, power);
+	ramp_device(t, pstate->ramp);
 	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
 	return 1;
 }
 
 static device_t* steal() {
-	// greedy thief can steal from greedy victims behind
-	for (device_t **t = potd->greedy; *t != 0; t++)
-		for (device_t **v = t + 1; *v != 0; v++)
-			if (steal_thief_victim(*t, *v))
-				return *t;
-
-	// greedy thief can steal from all modest victims
-	for (device_t **t = potd->greedy; *t != 0; t++)
-		for (device_t **v = potd->modest; *v != 0; v++)
-			if (steal_thief_victim(*t, *v))
-				return *t;
-
-	// modest thief can steal from modest victims behind
-	for (device_t **t = potd->modest; *t != 0; t++)
+	for (device_t **t = potd->devices; *t != 0; t++)
 		for (device_t **v = t + 1; *v != 0; v++)
 			if (steal_thief_victim(*t, *v))
 				return *t;
@@ -752,10 +745,10 @@ static device_t* perform_standby(device_t *d) {
 	xdebug("FRONIUS starting standby check on %s", d->name);
 	if (d->adjustable)
 		// do a big ramp
-		(d->set_function)(d, d->power + (d->power < 50 ? 25 : -25));
+		(d->ramp_function)(d, d->power + (d->power < 50 ? 25 : -25));
 	else
 		// toggle
-		(d->set_function)(d, d->power ? 0 : 1);
+		(d->ramp_function)(d, d->power ? 0 : 1);
 	return d;
 }
 
@@ -783,7 +776,7 @@ static device_t* standby() {
 		for (device_t **dd = DEVICES; *dd != 0; dd++) {
 			device_t *d = *dd;
 			if (!d->adjustable && d->state == Active) {
-				(d->set_function)(d, 0);
+				(d->ramp_function)(d, 0);
 				d->state = Standby;
 			}
 		}
@@ -848,7 +841,7 @@ static device_t* response(device_t *d) {
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, delta, pstate->dload);
-		(d->set_function)(d, 0);
+		(d->ramp_function)(d, 0);
 		d->noresponse = 0;
 		d->state = Standby;
 		d->xload = 0; // no response expected
@@ -977,7 +970,7 @@ static void calculate_pstate1() {
 			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->greedy = pstate->modest = pstate->xload = pstate->dxload = pstate->dpv = 0;
+		pstate->ramp = pstate->xload = pstate->dxload = pstate->dpv = 0;
 		return;
 	}
 
@@ -1052,23 +1045,12 @@ static void calculate_pstate2() {
 	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
-	// greedy power = akku + grid
-	pstate->greedy = (pstate->grid + pstate->akku) * -1;
-	if (pstate->greedy > 0)
-		pstate->greedy -= NOISE; // threshold for ramp up
-	if (abs(pstate->greedy) < NOISE)
-		pstate->greedy = 0;
-	if (!PSTATE_ACTIVE && pstate->greedy < 0)
-		pstate->greedy = 0; // no active devices - nothing to ramp down
-
-	// modest power = only grid
-	pstate->modest = pstate->grid * -1; // no threshold - try to regulate around grid=0
-	if (abs(pstate->modest) < NOISE)
-		pstate->modest = 0;
-	if (!PSTATE_ACTIVE && pstate->modest < 0)
-		pstate->modest = 0; // no active devices - nothing to ramp down
-	if (pstate->greedy < pstate->modest)
-		pstate->modest = pstate->greedy; // greedy cannot be smaller than modest
+	// calculate ramp up/down power
+	pstate->ramp = (pstate->grid + pstate->akku) * -1;
+	if (!PSTATE_ACTIVE && pstate->ramp < 0)
+		pstate->ramp = 0; // no active devices - nothing to ramp down
+	if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+		pstate->ramp = 0;
 
 	pstate->flags |= FLAG_RAMP;
 
@@ -1422,7 +1404,7 @@ int fronius_override_seconds(const char *name, int seconds) {
 			xlog("FRONIUS Activating Override on %s", (*d)->name);
 			(*d)->override = time(NULL) + seconds;
 			(*d)->state = Active;
-			((*d)->set_function)((*d), 100);
+			((*d)->ramp_function)((*d), 100);
 		}
 	}
 	return 0;
