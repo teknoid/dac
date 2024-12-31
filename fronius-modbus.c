@@ -107,9 +107,6 @@ static int akku_discharge(device_t *akku) {
 		xdebug("FRONIUS set akku DISCHARGE");
 		sunspec_storage_limit_charge(f10, 0);
 	}
-	akku->state = Discharge;
-	akku->timer = WAIT_RESPONSE;
-	akku->power = 0;
 
 	// winter mode
 	if (WINTER)
@@ -117,7 +114,10 @@ static int akku_discharge(device_t *akku) {
 	else
 		sunspec_storage_minimum_soc(f10, 5);
 
-	return 1;
+	akku->state = Discharge;
+	akku->timer = WAIT_RESPONSE;
+	akku->power = 0;
+	return 1; // loop done
 }
 
 static void set_all_devices(int power) {
@@ -398,7 +398,7 @@ static int ramp_dumb(device_t *d, int power) {
 
 static int ramp_device(device_t *d, int power) {
 	if (d == &a1)
-		return ramp_akku(d, power);
+		return ramp_akku(d, power); // special logic
 
 	if (d->state == Disabled || d->state == Standby)
 		return 0; // continue loop
@@ -1362,10 +1362,6 @@ int fronius_boiler3() {
 	return select_program(&BOILER3);
 }
 
-int fronius_override(const char *name) {
-	return fronius_override_seconds(name, OVERRIDE);
-}
-
 int fronius_override_seconds(const char *name, int seconds) {
 #ifdef FRONIUS_MAIN
 	init_all_devices();
@@ -1382,44 +1378,8 @@ int fronius_override_seconds(const char *name, int seconds) {
 	return 0;
 }
 
-int ramp_akku(device_t *akku, int power) {
-	if (!f10)
-		return 0;
-
-	// disable response/standby/steal logic
-	akku->load = akku->xload = 0;
-
-	// init
-	if (akku->power == -1) {
-		if (PSTATE_OFFLINE)
-			return akku_discharge(akku);
-
-		// set to standby and wait for ramp order
-		return akku_standby(akku);
-	}
-
-	if (power > 0) {
-
-		// set into standby when full
-		if (pstate->soc == 1000)
-			return akku_standby(akku);
-
-		// ramp up
-		return akku_charge(akku);
-
-	} else {
-
-		// consume ramp downs if we still have enough akku charging power - akku ramps down itself
-		if (pstate->akku < pstate->ramp)
-			return 1; // loop done
-
-		// set to standby as long as other devices active
-		if (PSTATE_ACTIVE)
-			return akku_standby(akku);
-
-		// ramp down - enable discharging
-		return akku_discharge(akku);
-	}
+int fronius_override(const char *name) {
+	return fronius_override_seconds(name, OVERRIDE);
 }
 
 int ramp_heater(device_t *heater, int power) {
@@ -1527,6 +1487,46 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done
+}
+
+int ramp_akku(device_t *akku, int power) {
+	if (!f10)
+		return 0;
+
+	// disable response/standby/steal logic
+	akku->load = akku->xload = 0;
+
+	// init
+	if (akku->power == -1) {
+		if (PSTATE_OFFLINE)
+			return akku_discharge(akku);
+
+		// set to standby and wait for ramp order
+		return akku_standby(akku);
+	}
+
+	if (power > 0) {
+
+		// set into standby when full
+		if (pstate->soc == 1000)
+			return akku_standby(akku);
+
+		// ramp up
+		return akku_charge(akku);
+
+	} else {
+
+		// consume ramp downs if we still have enough akku charging power - akku ramps down itself
+		if (pstate->akku < pstate->ramp)
+			return 1; // loop done
+
+		// set to standby as long as other devices active
+		if (PSTATE_ACTIVE)
+			return akku_standby(akku);
+
+		// ramp down - enable discharging
+		return akku_discharge(akku);
+	}
 }
 
 int fronius_main(int argc, char **argv) {
