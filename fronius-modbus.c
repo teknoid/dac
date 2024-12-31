@@ -148,7 +148,7 @@ int ramp_akku(device_t *akku, int power) {
 			xdebug("FRONIUS set akku limit both 0/0 (others active)");
 			sunspec_storage_limit_both(f10, 0, 0);
 			akku->timer = WAIT_RESPONSE;
-			return 0; // continue loop
+			return 1; // loop done
 		}
 
 		int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < 10000);
@@ -547,11 +547,12 @@ static int ramp_dumb(device_t *d, int power) {
 	// switch on when enough power is available
 	if (!d->power && power > min)
 		return (d->ramp_function)(d, 1);
-	else
-		return 0; // continue loop
 
 	// switch off
-	return (d->ramp_function)(d, 0);
+	if (d->power)
+		return (d->ramp_function)(d, 0);
+
+	return 0; // continue loop
 }
 
 static int ramp_device(device_t *d, int power) {
@@ -947,10 +948,10 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// calculate ramp up/down power
-	pstate->ramp = pstate->grid * -1;
+	pstate->ramp = pstate->grid * -1 - RAMP_OFFSET;
 	if (!PSTATE_ACTIVE && pstate->ramp < 0)
 		pstate->ramp = 0; // no active devices - nothing to ramp down
-	if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
 		pstate->ramp = 0;
 
 	// ramp on grid download or akku discharge or when we have ramp power

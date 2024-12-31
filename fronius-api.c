@@ -125,17 +125,17 @@ int ramp_akku(device_t *akku, int power) {
 
 	if (power) {
 		// force akku charging by recalculate ramp power only from grid
-		pstate->ramp = (pstate->grid) * -1;
+		pstate->ramp = (pstate->grid) * -1 - RAMP_OFFSET;
 		if (!PSTATE_ACTIVE && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
-		if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+		if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
 			pstate->ramp = 0;
 	} else {
 		// force akku charge power releasing by recalculate ramp power from grid and akku
-		pstate->ramp = (pstate->grid + pstate->akku) * -1;
+		pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
 		if (!PSTATE_ACTIVE && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
-		if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+		if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
 			pstate->ramp = 0;
 	}
 
@@ -1046,10 +1046,10 @@ static void calculate_pstate2() {
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// calculate ramp up/down power
-	pstate->ramp = (pstate->grid + pstate->akku) * -1;
+	pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
 	if (!PSTATE_ACTIVE && pstate->ramp < 0)
 		pstate->ramp = 0; // no active devices - nothing to ramp down
-	if (RAMP_DOWN_WINDOW < pstate->ramp && pstate->ramp < RAMP_UP_WINDOW) // stable between -25..50
+	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
 		pstate->ramp = 0;
 
 	pstate->flags |= FLAG_RAMP;

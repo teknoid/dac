@@ -17,9 +17,9 @@
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
 
-// start ramping when grid is outside between -25..50
-#define RAMP_UP_WINDOW			50
-#define RAMP_DOWN_WINDOW		-25
+// grid +/-25 around 25 --> stable from 0..50
+#define RAMP_WINDOW				25
+#define RAMP_OFFSET				25
 
 #ifdef FRONIUS_MAIN
 #define TEMP_IN					22.0
