@@ -118,26 +118,27 @@ int ramp_akku(device_t *akku, int power) {
 	}
 
 	if (power) {
-
 		// ramp up
+
 		akku->power = power;
 		if (pstate->soc == 1000) {
 			// akku is full --> disable akku
 			xdebug("FRONIUS set akku limit both 0/0 (full)");
 			sunspec_storage_limit_both(f10, 0, 0);
 			akku->timer = 1;
+			return 0; // continue loop
 		} else {
 			// enable charging
 			xdebug("FRONIUS set akku discharge 0");
 			sunspec_storage_limit_discharge(f10, 0);
 			akku->timer = WAIT_AKKU;
+			return 1; // loop done
 		}
-		return 1;
 
 	} else {
 		// ramp down
 
-		// ignore ramp downs if we still have enough akku charging power - akku ramps down itself
+		// consume ramp downs if we still have enough akku charging power - akku ramps down itself
 		if (pstate->akku < pstate->ramp)
 			return 1; // loop done
 
