@@ -59,7 +59,7 @@
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 enum dstate {
-	Disabled, Active, Standby, Standby_Check
+	Disabled, Active, Standby, Standby_Check, Charge, Discharge
 };
 
 typedef struct _counter counter_t;
