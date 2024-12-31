@@ -125,6 +125,7 @@ int ramp_akku(device_t *akku, int power) {
 			// akku is full --> disable akku
 			xdebug("FRONIUS set akku limit both 0/0 (full)");
 			sunspec_storage_limit_both(f10, 0, 0);
+			akku->state = Standby;
 			akku->timer = 1;
 			return 0; // continue loop
 		} else {
@@ -142,8 +143,13 @@ int ramp_akku(device_t *akku, int power) {
 		if (pstate->akku < pstate->ramp)
 			return 1; // loop done
 
-		akku->power = power;
-		akku->timer = 1;
+		// disable akku as long as other devices active
+		if (PSTATE_ACTIVE) {
+			xdebug("FRONIUS set akku limit both 0/0 (others active)");
+			sunspec_storage_limit_both(f10, 0, 0);
+			akku->timer = WAIT_RESPONSE;
+			return 0; // continue loop
+		}
 
 		int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < 10000);
 		if (limit) {
@@ -160,6 +166,8 @@ int ramp_akku(device_t *akku, int power) {
 		else
 			sunspec_storage_minimum_soc(f10, 5);
 
+		akku->power = power;
+		akku->timer = 1;
 		return 1;
 	}
 }
@@ -539,6 +547,8 @@ static int ramp_dumb(device_t *d, int power) {
 	// switch on when enough power is available
 	if (!d->power && power > min)
 		return (d->ramp_function)(d, 1);
+	else
+		return 0; // continue loop
 
 	// switch off
 	return (d->ramp_function)(d, 0);
