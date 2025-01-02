@@ -191,23 +191,23 @@ static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, 
 static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
 static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
 static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .ramp_function = &ramp_heater, .adjustable = 0 };
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
+static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4 };
 
 // program of the day
 typedef struct potd_t {
 	const char *name;
-	device_t *devices[ARRAY_SIZE(DEVICES) + 1];
+	device_t *devices[ARRAY_SIZE(DEVICES)];
 } potd_t;
 
 // first charge akku, then boilers, then heaters
-static const potd_t MODEST = { .name = "MODEST", .devices = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 } };
+static const potd_t MODEST = { .name = "MODEST", .devices = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3 } };
 
 // steal all akku charge power
-static const potd_t GREEDY = { .name = "GREEDY", .devices = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 } };
+static const potd_t GREEDY = { .name = "GREEDY", .devices = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1 } };
 
 // heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
-static const potd_t PLENTY = { .name = "PLENTY", .devices = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 } };
+static const potd_t PLENTY = { .name = "PLENTY", .devices = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3 } };
 
 // force boiler heating first
-static const potd_t BOILER1 = { .name = "BOILER1", .devices = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 } };
-static const potd_t BOILER3 = { .name = "BOILER3", .devices = { &b3, &a1, &b2, &b1, &h1, &h2, &h3, &h4, 0 } };
+static const potd_t BOILER1 = { .name = "BOILER1", .devices = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4 } };
+static const potd_t BOILER3 = { .name = "BOILER3", .devices = { &b3, &a1, &b2, &b1, &h1, &h2, &h3, &h4 } };

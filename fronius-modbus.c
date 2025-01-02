@@ -18,12 +18,16 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define HEAD					((device_t*)potd->devices[0])
+#define TAIL					((device_t*)potd->devices[ARRAY_SIZE(potd->devices) - 1])
+#define PP						(*pp)
+#define PD						(*(potd->devices + ii))
+#define DD						(*(DEVICES + ii))
+
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 #define AKKU_CAPACITY			(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF))
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
-#define HEAD					(*(potd->devices[0]))
-#define TAIL					(*(potd->devices[ARRAY_SIZE(potd->devices)]))
 
 #define WAIT_NEXT_RAMP			1
 #define WAIT_RESPONSE			3
@@ -176,21 +180,20 @@ static int check_override(device_t *d, int power) {
 }
 
 static void set_all_devices(int power) {
-	for (device_t **d = DEVICES; *d != 0; d++)
-		((*d)->ramp_function)(*d, power);
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
+		(DD->ramp_function)(DD, power);
 }
 
 // initialize all devices with start values
 static void init_all_devices() {
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		xlog("FRONIUS init %s", d->name);
-		d->addr = resolve_ip(d->name);
-		d->state = Active;
-		d->power = -1; // force set to 0
-		(d->ramp_function)(d, 0);
-		if (d->adjustable && d->addr == 0)
-			d->state = Disabled; // controlled via socket send, so we need an ip address
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
+		xlog("FRONIUS init %s", DD->name);
+		DD->addr = resolve_ip(DD->name);
+		DD->state = Active;
+		DD->power = -1; // force set to 0
+		(DD->ramp_function)(DD, 0);
+		if (DD->adjustable && DD->addr == 0)
+			DD->state = Disabled; // controlled via socket send, so we need an ip address
 	}
 }
 
@@ -236,23 +239,23 @@ static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
-	for (device_t **d = potd->devices; *d != 0; d++) {
-		if ((*d)->adjustable)
-			snprintf(value, 5, " %3d", (*d)->power);
+	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
+		if (PD->adjustable)
+			snprintf(value, 5, " %3d", PD->power);
 		else
-			snprintf(value, 5, "   %c", (*d)->power ? 'X' : '_');
+			snprintf(value, 5, "   %c", PD->power ? 'X' : '_');
 		strcat(line, value);
 	}
 
 	strcat(line, "   state ");
-	for (device_t **d = potd->devices; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->state);
+	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
+		snprintf(value, 5, "%d", PD->state);
 		strcat(line, value);
 	}
 
 	strcat(line, "   nores ");
-	for (device_t **d = potd->devices; *d != 0; d++) {
-		snprintf(value, 5, "%d", (*d)->noresponse);
+	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
+		snprintf(value, 5, "%d", PD->noresponse);
 		strcat(line, value);
 	}
 
@@ -408,26 +411,20 @@ static int ramp_device(device_t *d, int power) {
 	return (d->ramp_function)(d, power);
 }
 
-static device_t* rampup(int power, device_t **devices) {
-	for (device_t **d = devices; *d != 0; d++)
-		if (ramp_device(*d, power))
-			return *d;
+static device_t* rampup(int power) {
+	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++)
+		if (ramp_device(PD, power))
+			return PD;
 
-	return 0; // next priority
+	return 0;
 }
 
-static device_t* rampdown(int power, device_t **devices) {
-	// jump to last entry
-	device_t **d = devices;
-	while (*d != 0)
-		d++;
+static device_t* rampdown(int power) {
+	for (int ii = ARRAY_SIZE(potd->devices) - 1; ii >= 0; ii--)
+		if (ramp_device(PD, power))
+			return PD;
 
-	// now go backward - this will give a reverse order
-	while (d-- != devices)
-		if (ramp_device(*d, power))
-			return *d;
-
-	return 0; // next priority
+	return 0;
 }
 
 static device_t* ramp() {
@@ -435,7 +432,7 @@ static device_t* ramp() {
 
 	// prio1: ramp down
 	if (pstate->ramp < 0) {
-		d = rampdown(pstate->ramp, potd->devices);
+		d = rampdown(pstate->ramp);
 		if (d)
 			return d;
 	}
@@ -447,7 +444,7 @@ static device_t* ramp() {
 
 	// prio2: ramp up
 	if (pstate->ramp > 0) {
-		d = rampup(pstate->ramp, potd->devices);
+		d = rampup(pstate->ramp);
 		if (d)
 			return d;
 	}
@@ -480,11 +477,13 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 }
 
 static device_t* steal() {
-	for (device_t **t = potd->devices; *t != 0; t++)
-		for (device_t **v = t + 1; *v != 0; v++)
-			if (steal_thief_victim(*t, *v))
-				return *t;
-
+	for (int tt = 0; tt < ARRAY_SIZE(potd->devices) - 1; tt++)
+		for (int vv = ARRAY_SIZE(potd->devices) - 1; vv > tt; vv--) {
+			device_t *v = *(potd->devices + vv);
+			device_t *t = *(potd->devices + tt);
+			if (steal_thief_victim(t, v))
+				return t;
+		}
 	return 0;
 }
 
@@ -521,11 +520,10 @@ static device_t* standby() {
 	// put dumb devices into standby if summer or too hot
 	if (force_standby()) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
-		for (device_t **dd = DEVICES; *dd != 0; dd++) {
-			device_t *d = *dd;
-			if (!d->adjustable && d->state == Active) {
-				(d->ramp_function)(d, 0);
-				d->state = Standby;
+		for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
+			if (!DD->adjustable && DD->state == Active) {
+				(DD->ramp_function)(DD, 0);
+				DD->state = Standby;
 			}
 		}
 	}
@@ -535,19 +533,19 @@ static device_t* standby() {
 		return 0;
 
 	// try first active powered device with noresponse counter > 0
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Active && (*d)->power && (*d)->noresponse > 0)
-			return perform_standby(*d);
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
+		if (DD->state == Active && DD->power && DD->noresponse > 0)
+			return perform_standby(DD);
 
 	// try first active powered adjustable device
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Active && (*d)->power && (*d)->adjustable)
-			return perform_standby(*d);
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
+		if (DD->state == Active && DD->power && DD->adjustable)
+			return perform_standby(DD);
 
 	// try first active powered device
-	for (device_t **d = DEVICES; *d != 0; d++)
-		if ((*d)->state == Active && (*d)->power)
-			return perform_standby(*d);
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
+		if (DD->state == Active && DD->power)
+			return perform_standby(DD);
 
 	return 0;
 }
@@ -782,12 +780,11 @@ static void calculate_pstate() {
 	pstate->flags |= FLAG_ALL_STANDBY;
 	//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
 	pstate->xload = BASELOAD;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		pstate->xload += d->load;
-		if (d->power > 0 && d != &a1) // excl. akku; -1 when unitialized!
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
+		pstate->xload += DD->load;
+		if (DD->power > 0 && DD != &a1) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
-		if (d->state != Standby)
+		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
 	pstate->xload *= -1;
@@ -890,11 +887,10 @@ static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
 	// resetting noresponse counters and standby states
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		device_t *d = *dd;
-		d->noresponse = 0;
-		if (d->state == Standby)
-			d->state = Active;
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
+		DD->noresponse = 0;
+		if (DD->state == Standby)
+			DD->state = Active;
 	}
 
 	// force all devices off when offline
@@ -1361,6 +1357,39 @@ static int minimum(char *arg) {
 }
 
 static int test() {
+	potd = (potd_t*) &MODEST;
+
+	printf("\n>>> for forward\n");
+	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++)
+		printf("%s\n", PD->name);
+
+	printf("\n<<< for backward!\n");
+	for (int ii = ARRAY_SIZE(potd->devices) - 1; ii >= 0; ii--)
+		printf("%s\n", PD->name);
+
+	device_t **pp;
+	printf("\n>>> while forward\n");
+	pp = potd->devices - 1;
+	while (*pp++ != TAIL)
+		printf("%s\n", PP->name);
+
+	printf("\n<<< while backward\n");
+	pp = potd->devices + ARRAY_SIZE(potd->devices);
+	while (*pp-- != HEAD)
+		printf("%s\n", PP->name);
+
+	printf("\n>>> do forward\n");
+	pp = potd->devices;
+	do {
+		printf("%s\n", PP->name);
+	} while (*pp++ != TAIL);
+
+	printf("\n<<< do backward\n");
+	pp = potd->devices + ARRAY_SIZE(potd->devices) - 1;
+	do {
+		printf("%s\n", PP->name);
+	} while (*pp-- != HEAD);
+
 	return 0;
 }
 
@@ -1377,12 +1406,12 @@ int fronius_override_seconds(const char *name, int seconds) {
 	init_all_devices();
 #endif
 
-	for (device_t **d = DEVICES; *d != 0; d++) {
-		if (!strcmp((*d)->name, name)) {
-			xlog("FRONIUS Activating Override on %s", (*d)->name);
-			(*d)->override = time(NULL) + seconds;
-			(*d)->state = Active;
-			((*d)->ramp_function)((*d), 100);
+	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
+		if (!strcmp(DD->name, name)) {
+			xlog("FRONIUS Activating Override on %s", DD->name);
+			DD->override = time(NULL) + seconds;
+			DD->state = Active;
+			(DD->ramp_function)(DD, 100);
 		}
 	}
 	return 0;
