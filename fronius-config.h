@@ -177,6 +177,12 @@ struct _device {
 	ramp_function_t *ramp_function;
 };
 
+// program of the day
+typedef struct potd_t {
+	const char *name;
+	device_t **devices;
+} potd_t;
+
 // set device function signatures
 int ramp_heater(device_t *device, int power);
 int ramp_boiler(device_t *device, int power);
@@ -208,12 +214,7 @@ static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 
 static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
 static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b2, &b1, &h1, &h2, &h3, &h4, 0 };
 
-// program of the day
-typedef struct potd_t {
-	const char *name;
-	device_t **devices;
-} potd_t;
-
+// define POTDs
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
