@@ -18,11 +18,7 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define HEAD					((device_t*)potd->devices[0])
-#define TAIL					((device_t*)potd->devices[ARRAY_SIZE(potd->devices) - 1])
 #define PP						(*pp)
-#define PD						(*(potd->devices + ii))
-#define DD						(*(DEVICES + ii))
 
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
 #define AKKU_CAPACITY			(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF))
@@ -180,20 +176,20 @@ static int check_override(device_t *d, int power) {
 }
 
 static void set_all_devices(int power) {
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
-		(DD->ramp_function)(DD, power);
+	for (device_t **pp = DEVICES; *pp != 0; pp++)
+		(PP->ramp_function)(PP, power);
 }
 
 // initialize all devices with start values
 static void init_all_devices() {
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
-		xlog("FRONIUS init %s", DD->name);
-		DD->addr = resolve_ip(DD->name);
-		DD->state = Active;
-		DD->power = -1; // force set to 0
-		(DD->ramp_function)(DD, 0);
-		if (DD->adjustable && DD->addr == 0)
-			DD->state = Disabled; // controlled via socket send, so we need an ip address
+	for (device_t **pp = DEVICES; *pp != 0; pp++) {
+		xlog("FRONIUS init %s", PP->name);
+		PP->addr = resolve_ip(PP->name);
+		PP->state = Active;
+		PP->power = -1; // force set to 0
+		(PP->ramp_function)(PP, 0);
+		if (PP->adjustable && PP->addr == 0)
+			PP->state = Disabled; // controlled via socket send, so we need an ip address
 	}
 }
 
@@ -239,23 +235,23 @@ static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
-	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
-		if (PD->adjustable)
-			snprintf(value, 5, " %3d", PD->power);
+	for (device_t **pp = potd->devices; *pp != 0; pp++) {
+		if (PP->adjustable)
+			snprintf(value, 5, " %3d", PP->power);
 		else
-			snprintf(value, 5, "   %c", PD->power ? 'X' : '_');
+			snprintf(value, 5, "   %c", PP->power ? 'X' : '_');
 		strcat(line, value);
 	}
 
 	strcat(line, "   state ");
-	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
-		snprintf(value, 5, "%d", PD->state);
+	for (device_t **pp = potd->devices; *pp != 0; pp++) {
+		snprintf(value, 5, "%d", PP->state);
 		strcat(line, value);
 	}
 
 	strcat(line, "   nores ");
-	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++) {
-		snprintf(value, 5, "%d", PD->noresponse);
+	for (device_t **pp = potd->devices; *pp != 0; pp++) {
+		snprintf(value, 5, "%d", PP->noresponse);
 		strcat(line, value);
 	}
 
@@ -412,18 +408,28 @@ static int ramp_device(device_t *d, int power) {
 }
 
 static device_t* rampup(int power) {
-	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++)
-		if (ramp_device(PD, power))
-			return PD;
+	for (device_t **pp = potd->devices; *pp != 0; pp++)
+		if (ramp_device(PP, power))
+			return PP;
 
 	return 0;
 }
 
 static device_t* rampdown(int power) {
-	for (int ii = ARRAY_SIZE(potd->devices) - 1; ii >= 0; ii--)
-		if (ramp_device(PD, power))
-			return PD;
+	device_t **pp = potd->devices;
 
+	// jump to end
+	while (*pp)
+		pp++;
+	pp--;
+
+	// now go backward
+	while (1) {
+		if (ramp_device(PP, power))
+			return PP;
+		if (pp-- == potd->devices)
+			break;
+	}
 	return 0;
 }
 
@@ -477,10 +483,17 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 }
 
 static device_t* steal() {
-	for (int tt = 0; tt < ARRAY_SIZE(potd->devices) - 1; tt++)
-		for (int vv = ARRAY_SIZE(potd->devices) - 1; vv > tt; vv--) {
-			device_t *v = *(potd->devices + vv);
-			device_t *t = *(potd->devices + tt);
+	device_t **tail = potd->devices;
+
+	// jump to end
+	while (*tail)
+		tail++;
+	tail--;
+
+	for (device_t **tt = potd->devices; *tt != 0; tt++)
+		for (device_t **vv = tail; vv != tt; vv++) {
+			device_t *v = *vv;
+			device_t *t = *tt;
 			if (steal_thief_victim(t, v))
 				return t;
 		}
@@ -520,10 +533,10 @@ static device_t* standby() {
 	// put dumb devices into standby if summer or too hot
 	if (force_standby()) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
-		for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
-			if (!DD->adjustable && DD->state == Active) {
-				(DD->ramp_function)(DD, 0);
-				DD->state = Standby;
+		for (device_t **pp = DEVICES; *pp != 0; pp++) {
+			if (!PP->adjustable && PP->state == Active) {
+				(PP->ramp_function)(PP, 0);
+				PP->state = Standby;
 			}
 		}
 	}
@@ -533,19 +546,19 @@ static device_t* standby() {
 		return 0;
 
 	// try first active powered device with noresponse counter > 0
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
-		if (DD->state == Active && DD->power && DD->noresponse > 0)
-			return perform_standby(DD);
+	for (device_t **pp = DEVICES; *pp != 0; pp++)
+		if (PP->state == Active && PP->power && PP->noresponse > 0)
+			return perform_standby(PP);
 
 	// try first active powered adjustable device
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
-		if (DD->state == Active && DD->power && DD->adjustable)
-			return perform_standby(DD);
+	for (device_t **pp = DEVICES; *pp != 0; pp++)
+		if (PP->state == Active && PP->power && PP->adjustable)
+			return perform_standby(PP);
 
 	// try first active powered device
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++)
-		if (DD->state == Active && DD->power)
-			return perform_standby(DD);
+	for (device_t **pp = DEVICES; *pp != 0; pp++)
+		if (PP->state == Active && PP->power)
+			return perform_standby(PP);
 
 	return 0;
 }
@@ -780,11 +793,11 @@ static void calculate_pstate() {
 	pstate->flags |= FLAG_ALL_STANDBY;
 	//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
 	pstate->xload = BASELOAD;
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
-		pstate->xload += DD->load;
-		if (DD->power > 0 && DD != &a1) // excl. akku; -1 when unitialized!
+	for (device_t **pp = DEVICES; *pp != 0; pp++) {
+		pstate->xload += PP->load;
+		if (PP->power > 0 && PP != &a1) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
-		if (DD->state != Standby)
+		if (PP->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
 	pstate->xload *= -1;
@@ -887,10 +900,10 @@ static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
 	// resetting noresponse counters and standby states
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
-		DD->noresponse = 0;
-		if (DD->state == Standby)
-			DD->state = Active;
+	for (device_t **pp = DEVICES; *pp != 0; pp++) {
+		PP->noresponse = 0;
+		if (PP->state == Standby)
+			PP->state = Active;
 	}
 
 	// force all devices off when offline
@@ -1360,35 +1373,38 @@ static int test() {
 	potd = (potd_t*) &MODEST;
 
 	printf("\n>>> for forward\n");
-	for (int ii = 0; ii < ARRAY_SIZE(potd->devices); ii++)
-		printf("%s\n", PD->name);
-
-	printf("\n<<< for backward!\n");
-	for (int ii = ARRAY_SIZE(potd->devices) - 1; ii >= 0; ii--)
-		printf("%s\n", PD->name);
+	for (device_t **pp = potd->devices; *pp != 0; pp++)
+		printf("%s\n", PP->name);
 
 	device_t **pp;
-	printf("\n>>> while forward\n");
-	pp = potd->devices - 1;
-	while (*pp++ != TAIL)
-		printf("%s\n", PP->name);
 
-	printf("\n<<< while backward\n");
-	pp = potd->devices + ARRAY_SIZE(potd->devices);
-	while (*pp-- != HEAD)
+	printf("\n>>> while forward\n");
+	pp = potd->devices;
+	while (*pp) {
 		printf("%s\n", PP->name);
+		pp++;
+	}
+
+	printf("\n>>> while backward\n");
+	pp--;
+	while (1) {
+		printf("%s\n", PP->name);
+		if (pp-- == potd->devices)
+			break;
+	}
 
 	printf("\n>>> do forward\n");
 	pp = potd->devices;
 	do {
 		printf("%s\n", PP->name);
-	} while (*pp++ != TAIL);
+		pp++;
+	} while (*pp);
 
 	printf("\n<<< do backward\n");
-	pp = potd->devices + ARRAY_SIZE(potd->devices) - 1;
+	pp--;
 	do {
 		printf("%s\n", PP->name);
-	} while (*pp-- != HEAD);
+	} while (pp-- != potd->devices);
 
 	return 0;
 }
@@ -1406,12 +1422,12 @@ int fronius_override_seconds(const char *name, int seconds) {
 	init_all_devices();
 #endif
 
-	for (int ii = 0; ii < ARRAY_SIZE(DEVICES); ii++) {
-		if (!strcmp(DD->name, name)) {
-			xlog("FRONIUS Activating Override on %s", DD->name);
-			DD->override = time(NULL) + seconds;
-			DD->state = Active;
-			(DD->ramp_function)(DD, 100);
+	for (device_t **pp = DEVICES; *pp != 0; pp++) {
+		if (!strcmp(PP->name, name)) {
+			xlog("FRONIUS Activating Override on %s", PP->name);
+			PP->override = time(NULL) + seconds;
+			PP->state = Active;
+			(PP->ramp_function)(PP, 100);
 		}
 	}
 	return 0;
