@@ -22,9 +22,6 @@
 #include "curl.h"
 #include "mcp.h"
 
-// hexdump -v -e '1 "%10d " 3 "%8d ""\n"' /work/fronius-minmax.bin
-#define MINMAX_FILE				"/work/fronius-minmax.bin"
-
 #define URL_READABLE			"http://fronius/components/readable"
 #define URL_METER				"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
 #define URL_FLOW10				"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
@@ -107,7 +104,7 @@ static volatile gstate_t *gstate = 0;
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + h])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
-// power state with actual power flow and state calculations
+// round robin power power flow and state calculations
 static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
@@ -929,7 +926,7 @@ static void hourly(time_t now_ts) {
 	calculate_mosmix();
 	choose_program();
 
-	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
+	// copy counter and pstate to next slot (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(counter_t));
 
