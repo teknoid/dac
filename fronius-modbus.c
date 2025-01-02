@@ -105,7 +105,7 @@ static int akku_discharge(device_t *akku) {
 	// enable discharge
 	int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < 10000);
 	if (limit) {
-		xdebug("FRONIUS set akku DISCHARGE limit  BASELOAD");
+		xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
 		sunspec_storage_limit_both(f10, 0, BASELOAD);
 	} else {
 		xdebug("FRONIUS set akku DISCHARGE");
@@ -176,20 +176,22 @@ static int check_override(device_t *d, int power) {
 }
 
 static void set_all_devices(int power) {
-	for (device_t **dd = DEVICES; *dd != 0; dd++)
+	for (device_t **dd = DEVICES; *dd; dd++)
 		(DD->ramp_function)(DD, power);
 }
 
 // initialize all devices with start values
 static void init_all_devices() {
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
-		xlog("FRONIUS init %s", DD->name);
-		DD->addr = resolve_ip(DD->name);
+	xlog("FRONIUS initializing devices");
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		// xdebug("FRONIUS init %s", DD->name);
 		DD->state = Active;
 		DD->power = -1; // force set to 0
-		(DD->ramp_function)(DD, 0);
+		if (!DD->id)
+			DD->addr = resolve_ip(DD->name);
 		if (DD->adjustable && DD->addr == 0)
 			DD->state = Disabled; // controlled via socket send, so we need an ip address
+		(DD->ramp_function)(DD, 0);
 	}
 }
 
@@ -235,7 +237,7 @@ static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
-	for (device_t **dd = potd->devices; *dd != 0; dd++) {
+	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (DD->adjustable)
 			snprintf(value, 5, " %3d", DD->power);
 		else
@@ -244,13 +246,13 @@ static void print_state(device_t *d) {
 	}
 
 	strcat(line, "   state ");
-	for (device_t **dd = potd->devices; *dd != 0; dd++) {
+	for (device_t **dd = potd->devices; *dd; dd++) {
 		snprintf(value, 5, "%d", DD->state);
 		strcat(line, value);
 	}
 
 	strcat(line, "   nores ");
-	for (device_t **dd = potd->devices; *dd != 0; dd++) {
+	for (device_t **dd = potd->devices; *dd; dd++) {
 		snprintf(value, 5, "%d", DD->noresponse);
 		strcat(line, value);
 	}
@@ -408,7 +410,7 @@ static int ramp_device(device_t *d, int power) {
 }
 
 static device_t* rampup(int power) {
-	for (device_t **dd = potd->devices; *dd != 0; dd++)
+	for (device_t **dd = potd->devices; *dd; dd++)
 		if (ramp_device(DD, power))
 			return DD;
 
@@ -421,7 +423,7 @@ static device_t* rampdown(int power) {
 	while (*dd)
 		dd++;
 
-	// now go backward - this will give a reverse order
+	// now go backward - this gives reverse order
 	while (dd-- != potd->devices)
 		if (ramp_device(DD, power))
 			return DD;
@@ -432,7 +434,7 @@ static device_t* rampdown(int power) {
 static device_t* ramp() {
 	device_t *d;
 
-	// prio1: ramp down
+	// prio1: ramp down in reverse order
 	if (pstate->ramp < 0) {
 		d = rampdown(pstate->ramp);
 		if (d)
@@ -444,7 +446,7 @@ static device_t* ramp() {
 	if (!ok)
 		return 0;
 
-	// prio2: ramp up
+	// prio2: ramp up in order
 	if (pstate->ramp > 0) {
 		d = rampup(pstate->ramp);
 		if (d)
@@ -455,26 +457,32 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v) {
+	// thief not active or already on or nothing to steal from victim
 	if (t->state != Active || t->power || !v->load)
-		return 0; // thief not active or already on or nothing to steal from victim
+		return 0;
 
-	// minimum available power to ramp the device up
+	// we can steal akkus charge charge power or victims load
+	int steal = v == &a1 ? pstate->akku * -1 : v->load;
+	int power = pstate->ramp + steal;
+
+	// not enough to steal
 	int min = rampup_min(t);
+	if (power < min)
+		return 0;
 
-	// if victim is the akku we can steal it's charge power
-	int steal = pstate->ramp;
-	if (v == &a1)
-		steal += pstate->akku * -1;
-	if (steal <= min)
-		return 0; // not enough to steal
+	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", steal, v, v->name, t, t->name, t->total);
 
-	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", v->load, v, v->name, t, t->name, t->total);
-	if (v != &a1) // akku ramps down itself
+	// ramp down victim, akku ramps down itself
+	if (v != &a1)
 		ramp_device(v, v->load * -1);
-	ramp_device(t, steal);
-	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
+	ramp_device(t, power);
+
+	// give akku time to adjust
 	if (v == &a1)
 		t->timer = WAIT_AKKU_RAMP;
+
+	// no response expected as we put power from one to another device
+	t->xload = 0;
 	return 1;
 }
 
@@ -528,7 +536,7 @@ static device_t* standby() {
 	// put dumb devices into standby if summer or too hot
 	if (force_standby()) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
-		for (device_t **dd = DEVICES; *dd != 0; dd++) {
+		for (device_t **dd = DEVICES; *dd; dd++) {
 			if (!DD->adjustable && DD->state == Active) {
 				(DD->ramp_function)(DD, 0);
 				DD->state = Standby;
@@ -541,17 +549,17 @@ static device_t* standby() {
 		return 0;
 
 	// try first active powered device with noresponse counter > 0
-	for (device_t **dd = DEVICES; *dd != 0; dd++)
+	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Active && DD->power && DD->noresponse > 0)
 			return perform_standby(DD);
 
 	// try first active powered adjustable device
-	for (device_t **dd = DEVICES; *dd != 0; dd++)
+	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Active && DD->power && DD->adjustable)
 			return perform_standby(DD);
 
 	// try first active powered device
-	for (device_t **dd = DEVICES; *dd != 0; dd++)
+	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Active && DD->power)
 			return perform_standby(DD);
 
@@ -788,7 +796,7 @@ static void calculate_pstate() {
 	pstate->flags |= FLAG_ALL_STANDBY;
 	//	pstate->xload = pstate_hours[4].load ? pstate_hours[4].load * -1 : BASELOAD;
 	pstate->xload = BASELOAD;
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
 		if (DD->power > 0 && DD != &a1) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
@@ -895,7 +903,7 @@ static void hourly(time_t now_ts) {
 	xlog("FRONIUS executing hourly tasks...");
 
 	// resetting noresponse counters and standby states
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
 		if (DD->state == Standby)
 			DD->state = Active;
@@ -1368,7 +1376,7 @@ static int test() {
 	potd = (potd_t*) &MODEST;
 
 	printf("\n>>> for forward\n");
-	for (device_t **dd = potd->devices; *dd != 0; dd++)
+	for (device_t **dd = potd->devices; *dd; dd++)
 		printf("%s\n", DD->name);
 
 	device_t **dd;
@@ -1413,7 +1421,7 @@ int fronius_override_seconds(const char *name, int seconds) {
 	init_all_devices();
 #endif
 
-	for (device_t **dd = DEVICES; *dd != 0; dd++) {
+	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (!strcmp(DD->name, name)) {
 			xlog("FRONIUS Activating Override on %s", DD->name);
 			DD->override = time(NULL) + seconds;
