@@ -64,9 +64,6 @@ static volatile pstate_t *pstate = 0;
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 
-// mosmix 24h forecasts today, tomorrow and tomorrow+1
-static mosmix_csv_t m0, m1, m2;
-
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 
@@ -675,7 +672,8 @@ static void calculate_mosmix() {
 	gstate->tomorrow = tomorrow;
 	gstate->expected = eod;
 
-	// calculate total daily values
+	// mosmix 24h forecasts today, tomorrow and tomorrow+1
+	mosmix_csv_t m0, m1, m2;
 	mosmix_24h(0, &m0);
 	mosmix_24h(1, &m1);
 	mosmix_24h(2, &m2);

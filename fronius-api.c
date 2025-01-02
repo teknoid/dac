@@ -111,9 +111,6 @@ static volatile gstate_t *gstate = 0;
 static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
-// mosmix 24h forecasts today, tomorrow and tomorrow+1
-static mosmix_csv_t m0, m1, m2;
-
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
@@ -622,7 +619,8 @@ static void calculate_mosmix() {
 	gstate->tomorrow = tomorrow;
 	gstate->expected = eod;
 
-	// calculate total daily values
+	// mosmix 24h forecasts today, tomorrow and tomorrow+1
+	mosmix_csv_t m0, m1, m2;
 	mosmix_24h(0, &m0);
 	mosmix_24h(1, &m1);
 	mosmix_24h(2, &m2);
