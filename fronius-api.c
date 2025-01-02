@@ -1066,7 +1066,7 @@ static int init() {
 	ZERO(pstate_history);
 	ZERO(gstate_hours);
 	ZERO(counter_hours);
-	ZERO(r);
+	ZEROP(r);
 
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
