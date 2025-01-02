@@ -496,7 +496,7 @@ static device_t* steal() {
 
 	// thief goes forward, victim backward till it reaches thief
 	for (device_t **tt = potd->devices; *tt != 0; tt++)
-		for (device_t **vv = tail; vv != tt; vv++)
+		for (device_t **vv = tail; vv != tt; vv--)
 			if (steal_thief_victim(*tt, *vv))
 				return *tt;
 
@@ -1276,6 +1276,11 @@ static int single() {
 	calculate_gstate();
 	calculate_mosmix(now_ts);
 	choose_program();
+
+	response(&b1);
+	standby();
+	ramp();
+	steal();
 
 	// aggregate 24 pstate hours into one day
 	pstate_t pd;
