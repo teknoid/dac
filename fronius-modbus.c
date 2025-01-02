@@ -18,14 +18,15 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define AKKU_CAPACITY_SOC(soc)	(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) * soc / 1000)
-#define EMERGENCY				(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) / 10)
 #define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
+#define AKKU_CAPACITY			(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF))
+#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
+#define EMERGENCY				(AKKU_CAPACITY / 10)
 
 #define WAIT_NEXT_RAMP			1
 #define WAIT_RESPONSE			3
 #define WAIT_NEXT				1
-#define WAIT_AKKU				120
+#define WAIT_AKKU				30
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
@@ -120,6 +121,41 @@ static int akku_discharge(device_t *akku) {
 	return 1; // loop done
 }
 
+static int boiler_send(device_t *boiler, int power) {
+	if (boiler->addr == NULL)
+		return 0;
+
+#ifndef FRONIUS_MAIN
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	// send message to boiler
+	char message[16];
+	snprintf(message, 16, "p:%d:%d", power, 0);
+	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	if (ret < 0)
+		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
+#endif
+
+	int step = power - boiler->power;
+	if (step < 0)
+		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
+	else
+		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
+
+	// update power values
+	boiler->power = power;
+	boiler->load = boiler->total * boiler->power / 100;
+	boiler->xload = boiler->total * step / -100;
+	boiler->aload = pstate ? pstate->load : 0;
+	boiler->timer = WAIT_RESPONSE;
+	return 1; // loop done
+}
+
 static void set_all_devices(int power) {
 	for (device_t **d = DEVICES; *d != 0; d++)
 		((*d)->ramp_function)(*d, power);
@@ -129,6 +165,7 @@ static void set_all_devices(int power) {
 static void init_all_devices() {
 	for (device_t **dd = DEVICES; *dd != 0; dd++) {
 		device_t *d = *dd;
+		xlog("FRONIUS init %s", d->name);
 		d->addr = resolve_ip(d->name);
 		d->state = Active;
 		d->power = -1; // force set to 0
@@ -321,6 +358,10 @@ static int choose_program() {
 	if (gstate->survive < 10)
 		return select_program(&MODEST);
 
+	// tomorrow not enough pv - charging akku has priority
+	if (gstate->tomorrow < AKKU_CAPACITY)
+		return select_program(&MODEST);
+
 	// tomorrow more pv than today - charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
@@ -342,71 +383,10 @@ static int rampup_min(device_t *d) {
 	return min;
 }
 
-static int calculate_step(device_t *d, int power) {
-	// power steps
-	int step = power / (d->total / 100);
-
-	if (!step)
-		return 0;
-
-	// do smaller up steps / bigger down steps when we have distortion or akku is not yet full (give time to adjust)
-	if (PSTATE_DISTORTION || pstate->soc < 1000) {
-		if (step > 1)
-			step /= 2;
-		if (step < -1)
-			step *= 2;
-	}
-
-	return step;
-}
-
-static int ramp_adjustable(device_t *d, int power) {
-	// already full up
-	if (d->power == 100 && power > 0)
-		return 0;
-
-	// already full down
-	if (!d->power && power < 0)
-		return 0;
-
-	xdebug("FRONIUS ramp_adjustable() %s %d", d->name, power);
-	int step = calculate_step(d, power);
-	if (!step)
-		return 0;
-
-	return (d->ramp_function)(d, d->power + step);
-}
-
-static int ramp_dumb(device_t *d, int power) {
-	// keep on as long as we have enough power and device is already on
-	if (d->power && power > 0)
-		return 0; // continue loop
-
-	int min = rampup_min(d);
-	xdebug("FRONIUS ramp_dumb() %s %d (min %d)", d->name, power, min);
-
-	// switch on when enough power is available
-	if (!d->power && power > min)
-		return (d->ramp_function)(d, 1);
-
-	// switch off
-	if (d->power)
-		return (d->ramp_function)(d, 0);
-
-	return 0; // continue loop
-}
-
+// call device specific ramp function
 static int ramp_device(device_t *d, int power) {
-	if (d == &a1)
-		return ramp_akku(d, power); // special logic
-
-	if (d->state == Disabled || d->state == Standby)
-		return 0; // continue loop
-
-	if (d->adjustable)
-		return ramp_adjustable(d, power);
-	else
-		return ramp_dumb(d, power);
+	xdebug("FRONIUS ramp %s %d", d->name, power);
+	return (d->ramp_function)(d, power);
 }
 
 static device_t* rampup(int power, device_t **devices) {
@@ -460,14 +440,20 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (t->state != Active || t->power || !v->load)
 		return 0; // thief not active or already on or nothing to steal from victim
 
+	// minimum available power to ramp the device up
 	int min = rampup_min(t);
-	if (pstate->ramp <= min)
+
+	// we can steal from a lower priorized device or from akku
+	// TODO aber nur wenn er dahinter ist!
+	if (pstate->ramp <= min || pstate->akku * -1 <= min)
 		return 0; // not enough to steal
 
-	xdebug("FRONIUS steal %d from %s %s and provide it to %s %s with a load of %d", v->load, v, v->name, t, t->name, t->total);
+	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", v->load, v, v->name, t, t->name, t->total);
 	ramp_device(v, v->load * -1);
 	ramp_device(t, pstate->ramp);
 	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
+
+	// TODO wenn vom akku gestohlen WAIT_RAMP_AKKU
 	return 1;
 }
 
@@ -787,16 +773,18 @@ static void calculate_pstate() {
 	// deviation of calculated load to actual load in %
 	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
 
-	// indicate standby check when deviation between actual load and calculated load is three times above 33%
-	if (s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
-		pstate->flags |= FLAG_CHECK_STANDBY;
-
 	// calculate ramp up/down power
 	pstate->ramp = pstate->grid * -1 - RAMP_OFFSET;
-	if (!PSTATE_ACTIVE && pstate->ramp < 0)
-		pstate->ramp = 0; // no active devices - nothing to ramp down
 	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
 		pstate->ramp = 0;
+	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
+		pstate->ramp = 0; // akku is regulating around 0
+	if (!PSTATE_ACTIVE && a1.state == Discharge)
+		pstate->ramp = 0; // nothing to ramp down when no active devices and akku is in Discharge mode
+
+	// indicate standby check when we have enoug power and deviation between actual load and calculated load is three times above 33%
+	if (pstate->ramp > BASELOAD * 2 && s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
+		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// ramp on grid download or akku discharge or when we have ramp power
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->ramp)
@@ -817,7 +805,7 @@ static void calculate_pstate() {
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
 		pstate->flags &= ~FLAG_RAMP;
 	}
-	if (pstate->dgrid > 500) { // e.g. refrigerator starts !!!
+	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_RAMP;
 	}
@@ -826,7 +814,7 @@ static void calculate_pstate() {
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f7->active) {
-		xlog("FRONIUS Fronius7 is not active!");
+//		xlog("FRONIUS Fronius7 is not active!");
 	}
 
 	shape_pstate();
@@ -1383,12 +1371,25 @@ int fronius_override(const char *name) {
 }
 
 int ramp_heater(device_t *heater, int power) {
-	// fix power value if out of range
-	if (power < 0)
-		power = 0;
-	if (power > 1)
-		power = 1;
+	if (heater->state == Disabled || heater->state == Standby)
+		return 0; // continue loop
 
+	// keep on as long as we have enough power and device is already on
+	if (heater->power && power > 0)
+		return 0; // continue loop
+
+	// not enough power available
+	if (power > 0) {
+		int min = rampup_min(heater);
+		if (!heater->power && power < min)
+			return 0; // continue loop
+		xdebug("FRONIUS ramp_heater() %s %d (min %d)", heater->name, power, min);
+	}
+
+	// transform power into on/off
+	power = power > 0 ? 1 : 0;
+
+	// TODO überdenken
 	if (heater->override) {
 		time_t t = time(NULL);
 		if (t > heater->override) {
@@ -1397,12 +1398,12 @@ int ramp_heater(device_t *heater, int power) {
 			power = 0;
 		} else {
 			xdebug("FRONIUS Override active for %lu seconds on %s", heater->override - t, heater->name);
-			power = 100;
+			power = 1;
 		}
 	}
 
 	// check if update is necessary
-	if (heater->power && heater->power == power)
+	if (heater->power == power)
 		return 0;
 
 #ifndef FRONIUS_MAIN
@@ -1424,12 +1425,50 @@ int ramp_heater(device_t *heater, int power) {
 // echo p:0:0 | socat - udp:boiler3:1975
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 int ramp_boiler(device_t *boiler, int power) {
-	// fix power value if out of range
+	if (boiler->state == Disabled || boiler->state == Standby)
+		return 0; // continue loop
+
+	// init
+	if (boiler->power == -1) {
+		// create a socket if not yet done
+		if (sock == 0)
+			sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+		if (sock == 0)
+			return xerr("Error creating socket");
+
+		return boiler_send(boiler, 0);
+	}
+
+	// already full up
+	if (boiler->power == 100 && power > 0)
+		return 0;
+
+	// already full down
+	if (boiler->power == 0 && power < 0)
+		return 0;
+
+	// power steps
+	int step = power / (boiler->total / 100);
+	if (!step)
+		return 0;
+
+	// do smaller up steps / bigger down steps when we have distortion
+	if (PSTATE_DISTORTION) {
+		if (step > 1)
+			step /= 2;
+		if (step < -1)
+			step *= 2;
+	}
+
+	// transform power into 0..100%
+	power = boiler->power + step;
 	if (power < 0)
 		power = 0;
 	if (power > 100)
 		power = 100;
 
+	// TODO überdenken
 	if (boiler->override) {
 		time_t t = time(NULL);
 		if (t > boiler->override) {
@@ -1442,55 +1481,16 @@ int ramp_boiler(device_t *boiler, int power) {
 		}
 	}
 
-	// no update necessary
-	if (boiler->power && boiler->power == power)
+	// check if update is necessary
+	if (boiler->power == power)
 		return 0; // continue loop
 
-	// can we send a message
-	if (boiler->addr == NULL)
-		return 0; // continue loop
-
-	// calculate step
-	int step = power - boiler->power;
-
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-	if (sock == 0)
-		return xerr("Error creating socket");
-
-	// write IP and port into sockaddr structure
-#ifndef FRONIUS_MAIN
-	struct sockaddr_in sock_addr_in = { 0 };
-	sock_addr_in.sin_family = AF_INET;
-	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
-	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
-
-	// send message to boiler
-	char message[16];
-	snprintf(message, 16, "p:%d:%d", power, 0);
-	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	if (ret < 0)
-		return xerr("Sendto failed on %s %s", boiler->addr, strerror(ret));
-	if (step < 0) {
-		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
-	} else
-		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
-#endif
-
-	// update power values
-	boiler->power = power;
-	boiler->load = boiler->total * boiler->power / 100;
-	boiler->xload = boiler->total * step / -100;
-	boiler->aload = pstate ? pstate->load : 0;
-	boiler->timer = WAIT_RESPONSE;
-	return 1; // loop done
+	// send UDP message to device
+	return boiler_send(boiler, power);
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!f10)
+	if (!f10 || !pstate)
 		return 0;
 
 	// disable response/standby/steal logic

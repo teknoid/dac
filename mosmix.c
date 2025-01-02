@@ -57,6 +57,7 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	// error expected vs. actual
 	float error = exp ? (float) mppt / (float) exp : 0;
 	*err = error * 100; // store as x100 scaled
+	// TODO error auf die restliche tagesprognose rechnen wenn sich abzeichnet dass die mosmix vorhersage falsch ist
 	// new factor
 	float old = FLOAT100(*fac);
 	float new = base ? (float) mppt / (float) base : 0;
