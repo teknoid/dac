@@ -416,20 +416,16 @@ static device_t* rampup(int power) {
 }
 
 static device_t* rampdown(int power) {
+	// jump to last entry
 	device_t **dd = potd->devices;
-
-	// jump to end
 	while (*dd)
 		dd++;
-	dd--;
 
-	// now go backward
-	while (1) {
+	// now go backward - this will give a reverse order
+	while (dd-- != potd->devices)
 		if (ramp_device(DD, power))
 			return DD;
-		if (dd-- == potd->devices)
-			break;
-	}
+
 	return 0;
 }
 
@@ -1385,12 +1381,8 @@ static int test() {
 	}
 
 	printf("\n>>> while backward\n");
-	dd--;
-	while (1) {
+	while (dd-- != potd->devices)
 		printf("%s\n", DD->name);
-		if (dd-- == potd->devices)
-			break;
-	}
 
 	printf("\n>>> do forward\n");
 	dd = potd->devices;
