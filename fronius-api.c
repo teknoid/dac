@@ -979,21 +979,21 @@ static void fronius() {
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
 
-		// update state and counter pointers
-		counter = COUNTER_NOW;
-		gstate = GSTATE_NOW;
-
-		// hourly tasks
+		// hourly tasks - before updating counter/gstate
 		if (hour != now->tm_hour) {
 			hour = now->tm_hour;
 			hourly(now_ts);
 		}
 
-		// daily tasks
+		// daily tasks - before updating counter/gstate
 		if (day != now->tm_wday) {
 			day = now->tm_wday;
 			daily(now_ts);
 		}
+
+		// update state and counter pointers
+		counter = COUNTER_NOW;
+		gstate = GSTATE_NOW;
 
 		// check error counter
 		if (errors > 10)
