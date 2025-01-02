@@ -164,7 +164,7 @@ struct _device {
 	const unsigned int r;
 	const char *name;
 	const char *addr;
-	const int adjustable;
+	const int adj;
 	const int total;
 	enum dstate state;
 	int power;
@@ -174,7 +174,7 @@ struct _device {
 	int noresponse;
 	int timer;
 	time_t override;
-	ramp_function_t *ramp_function;
+	ramp_function_t *ramp;
 };
 
 // program of the day
@@ -189,14 +189,14 @@ int ramp_boiler(device_t *device, int power);
 int ramp_akku(device_t *device, int power);
 
 // devices
-static device_t a1 = { .name = "akku", .total = 0, .ramp_function = &ramp_akku, .adjustable = 0 };
-static device_t b1 = { .name = "boiler1", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp_function = &ramp_boiler, .adjustable = 1 };
-static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
-static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
-static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp_function = &ramp_heater, .adjustable = 0 };
-static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .ramp_function = &ramp_heater, .adjustable = 0 };
+static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 };
+static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
+static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0 };
+static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0 };
+static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0 };
+static device_t h4 = { .id = PLUG6, .r = 0, .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0 };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
