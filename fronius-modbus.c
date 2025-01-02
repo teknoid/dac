@@ -22,11 +22,14 @@
 #define AKKU_CAPACITY			(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF))
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
+#define HEAD					(*(potd->devices[0]))
+#define TAIL					(*(potd->devices[ARRAY_SIZE(potd->devices)]))
 
 #define WAIT_NEXT_RAMP			1
 #define WAIT_RESPONSE			3
 #define WAIT_NEXT				1
-#define WAIT_AKKU				30
+#define WAIT_AKKU_CHARGE		30
+#define WAIT_AKKU_RAMP			10
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
@@ -90,7 +93,7 @@ static int akku_charge(device_t *akku) {
 	xdebug("FRONIUS set akku CHARGE");
 	sunspec_storage_limit_discharge(f10, 0);
 	akku->state = Charge;
-	akku->timer = WAIT_AKKU;
+	akku->timer = WAIT_AKKU_CHARGE;
 	akku->power = 1;
 	return 1; // loop done
 }
@@ -125,6 +128,10 @@ static int boiler_send(device_t *boiler, int power) {
 	if (boiler->addr == NULL)
 		return 0;
 
+	// send message to boiler
+	char message[16];
+	snprintf(message, 16, "p:%d:%d", power, 0);
+
 #ifndef FRONIUS_MAIN
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
@@ -133,9 +140,6 @@ static int boiler_send(device_t *boiler, int power) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
-	// send message to boiler
-	char message[16];
-	snprintf(message, 16, "p:%d:%d", power, 0);
 	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	if (ret < 0)
 		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
@@ -154,6 +158,21 @@ static int boiler_send(device_t *boiler, int power) {
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done
+}
+
+static int check_override(device_t *d, int power) {
+	if (d->override) {
+		time_t t = time(NULL);
+		if (t > d->override) {
+			xdebug("FRONIUS Override expired for %s", d->name);
+			d->override = 0;
+			power = 0;
+		} else {
+			xdebug("FRONIUS Override active for %lu seconds on %s", d->override - t, d->name);
+			power = d->adjustable ? 100 : 1;
+		}
+	}
+	return power;
 }
 
 static void set_all_devices(int power) {
@@ -217,7 +236,7 @@ static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
-	for (device_t **d = DEVICES; *d != 0; d++) {
+	for (device_t **d = potd->devices; *d != 0; d++) {
 		if ((*d)->adjustable)
 			snprintf(value, 5, " %3d", (*d)->power);
 		else
@@ -226,13 +245,13 @@ static void print_state(device_t *d) {
 	}
 
 	strcat(line, "   state ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
+	for (device_t **d = potd->devices; *d != 0; d++) {
 		snprintf(value, 5, "%d", (*d)->state);
 		strcat(line, value);
 	}
 
 	strcat(line, "   nores ");
-	for (device_t **d = DEVICES; *d != 0; d++) {
+	for (device_t **d = potd->devices; *d != 0; d++) {
 		snprintf(value, 5, "%d", (*d)->noresponse);
 		strcat(line, value);
 	}
@@ -443,17 +462,20 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	// minimum available power to ramp the device up
 	int min = rampup_min(t);
 
-	// we can steal from a lower priorized device or from akku
-	// TODO aber nur wenn er dahinter ist!
-	if (pstate->ramp <= min || pstate->akku * -1 <= min)
+	// if victim is the akku we can steal it's charge power
+	int steal = pstate->ramp;
+	if (v == &a1)
+		steal += pstate->akku * -1;
+	if (steal <= min)
 		return 0; // not enough to steal
 
 	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", v->load, v, v->name, t, t->name, t->total);
-	ramp_device(v, v->load * -1);
-	ramp_device(t, pstate->ramp);
+	if (v != &a1) // akku ramps down itself
+		ramp_device(v, v->load * -1);
+	ramp_device(t, steal);
 	t->xload = 0; // force WAIT but no response expected as we put power from one to another device
-
-	// TODO wenn vom akku gestohlen WAIT_RAMP_AKKU
+	if (v == &a1)
+		t->timer = WAIT_AKKU_RAMP;
 	return 1;
 }
 
@@ -1389,18 +1411,8 @@ int ramp_heater(device_t *heater, int power) {
 	// transform power into on/off
 	power = power > 0 ? 1 : 0;
 
-	// TODO überdenken
-	if (heater->override) {
-		time_t t = time(NULL);
-		if (t > heater->override) {
-			xdebug("FRONIUS Override expired for %s", heater->name);
-			heater->override = 0;
-			power = 0;
-		} else {
-			xdebug("FRONIUS Override active for %lu seconds on %s", heater->override - t, heater->name);
-			power = 1;
-		}
-	}
+	// check if override is active
+	power = check_override(heater, power);
 
 	// check if update is necessary
 	if (heater->power == power)
@@ -1468,18 +1480,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (power > 100)
 		power = 100;
 
-	// TODO überdenken
-	if (boiler->override) {
-		time_t t = time(NULL);
-		if (t > boiler->override) {
-			xdebug("FRONIUS Override expired for %s", boiler->name);
-			boiler->override = 0;
-			power = 0;
-		} else {
-			xdebug("FRONIUS Override active for %lu seconds on %s", boiler->override - t, boiler->name);
-			power = 100;
-		}
-	}
+	// check if override is active
+	power = check_override(boiler, power);
 
 	// check if update is necessary
 	if (boiler->power == power)
