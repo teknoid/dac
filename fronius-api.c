@@ -797,11 +797,10 @@ static void calculate_pstate2() {
 
 	// calculate ramp up/down power
 	pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
-	pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
-	if (!PSTATE_ACTIVE && pstate->ramp < 0)
-		pstate->ramp = 0; // no active devices - nothing to ramp down
-	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
+	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
 		pstate->ramp = 0;
+	if (pstate->ramp < 0 && !PSTATE_ACTIVE)
+		pstate->ramp = 0; // no active devices - nothing to ramp down
 
 	// indicate standby check when we have enoug power and deviation between actual load and calculated load is three times above 33%
 	if (pstate->ramp > BASELOAD * 2 && pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
