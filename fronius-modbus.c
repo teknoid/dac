@@ -397,8 +397,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	if (!gstate)
-		return select_program(&MODEST);
+//	if (!gstate)
+	return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
@@ -840,7 +840,7 @@ static void calculate_pstate() {
 		pstate->ramp = 0;
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
 		pstate->ramp = 0; // akku is regulating around 0
-	if (!PSTATE_ACTIVE && a1.state == Discharge)
+	if (pstate->ramp < 0 && !PSTATE_ACTIVE && a1.state == Discharge)
 		pstate->ramp = 0; // nothing to ramp down when no active devices and akku is in Discharge mode
 
 	// indicate standby check when we have enoug power and deviation between actual load and calculated load is three times above 33%
