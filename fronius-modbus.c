@@ -104,7 +104,9 @@ static int akku_standby(device_t *akku) {
 		return 0; // continue loop
 
 	xdebug("FRONIUS set akku STANDBY");
+#ifndef FRONIUS_MAIN
 	sunspec_storage_limit_both(f10, 0, 0);
+#endif
 	akku->state = Standby;
 	akku->timer = 1;
 	akku->power = 0;
@@ -117,7 +119,9 @@ static int akku_charge(device_t *akku) {
 
 	// enable charging
 	xdebug("FRONIUS set akku CHARGE");
+#ifndef FRONIUS_MAIN
 	sunspec_storage_limit_discharge(f10, 0);
+#endif
 	akku->state = Charge;
 	akku->timer = WAIT_AKKU_CHARGE;
 	akku->power = 1;
@@ -128,6 +132,7 @@ static int akku_discharge(device_t *akku) {
 	if (akku->state == Discharge)
 		return 0; // continue loop
 
+#ifndef FRONIUS_MAIN
 	// enable discharge
 	int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < 10000);
 	if (limit) {
@@ -143,6 +148,7 @@ static int akku_discharge(device_t *akku) {
 		sunspec_storage_minimum_soc(f10, 10);
 	else
 		sunspec_storage_minimum_soc(f10, 5);
+#endif
 
 	akku->state = Discharge;
 	akku->timer = WAIT_RESPONSE;
@@ -811,9 +817,12 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (pstate->sdpv > 20000 || m1->sdpv > 10000 || m2->sdpv > 10000) {
+	int d0 = pstate->pv && (pstate->sdpv / pstate->pv) >= 2;
+	int d1 = m1->pv && (m1->sdpv / m1->pv) >= 2;
+	int d2 = m2->pv && (m2->sdpv / m2->pv) >= 2;
+	if (d0 || d1 || d2) {
 		pstate->flags |= FLAG_DISTORTION;
-		xdebug("FRONIUS distortion=%d pstate->sdpv %d m1->sdpv %d m2->sdpv %d", PSTATE_DISTORTION, pstate->sdpv, m1->sdpv, m2->sdpv);
+		xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
