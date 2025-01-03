@@ -99,6 +99,16 @@ static int battery(char *arg) {
 		return sunspec_storage_limit_charge(ss, wh * -1);
 	return sunspec_storage_limit_reset(ss);
 }
+
+// set minimum SoC
+static int minimum(char *arg) {
+	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
+	sunspec_read(ss);
+
+	int min = atoi(arg);
+	return sunspec_storage_minimum_soc(ss, min);
+}
+
 static int akku_standby(device_t *akku) {
 	if (akku->state == Standby)
 		return 0; // continue loop
@@ -393,6 +403,7 @@ static int select_program(const potd_t *p) {
 		return 0;
 
 	// potd has changed - reset all devices
+	a1.power = -1;
 	set_all_devices(0);
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
@@ -972,7 +983,7 @@ static void minly(time_t now_ts) {
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1198,15 +1209,6 @@ static int fake() {
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
 	return 0;
-}
-
-// set minimum SoC
-static int minimum(char *arg) {
-	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
-	sunspec_read(ss);
-
-	int min = atoi(arg);
-	return sunspec_storage_minimum_soc(ss, min);
 }
 
 static int test() {

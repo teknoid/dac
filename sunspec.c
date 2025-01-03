@@ -155,15 +155,14 @@ static void collect_models(sunspec_t *ss) {
 static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, uint16_t *model) {
 	// xdebug("SUNSPEC %s read_model %d", ss->name, id);
 
-	// zero model
-	memset(model, 0, size * sizeof(uint16_t) + 2);
-
-	// read
 	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
 	pthread_mutex_unlock(&ss->lock);
-	if (rc == -1)
+
+	if (rc == -1) {
+		memset(model, 0, size * sizeof(uint16_t) + 2);
 		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+	}
 
 	// validate id + size
 	uint16_t *model_id = model;
@@ -334,8 +333,10 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
 	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, 1, value);
 	pthread_mutex_unlock(&ss->lock);
-	if (rc == -1)
+	if (rc == -1) {
+		*value = 0;
 		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+	}
 }
 
 int sunspec_read(sunspec_t *ss) {
