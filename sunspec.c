@@ -431,8 +431,9 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	if (!ss->thread)
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
-	int sf = ss->storage->InOutWRte_SF;
 	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+	if (!wchaMax)
+		return 0;
 
 	if (inWRte < 0)
 		inWRte = 0;
@@ -444,6 +445,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	if (outWRte > wchaMax)
 		outWRte = wchaMax;
 
+	int sf = ss->storage->InOutWRte_SF;
 	int inWRte_sf = SFOUT(inWRte, sf) * 100 / wchaMax;
 	int outWRte_sf = SFOUT(outWRte, sf) * 100 / wchaMax;
 
@@ -467,14 +469,16 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 	if (!ss->thread)
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
-	int sf = ss->storage->InOutWRte_SF;
 	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+	if (!wchaMax)
+		return 0;
 
 	if (inWRte < 0)
 		inWRte = 0;
 	if (inWRte > wchaMax)
 		inWRte = wchaMax;
 
+	int sf = ss->storage->InOutWRte_SF;
 	int inWRte_sf = SFOUT(inWRte, sf) * 100 / wchaMax;
 
 	if (ss->storage->StorCtl_Mod == 1 && ss->storage->InWRte == inWRte_sf)
@@ -496,14 +500,16 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 	if (!ss->thread)
 		read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 
-	int sf = ss->storage->InOutWRte_SF;
 	int wchaMax = SFI(ss->storage->WchaMax, ss->storage->WchaMax_SF);
+	if (!wchaMax)
+		return 0;
 
 	if (outWRte < 0)
 		outWRte = 0;
 	if (outWRte > wchaMax)
 		outWRte = wchaMax;
 
+	int sf = ss->storage->InOutWRte_SF;
 	int outWRte_sf = SFOUT(outWRte, sf) * 100 / wchaMax;
 
 	if (ss->storage->StorCtl_Mod == 2 && ss->storage->OutWRte == outWRte_sf)
