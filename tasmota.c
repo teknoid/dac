@@ -391,7 +391,39 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	return 0;
 }
 
-// execute tasmota POWER command via mqtt publish
+// execute tasmota POWER command to get device state
+int tasmota_power_get(unsigned int id, int relay) {
+	char topic[32];
+	if (relay)
+		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
+	else
+		snprintf(topic, 32, "cmnd/%6X/POWER", id);
+	xlog("TASMOTA requesting power state from %6X:%d", id, relay);
+
+	// publish and wait for updating state
+	publish(topic, 0);
+	msleep(500);
+
+	tasmota_state_t *ss = get_state(id);
+	if (!ss)
+		return -1;
+
+	switch (relay) {
+	case 0:
+	case 1:
+		return ss->relay1;
+	case 2:
+		return ss->relay2;
+	case 3:
+		return ss->relay3;
+	case 4:
+		return ss->relay4;
+	default:
+		return -1;
+	}
+}
+
+// execute tasmota POWER ON/OFF command via mqtt publish
 int tasmota_power(unsigned int id, int relay, int cmd) {
 	char topic[32];
 

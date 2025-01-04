@@ -303,6 +303,8 @@ int notify(const char *title, const char *text, const char *sound) {
 }
 
 int publish(const char *topic, const char *message) {
+	int rc = 0;
+
 	if (!ready)
 		return xerr("MQTT publish(): client not ready yet, check module registration priority");
 
@@ -312,7 +314,12 @@ int publish(const char *topic, const char *message) {
 	if (client_tx->error != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	if (mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0) != MQTT_OK)
+	if (message)
+		rc = mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
+	else
+		rc = mqtt_publish(client_tx, topic, 0, 0, MQTT_PUBLISH_QOS_0);
+
+	if (rc != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
 	return 0;
