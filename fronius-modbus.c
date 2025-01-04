@@ -32,6 +32,8 @@
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
 #define DD						(*dd)
+#define UP						(*dd)->total
+#define DOWN					(*dd)->total * -1
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -118,8 +120,8 @@ static int akku_standby(device_t *akku) {
 	sunspec_storage_limit_both(f10, 0, 0);
 #endif
 	akku->state = Standby;
-	akku->timer = 1;
-	akku->power = 0;
+	akku->timer = WAIT_RESPONSE;
+	akku->power = akku->load = akku->xload = 0; // disable response/standby/steal logic
 	return 0; // continue loop
 }
 
@@ -134,6 +136,7 @@ static int akku_charge(device_t *akku) {
 #endif
 	akku->state = Charge;
 	akku->timer = WAIT_AKKU_CHARGE;
+	akku->load = akku->xload = 0; // disable response/standby/steal logic
 	akku->power = 1;
 	return 1; // loop done
 }
@@ -162,7 +165,7 @@ static int akku_discharge(device_t *akku) {
 
 	akku->state = Discharge;
 	akku->timer = WAIT_RESPONSE;
-	akku->power = 0;
+	akku->power = akku->load = akku->xload = 0; // disable response/standby/steal logic
 	return 1; // loop done
 }
 
@@ -396,7 +399,7 @@ static int select_program(const potd_t *p) {
 	// potd has changed - reset all devices
 	a1.power = -1;
 	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp_device(DD, DD->total * -1);
+		ramp_device(DD, DOWN);
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
@@ -563,7 +566,7 @@ static device_t* standby() {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd; dd++) {
 			if (!DD->adj && DD->state == Active) {
-				ramp_device(DD, DD->total * -1);
+				ramp_device(DD, DOWN);
 				DD->state = Standby;
 			}
 		}
@@ -894,7 +897,7 @@ static void calculate_pstate() {
 static void emergency() {
 	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
 	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp_device(DD, DD->total * -1);
+		ramp_device(DD, DOWN);
 }
 
 static void offline() {
@@ -949,7 +952,7 @@ static void hourly(time_t now_ts) {
 	// force all devices off when offline
 	if (PSTATE_OFFLINE)
 		for (device_t **dd = DEVICES; *dd; dd++)
-			ramp_device(DD, DD->total * -1);
+			ramp_device(DD, DOWN);
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
@@ -1076,6 +1079,11 @@ static void fronius() {
 
 static int init() {
 	set_debug(1);
+
+	// create a socket for sending UDP messages
+	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sock == 0)
+		return xerr("Error creating socket");
 
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
@@ -1502,16 +1510,8 @@ int ramp_boiler(device_t *boiler, int power) {
 		return 0; // continue loop
 
 	// init
-	if (boiler->power == -1) {
-		// create a socket if not yet done
-		if (sock == 0)
-			sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-		if (sock == 0)
-			return xerr("Error creating socket");
-
+	if (boiler->power == -1)
 		return boiler_send(boiler, 0);
-	}
 
 	// already full up
 	if (boiler->power == 100 && power > 0)
@@ -1553,14 +1553,13 @@ int ramp_boiler(device_t *boiler, int power) {
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!power || !f10 || !pstate)
+	if (!f10 || !pstate)
 		return 0;
-
-	// disable response/standby/steal logic
-	akku->load = akku->xload = 0;
 
 	// init
 	if (akku->power == -1) {
+
+		// enable discharging
 		if (PSTATE_OFFLINE)
 			return akku_discharge(akku);
 
@@ -1568,21 +1567,13 @@ int ramp_akku(device_t *akku, int power) {
 		return akku_standby(akku);
 	}
 
-	if (power > 0) {
-
-		// set into standby when full
-		if (pstate->soc == 1000)
-			return akku_standby(akku);
-
-		// ramp up
-		return akku_charge(akku);
-
-	} else {
+	// ramp down request
+	if (power < 0) {
 
 		// skip ramp downs if we still have enough surplus (akku ramps down itself)
 		int surp = (pstate->akku - pstate->ramp) * -1;
 		if (surp > 0) {
-//			xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
+			// xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
 			return 1; // loop done
 		}
 
@@ -1590,7 +1581,7 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_ACTIVE)
 			return akku_standby(akku);
 
-		// skip ramp downs below 50 if pv tendence is not negative
+		// skip ramp downs above -50 till pv tendence get's negative
 		int tend = tendence();
 		if (-NOISE * 2 < pstate->ramp && tend >= 0) {
 			xdebug("FRONIUS skipping akku rampdown request %d tend=%d", pstate->ramp, tend);
@@ -1600,6 +1591,19 @@ int ramp_akku(device_t *akku, int power) {
 		// ramp down - enable discharging
 		return akku_discharge(akku);
 	}
+
+	// ramp up request
+	if (power > 0) {
+
+		// set into standby when full
+		if (pstate->soc == 1000)
+			return akku_standby(akku);
+
+		// ramp up
+		return akku_charge(akku);
+	}
+
+	return 0;
 }
 
 int fronius_main(int argc, char **argv) {
