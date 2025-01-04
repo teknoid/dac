@@ -382,28 +382,11 @@ static void print_state(device_t *d) {
 static int ramp_device(device_t *d, int power) {
 	if (power < 0)
 		xdebug("FRONIUS ramp↓ %d %s", power, d->name);
-	else
+	else if (power > 0)
 		xdebug("FRONIUS ramp↑ +%d %s", power, d->name);
+	else
+		xdebug("FRONIUS ramp 0 %s", d->name);
 	return (d->ramp)(d, power);
-}
-
-static void set_all_devices_off() {
-	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp_device(DD, DD->total * -1);
-}
-
-// initialize all devices with start values
-static void init_all_devices() {
-	xlog("FRONIUS initializing devices");
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		// xdebug("FRONIUS init %s", DD->name);
-		DD->state = Active;
-		DD->power = -1; // force set to 0
-		if (!DD->id)
-			DD->addr = resolve_ip(DD->name);
-		if (DD->adj && DD->addr == 0)
-			DD->state = Disabled; // controlled via socket send, so we need an ip address
-	}
 }
 
 static int select_program(const potd_t *p) {
@@ -412,7 +395,8 @@ static int select_program(const potd_t *p) {
 
 	// potd has changed - reset all devices
 	a1.power = -1;
-	set_all_devices_off();
+	for (device_t **dd = DEVICES; *dd; dd++)
+		ramp_device(DD, DD->total * -1);
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
@@ -909,7 +893,8 @@ static void calculate_pstate() {
 
 static void emergency() {
 	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
-	set_all_devices_off();
+	for (device_t **dd = DEVICES; *dd; dd++)
+		ramp_device(DD, DD->total * -1);
 }
 
 static void offline() {
@@ -963,7 +948,8 @@ static void hourly(time_t now_ts) {
 
 	// force all devices off when offline
 	if (PSTATE_OFFLINE)
-		set_all_devices_off();
+		for (device_t **dd = DEVICES; *dd; dd++)
+			ramp_device(DD, DD->total * -1);
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
@@ -1004,6 +990,12 @@ static void fronius() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
+
+	// collect actual power states
+#ifndef FRONIUS_MAIN
+	for (device_t **dd = DEVICES; *dd; dd++)
+		DD->power = tasmota_power_get(DD->id, DD->r);
+#endif
 
 	// the FRONIUS main loop
 	while (1) {
@@ -1090,8 +1082,16 @@ static int init() {
 	lt = localtime(&now_ts);
 	memcpy(now, lt, sizeof(*lt));
 
-	init_all_devices();
-	set_all_devices_off();
+	// initialize all devices with start values
+	xlog("FRONIUS initializing devices");
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		DD->state = Active;
+		DD->power = -1;
+		if (!DD->id)
+			DD->addr = resolve_ip(DD->name);
+		if (DD->adj && DD->addr == 0)
+			DD->state = Disabled; // disable when we don't have an ip address to send UDP messages
+	}
 
 	ZERO(pstate_seconds);
 	ZERO(pstate_minutes);
@@ -1144,8 +1144,6 @@ static int calibrate(char *name) {
 	int grid, voltage, closest, target;
 	int offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
-
-	init_all_devices();
 
 	// create a sunspec handle and remove models not needed
 	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
@@ -1456,7 +1454,7 @@ int fronius_override(const char *name) {
 }
 
 int ramp_heater(device_t *heater, int power) {
-	if (heater->state == Disabled || heater->state == Standby)
+	if (!power || heater->state == Disabled || heater->state == Standby)
 		return 0; // continue loop
 
 	// keep on as long as we have enough power and device is already on
@@ -1500,7 +1498,7 @@ int ramp_heater(device_t *heater, int power) {
 // echo p:0:0 | socat - udp:boiler3:1975
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 int ramp_boiler(device_t *boiler, int power) {
-	if (boiler->state == Disabled || boiler->state == Standby)
+	if (!power || boiler->state == Disabled || boiler->state == Standby)
 		return 0; // continue loop
 
 	// init
@@ -1555,7 +1553,7 @@ int ramp_boiler(device_t *boiler, int power) {
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!f10 || !pstate)
+	if (!power || !f10 || !pstate)
 		return 0;
 
 	// disable response/standby/steal logic
@@ -1592,10 +1590,10 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_ACTIVE)
 			return akku_standby(akku);
 
-		// skip ramp downs if pv tendence is not negative
+		// skip ramp downs below 50 if pv tendence is not negative
 		int tend = tendence();
-		if (tend >= 0) {
-			xdebug("FRONIUS skipping akku rampdown request tend=%d", tend);
+		if (-NOISE * 2 < pstate->ramp && tend >= 0) {
+			xdebug("FRONIUS skipping akku rampdown request %d tend=%d", pstate->ramp, tend);
 			return 1; // loop done
 		}
 
