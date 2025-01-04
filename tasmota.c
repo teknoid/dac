@@ -53,6 +53,14 @@ static unsigned int get_id(const char *topic, size_t size) {
 	return 0;
 }
 
+static const tasmota_config_t* get_config(unsigned int id) {
+	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++)
+		if (tasmota_config[i].id == id)
+			return &tasmota_config[i];
+
+	return 0;
+}
+
 // find existing tasmota state or create a new one
 static tasmota_state_t* get_state(unsigned int id) {
 	tasmota_state_t *ts = tasmota_state;
@@ -393,6 +401,9 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 
 // execute tasmota POWER command to get device state
 int tasmota_power_get(unsigned int id, int relay) {
+	if (!id)
+		return 0;
+
 	char topic[32];
 	if (relay)
 		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
@@ -405,9 +416,6 @@ int tasmota_power_get(unsigned int id, int relay) {
 	msleep(500);
 
 	tasmota_state_t *ss = get_state(id);
-	if (!ss)
-		return -1;
-
 	switch (relay) {
 	case 0:
 	case 1:
@@ -424,24 +432,23 @@ int tasmota_power_get(unsigned int id, int relay) {
 }
 
 // execute tasmota POWER ON/OFF command via mqtt publish
-int tasmota_power(unsigned int id, int relay, int cmd) {
-	char topic[32];
+int tasmota_power(unsigned int id, int relay, int power) {
+	if (!id)
+		return 0;
 
+	char topic[32];
 	if (relay)
 		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
 	else
 		snprintf(topic, 32, "cmnd/%6X/POWER", id);
 
-	if (cmd) {
+	tasmota_state_t *ss = get_state(id);
+	if (power) {
 		// start timer if configured
-		for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
-			tasmota_config_t sc = tasmota_config[i];
-			if (sc.id == id)
-				if (sc.timer) {
-					tasmota_state_t *ss = get_state(sc.id);
-					ss->timer = sc.timer;
-					xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
-				}
+		const tasmota_config_t *sc = get_config(id);
+		if (sc && sc->timer) {
+			ss->timer = sc->timer;
+			xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
 		}
 		xlog("TASMOTA switching %6X:%d %s", id, relay, ON);
 		return publish(topic, ON);

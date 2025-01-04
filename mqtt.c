@@ -317,7 +317,7 @@ int publish(const char *topic, const char *message) {
 	if (message)
 		rc = mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
 	else
-		rc = mqtt_publish(client_tx, topic, 0, 0, MQTT_PUBLISH_QOS_0);
+		rc = mqtt_publish(client_tx, topic, "", 0, MQTT_PUBLISH_QOS_0);
 
 	if (rc != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
