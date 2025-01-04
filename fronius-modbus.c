@@ -309,26 +309,6 @@ static int check_override(device_t *d, int power) {
 	return power;
 }
 
-static void set_all_devices(int power) {
-	for (device_t **dd = DEVICES; *dd; dd++)
-		(DD->ramp)(DD, power);
-}
-
-// initialize all devices with start values
-static void init_all_devices() {
-	xlog("FRONIUS initializing devices");
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		// xdebug("FRONIUS init %s", DD->name);
-		DD->state = Active;
-		DD->power = -1; // force set to 0
-		if (!DD->id)
-			DD->addr = resolve_ip(DD->name);
-		if (DD->adj && DD->addr == 0)
-			DD->state = Disabled; // controlled via socket send, so we need an ip address
-		(DD->ramp)(DD, 0);
-	}
-}
-
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
@@ -398,13 +378,39 @@ static void print_state(device_t *d) {
 	xlogl_end(line, strlen(line), 0);
 }
 
+// call device specific ramp function
+static int ramp_device(device_t *d, int power) {
+	xdebug("FRONIUS ramp %s %d", d->name, power);
+	return (d->ramp)(d, power);
+}
+
+static void set_all_devices_off() {
+	for (device_t **dd = DEVICES; *dd; dd++)
+		ramp_device(DD, DD->total * -1);
+}
+
+// initialize all devices with start values
+static void init_all_devices() {
+	xlog("FRONIUS initializing devices");
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		// xdebug("FRONIUS init %s", DD->name);
+		DD->state = Active;
+		DD->power = -1; // force set to 0
+		if (!DD->id)
+			DD->addr = resolve_ip(DD->name);
+		if (DD->adj && DD->addr == 0)
+			DD->state = Disabled; // controlled via socket send, so we need an ip address
+		ramp_device(DD, DD->total * -1);
+	}
+}
+
 static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0;
 
 	// potd has changed - reset all devices
 	a1.power = -1;
-	set_all_devices(0);
+	set_all_devices_off();
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
@@ -444,12 +450,6 @@ static int rampup_min(device_t *d) {
 	if (PSTATE_DISTORTION)
 		min *= 2; // 100% more on distortion
 	return min;
-}
-
-// call device specific ramp function
-static int ramp_device(device_t *d, int power) {
-	xdebug("FRONIUS ramp %s %d", d->name, power);
-	return (d->ramp)(d, power);
 }
 
 static device_t* rampup(int power) {
@@ -548,13 +548,9 @@ static device_t* steal() {
 
 static device_t* perform_standby(device_t *d) {
 	d->state = Standby_Check;
-	xdebug("FRONIUS starting standby check on %s", d->name);
-	if (d->adj)
-		// do a big ramp
-		(d->ramp)(d, d->power + (d->power < 50 ? 25 : -25));
-	else
-		// toggle
-		(d->ramp)(d, d->power ? 0 : 1);
+	int power = pstate->pv / (d->power > 0 ? -2 : 2);
+	xdebug("FRONIUS starting standby check on %s with power=%d", d->name, power);
+	ramp_device(d, power);
 	return d;
 }
 
@@ -581,7 +577,7 @@ static device_t* standby() {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd; dd++) {
 			if (!DD->adj && DD->state == Active) {
-				(DD->ramp)(DD, 0);
+				ramp_device(DD, DD->total * -1);
 				DD->state = Standby;
 			}
 		}
@@ -655,7 +651,7 @@ static device_t* response(device_t *d) {
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !response) {
 		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, expected, delta);
-		(d->ramp)(d, 0);
+		ramp_device(d, d->total * -1);
 		d->noresponse = 0;
 		d->state = Standby;
 		d->xload = 0; // no response from switch off expected
@@ -911,7 +907,7 @@ static void calculate_pstate() {
 
 static void emergency() {
 	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
-	set_all_devices(0);
+	set_all_devices_off();
 }
 
 static void offline() {
@@ -965,7 +961,7 @@ static void hourly(time_t now_ts) {
 
 	// force all devices off when offline
 	if (PSTATE_OFFLINE)
-		set_all_devices(0);
+		set_all_devices_off();
 
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
@@ -1093,7 +1089,7 @@ static int init() {
 	memcpy(now, lt, sizeof(*lt));
 
 	init_all_devices();
-	set_all_devices(0);
+	set_all_devices_off();
 
 	ZERO(pstate_seconds);
 	ZERO(pstate_minutes);
@@ -1274,7 +1270,7 @@ int fronius_override_seconds(const char *name, int seconds) {
 			xlog("FRONIUS Activating Override on %s", DD->name);
 			DD->override = time(NULL) + seconds;
 			DD->state = Active;
-			(DD->ramp)(DD, 100);
+			ramp_device(DD, DD->total);
 		}
 	}
 	return 0;
@@ -1410,17 +1406,23 @@ int ramp_akku(device_t *akku, int power) {
 
 	} else {
 
-		// skip ramp downs if we still have enough surplus (akku ramps down itself) or ramp tendence is not negative
+		// skip ramp downs if we still have enough surplus (akku ramps down itself)
 		int surp = (pstate->akku - pstate->ramp) * -1;
-		int tend = tendence();
-		if (surp > 0 || tend >= 0) {
-			xdebug("FRONIUS skipping akku rampdown request akku=%d ramp=%d tend=%d", pstate->akku, pstate->ramp, tend);
+		if (surp > 0) {
+			xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
 			return 1; // loop done
 		}
 
 		// set to standby as long as other devices active
 		if (PSTATE_ACTIVE)
 			return akku_standby(akku);
+
+		// skip ramp downs if pv tendence is not negative
+		int tend = tendence();
+		if (tend >= 0) {
+			xdebug("FRONIUS skipping akku rampdown request tend=%d", tend);
+			return 1; // loop done
+		}
 
 		// ramp down - enable discharging
 		return akku_discharge(akku);
