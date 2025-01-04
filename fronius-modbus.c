@@ -380,7 +380,7 @@ static void print_state(device_t *d) {
 
 // call device specific ramp function
 static int ramp_device(device_t *d, int power) {
-	xdebug("FRONIUS ramp %s %d", d->name, power);
+	xdebug("FRONIUS ramp %d %s", power, d->name);
 	return (d->ramp)(d, power);
 }
 
@@ -400,7 +400,6 @@ static void init_all_devices() {
 			DD->addr = resolve_ip(DD->name);
 		if (DD->adj && DD->addr == 0)
 			DD->state = Disabled; // controlled via socket send, so we need an ip address
-		ramp_device(DD, DD->total * -1);
 	}
 }
 
@@ -420,8 +419,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-//	if (!gstate)
-	return select_program(&MODEST);
+	if (!gstate)
+		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
@@ -1582,7 +1581,7 @@ int ramp_akku(device_t *akku, int power) {
 		// skip ramp downs if we still have enough surplus (akku ramps down itself)
 		int surp = (pstate->akku - pstate->ramp) * -1;
 		if (surp > 0) {
-			xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
+//			xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
 			return 1; // loop done
 		}
 
