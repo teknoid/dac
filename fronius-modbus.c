@@ -767,6 +767,14 @@ static void shape_pstate() {
 //		pstate->grid = 0;
 }
 
+static int tendence() {
+	if (PSTATE_MIN_LAST1->dpv < 0 && PSTATE_MIN_LAST2->dpv < 0)
+		return -1;
+	if (PSTATE_MIN_LAST1->dpv > 0 && PSTATE_MIN_LAST2->dpv > 0)
+		return 1;
+	return 0;
+}
+
 static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
@@ -902,7 +910,7 @@ static void calculate_pstate() {
 }
 
 static void emergency() {
-	xlog("FRONIUS emergency shutdown at %d akku discharge / %d grid download", pstate->akku, pstate->grid);
+	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
 	set_all_devices(0);
 }
 
@@ -983,7 +991,8 @@ static void minly(time_t now_ts) {
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+	if (pstate->pv)
+		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1386,7 +1395,7 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_OFFLINE)
 			return akku_discharge(akku);
 
-		// set to standby and wait for ramp order
+		// set to standby and wait for ramp request
 		return akku_standby(akku);
 	}
 
@@ -1401,9 +1410,13 @@ int ramp_akku(device_t *akku, int power) {
 
 	} else {
 
-		// consume ramp downs if we still have enough akku charging power - akku ramps down itself
-		if (pstate->akku < pstate->ramp)
+		// skip ramp downs if we still have enough surplus (akku ramps down itself) or ramp tendence is not negative
+		int surp = (pstate->akku - pstate->ramp) * -1;
+		int tend = tendence();
+		if (surp > 0 || tend >= 0) {
+			xdebug("FRONIUS skipping akku rampdown request akku=%d ramp=%d tend=%d", pstate->akku, pstate->ramp, tend);
 			return 1; // loop done
+		}
 
 		// set to standby as long as other devices active
 		if (PSTATE_ACTIVE)
