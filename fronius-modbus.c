@@ -380,7 +380,10 @@ static void print_state(device_t *d) {
 
 // call device specific ramp function
 static int ramp_device(device_t *d, int power) {
-	xdebug("FRONIUS ramp %d %s", power, d->name);
+	if (power < 0)
+		xdebug("FRONIUS ramp↓ %d %s", power, d->name);
+	else
+		xdebug("FRONIUS ramp↑ +%d %s", power, d->name);
 	return (d->ramp)(d, power);
 }
 
