@@ -338,7 +338,7 @@ static void plot() {
 		m->err4 *= 10;
 	}
 
-	dump_table_csv((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, "/tmp/data.txt");
+	dump_table_csv((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_FILE_CSV);
 }
 
 static void test() {
