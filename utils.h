@@ -1,6 +1,7 @@
-#define XLOG_STDOUT					0
-#define XLOG_SYSLOG					1
-#define XLOG_FILE					2
+#define XLOG_NONE					0
+#define XLOG_STDOUT					1
+#define XLOG_SYSLOG					2
+#define XLOG_FILE					3
 
 #define SPACEMASK32					0x01010101
 #define SPACEMASK64					0x0101010101010101

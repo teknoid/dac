@@ -65,6 +65,9 @@ void xlog_close() {
 }
 
 void xlog(const char *format, ...) {
+	if (!output)
+		return;
+
 	va_list vargs;
 
 	pthread_mutex_lock(&lock);
@@ -104,7 +107,7 @@ void xlog(const char *format, ...) {
 }
 
 void xdebug(const char *format, ...) {
-	if (!debug)
+	if (!output || !debug)
 		return;
 
 	// !!! do not call xlog(format) here as varargs won't work correctly
@@ -147,6 +150,9 @@ void xdebug(const char *format, ...) {
 }
 
 int xerr(const char *format, ...) {
+	if (!output)
+		return -1;
+
 	// !!! do not call xlog(format) here as varargs won't work correctly
 	va_list vargs;
 
@@ -188,6 +194,9 @@ int xerr(const char *format, ...) {
 }
 
 int xerrr(int ret, const char *format, ...) {
+	if (!output)
+		return ret;
+
 	// !!! do not call xlog(format) here as varargs won't work correctly
 	va_list vargs;
 

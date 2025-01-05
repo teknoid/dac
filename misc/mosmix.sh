@@ -67,3 +67,7 @@ echo "idx, ts, $P1, $P2, $P3, $P4" > $OUT
 for i in "${!K[@]}"; do
   echo "${i}, ${K[$i]}, ${V1[$i]}, ${V2[$i]}, ${V3[$i]}, ${V4[$i]}" >> $OUT
 done
+
+mkdir -p mosmix/
+mv *.kml mosmix/
+

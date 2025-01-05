@@ -8,7 +8,7 @@
 #include "utils.h"
 #include "mcp.h"
 
-// gcc -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
+// gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
 
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
@@ -38,7 +38,7 @@ static void update(mosmix_csv_t *csv) {
 	m->SunD1 = csv->SunD1;
 
 	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
-	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 / 2);
+	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 * 2);
 	// m->base = m->Rad1h + m->SunD1 / 10;
 	// m->base = m->Rad1h;
 }
@@ -109,6 +109,10 @@ void mosmix_dump_tomorrow(struct tm *now) {
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
+void mosmisx_dump() {
+	dump_table((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, -1, 0, MOSMIX_HEADER);
+}
+
 // recalculate factor from actual mppt values
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = MOSMIX_TODAY(now->tm_hour);
@@ -117,6 +121,16 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT2", now->tm_hour, m->base, m->exp2, mppt2, &m->err2, &m->fac2);
 	calc("MPPT3", now->tm_hour, m->base, m->exp3, mppt3, &m->err3, &m->fac3);
 	calc("MPPT4", now->tm_hour, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
+}
+
+// abuse errX for storing actual pv and then plotting
+void mosmix_plot(int i, int mppt1, int mppt2, int mppt3, int mppt4) {
+	mosmix_t *m = &mosmix_hours[i];
+	m->err1 = mppt1;
+	m->err2 = mppt2;
+	m->err3 = mppt3;
+	m->err4 = mppt4;
+	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 * 2);
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day
@@ -291,6 +305,11 @@ int mosmix_load(const char *filename) {
 	return 0;
 }
 
+void mosmisx_plot() {
+	mosmix_load_state();
+	dump_table((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, -1, 0, MOSMIX_HEADER);
+}
+
 void mosmix_load_state() {
 	ZERO(mosmix_hours);
 	load_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
@@ -300,11 +319,8 @@ void mosmix_store_state() {
 	store_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
 }
 
-int mosmix_main(int argc, char **argv) {
+static void test() {
 	int today, tomorrow, sod, eod, hours, from, to;
-
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
 
 	// define local time object
 	struct tm now_tm, *now = &now_tm;
@@ -371,6 +387,16 @@ int mosmix_main(int argc, char **argv) {
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	// mosmix_store_state();
+
+}
+
+int mosmix_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
+	test();
+	mosmisx_plot();
+
 	return 0;
 }
 
