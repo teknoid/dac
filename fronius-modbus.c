@@ -58,11 +58,12 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
 static volatile pstate_t *pstate = 0;
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : 58])
-#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : 57])
+#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : 58])
+#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
+#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 2 + 60))
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 
@@ -71,6 +72,14 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
+
+static device_t* get_by_name(const char *name) {
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (!strcmp(DD->name, name))
+			return DD;
+
+	return 0;
+}
 
 // sample grid load from meter
 static int grid() {
@@ -1398,6 +1407,24 @@ static int fake() {
 }
 
 static int test() {
+	// initialize hourly & daily & monthly
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
+	for (int i = 0; i < 60; i++)
+		pstate_seconds[i].pv = i + 10;
+
+	for (int i = 0; i < 60; i++)
+		printf("%d ", pstate_seconds[i].pv);
+	printf("\n");
+
+	now->tm_sec = 59;
+	printf("%d\n", PSTATE_NOW->pv);
+	printf("%d\n", PSTATE_SEC_LAST1->pv);
+	printf("%d\n", PSTATE_SEC_LAST2->pv);
+	printf("%d\n", PSTATE_SEC_LAST3->pv);
+
 	potd = (potd_t*) &MODEST;
 
 	printf("\n>>> for forward\n");
@@ -1442,18 +1469,22 @@ int fronius_boiler3() {
 }
 
 int fronius_override_seconds(const char *name, int seconds) {
-#ifdef FRONIUS_MAIN
-	init_all_devices();
-#endif
+	device_t *d = get_by_name(name);
+	if (!d)
+		return 0;
 
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		if (!strcmp(DD->name, name)) {
-			xlog("FRONIUS Activating Override on %s", DD->name);
-			DD->override = time(NULL) + seconds;
-			DD->state = Active;
-			ramp_device(DD, DD->total);
-		}
-	}
+	xlog("FRONIUS Activating Override on %s", d->name);
+#ifdef FRONIUS_MAIN
+	d->power = -1;
+	if (!d->id)
+		d->addr = resolve_ip(d->name);
+	if (d->adj && d->addr == 0)
+		d->state = Disabled; // disable when we don't have an ip address to send UDP messages
+#endif
+	d->state = Active;
+	d->override = time(NULL) + seconds;
+	ramp_device(d, d->total);
+
 	return 0;
 }
 
