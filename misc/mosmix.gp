@@ -8,4 +8,4 @@ set key autotitle columnhead
 set ylabel "PV" 
 set xlabel "hour"
 
-plot "/tmp/data.txt" using 0:4 with lines, '' using 0:6 with lines
+plot "/tmp/data.txt" using 0:4 with lines, '' using 0:6 with lines, '' using 0:7 with lines

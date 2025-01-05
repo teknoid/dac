@@ -38,7 +38,7 @@ static void update(mosmix_csv_t *csv) {
 	m->SunD1 = csv->SunD1;
 
 	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
-	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 * 2);
+	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
 	// m->base = m->Rad1h + m->SunD1 / 10;
 	// m->base = m->Rad1h;
 }
@@ -61,7 +61,8 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	// new factor
 	float old = FLOAT100(*fac);
 	float new = base ? (float) mppt / (float) base : 0;
-	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
+	if (id)
+		xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
 	*fac = new * 100; // store as x100 scaled
 }
 
@@ -123,14 +124,28 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT4", now->tm_hour, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
 }
 
-// abuse errX for storing actual pv and then plotting
+// prepare gnuplot data
 void mosmix_plot(int i, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = &mosmix_hours[i];
-	m->err1 = mppt1;
-	m->err2 = mppt2;
-	m->err3 = mppt3;
-	m->err4 = mppt4;
-	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 * 2);
+
+	// recalculate
+	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
+	calc(0, i, m->base, m->exp1, mppt1, &m->err1, &m->fac1);
+	calc(0, i, m->base, m->exp2, mppt2, &m->err2, &m->fac2);
+	calc(0, i, m->base, m->exp3, mppt3, &m->err3, &m->fac3);
+	calc(0, i, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
+
+	// scale errors x10
+	m->err1 *= 10;
+	m->err2 *= 10;
+	m->err3 *= 10;
+	m->err4 *= 10;
+
+	// abuse facX for storing actual pv
+	m->fac1 = mppt1;
+	m->fac2 = mppt2;
+	m->fac3 = mppt3;
+	m->fac4 = mppt4;
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day
