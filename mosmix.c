@@ -38,9 +38,9 @@ static void update(mosmix_csv_t *csv) {
 	m->SunD1 = csv->SunD1;
 
 	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
-	// target->x = target->Rad1h * (1 + (float) target->SunD1 / 3600 / 2);
-	// target->x = target->Rad1h + target->SunD1 / 10;
-	m->base = m->Rad1h;
+	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600 / 2);
+	// m->base = m->Rad1h + m->SunD1 / 10;
+	// m->base = m->Rad1h;
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
