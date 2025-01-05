@@ -60,9 +60,8 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	// TODO error auf die restliche tagesprognose rechnen wenn sich abzeichnet dass die mosmix vorhersage falsch ist
 	// new factor
 	float old = FLOAT100(*fac);
-	float new = base ? (float) mppt / (float) base : 0;
-	if (id)
-		xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
+	float new = base ? (float) mppt / (float) base : 1;
+	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
 	*fac = new * 100; // store as x100 scaled
 }
 
@@ -110,42 +109,21 @@ void mosmix_dump_tomorrow(struct tm *now) {
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
-void mosmisx_dump() {
-	dump_table((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, -1, 0, MOSMIX_HEADER);
-}
-
 // recalculate factor from actual mppt values
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = MOSMIX_TODAY(now->tm_hour);
 
-	calc("MPPT1", now->tm_hour, m->base, m->exp1, mppt1, &m->err1, &m->fac1);
-	calc("MPPT2", now->tm_hour, m->base, m->exp2, mppt2, &m->err2, &m->fac2);
-	calc("MPPT3", now->tm_hour, m->base, m->exp3, mppt3, &m->err3, &m->fac3);
-	calc("MPPT4", now->tm_hour, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
-}
-
-// prepare gnuplot data
-void mosmix_plot(int i, int mppt1, int mppt2, int mppt3, int mppt4) {
-	mosmix_t *m = &mosmix_hours[i];
+	// update actual pv
+	m->mppt1 = mppt1;
+	m->mppt2 = mppt2;
+	m->mppt3 = mppt3;
+	m->mppt4 = mppt4;
 
 	// recalculate
-	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
-	calc(0, i, m->base, m->exp1, mppt1, &m->err1, &m->fac1);
-	calc(0, i, m->base, m->exp2, mppt2, &m->err2, &m->fac2);
-	calc(0, i, m->base, m->exp3, mppt3, &m->err3, &m->fac3);
-	calc(0, i, m->base, m->exp4, mppt4, &m->err4, &m->fac4);
-
-	// scale errors x10
-	m->err1 *= 10;
-	m->err2 *= 10;
-	m->err3 *= 10;
-	m->err4 *= 10;
-
-	// abuse facX for storing actual pv
-	m->fac1 = mppt1;
-	m->fac2 = mppt2;
-	m->fac3 = mppt3;
-	m->fac4 = mppt4;
+	calc("MPPT1", now->tm_hour, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+	calc("MPPT2", now->tm_hour, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+	calc("MPPT3", now->tm_hour, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+	calc("MPPT4", now->tm_hour, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
 }
 
 // calculate total expected today, tomorrow and till end of day / start of day
@@ -320,11 +298,6 @@ int mosmix_load(const char *filename) {
 	return 0;
 }
 
-void mosmisx_plot() {
-	mosmix_load_state();
-	dump_table((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, -1, 0, MOSMIX_HEADER);
-}
-
 void mosmix_load_state() {
 	ZERO(mosmix_hours);
 	load_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
@@ -332,6 +305,40 @@ void mosmix_load_state() {
 
 void mosmix_store_state() {
 	store_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
+	dump_table_csv((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_FILE_CSV);
+}
+
+static void fake() {
+	for (int i = 0; i < 24 * 7; i++) {
+		mosmix_t *m = &mosmix_hours[i];
+		memset(m, 0, sizeof(mosmix_t));
+		m->fac1 = m->fac2 = m->fac3 = m->fac4 = 100;
+	}
+	store_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
+}
+
+static void plot() {
+	ZERO(mosmix_hours);
+	load_blob(MOSMIX_FILE, mosmix_hours, sizeof(mosmix_hours));
+
+	for (int i = 0; i < 24 * 7; i++) {
+		mosmix_t *m = &mosmix_hours[i];
+
+		// recalculate
+		m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
+		calc("MPPT1", i, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+		calc("MPPT2", i, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+		calc("MPPT3", i, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+		calc("MPPT4", i, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
+
+		// scale errors x10
+		m->err1 *= 10;
+		m->err2 *= 10;
+		m->err3 *= 10;
+		m->err4 *= 10;
+	}
+
+	dump_table_csv((int*) mosmix_hours, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, "/tmp/data.txt");
 }
 
 static void test() {
@@ -402,7 +409,6 @@ static void test() {
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	// mosmix_store_state();
-
 }
 
 int mosmix_main(int argc, char **argv) {
@@ -410,7 +416,8 @@ int mosmix_main(int argc, char **argv) {
 	set_debug(1);
 
 	test();
-	mosmisx_plot();
+	fake();
+	plot();
 
 	return 0;
 }
