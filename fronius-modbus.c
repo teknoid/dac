@@ -893,7 +893,7 @@ static void calculate_pstate() {
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f10->active) {
-		xlog("FRONIUS Fronius10 is not active!");
+//		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_RAMP;
 	}
 	if (!f7->active) {
