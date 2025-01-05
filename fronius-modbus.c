@@ -1406,18 +1406,6 @@ static int fake() {
 	return 0;
 }
 
-static int plot() {
-	set_xlog(XLOG_NONE);
-	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	mosmix_load_state();
-	set_xlog(XLOG_STDOUT);
-
-	for (int i = 0; i < 24 * 7; i++)
-		mosmix_plot(i, gstate_hours[i].mppt1, gstate_hours[i].mppt2, gstate_hours[i].mppt3, gstate_hours[i].mppt4);
-	mosmisx_dump();
-	return 0;
-}
-
 static int test() {
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
@@ -1658,7 +1646,7 @@ int fronius_main(int argc, char **argv) {
 		return single();
 
 	int c;
-	while ((c = getopt(argc, argv, "b:c:m:o:fglpt")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:m:o:fglt")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
@@ -1677,8 +1665,6 @@ int fronius_main(int argc, char **argv) {
 			return grid();
 		case 'l':
 			return loop();
-		case 'p':
-			return plot();
 		case 't':
 			return test();
 		}
