@@ -192,20 +192,20 @@ static void update_f10(sunspec_t *ss) {
 		pstate->mppt2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
 		counter->mppt1 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
 		counter->mppt2 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
-		ss->poll = POLL_TIME_ACTIVE;
+		ss->sleep = 0;
 		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
-		ss->poll = POLL_TIME_SLEEPING;
+		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
 
 	default:
 		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
-		ss->poll = POLL_TIME_FAULT;
 	}
 }
 
@@ -227,20 +227,20 @@ static void update_f7(sunspec_t *ss) {
 		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
 		counter->mppt3 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
 		counter->mppt4 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
-		ss->poll = POLL_TIME_ACTIVE;
+		ss->sleep = 0;
 		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
-		ss->poll = POLL_TIME_SLEEPING;
+		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
 
 	default:
 		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
-		ss->poll = POLL_TIME_FAULT;
 	}
 }
 
@@ -1018,13 +1018,19 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 
 		// update state and counter pointers
+		memcpy(PSTATE_NOW, PSTATE_SEC_LAST1, sizeof(*pstate));
 		counter = COUNTER_NOW;
 		gstate = GSTATE_NOW;
 		pstate = PSTATE_NOW;
 
+		// issue read request
+		meter->read = 1;
+		f10->read = 1;
+		f7->read = 1;
+
 		// wait till this second is over, meanwhile sunspec threads have values updated
 		while (now_ts == time(NULL))
-			msleep(333);
+			msleep(100);
 
 		// calculate new pstate
 		calculate_pstate();

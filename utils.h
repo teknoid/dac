@@ -52,6 +52,22 @@
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
 
+#define PROFILING_START \
+		struct timespec ts_profiling; \
+		uint64_t ts_profiling_start, ts_profiling_end, ts_profiling_elapsed; \
+		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		ts_profiling_start = ts_profiling.tv_nsec;
+
+#define PROFILING_RESTART \
+		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		ts_profiling_start = ts_profiling.tv_nsec;
+
+#define PROFILING_LOG(s) \
+		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		ts_profiling_end = ts_profiling.tv_nsec; \
+		ts_profiling_elapsed = (ts_profiling_end - ts_profiling_start) / 1000000; \
+		xlog("profiling %s in %lums", s, ts_profiling_elapsed);
+
 void set_xlog(int output);
 void set_debug(int debug);
 void xlog_close();

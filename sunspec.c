@@ -295,7 +295,12 @@ static void* poll(void *arg) {
 		errors += read_immediate(ss);
 
 		while (errors > -10) {
-			msleep(ss->poll);
+
+			// wait for next read request
+			while (!ss->read)
+				msleep(100);
+
+			// PROFILING_START
 
 			// read dynamic models in the loop
 			errors += read_inverter(ss);
@@ -303,12 +308,21 @@ static void* poll(void *arg) {
 			errors += read_storage(ss);
 			errors += read_meter(ss);
 
+			// PROFILING_LOG(ss->name)
+
 			// execute the callback function to process model data
 			if (ss->callback)
 				(ss->callback)(ss);
 
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
+
+			// reset read request
+			ss->read = 0;
+
+			// pause when set
+			if (ss->sleep)
+				sleep(ss->sleep);
 		}
 
 		xlog("SUNSPEC aborting %s poll due to too many errors");
@@ -360,7 +374,7 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
 	ss->ip = ip;
 	ss->name = name;
 	ss->slave = slave;
-	ss->poll = 0;
+	ss->sleep = 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
 
@@ -390,7 +404,7 @@ sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const 
 	ss->name = name;
 	ss->slave = slave;
 	ss->callback = callback;
-	ss->poll = POLL_TIME_ACTIVE;
+	ss->sleep = 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
 

@@ -25,9 +25,8 @@
 #define I_STATUS_AFCI			13	// AFCI Event (Arc-Erkennung)
 
 #define CONNECT_RETRY_TIME		900 		// seconds
-#define POLL_TIME_ACTIVE		500 		// milliseconds
-#define POLL_TIME_FAULT			1000 * 10	// 10 sec
-#define POLL_TIME_SLEEPING		1000 * 900 	// 15 min
+#define SLEEP_TIME_FAULT		10			// 10 sec
+#define SLEEP_TIME_SLEEPING		900			// 15 min
 
 //
 // sunspec models generated from Fronius documentation copied to misc/sunspec-struct-template.ods
@@ -358,8 +357,9 @@ struct _sunspec {
 	const char *name;
 	const char *ip;
 	int slave;
-	int poll;
 	int active;
+	int sleep;
+	int read;
 	sunspec_callback_t callback;
 	pthread_t thread;
 	pthread_mutex_t lock;
