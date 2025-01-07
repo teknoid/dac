@@ -156,7 +156,7 @@ static int akku_discharge(device_t *akku) {
 
 #ifndef FRONIUS_MAIN
 	// enable discharge
-	int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < 10000);
+	int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
 		xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
 		sunspec_storage_limit_both(f10, 0, BASELOAD);
@@ -166,7 +166,7 @@ static int akku_discharge(device_t *akku) {
 	}
 
 	// winter mode
-	if (WINTER)
+	if (WINTER && gstate->tomorrow < AKKU_CAPACITY)
 		sunspec_storage_minimum_soc(f10, 10);
 	else
 		sunspec_storage_minimum_soc(f10, 5);
