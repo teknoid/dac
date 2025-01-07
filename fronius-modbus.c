@@ -835,7 +835,7 @@ static void calculate_pstate() {
 	int d2 = m2->pv && (m2->sdpv / m2->pv) >= 2;
 	if (d0 || d1 || d2) {
 		pstate->flags |= FLAG_DISTORTION;
-		xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		// xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
@@ -1034,6 +1034,7 @@ static void fronius() {
 
 		// calculate new pstate
 		calculate_pstate();
+		// continue;
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
