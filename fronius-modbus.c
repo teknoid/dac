@@ -49,7 +49,7 @@ static volatile counter_t *counter = 0;
 static gstate_t gstate_hours[24 * 7];
 static volatile gstate_t *gstate = 0;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
+#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + h])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
