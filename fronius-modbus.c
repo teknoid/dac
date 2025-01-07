@@ -383,8 +383,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	if (!gstate)
-		return select_program(&MODEST);
+	// if (!gstate)
+	return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
@@ -967,14 +967,6 @@ static void fronius() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
-
-	// collect actual power states from dumb devices
-	// TODO adjustable too
-#ifndef FRONIUS_MAIN
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (!DD->adj)
-			DD->power = tasmota_power_get(DD->id, DD->r);
-#endif
 
 	// the FRONIUS main loop
 	while (1) {
