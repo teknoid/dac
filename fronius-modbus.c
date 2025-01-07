@@ -511,7 +511,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (power < min)
 		return 0;
 
-	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", steal, v, v->name, t, t->name, t->total);
+	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", steal, v->name, t->name, t->total);
 
 	// ramp down victim, akku ramps down itself
 	if (v != &a1)
@@ -1017,7 +1017,7 @@ static void fronius() {
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
 
-		// update state and counter pointers
+		// take over old pstate, update state and counter pointers
 		memcpy(PSTATE_NOW, PSTATE_SEC_LAST1, sizeof(*pstate));
 		counter = COUNTER_NOW;
 		gstate = GSTATE_NOW;
