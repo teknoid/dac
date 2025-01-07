@@ -411,8 +411,8 @@ struct _sunspec {
 	uint16_t meter_id;
 };
 
-sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const sunspec_callback_t callback);
-sunspec_t* sunspec_init(const char *name, const char *ip, int slave);
+sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback_t callback);
+sunspec_t* sunspec_init(const char *name, int slave);
 
 void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value);
 void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);

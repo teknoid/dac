@@ -325,7 +325,7 @@ static void* poll(void *arg) {
 				sleep(ss->sleep);
 		}
 
-		xlog("SUNSPEC aborting %s poll due to too many errors");
+		xlog("SUNSPEC %s aborting poll due to too many errors", ss->name);
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
@@ -367,14 +367,17 @@ int sunspec_read(sunspec_t *ss) {
 	return errors;
 }
 
-sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
+sunspec_t* sunspec_init(const char *name, int slave) {
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
-	ss->ip = ip;
 	ss->name = name;
 	ss->slave = slave;
 	ss->sleep = 0;
+
+	ss->ip = resolve_ip(ss->name);
+	if (!ss->ip)
+		return 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
 
@@ -396,15 +399,18 @@ sunspec_t* sunspec_init(const char *name, const char *ip, int slave) {
 	return ss;
 }
 
-sunspec_t* sunspec_init_poll(const char *name, const char *ip, int slave, const sunspec_callback_t callback) {
+sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback_t callback) {
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
-	ss->ip = ip;
 	ss->name = name;
 	ss->slave = slave;
 	ss->callback = callback;
 	ss->sleep = 0;
+
+	ss->ip = resolve_ip(ss->name);
+	if (!ss->ip)
+		return 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
 

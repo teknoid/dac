@@ -83,7 +83,7 @@ static device_t* get_by_name(const char *name) {
 
 // sample grid load from meter
 static int grid() {
-	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
+	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 
@@ -100,7 +100,7 @@ static int grid() {
 
 // set charge(-) / discharge(+) limits or reset when 0
 static int battery(char *arg) {
-	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
+	sunspec_t *ss = sunspec_init("fronius10", 1);
 	sunspec_read(ss);
 
 	int wh = atoi(arg);
@@ -113,7 +113,7 @@ static int battery(char *arg) {
 
 // set minimum SoC
 static int minimum(char *arg) {
-	sunspec_t *ss = sunspec_init("Fronius10", "192.168.25.230", 1);
+	sunspec_t *ss = sunspec_init("fronius10", 1);
 	sunspec_read(ss);
 
 	int min = atoi(arg);
@@ -217,11 +217,6 @@ static void update_f7(sunspec_t *ss) {
 	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 
 	switch (ss->inverter->St) {
-	case I_STATUS_FAULT:
-		// TODO workaround meter - silently ignore
-		// xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
-		break;
-
 	case I_STATUS_MPPT:
 		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
@@ -383,8 +378,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	// if (!gstate)
-	return select_program(&MODEST);
+	if (!gstate)
+		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
@@ -403,16 +398,6 @@ static int choose_program() {
 		return select_program(&PLENTY);
 
 	return select_program(&MODEST);
-}
-
-// minimum available power for ramp up
-static int rampup_min(device_t *d) {
-	int min = d->adj ? d->total / 100 : d->total; // adjustable: 1% of total, dumb: total
-	if (pstate->soc < 1000)
-		min += min / 10; // 10% more while akku is charging to avoid excessive grid load
-	if (PSTATE_DISTORTION)
-		min *= 2; // 100% more on distortion
-	return min;
 }
 
 static device_t* rampup(int power) {
@@ -440,17 +425,16 @@ static device_t* rampdown(int power) {
 static device_t* ramp() {
 	device_t *d;
 
+	// no ramp indicated
+	if (!PSTATE_RAMP)
+		return 0;
+
 	// prio1: ramp down in reverse order
 	if (pstate->ramp < 0) {
 		d = rampdown(pstate->ramp);
 		if (d)
 			return d;
 	}
-
-	// ramp up only when state is stable or enough power
-	int ok = PSTATE_STABLE || pstate->ramp > 1000;
-	if (!ok)
-		return 0;
 
 	// prio2: ramp up in order
 	if (pstate->ramp > 0) {
@@ -479,7 +463,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 		return 0;
 
 	// not enough to steal
-	int min = rampup_min(t);
+	int min = t->adj ? t->total / 100 : t->total; // adjustable: 1% of total, dumb: total
 	int power = pstate->ramp + steal;
 	if (power < min)
 		return 0;
@@ -501,9 +485,12 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 }
 
 static device_t* steal() {
-	device_t **tail = potd->devices;
+	// skip ramp logic as long as we have distortion
+	if (PSTATE_DISTORTION)
+		return 0;
 
 	// jump to end
+	device_t **tail = potd->devices;
 	while (*tail)
 		tail++;
 	tail--;
@@ -795,12 +782,12 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	int d0 = pstate->pv && (pstate->sdpv / pstate->pv) >= 2;
-	int d1 = m1->pv && (m1->sdpv / m1->pv) >= 2;
-	int d2 = m2->pv && (m2->sdpv / m2->pv) >= 2;
+	int d0 = pstate->sdpv > pstate->pv + pstate->pv / 2;
+	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
 	if (d0 || d1 || d2) {
 		pstate->flags |= FLAG_DISTORTION;
-		// xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
@@ -861,7 +848,7 @@ static void calculate_pstate() {
 //		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_RAMP;
 	}
-	if (!f7->active) {
+	if (f7 && !f7->active) {
 //		xlog("FRONIUS Fronius7 is not active!");
 	}
 
@@ -985,7 +972,8 @@ static void fronius() {
 		// issue read request
 		meter->read = 1;
 		f10->read = 1;
-		f7->read = 1;
+		if (f7)
+			f7->read = 1;
 
 		// wait till this second is over, meanwhile sunspec threads have values updated
 		while (now_ts == time(NULL))
@@ -1025,11 +1013,11 @@ static void fronius() {
 			device = standby();
 
 		// prio3: ramp up/down
-		if (!device && PSTATE_RAMP)
+		if (!device)
 			device = ramp();
 
 		// prio4: check if higher priorized device can steal from lower priorized when no distortion
-		if (!device && !PSTATE_DISTORTION)
+		if (!device)
 			device = steal();
 
 		// print combined device and pstate when we had delta or device action
@@ -1088,9 +1076,13 @@ static int init() {
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	mosmix_load_state();
 
-	meter = sunspec_init_poll("Meter", "192.168.25.230", 200, &update_meter);
-	f10 = sunspec_init_poll("Fronius10", "192.168.25.230", 1, &update_f10);
-	f7 = sunspec_init_poll("Fronius7", "192.168.25.231", 2, &update_f7);
+	meter = sunspec_init_poll("fronius10", 200, &update_meter);
+	f10 = sunspec_init_poll("fronius10", 1, &update_f10);
+	f7 = sunspec_init_poll("fronius7", 2, &update_f7);
+
+	// stop if Fronius10 is not available
+	if (!f10)
+		return xerr("No connection to Fronius10");
 
 	// wait for collecting models
 	sleep(3);
@@ -1129,7 +1121,7 @@ static int calibrate(char *name) {
 	int measure[1000], raster[101];
 
 	// create a sunspec handle and remove models not needed
-	sunspec_t *ss = sunspec_init("Meter", "192.168.25.230", 200);
+	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 
@@ -1467,18 +1459,14 @@ int ramp_heater(device_t *heater, int power) {
 		return 0; // continue loop
 
 	// check if enough power is available to switch on
-	if (power > 0 && !heater->power) {
-		int min = rampup_min(heater);
-		if (power < min)
-			return 0; // continue loop
-		xdebug("FRONIUS ramp_heater() %s %d (min %d)", heater->name, power, min);
-	}
+	if (power > 0 && power < heater->total)
+		return 0; // continue loop
 
 	// transform power into on/off
 	power = power > 0 ? 1 : 0;
 
-	// ignore ramp ups as long as we have distortion
-	if (power && PSTATE_DISTORTION)
+	// ignore ramp ups as long as we have distortion or unstable
+	if (power && (PSTATE_DISTORTION || !PSTATE_STABLE))
 		return 0; // continue loop
 
 	// check if override is active
@@ -1487,6 +1475,11 @@ int ramp_heater(device_t *heater, int power) {
 	// check if update is necessary
 	if (heater->power == power)
 		return 0;
+
+	if (power)
+		xdebug("FRONIUS switching %s ON", heater->name);
+	else
+		xdebug("FRONIUS switching %s OFF", heater->name);
 
 #ifndef FRONIUS_MAIN
 	if (power)
@@ -1510,7 +1503,9 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (!power || boiler->state == Disabled || boiler->state == Standby)
 		return 0; // continue loop
 
-	xdebug("FRONIUS boiler1 %d", boiler->power);
+	// cannot send UDP if we don't have an IP
+	if (boiler->addr == NULL)
+		return 0;
 
 	// already full up
 	if (boiler->power == 100 && power > 0)
@@ -1525,8 +1520,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (!step)
 		return 0;
 
-	// ignore ramp ups as long as we have distortion
-	if (step > 0 && PSTATE_DISTORTION)
+	// ignore ramp ups as long as we have distortion or unstable
+	if (step > 0 && (PSTATE_DISTORTION || !PSTATE_STABLE))
 		return 0; // continue loop
 
 	// transform power into 0..100%
@@ -1551,9 +1546,6 @@ int ramp_boiler(device_t *boiler, int power) {
 		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
 	else
 		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
-
-//	if (boiler->addr == NULL)
-//		return 0;
 
 #ifndef FRONIUS_MAIN
 	// write IP and port into sockaddr structure
@@ -1596,19 +1588,17 @@ int ramp_akku(device_t *akku, int power) {
 	if (power < 0) {
 
 		// skip ramp downs if we still have enough surplus (akku ramps down itself)
-		int surp = (pstate->akku - pstate->ramp) * -1;
-		if (surp > 0) {
-			// xdebug("FRONIUS skipping akku rampdown request surp=%d (akku=%d ramp=%d)", surp, pstate->akku, pstate->ramp);
-			return 1; // loop done
-		}
-
-		// skip ramp downs as long as we have enough pv
-		if (PSTATE_MIN_LAST1->pv > BASELOAD * 2)
+		int surp = (pstate->grid + pstate->akku) * -1;
+		if (surp > 0)
 			return 1; // loop done
 
 		// forward ramp down request to next device as long as other devices active
 		if (PSTATE_ACTIVE)
-			return 0;
+			return 0; // continue loop
+
+		// skip ramp downs as long as we have enough pv
+		if (PSTATE_MIN_LAST1->pv > BASELOAD * 2)
+			return 1; // loop done
 
 		// ramp down - enable discharging
 		return akku_discharge(akku);
