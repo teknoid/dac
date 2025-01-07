@@ -405,13 +405,14 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0;
 
-	// potd has changed - reset all devices
+	// potd has changed - reset all devices and wait for new values
 	a1.power = -1;
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DOWN);
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
+	sleep(WAIT_RESPONSE);
 
 	return 0;
 }
@@ -498,20 +499,28 @@ static device_t* ramp() {
 }
 
 static int steal_thief_victim(device_t *t, device_t *v) {
-	// thief not active or already on or nothing to steal from victim
-	if (t->state != Active || t->power || !v->load)
+	// thief not active or in standby
+	if (t->state == Disabled || t->state == Standby)
+		return 0;
+
+	// thief already (full) on
+	if (t->power == (t->adj ? 100 : 1))
 		return 0;
 
 	// we can steal akkus charge charge power or victims load
 	int steal = v == &a1 ? pstate->akku * -1 : v->load;
-	int power = pstate->ramp + steal;
+
+	// nothing to steal
+	if (!steal)
+		return 0;
 
 	// not enough to steal
 	int min = rampup_min(t);
+	int power = pstate->ramp + steal;
 	if (power < min)
 		return 0;
 
-	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d", steal, v->name, t->name, t->total);
+	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", steal, v->name, t->name, t->total, min);
 
 	// ramp down victim, akku ramps down itself
 	if (v != &a1)
@@ -633,8 +642,8 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		d->timer = WAIT_NEXT_RAMP;
-		return d;
+		d->timer = 0;
+		return 0;
 	}
 
 	// standby check was negative - we got a response
@@ -642,7 +651,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = WAIT_NEXT_RAMP;
+		d->timer = 0;
 		return d;
 	}
 
@@ -761,14 +770,6 @@ static void shape_pstate() {
 //		pstate->grid = 0;
 }
 
-static int tendence() {
-	if (PSTATE_MIN_LAST1->dpv < 0 && PSTATE_MIN_LAST2->dpv < 0)
-		return -1;
-	if (PSTATE_MIN_LAST1->dpv > 0 && PSTATE_MIN_LAST2->dpv > 0)
-		return 1;
-	return 0;
-}
-
 static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
@@ -783,16 +784,16 @@ static void calculate_pstate() {
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
-	pstate->sdpv = s1->sdpv + abs(pstate->dpv);
+	pstate->sdpv += abs(pstate->dpv);
 
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
-	pstate->sdgrid = s1->sdgrid + abs(pstate->dgrid);
+	pstate->sdgrid += abs(pstate->dgrid);
 
 	// calculate load, delta load + sum
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
 	pstate->dload = pstate->load - s1->load;
-	pstate->sdload = s1->sdload + abs(pstate->dload);
+	pstate->sdload += abs(pstate->dload);
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > NOISE)
@@ -865,8 +866,8 @@ static void calculate_pstate() {
 	if (pstate->ramp < 0 && !PSTATE_ACTIVE && a1.state == Discharge)
 		pstate->ramp = 0; // nothing to ramp down when no active devices and akku is in Discharge mode
 
-	// indicate standby check when we have enoug power and deviation between actual load and calculated load is three times above 33%
-	if (pstate->ramp > BASELOAD * 2 && s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
+	// indicate standby check when deviation between actual load and calculated load is three times above 33%
+	if (s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
 	// ramp on grid download or akku discharge or when we have ramp power
@@ -990,7 +991,7 @@ static void minly(time_t now_ts) {
 	if (pstate->pv)
 		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-	// clear sum counters
+	// clear delta sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
 }
 
@@ -1069,8 +1070,8 @@ static void fronius() {
 		if (!device && PSTATE_RAMP)
 			device = ramp();
 
-		// prio4: check if higher priorized device can steal from lower priorized
-		if (!device)
+		// prio4: check if higher priorized device can steal from lower priorized when no distortion
+		if (!device && !PSTATE_DISTORTION)
 			device = steal();
 
 		// print combined device and pstate when we had delta or device action
@@ -1518,6 +1519,10 @@ int ramp_heater(device_t *heater, int power) {
 	// transform power into on/off
 	power = power > 0 ? 1 : 0;
 
+	// ignore ramp ups as long as we have distortion
+	if (power && PSTATE_DISTORTION)
+		return 0; // continue loop
+
 	// check if override is active
 	power = check_override(heater, power);
 
@@ -1564,13 +1569,9 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (!step)
 		return 0;
 
-	// do smaller up steps / bigger down steps when we have distortion
-	if (PSTATE_DISTORTION) {
-		if (step > 1)
-			step /= 2;
-		if (step < -1)
-			step *= 2;
-	}
+	// ignore ramp ups as long as we have distortion
+	if (step > 0 && PSTATE_DISTORTION)
+		return 0; // continue loop
 
 	// transform power into 0..100%
 	power = boiler->power + step;
@@ -1615,16 +1616,13 @@ int ramp_akku(device_t *akku, int power) {
 			return 1; // loop done
 		}
 
-		// set to standby as long as other devices active
-		if (PSTATE_ACTIVE)
-			return akku_standby(akku);
-
-		// skip ramp downs above -50 till pv tendence get's negative
-		int tend = tendence();
-		if (-NOISE * 2 < pstate->ramp && tend >= 0) {
-			xdebug("FRONIUS skipping akku rampdown request %d tend=%d", pstate->ramp, tend);
+		// skip ramp downs as long as we have enough pv
+		if (PSTATE_MIN_LAST1->pv > BASELOAD * 2)
 			return 1; // loop done
-		}
+
+		// forward ramp down request to next device as long as other devices active
+		if (PSTATE_ACTIVE)
+			return 0;
 
 		// ramp down - enable discharging
 		return akku_discharge(akku);
