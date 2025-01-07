@@ -270,42 +270,6 @@ static int collect_pstate_load(int from, int hours) {
 	return load;
 }
 
-static int boiler_send(device_t *boiler, int power) {
-	if (boiler->addr == NULL)
-		return 0;
-
-	// send message to boiler
-	char message[16];
-	snprintf(message, 16, "p:%d:%d", power, 0);
-
-#ifndef FRONIUS_MAIN
-	// write IP and port into sockaddr structure
-	struct sockaddr_in sock_addr_in = { 0 };
-	sock_addr_in.sin_family = AF_INET;
-	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
-	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
-
-	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	if (ret < 0)
-		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
-#endif
-
-	int step = power - boiler->power;
-	if (step < 0)
-		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
-	else
-		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
-
-	// update power values
-	boiler->power = power;
-	boiler->load = boiler->total * boiler->power / 100;
-	boiler->xload = boiler->total * step / -100;
-	boiler->aload = pstate ? pstate->load : 0;
-	boiler->timer = WAIT_RESPONSE;
-	return 1; // loop done
-}
-
 static int check_override(device_t *d, int power) {
 	if (d->override) {
 		time_t t = time(NULL);
@@ -1004,10 +968,12 @@ static void fronius() {
 		return;
 	}
 
-	// collect actual power states
+	// collect actual power states from dumb devices
+	// TODO adjustable too
 #ifndef FRONIUS_MAIN
 	for (device_t **dd = DEVICES; *dd; dd++)
-		DD->power = tasmota_power_get(DD->id, DD->r);
+		if (!DD->adj)
+			DD->power = tasmota_power_get(DD->id, DD->r);
 #endif
 
 	// the FRONIUS main loop
@@ -1552,9 +1518,7 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (!power || boiler->state == Disabled || boiler->state == Standby)
 		return 0; // continue loop
 
-	// init
-	if (boiler->power == -1)
-		return boiler_send(boiler, 0);
+	xdebug("FRONIUS boiler1 %d", boiler->power);
 
 	// already full up
 	if (boiler->power == 100 && power > 0)
@@ -1588,7 +1552,37 @@ int ramp_boiler(device_t *boiler, int power) {
 		return 0; // continue loop
 
 	// send UDP message to device
-	return boiler_send(boiler, power);
+	char message[16];
+	snprintf(message, 16, "p:%d:%d", power, 0);
+
+	if (step < 0)
+		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
+	else
+		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
+
+//	if (boiler->addr == NULL)
+//		return 0;
+
+#ifndef FRONIUS_MAIN
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(boiler->addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	int ret = sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	if (ret < 0)
+		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
+#endif
+
+	// update power values
+	boiler->power = power;
+	boiler->load = boiler->total * boiler->power / 100;
+	boiler->xload = boiler->total * step / -100;
+	boiler->aload = pstate ? pstate->load : 0;
+	boiler->timer = WAIT_RESPONSE;
+	return 1; // loop done
 }
 
 int ramp_akku(device_t *akku, int power) {
