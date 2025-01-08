@@ -10,19 +10,19 @@ set datafile separator whitespace
 set ytics nomirror
 set key autotitle columnhead
 
-set boxwidth 0.5 relative
+set boxwidth 0.33 relative
 set style fill solid 0.5
 set xtics 1 nomirror
 
 # today
 set ylabel "expected PV today"
 set output "/tmp/mosmix-today.png" 
-plot today using 1:2 with lines, '' using 1:3 with boxes fillcolor "#ff8c00", '' using 1:5 with lines, '' using 1:9 with lines, '' using 1:13 with lines
+plot today using 1:3 with boxes fillcolor "#ff8c00", '' using 1:2 with impulses lt 1 lw 2, '' using 1:5 with lines, '' using 1:9 with lines, '' using 1:13 with lines
 
 # tomorrow
 set ylabel "expected PV tomorrow"
 set output "/tmp/mosmix-tomorrow.png" 
-plot tomorrow using 1:2 with lines, '' using 1:3 with boxes fillcolor "#ff8c00", '' using 1:5 with lines, '' using 1:9 with lines, '' using 1:13 with lines
+plot tomorrow using 1:3 with boxes fillcolor "#ff8c00", '' using 1:2 with impulses lt 1 lw 2, '' using 1:5 with lines, '' using 1:9 with lines, '' using 1:13 with lines
 
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 
