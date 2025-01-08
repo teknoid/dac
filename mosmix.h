@@ -4,9 +4,11 @@
 
 #define MOSMIX_COLUMNS			5
 
-// hexdump -v -e '19 "%6d ""\n"' /tmp/fronius-mosmix.bin
-#define MOSMIX_FILE				"/tmp/fronius-mosmix.bin"
-#define MOSMIX_FILE_CSV			"/tmp/fronius-mosmix.csv"
+// hexdump -v -e '19 "%6d ""\n"' /tmp/fronius-mosmix-history.bin
+#define MOSMIX_TODAY_CSV		"/tmp/fronius-mosmix-today.csv"
+#define MOSMIX_TOMORROW_CSV		"/tmp/fronius-mosmix-tomorrow.csv"
+#define MOSMIX_HISTORY_CSV		"/tmp/fronius-mosmix-history.csv"
+#define MOSMIX_HISTORY			"/tmp/fronius-mosmix-history.bin"
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
@@ -43,8 +45,8 @@ typedef struct mosmix_csv_t {
 	int RSunD;
 } mosmix_csv_t;
 
-void mosmix_store_history();
-void mosmix_load_history();
+void mosmix_store_state();
+void mosmix_load_state();
 void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);
 void mosmix_dump_history_today(struct tm *now);

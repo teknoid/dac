@@ -899,7 +899,7 @@ static void daily(time_t now_ts) {
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 }
 
@@ -1066,7 +1066,7 @@ static int init() {
 
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	mosmix_load_history();
+	mosmix_load_state();
 
 	curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL)
@@ -1087,7 +1087,7 @@ static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 
 	if (sock)

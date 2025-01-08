@@ -320,14 +320,16 @@ int mosmix_load(const char *filename) {
 	return 0;
 }
 
-void mosmix_load_history() {
+void mosmix_load_state() {
 	ZERO(history);
-	load_blob(MOSMIX_FILE, history, sizeof(history));
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
-void mosmix_store_history() {
-	store_blob(MOSMIX_FILE, history, sizeof(history));
-	dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_FILE_CSV);
+void mosmix_store_state() {
+	store_blob(MOSMIX_HISTORY, history, sizeof(history));
+	dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
+	dump_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
+	dump_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
 static void fake() {
@@ -336,12 +338,12 @@ static void fake() {
 		memset(m, 0, sizeof(mosmix_t));
 		m->fac1 = m->fac2 = m->fac3 = m->fac4 = 100;
 	}
-	// store_blob(MOSMIX_FILE, history, sizeof(history));
+	// store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
 static void plot() {
 	ZERO(history);
-	load_blob(MOSMIX_FILE, history, sizeof(history));
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_t *m = &history[i];
@@ -360,7 +362,7 @@ static void plot() {
 		m->err4 *= 10;
 	}
 
-	// dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_FILE_CSV);
+	// dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
 }
 
 static void test() {
@@ -372,7 +374,7 @@ static void test() {
 	localtime_r(&now_ts, now);
 
 	// load state and update forecasts
-	mosmix_load_history();
+	mosmix_load_state();
 	mosmix_load(MARIENBERG);
 
 	// calculate total daily values
