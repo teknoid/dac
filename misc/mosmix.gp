@@ -44,4 +44,3 @@ plot history using 1:7 with lines, '' using 1:11 with lines, '' using 1:15 with 
 set ylabel "Factors"
 set output "/tmp/mosmix-factors.png" 
 plot history using 1:8 with lines, '' using 1:12 with lines, '' using 1:16 with lines
-
