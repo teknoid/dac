@@ -35,12 +35,12 @@ plot history using 1:4 with lines, '' using 1:9 with lines, '' using 1:10 with l
 set output "/tmp/mosmix-mppt3.png" 
 plot history using 1:4 with lines, '' using 1:13 with lines, '' using 1:14 with lines, '' using 1:15 with lines, '' using 1:16 with lines
 
-# history only errors
+# history errors
 set ylabel "Errors"
 set output "/tmp/mosmix-errors.png"
 plot history using 1:7 with lines, '' using 1:11 with lines, '' using 1:15 with lines
 
-# history only factors
+# history factors
 set ylabel "Factors"
 set output "/tmp/mosmix-factors.png" 
 plot history using 1:8 with lines, '' using 1:12 with lines, '' using 1:16 with lines
