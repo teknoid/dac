@@ -14,6 +14,7 @@ set boxwidth 0.33 relative
 set style fill solid 0.5
 set xtics 1 nomirror
 set xrange [4:20]
+# set yrange [0:5000]
 
 # today
 set ylabel "Today"
@@ -27,8 +28,9 @@ set output "/tmp/mosmix-tomorrow.png"
 p tomorrow u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses lt 1 lw 2, '' u 1:5 w lines, '' u 1:9 w lines, '' u 1:13 w lines, \
 	'' u 1:($5+$9+$13) w lines lw 2 t "sum"
 
+set autoscale x
+set autoscale y
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
-set xrange [0:167]
 
 # history per mppt
 set ylabel "MPPT1"
