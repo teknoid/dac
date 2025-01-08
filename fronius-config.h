@@ -37,7 +37,7 @@
 #define GREEDY_MODEST(d)		(d->greedy ? "greedy" : "modest")
 
 #define FLAG_DELTA				(1 << 0)
-#define FLAG_RAMP				(1 << 1)
+#define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_DISTORTION			(1 << 3)
 #define FLAG_CHECK_STANDBY		(1 << 4)
@@ -48,7 +48,7 @@
 #define FLAG_OFFLINE			(1 << 15)
 
 #define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
-#define PSTATE_RAMP				(pstate->flags & FLAG_RAMP)
+#define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
 #define PSTATE_CHECK_STANDBY	(pstate->flags & FLAG_CHECK_STANDBY)

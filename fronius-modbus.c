@@ -63,7 +63,7 @@ static volatile pstate_t *pstate = 0;
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
-#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 2 + 60))
+#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 
@@ -164,12 +164,6 @@ static int akku_discharge(device_t *akku) {
 		xdebug("FRONIUS set akku DISCHARGE");
 		sunspec_storage_limit_charge(f10, 0);
 	}
-
-	// winter mode
-	if (WINTER && gstate->tomorrow < AKKU_CAPACITY)
-		sunspec_storage_minimum_soc(f10, 10);
-	else
-		sunspec_storage_minimum_soc(f10, 5);
 #endif
 
 	akku->state = Discharge;
@@ -213,11 +207,11 @@ static void update_f7(sunspec_t *ss) {
 	if (!pstate || !counter)
 		return;
 
-	pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
-	pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
+		// only take over values in MPPT state
+		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
+		pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
 		counter->mppt3 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
@@ -233,7 +227,7 @@ static void update_f7(sunspec_t *ss) {
 		break;
 
 	default:
-		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
 	}
@@ -262,6 +256,9 @@ static int collect_pstate_load(int from, int hours) {
 		strcat(line, value);
 	}
 	xdebug(line);
+
+	// adding +10% Dissipation / Reserve
+	load += load / 10;
 	return load;
 }
 
@@ -425,10 +422,6 @@ static device_t* rampdown(int power) {
 static device_t* ramp() {
 	device_t *d;
 
-	// no ramp indicated
-	if (!PSTATE_RAMP)
-		return 0;
-
 	// prio1: ramp down in reverse order
 	if (pstate->ramp < 0) {
 		d = rampdown(pstate->ramp);
@@ -436,8 +429,8 @@ static device_t* ramp() {
 			return d;
 	}
 
-	// prio2: ramp up in order
-	if (pstate->ramp > 0) {
+	// prio2: ramp up in order when stable and ramp indicated
+	if (pstate->ramp > 0 && PSTATE_STABLE && PSTATE_VALID) {
 		d = rampup(pstate->ramp);
 		if (d)
 			return d;
@@ -485,8 +478,8 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 }
 
 static device_t* steal() {
-	// skip ramp logic as long as we have distortion
-	if (PSTATE_DISTORTION)
+	// check flags
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		return 0;
 
 	// jump to end
@@ -505,9 +498,12 @@ static device_t* steal() {
 }
 
 static device_t* perform_standby(device_t *d) {
-	d->state = Standby_Check;
-	int power = pstate->pv / (d->power > 0 ? -2 : 2);
+	if (pstate->pv < d->total / 2)
+		return 0; // not enough pv power available
+
+	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xdebug("FRONIUS starting standby check on %s with power=%d", d->name, power);
+	d->state = Standby_Check;
 	ramp_device(d, power);
 	return d;
 }
@@ -526,8 +522,8 @@ static int force_standby() {
 }
 
 static device_t* standby() {
-	// do we have active devices?
-	if (!PSTATE_ACTIVE)
+	// check flags
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		return 0;
 
 	// put dumb devices into standby if summer or too hot
@@ -814,39 +810,34 @@ static void calculate_pstate() {
 		pstate->ramp = 0;
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
 		pstate->ramp = 0; // akku is regulating around 0
-	if (pstate->ramp < 0 && !PSTATE_ACTIVE && a1.state == Discharge)
-		pstate->ramp = 0; // nothing to ramp down when no active devices and akku is in Discharge mode
 
 	// indicate standby check when deviation between actual load and calculated load is three times above 33%
 	if (s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 
-	// ramp on grid download or akku discharge or when we have ramp power
-	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->ramp)
-		pstate->flags |= FLAG_RAMP;
-
-	// clear RAMP flag when values not valid
+	// clear flag when values not valid
+	pstate->flags |= FLAG_VALID;
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
-//		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
 		xdebug("FRONIUS positive load detected");
-//		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (!f10->active) {
 //		xlog("FRONIUS Fronius10 is not active!");
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (f7 && !f7->active) {
 //		xlog("FRONIUS Fronius7 is not active!");
@@ -928,6 +919,12 @@ static void hourly(time_t now_ts) {
 	calculate_mosmix();
 	choose_program();
 
+	// storage strategy: winter and tomorrow not much expected 10%, standard 5%
+	if (now->tm_hour == 12) {
+		int min = WINTER && gstate->tomorrow < AKKU_CAPACITY ? 10 : 5;
+		sunspec_storage_minimum_soc(f10, min);
+	}
+
 	// print actual gstate
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
@@ -964,7 +961,7 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 
 		// take over old pstate, update state and counter pointers
-		memcpy(PSTATE_NOW, PSTATE_SEC_LAST1, sizeof(*pstate));
+		memcpy(PSTATE_NOW, PSTATE_SEC_LAST1, sizeof(pstate_t));
 		counter = COUNTER_NOW;
 		gstate = GSTATE_NOW;
 		pstate = PSTATE_NOW;
@@ -981,7 +978,6 @@ static void fronius() {
 
 		// calculate new pstate
 		calculate_pstate();
-		// continue;
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
@@ -1466,7 +1462,7 @@ int ramp_heater(device_t *heater, int power) {
 	power = power > 0 ? 1 : 0;
 
 	// ignore ramp ups as long as we have distortion or unstable
-	if (power && (PSTATE_DISTORTION || !PSTATE_STABLE))
+	if (power && PSTATE_DISTORTION)
 		return 0; // continue loop
 
 	// check if override is active
@@ -1520,8 +1516,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (!step)
 		return 0;
 
-	// ignore ramp ups as long as we have distortion or unstable
-	if (step > 0 && (PSTATE_DISTORTION || !PSTATE_STABLE))
+	// ignore ramp ups as long as we have distortion
+	if (step > 0 && PSTATE_DISTORTION)
 		return 0; // continue loop
 
 	// transform power into 0..100%
@@ -1596,8 +1592,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_ACTIVE)
 			return 0; // continue loop
 
-		// skip ramp downs as long as we have enough pv
-		if (PSTATE_MIN_LAST1->pv > BASELOAD * 2)
+		// skip ramp downs as long as we have more pv than load
+		if (PSTATE_MIN_LAST1->pv > PSTATE_MIN_LAST1->load * -1)
 			return 1; // loop done
 
 		// ramp down - enable discharging
