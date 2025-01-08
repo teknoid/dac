@@ -736,7 +736,7 @@ static void calculate_pstate1() {
 		return;
 	}
 
-	pstate->flags |= FLAG_RAMP;
+	pstate->flags |= FLAG_VALID;
 }
 
 static void calculate_pstate2() {
@@ -744,7 +744,7 @@ static void calculate_pstate2() {
 	pstate->mppt3 = r->pv7;
 
 	// clear VALID flag
-	pstate->flags &= ~FLAG_RAMP;
+	pstate->flags &= ~FLAG_VALID;
 
 	// get 2x history back
 	pstate_t *h1 = get_pstate_history(-1);
@@ -808,30 +808,30 @@ static void calculate_pstate2() {
 
 	// ramp on grid download or akku discharge or when we have ramp power
 	if (pstate->akku > NOISE || pstate->grid > NOISE || pstate->ramp)
-		pstate->flags |= FLAG_RAMP;
+		pstate->flags |= FLAG_VALID;
 
 	//clear flag if values not valid
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->mppt1 + pstate->mppt2;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
 		xdebug("FRONIUS positive load detected");
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xdebug("FRONIUS wasting %d akku -> grid power", waste);
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - h1->grid, h1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 	if (!potd) {
 		xlog("FRONIUS No potd selected!");
-		pstate->flags &= ~FLAG_RAMP;
+		pstate->flags &= ~FLAG_VALID;
 	}
 
 	shape_pstate();
@@ -855,7 +855,7 @@ static int calculate_next_round(device_t *d) {
 	// - wasting akku->grid power
 	// - big akku discharge or grid download
 	// - actual load > calculated load --> other consumers active
-	if (!PSTATE_RAMP || PSTATE_DISTORTION || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
+	if (!PSTATE_VALID || PSTATE_DISTORTION || pstate->grid > 500 || pstate->akku > 500 || pstate->dxload < -5)
 		return WAIT_NEXT;
 
 	if (PSTATE_ALL_STANDBY)
@@ -899,7 +899,7 @@ static void daily(time_t now_ts) {
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	mosmix_store_state();
+	mosmix_store_history();
 #endif
 }
 
@@ -1009,7 +1009,7 @@ static void fronius() {
 		if (PSTATE_BURNOUT)
 			burnout();
 
-		if (PSTATE_RAMP) {
+		if (PSTATE_VALID) {
 			// make Fronius7 API call and calculate second pstate
 			errors += curl_perform(curl7, &memory, &parse_fronius7);
 			calculate_pstate2();
@@ -1024,7 +1024,7 @@ static void fronius() {
 			device = standby();
 
 		// prio3: ramp up/down
-		if (!device && PSTATE_RAMP)
+		if (!device && PSTATE_VALID)
 			device = ramp();
 
 		// prio4: check if higher priorized device can steal from lower priorized
@@ -1066,7 +1066,7 @@ static int init() {
 
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	mosmix_load_state();
+	mosmix_load_history();
 
 	curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL)
@@ -1087,7 +1087,7 @@ static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	mosmix_store_state();
+	mosmix_store_history();
 #endif
 
 	if (sock)
