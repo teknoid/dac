@@ -51,6 +51,7 @@ void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);
 void mosmix_dump_history_today(struct tm *now);
 void mosmix_dump_history_full(struct tm *now);
+void mosmix_dump_history_noon();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_expected(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
 void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);

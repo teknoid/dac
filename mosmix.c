@@ -126,6 +126,12 @@ void mosmix_dump_history_full(struct tm *now) {
 	dump_table((int*) history, MOSMIX_SIZE, 24 * 7, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
 }
 
+void mosmix_dump_history_noon() {
+	xlog("MOSMIX history noon\n    "MOSMIX_HEADER);
+	for (int i = 0; i < 7; i++)
+		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
+}
+
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = TODAY(now->tm_hour);
 	mosmix_t *h = HISTORY(now->tm_wday, now->tm_hour);
@@ -418,6 +424,7 @@ static void test() {
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	mosmix_dump_history_full(now);
+	mosmix_dump_history_noon();
 
 	// mosmix_store_state();
 }
