@@ -12,7 +12,7 @@
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
-#define SUSPICIOUS				250
+#define SUSPICIOUS				500
 #define NOISE					25
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5

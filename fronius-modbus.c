@@ -772,6 +772,13 @@ static void calculate_pstate() {
 		return;
 	}
 
+	// calculate ramp up/down power
+	pstate->ramp = pstate->grid * -1 - RAMP_OFFSET;
+	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
+		pstate->ramp = 0;
+	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
+		pstate->ramp = 0; // akku is regulating around 0
+
 	// state is stable when we have three times no grid changes
 	if (!s1->dgrid && !s2->dgrid && !s3->dgrid)
 		pstate->flags |= FLAG_STABLE;
@@ -780,10 +787,10 @@ static void calculate_pstate() {
 	int d0 = pstate->sdpv > pstate->pv + pstate->pv / 2;
 	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
 	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-	if (d0 || d1 || d2) {
+	if (d0 || d1 || d2)
 		pstate->flags |= FLAG_DISTORTION;
-		xdebug("FRONIUS distortion=%d d0=%d/%d d1=%d/%d d2=%d/%d", PSTATE_DISTORTION, pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-	}
+	if (PSTATE_DISTORTION)
+		xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 
 	// device loop:
 	// - expected load
@@ -800,19 +807,12 @@ static void calculate_pstate() {
 	}
 	pstate->xload *= -1;
 
-	// deviation of calculated load to actual load in %
-	pstate->dxload = (pstate->xload - pstate->load) * 100 / pstate->xload;
-
-	// calculate ramp up/down power
-	pstate->ramp = pstate->grid * -1 - RAMP_OFFSET;
-	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
-		pstate->ramp = 0;
-	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
-		pstate->ramp = 0; // akku is regulating around 0
-
 	// indicate standby check when deviation between actual load and calculated load is three times above 33%
+	pstate->dxload = pstate->load < -BASELOAD ? (pstate->xload - pstate->load) * 100 / pstate->xload : 0;
 	if (s1->dxload > 33 && s2->dxload > 33 && s3->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
+	if (PSTATE_CHECK_STANDBY)
+		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
 
 	// clear flag when values not valid
 	pstate->flags |= FLAG_VALID;
@@ -1512,12 +1512,10 @@ int ramp_boiler(device_t *boiler, int power) {
 
 	// power steps
 	int step = power / (boiler->total / 100);
+	if (step > 0 && PSTATE_DISTORTION)
+		step /= 2; // smaller up steps when we have distortion
 	if (!step)
 		return 0;
-
-	// ignore ramp ups as long as we have distortion
-	if (step > 0 && PSTATE_DISTORTION)
-		return 0; // continue loop
 
 	// transform power into 0..100%
 	power = boiler->power + step;
