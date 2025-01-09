@@ -310,25 +310,26 @@ static void print_state(device_t *d) {
 		strcat(line, value);
 	}
 
-	strcat(line, "   state ");
+	strcat(line, "   st ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		snprintf(value, 5, "%d", DD->state);
 		strcat(line, value);
 	}
 
-	strcat(line, "   nores ");
+	strcat(line, "   nr ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		snprintf(value, 5, "%d", DD->noresponse);
 		strcat(line, value);
 	}
 
+	strcat(line, "   F");
 	if (f10 && f10->inverter) {
-		snprintf(value, 16, "   F10:%d", f10->inverter->St);
+		snprintf(value, 16, ":%d", f10->inverter->St);
 		strcat(line, value);
 	}
 
 	if (f7 && f7->inverter) {
-		snprintf(value, 16, "   F7:%d", f7->inverter->St);
+		snprintf(value, 16, ":%d", f7->inverter->St);
 		strcat(line, value);
 	}
 
@@ -430,7 +431,7 @@ static device_t* ramp() {
 	}
 
 	// prio2: ramp up in order when stable and ramp indicated
-	if (pstate->ramp > 0 && PSTATE_STABLE && PSTATE_VALID) {
+	if (pstate->ramp > 0 && PSTATE_VALID && (PSTATE_STABLE || pstate->ramp > 1000)) {
 		d = rampup(pstate->ramp);
 		if (d)
 			return d;
@@ -449,7 +450,11 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 		return 0;
 
 	// we can steal akkus charge charge power or victims load
-	int steal = v == &a1 ? pstate->akku * -1 : v->load;
+	int steal = 0;
+	if (v == &a1)
+		steal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
+	else
+		steal = v->load;
 
 	// nothing to steal
 	if (!steal)
@@ -498,9 +503,6 @@ static device_t* steal() {
 }
 
 static device_t* perform_standby(device_t *d) {
-	if (pstate->pv < d->total / 2)
-		return 0; // not enough pv power available
-
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xdebug("FRONIUS starting standby check on %s with power=%d", d->name, power);
 	d->state = Standby_Check;
@@ -522,10 +524,6 @@ static int force_standby() {
 }
 
 static device_t* standby() {
-	// check flags
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
-		return 0;
-
 	// put dumb devices into standby if summer or too hot
 	if (force_standby()) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
@@ -537,9 +535,14 @@ static device_t* standby() {
 		}
 	}
 
-	// no standby check indicated or state is not stable
-	if (!PSTATE_CHECK_STANDBY || !PSTATE_STABLE)
+	// check flags
+	if (!PSTATE_CHECK_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
 		return 0;
+
+	// try first active powered adjustable device with noresponse counter > 0
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Active && DD->power && DD->adj && DD->noresponse > 0)
+			return perform_standby(DD);
 
 	// try first active powered device with noresponse counter > 0
 	for (device_t **dd = DEVICES; *dd; dd++)
@@ -784,13 +787,13 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	int d0 = pstate->sdpv > pstate->pv + pstate->pv / 2;
+	int d0 = pstate->sdpv > m1->pv;
 	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
 	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
 	if (d0 || d1 || d2)
 		pstate->flags |= FLAG_DISTORTION;
 	if (PSTATE_DISTORTION)
-		xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m1->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 
 	// device loop:
 	// - expected load
@@ -878,16 +881,6 @@ static void daily(time_t now_ts) {
 	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
-
-	// store to disk
-	// TODO csv
-#ifndef FRONIUS_MAIN
-	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_state();
-#endif
 }
 
 static void hourly(time_t now_ts) {
@@ -927,6 +920,17 @@ static void hourly(time_t now_ts) {
 	// print actual gstate
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
+
+#ifndef FRONIUS_MAIN
+	// store to disk at 0, 6, 12, 18
+	if (now->tm_hour % 5 == 0) {
+		store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+		store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
+		store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+		store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+		mosmix_store_state();
+	}
+#endif
 }
 
 static void minly(time_t now_ts) {
@@ -935,8 +939,8 @@ static void minly(time_t now_ts) {
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-	if (pstate->pv)
-		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+//	if (pstate->pv)
+//		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear delta sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1015,8 +1019,8 @@ static void fronius() {
 		if (!device)
 			device = steal();
 
-		// print combined device and pstate when we had delta or device action
-		if (PSTATE_DELTA || device)
+		// print combined device and pstate once per minute / when delta / device action
+		if (PSTATE_DELTA || device || now->tm_sec == 59)
 			print_state(device);
 
 		// minutely tasks
