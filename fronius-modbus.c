@@ -18,8 +18,8 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define MIN_SOC					(SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10)
-#define AKKU_CAPACITY			(SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF))
+#define MIN_SOC					(f10 ? SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10 : 0)
+#define AKKU_CAPACITY			(f10 ? SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) : 0)
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
 
@@ -240,6 +240,14 @@ static void update_meter(sunspec_t *ss) {
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
+}
+
+static int collect_heating_total() {
+	int total = 0;
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (!DD->adj)
+			total += DD->total;
+	return total;
 }
 
 static int collect_pstate_load(int from, int hours) {
@@ -659,13 +667,14 @@ static void calculate_mosmix() {
 	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
 
 	// calculate heating factor
-	// TODO auto collect heating power from devices
-	// TODO nochmal überdenken
-	mosmix_heating(now, 1500, &hours, &from, &to);
-	needed += 1500 * hours; // survive + heating
-	float heating = needed ? (float) available / (float) needed : 0.0;
+	int heating_total = collect_heating_total();
+	mosmix_heating(now, heating_total, &hours, &from, &to);
+	int needed_heating = heating_total * hours;
+	int remaining = gstate->expected - survive;
+	float heating = needed_heating && remaining > 0 ? (float) (remaining) / (float) needed_heating : 0.0;
+	// float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, heating);
+	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed_heating, gstate->expected, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
@@ -1295,7 +1304,13 @@ static int single() {
 	gstate = GSTATE_NOW;
 	counter = COUNTER_NOW;
 	pstate = PSTATE_NOW;
-	sleep(1); // update values
+
+	// issue read request
+	meter->read = 1;
+	f10->read = 1;
+	if (f7)
+		f7->read = 1;
+	sleep(1);
 
 	calculate_pstate();
 	calculate_gstate();

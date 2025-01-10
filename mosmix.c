@@ -24,7 +24,7 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
-static void insert(mosmix_csv_t *mcsv) {
+static void update_today_tomorrow() {
 	// get todays and tomorrows weekday
 	struct tm tm;
 	time_t t = time(NULL);
@@ -32,25 +32,35 @@ static void insert(mosmix_csv_t *mcsv) {
 	int wday_today = tm.tm_wday;
 	int wday_tomorrow = tm.tm_wday != 6 ? tm.tm_wday + 1 : 0;
 
-	// get mosmix slot to update
+	mosmix_csv_t *mcsv = &mosmix_csv[0];
 	t = mcsv->ts - 1; // fix hour
 	localtime_r(&t, &tm);
-	mosmix_t *m = 0;
-	if (tm.tm_wday == wday_today)
-		m = TODAY(tm.tm_hour);
-	if (tm.tm_wday == wday_tomorrow)
-		m = TOMORROW(tm.tm_hour);
-	if (!m)
-		return; // not today or tomorrow
+	xlog("MOSMIX updating today/tomorrow starting at %02d.%02d.%d %02d:%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour, tm.tm_min);
 
-	// insert
-	m->Rad1h = mcsv->Rad1h;
-	m->SunD1 = mcsv->SunD1;
+	// update mosmix slots for next 2,5 days (mosmix forecast contains up to 10 days)
+	for (int i = 0; i < 24 * 2 + 12; i++) {
+		mcsv = &mosmix_csv[i];
 
-	// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
-	m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
-	// m->base = m->Rad1h + m->SunD1 / 10;
-	// m->base = m->Rad1h;
+		// get mosmix slot to update
+		t = mcsv->ts - 1; // fix hour
+		localtime_r(&t, &tm);
+		mosmix_t *m = 0;
+		if (tm.tm_wday == wday_today)
+			m = TODAY(tm.tm_hour);
+		if (tm.tm_wday == wday_tomorrow)
+			m = TOMORROW(tm.tm_hour);
+		if (!m)
+			continue; // not today or tomorrow
+
+		// insert
+		m->Rad1h = mcsv->Rad1h;
+		m->SunD1 = mcsv->SunD1;
+
+		// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
+		m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
+		// m->base = m->Rad1h + m->SunD1 / 10;
+		// m->base = m->Rad1h;
+	}
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -101,7 +111,8 @@ static void average(mosmix_t *avg, int h) {
 	avg->fac2 = counts.fac2 ? avg->fac2 / counts.fac2 : 0;
 	avg->fac3 = counts.fac3 ? avg->fac3 / counts.fac3 : 0;
 	avg->fac4 = counts.fac4 ? avg->fac4 / counts.fac4 : 0;
-	// xdebug("MOSMIX hour %02d factors %d %d %d %d", h, avg->fac1, avg->fac2, avg->fac3, avg->fac4);
+	if (avg->fac1)
+		xdebug("MOSMIX hour %02d average factors %5.2f %5.2f %5.2f %5.2f", h, FLOAT100(avg->fac1), FLOAT100(avg->fac2), FLOAT100(avg->fac3), FLOAT100(avg->fac4));
 }
 
 void mosmix_dump_today(struct tm *now) {
@@ -305,7 +316,7 @@ int mosmix_load(const char *filename) {
 	while (fgets(buf, LINEBUF, fp) != NULL) {
 		int i = 0;
 		char *p = strtok(buf, ",");
-		while (p != NULL) {
+		while (p != NULL && i < MOSMIX_COLUMNS) {
 			p[strcspn(p, "\n")] = 0; // remove any NEWLINE
 			strings[i++] = p;
 			p = strtok(NULL, ",");
@@ -317,12 +328,7 @@ int mosmix_load(const char *filename) {
 	fclose(fp);
 	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 
-	// update mosmix slots for next two days (mosmix forecast contains up to 10 days)
-	for (int i = 0; i < 24 * 2; i++) {
-		mosmix_csv_t *mcsv = &mosmix_csv[i];
-		insert(mcsv);
-	}
-
+	update_today_tomorrow();
 	return 0;
 }
 
