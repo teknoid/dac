@@ -19,12 +19,12 @@
 #include "mcp.h"
 
 #define MIN_SOC					(f10 ? SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10 : 0)
-#define AKKU_CAPACITY			(f10 ? SFI(f10->nameplate->WRtg, f10->nameplate->WRtg_SF) : 0)
-#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * soc / 1000)
+#define AKKU_CAPACITY			(f10 ? SFI(f10->nameplate->WHRtg, f10->nameplate->WHRtg_SF) : 0)
+#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
 
 #define WAIT_NEXT_RAMP			1
-#define WAIT_RESPONSE			3
+#define WAIT_RESPONSE			3		// TODO reicht manchmal nicht?
 #define WAIT_NEXT				1
 #define WAIT_AKKU_CHARGE		30
 #define WAIT_AKKU_RAMP			10
@@ -50,7 +50,7 @@ static gstate_t gstate_hours[24 * 7];
 static volatile gstate_t *gstate = 0;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
-#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + h])
+#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
 // pstate history every second/minute/hour and access pointers
@@ -705,9 +705,9 @@ static void calculate_gstate() {
 	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
-	gstate->akku = gstate->soc > MIN_SOC ? f10->nameplate->WHRtg * (gstate->soc - MIN_SOC) / 1000 : 0;
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
-	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc) - AKKU_CAPACITY_SOC(g->soc) : 0;
+	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
+	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc - g->soc) : 0;
 	if (gstate->dakku < 0)
 		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
 	else if (gstate->soc > MIN_SOC)
@@ -1391,7 +1391,7 @@ static int test() {
 		printf("%d ", pstate_seconds[i].pv);
 	printf("\n");
 
-	now->tm_sec = 59;
+	now->tm_sec = 1;
 	printf("%d\n", PSTATE_NOW->pv);
 	printf("%d\n", PSTATE_SEC_LAST1->pv);
 	printf("%d\n", PSTATE_SEC_LAST2->pv);

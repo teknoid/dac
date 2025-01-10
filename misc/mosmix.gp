@@ -10,23 +10,29 @@ set datafile separator whitespace
 set ytics nomirror
 set key autotitle columnhead
 
+set style line 1 linecolor "navy" lw 2
+set style line 2 linecolor "turquoise" lw 1
+set style line 3 linecolor "steelblue" lw 1
+set style line 4 linecolor "violet" lw 1
+set style line 5 linecolor "gold" lw 2
+
 set boxwidth 0.33 relative
 set style fill solid 0.5
 set xtics 1 nomirror
 set xrange [4:20]
-# set yrange [0:5000]
+set yrange [0:3000]
 
 # today
 set ylabel "Today"
 set output "/tmp/mosmix-today.png" 
-p today u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses lt 1 lw 2, '' u 1:5 w lines, '' u 1:9 w lines, '' u 1:13 w lines, \
-	'' u 1:($5+$9+$13) w lines lw 2 t "sum"
+p today u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses ls 1, '' u 1:5 w lines ls 2, '' u 1:9 w lines ls 3, '' u 1:13 w lines ls 4, \
+	'' u 1:($5+$9+$13) w lines ls 5 t "sum"
 
 # tomorrow
 set ylabel "Tomorrow"
 set output "/tmp/mosmix-tomorrow.png" 
-p tomorrow u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses lt 1 lw 2, '' u 1:5 w lines, '' u 1:9 w lines, '' u 1:13 w lines, \
-	'' u 1:($5+$9+$13) w lines lw 2 t "sum"
+p tomorrow u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses ls 1, '' u 1:5 w lines ls 2, '' u 1:9 w lines ls 3, '' u 1:13 w lines ls 4, \
+	'' u 1:($5+$9+$13) w lines ls 5 t "sum"
 
 set autoscale x
 set autoscale y
