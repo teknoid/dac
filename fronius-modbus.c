@@ -197,7 +197,7 @@ static void update_f10(sunspec_t *ss) {
 		break;
 
 	default:
-		xdebug("FRONIUS %s inverter state %d", ss->name, ss->inverter->St);
+		xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
 	}
@@ -227,7 +227,7 @@ static void update_f7(sunspec_t *ss) {
 		break;
 
 	default:
-		xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
+		// xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
 	}
@@ -890,6 +890,9 @@ static void daily(time_t now_ts) {
 	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
+
+	// dump high noon mosmix slots
+	mosmix_dump_history_noon();
 }
 
 static void hourly(time_t now_ts) {

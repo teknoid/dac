@@ -25,22 +25,18 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define HISTORY(d, h)			(&history[24 * d + h])
 
 static void update_today_tomorrow() {
-	// get todays and tomorrows weekday
+	// get todays and tomorrows year day
 	struct tm tm;
 	time_t t = time(NULL);
 	localtime_r(&t, &tm);
 	int day_today = tm.tm_yday;
 	int day_tomorrow = tm.tm_yday != 365 ? tm.tm_yday + 1 : 0;
 
-	mosmix_csv_t *mcsv = &mosmix_csv[0];
-	t = mcsv->ts - 1; // fix hour
-	localtime_r(&t, &tm);
-	xlog("MOSMIX updating today/tomorrow starting at %02d.%02d.%d %02d:%02d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900, tm.tm_hour, tm.tm_min);
-
+	// loop over one week
 	for (int i = 0; i < 24 * 7; i++) {
-		mcsv = &mosmix_csv[i];
+		mosmix_csv_t *mcsv = &mosmix_csv[i];
 
-		// get mosmix slot to update
+		// find mosmix slot to update
 		t = mcsv->ts - 1; // fix hour
 		localtime_r(&t, &tm);
 		mosmix_t *m = 0;
