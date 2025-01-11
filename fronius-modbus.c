@@ -919,10 +919,8 @@ static void hourly(time_t now_ts) {
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 
 	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
-	if (now->tm_hour == 12) {
-		int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && pstate->soc > 100 ? 10 : 5;
-		sunspec_storage_minimum_soc(f10, min);
-	}
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && pstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(f10, min);
 
 	// print actual gstate
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
