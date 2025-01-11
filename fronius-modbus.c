@@ -888,6 +888,13 @@ static void daily(time_t now_ts) {
 
 	// dump high noon mosmix slots
 	mosmix_dump_history_noon();
+
+#ifndef FRONIUS_MAIN
+	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+#endif
 }
 
 static void hourly(time_t now_ts) {
@@ -926,16 +933,8 @@ static void hourly(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 
-#ifndef FRONIUS_MAIN
-	// store to disk at 0, 6, 12, 18
-	if (now->tm_hour % 5 == 0) {
-		store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-		store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-		store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-		store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-		mosmix_store_state();
-	}
-#endif
+	// create gnuplot diagrams
+	mosmix_plot();
 }
 
 static void minly(time_t now_ts) {
