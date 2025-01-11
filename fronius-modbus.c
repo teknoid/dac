@@ -1592,6 +1592,12 @@ int ramp_akku(device_t *akku, int power) {
 		return akku_standby(akku);
 	}
 
+	// average pv and load of last minute
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	int m1_pv = m1->pv;
+	int m1_load = m1->load * -1;
+	m1_load += m1_load / 10; // + 10%
+
 	// ramp down request
 	if (power < 0) {
 
@@ -1605,7 +1611,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 0; // continue loop
 
 		// skip ramp downs as long as we have more pv than load
-		if (PSTATE_MIN_LAST1->pv > PSTATE_MIN_LAST1->load * -1)
+		if (m1_pv > m1_load)
 			return 1; // loop done
 
 		// ramp down - enable discharging
@@ -1616,11 +1622,12 @@ int ramp_akku(device_t *akku, int power) {
 	if (power > 0) {
 
 		// set into standby when full
+		// TODO nachladen?
 		if (pstate->soc == 1000)
 			return akku_standby(akku);
 
 		// skip ramp ups as long as pv is smaller than load
-		if (PSTATE_MIN_LAST1->pv < PSTATE_MIN_LAST1->load * -1)
+		if (m1_pv < m1_load)
 			return 1; // loop done
 
 		// ramp up
