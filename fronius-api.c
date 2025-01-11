@@ -222,6 +222,27 @@ static void bump_pstate() {
 	pstate = pstate_new; // atomic update current pstate pointer
 }
 
+// sum up load for darkness hours - take akku discharge values from yesterday
+static int collect_load(int from, int hours) {
+	int load = 0;
+	char line[LINEBUF], value[25];
+	strcpy(line, "FRONIUS mosmix load");
+	for (int i = from; i < hours; i++) {
+		int hour = from + i;
+		if (hour >= 24)
+			hour -= 24;
+		int hload = gstate_hours[hour].dakku;
+		load += hload;
+		snprintf(value, 25, " %d:%d", hour, hload);
+		strcat(line, value);
+	}
+	xdebug(line);
+
+	// adding +10% Dissipation / Reserve
+	load += load / 10;
+	return load;
+}
+
 static int collect_heating_total() {
 	int total = 0;
 	for (device_t **dd = DEVICES; *dd; dd++)
@@ -603,10 +624,7 @@ static void calculate_mosmix() {
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
 	int available = gstate->expected + gstate->akku;
-	int needed = 0;
-	// sum up load for darkness hours - take values from yesterday
-	for (int i = from; i < to; i++)
-		needed += gstate_hours[i].dakku;
+	int needed = collect_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);

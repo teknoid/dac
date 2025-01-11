@@ -238,7 +238,7 @@ static void update_meter(sunspec_t *ss) {
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 }
 
-static int collect_pstate_load(int from, int hours) {
+static int collect_load(int from, int hours) {
 	int load = 0;
 	char line[LINEBUF], value[25];
 	strcpy(line, "FRONIUS mosmix load");
@@ -657,7 +657,7 @@ static void calculate_mosmix() {
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
 	int available = gstate->expected + gstate->akku;
-	int needed = collect_pstate_load(from, hours);
+	int needed = collect_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
