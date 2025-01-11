@@ -383,6 +383,10 @@ static int choose_program() {
 	if (!gstate)
 		return select_program(&MODEST);
 
+	// akku is empty - charging akku has priority
+	if (gstate->soc < 100)
+		return select_program(&MODEST);
+
 	// we will NOT survive - charging akku has priority
 	if (gstate->survive < 10)
 		return select_program(&MODEST);

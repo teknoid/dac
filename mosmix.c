@@ -351,7 +351,7 @@ static void fake() {
 //		memset(m, 0, sizeof(mosmix_t));
 //		m->fac1 = m->fac2 = m->fac3 = m->fac4 = 100;
 //	}
-	// store_blob(MOSMIX_HISTORY, history, sizeof(history));
+//	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
 static void test() {
@@ -418,7 +418,6 @@ int mosmix_main(int argc, char **argv) {
 
 	test();
 	fake();
-	mosmix_plot();
 
 	return 0;
 }
