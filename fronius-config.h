@@ -58,6 +58,10 @@
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
+#define DD						(*dd)
+#define UP						(*dd)->total
+#define DOWN					(*dd)->total * -1
+
 enum dstate {
 	Disabled, Active, Standby, Standby_Check, Charge, Discharge
 };

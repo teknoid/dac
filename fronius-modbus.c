@@ -31,10 +31,6 @@
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
-#define DD						(*dd)
-#define UP						(*dd)->total
-#define DOWN					(*dd)->total * -1
-
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -242,14 +238,6 @@ static void update_meter(sunspec_t *ss) {
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 }
 
-static int collect_heating_total() {
-	int total = 0;
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (!DD->adj)
-			total += DD->total;
-	return total;
-}
-
 static int collect_pstate_load(int from, int hours) {
 	int load = 0;
 	char line[LINEBUF], value[25];
@@ -268,6 +256,14 @@ static int collect_pstate_load(int from, int hours) {
 	// adding +10% Dissipation / Reserve
 	load += load / 10;
 	return load;
+}
+
+static int collect_heating_total() {
+	int total = 0;
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (!DD->adj)
+			total += DD->total;
+	return total;
 }
 
 static int check_override(device_t *d, int power) {
@@ -640,22 +636,22 @@ static void calculate_mosmix() {
 	if (mosmix_load(MARIENBERG))
 		return;
 
-	// update produced energy this hour and recalculate mosmix factors for each mppt
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-
-	// calculate expected
-	int today, tomorrow, sod, eod;
-	mosmix_expected(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->expected = eod;
-
-	// mosmix 24h forecasts today, tomorrow and tomorrow+1
+	// mosmix 24h raw values forecasts today, tomorrow and tomorrow+1
 	mosmix_csv_t m0, m1, m2;
 	mosmix_24h(0, &m0);
 	mosmix_24h(1, &m1);
 	mosmix_24h(2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
+
+	// update produced energy this hour and recalculate mosmix factors for each mppt
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+
+	// collect total expected today, tomorrow and till end of day / start of day
+	int today, tomorrow, sod, eod;
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->expected = eod;
 
 	// calculate survival factor
 	int hours, from, to;
@@ -778,8 +774,7 @@ static void calculate_pstate() {
 	}
 
 	// emergency shutdown when last minute extreme akku discharge or grid download
-	int emergency = EMERGENCY;
-	if (emergency && (m1->akku > emergency || m1->grid > emergency)) {
+	if (EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY)) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
@@ -910,18 +905,18 @@ static void hourly(time_t now_ts) {
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp_device(DD, DOWN);
 
-	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
-	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
-
 	// aggregate 59 minutes into current hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	aggregate_table((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-	// recalculate gstate, mosmix, then choose storage strategy potd
+	// recalculate gstate, mosmix, then choose potd
 	calculate_gstate();
 	calculate_mosmix();
 	choose_program();
+
+	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
+	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 
 	// storage strategy: winter and tomorrow not much expected 10%, standard 5%
 	if (now->tm_hour == 12) {
@@ -1027,7 +1022,7 @@ static void fronius() {
 		if (!device)
 			device = ramp();
 
-		// prio4: check if higher priorized device can steal from lower priorized when no distortion
+		// prio4: check if higher priorized device can steal from lower priorized
 		if (!device)
 			device = steal();
 
