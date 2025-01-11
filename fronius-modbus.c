@@ -1619,6 +1619,10 @@ int ramp_akku(device_t *akku, int power) {
 		if (pstate->soc == 1000)
 			return akku_standby(akku);
 
+		// skip ramp ups as long as pv is smaller than load
+		if (PSTATE_MIN_LAST1->pv < PSTATE_MIN_LAST1->load * -1)
+			return 1; // loop done
+
 		// ramp up
 		return akku_charge(akku);
 	}
