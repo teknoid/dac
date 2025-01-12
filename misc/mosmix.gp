@@ -20,7 +20,11 @@ set boxwidth 0.33 relative
 set style fill solid 0.5
 set xtics 1 nomirror
 set xrange [4:20]
-set yrange [0:3000]
+set yrange [0:5000]
+
+set grid xtics ytics mytics
+set mytics 2
+set grid
 
 # today
 set ylabel "Today"

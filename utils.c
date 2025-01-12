@@ -814,6 +814,30 @@ void dump_table_csv(int *table, int cols, int rows, const char *header, const ch
 	xlog("UTILS stored %s", filename);
 }
 
+void dump_table_csv_append(int *table, int cols, int rows, int offset, const char *filename) {
+	char c[cols * 8 + 16], v[16];
+
+	FILE *fp = fopen(filename, "w+");
+	if (fp == NULL) {
+		xerr("UTILS Cannot open file %s for writing", filename);
+		return;
+	}
+
+	for (int y = 0; y < rows; y++) {
+		snprintf(v, 16, "%02d ", offset + y);
+		strcpy(c, v);
+		for (int x = 0; x < cols; x++) {
+			snprintf(v, 8, "%5d ", *table++);
+			strcat(c, v);
+		}
+		fprintf(fp, "%s\n", c);
+	}
+
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS appended %s", filename);
+}
+
 void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
 	char c[cols * 8 + 16], v[16];
 

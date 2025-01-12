@@ -31,6 +31,9 @@
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
+#define JSON_POWERFLOW			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":190.63638305664062,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":10292857.361944444,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":98.751898044757397,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
+#define JSON_POWERFLOW_FILE		"/tmp/powerflow.json"
+
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -68,6 +71,13 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
+
+static void json_powerflow() {
+	FILE *fp = fopen(JSON_POWERFLOW_FILE, "w");
+	fprintf(fp, JSON_POWERFLOW, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
+	fflush(fp);
+	fclose(fp);
+}
 
 static device_t* get_by_name(const char *name) {
 	for (device_t **dd = DEVICES; *dd; dd++)
@@ -917,7 +927,8 @@ static void hourly(time_t now_ts) {
 
 	// aggregate 59 minutes into current hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-	aggregate_table((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+	pstate_t *ph = PSTATE_HOUR_NOW;
+	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// recalculate gstate, mosmix, then choose potd
@@ -935,6 +946,15 @@ static void hourly(time_t now_ts) {
 	// print actual gstate
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
+
+	// gstate (counter) / pstate (1h aggregated) mppt's
+	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
+
+	// create/append pstate minutes csv
+	if (now->tm_hour == 0)
+		dump_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
+	else
+		dump_table_csv_append((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
 	// create gnuplot diagrams
 	mosmix_plot();
@@ -988,6 +1008,9 @@ static void fronius() {
 
 		// calculate new pstate
 		calculate_pstate();
+
+		// web output
+		json_powerflow();
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {

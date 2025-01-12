@@ -9,6 +9,7 @@
 // hexdump -v -e '23 "%6d ""\n"' /tmp/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
+#define PSTATE_M_CSV			"/tmp/fronius-pstate-minutes.csv"
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
