@@ -672,7 +672,6 @@ static void calculate_mosmix() {
 	available = gstate->expected - needed;
 	needed = heating_total * hours;
 	float heating = needed && available > 0 ? (float) available / (float) needed : 0.0;
-	// float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
 	xdebug("FRONIUS heating needed=%d available=%d --> %.2f", needed, available, heating);
 
