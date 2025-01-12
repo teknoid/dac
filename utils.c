@@ -817,7 +817,7 @@ void dump_table_csv(int *table, int cols, int rows, const char *header, const ch
 void dump_table_csv_append(int *table, int cols, int rows, int offset, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
-	FILE *fp = fopen(filename, "w+");
+	FILE *fp = fopen(filename, "a");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
