@@ -669,12 +669,12 @@ static void calculate_mosmix() {
 	// calculate heating factor
 	int heating_total = collect_heating_total();
 	mosmix_heating(now, heating_total, &hours, &from, &to);
-	int needed_heating = heating_total * hours;
-	int remaining = gstate->expected - survive;
-	float heating = needed_heating && remaining > 0 ? (float) (remaining) / (float) needed_heating : 0.0;
+	available = gstate->expected - needed;
+	needed = heating_total * hours;
+	float heating = needed && available > 0 ? (float) available / (float) needed : 0.0;
 	// float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed_heating, gstate->expected, heating);
+	xdebug("FRONIUS heating needed=%d available=%d --> %.2f", needed, available, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
