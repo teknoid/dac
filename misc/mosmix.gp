@@ -12,15 +12,17 @@ set datafile separator whitespace
 set key autotitle columnhead
 
 # thick lines
-set style line 8 linecolor "gold" lw 2
+set style line 7 linecolor "violet" lw 2
+set style line 8 linecolor "goldenrod" lw 2
 set style line 9 linecolor "orange-red" lw 6
 
 # thin lines 
-set style line 1 linecolor "violet" lw 1
-set style line 2 linecolor "turquoise" lw 1
-set style line 3 linecolor "steelblue" lw 1
-set style line 4 linecolor "olive" lw 1
-set style line 5 linecolor "navy" lw 1
+set style line 1 linecolor "goldenrod" lw 1
+set style line 2 linecolor "spring-green" lw 1
+set style line 3 linecolor "red" lw 1
+set style line 4 linecolor "navy" lw 1
+set style line 5 linecolor "olive" lw 1
+set style line 6 linecolor "black" lw 1
 
 set boxwidth 0.33 relative
 set style fill solid 0.5
@@ -66,18 +68,18 @@ set ylabel "Today"
 set output "/tmp/mosmix-today.svg" 
 p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
      '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
-     '' u 1:"exp1" t "exp1" w lines ls 1,\
+     '' u 1:"exp1" t "exp1" w lines ls 3,\
      '' u 1:"exp2" t "exp2" w lines ls 2,\
-     '' u 1:"exp3" t "exp3" w lines ls 3, \
+     '' u 1:"exp3" t "exp3" w lines ls 4, \
 	 '' u 1:($5+$9+$13) w lines ls 8 t "sum"
 
 set ylabel "Tomorrow"
 set output "/tmp/mosmix-tomorrow.svg" 
 p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
-        '' u 1:"exp1" t "exp1" w lines ls 1,\
+        '' u 1:"exp1" t "exp1" w lines ls 3,\
         '' u 1:"exp2" t "exp2" w lines ls 2,\
-        '' u 1:"exp3" t "exp3" w lines ls 3, \
+        '' u 1:"exp3" t "exp3" w lines ls 4, \
 	    '' u 1:($5+$9+$13) t "sum" w lines ls 8
 
 
@@ -87,9 +89,19 @@ set xrange [0:1440]
 set yrange [*:*] 
 set y2range [0:1000]
 set xtics time 60 format "%tM"
+set xzeroaxis linetype 16 linewidth 0.5
 set output "/tmp/mosmix-pstate.svg"
-p pstate u 1:"pv" t "pv" w lines ls 8,\
-      '' u 1:"load" t "load" w lines ls 3,\
-      '' u 1:"akku" t "akku" w lines ls 2,\
-      '' u 1:"grid" t "grid" w lines ls 1,\
-      '' u 1:"soc" t "soc" w lines ls 4 axes x1y2
+p pstate u 1:(0):"pv" w filledc below ls 1,\
+      '' u 1:(0):"pv" w filledc above ls 1 t "pv",\
+      '' u 1:(0):"akku" w filledc below ls 2,\
+      '' u 1:(0):"akku" w filledc above ls 2 t "akku",\
+      '' u 1:(0):"grid" w filledc below ls 3,\
+      '' u 1:(0):"grid" w filledc above ls 3 t "grid",\
+      '' u 1:"load" t "load" w lines ls 4,\
+      '' u 1:"soc" t "soc" w lines ls 5 axes x1y2
+
+#set ylabel "Grid"
+#set output "/tmp/mosmix-grid.svg"
+#p pstate using 1:(0):"grid" w filledc below lt 1, \
+#      '' using 1:(0):"grid" w filledc above lt 1
+
