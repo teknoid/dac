@@ -1,64 +1,93 @@
 # gnuplot -p misc/mosmix.gp
 
+pstate="/tmp/fronius-pstate-minutes.csv"
 today="/tmp/fronius-mosmix-today.csv"
 tomorrow="/tmp/fronius-mosmix-tomorrow.csv"
 history="/tmp/fronius-mosmix-history.csv"
 
 #set terminal wxt size 1200,400
-set terminal pngcairo size 1200,400
+set terminal pngcairo size 1000,400
 set datafile separator whitespace
-set ytics nomirror
 set key autotitle columnhead
 
-set style line 1 linecolor "navy" lw 2
+# thick lines
+set style line 8 linecolor "gold" lw 2
+set style line 9 linecolor "orange-red" lw 6
+
+# thin lines 
+set style line 1 linecolor "violet" lw 1
 set style line 2 linecolor "turquoise" lw 1
 set style line 3 linecolor "steelblue" lw 1
-set style line 4 linecolor "violet" lw 1
-set style line 5 linecolor "gold" lw 2
+set style line 4 linecolor "olive" lw 1
+set style line 5 linecolor "navy" lw 1
 
 set boxwidth 0.33 relative
 set style fill solid 0.5
-set xtics 1 nomirror
-set xrange [4:20]
-set yrange [0:5000]
+set xtics nomirror
+set ytics nomirror
 
 set grid xtics ytics mytics
 set mytics 2
 set grid
 
-# today
-set ylabel "Today"
-set output "/tmp/mosmix-today.png" 
-p today u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses ls 1, '' u 1:5 w lines ls 2, '' u 1:9 w lines ls 3, '' u 1:13 w lines ls 4, \
-	'' u 1:($5+$9+$13) w lines ls 5 t "sum"
 
-# tomorrow
-set ylabel "Tomorrow"
-set output "/tmp/mosmix-tomorrow.png" 
-p tomorrow u 1:3 w boxes fillcolor "#ff8c00", '' u 1:2 w impulses ls 1, '' u 1:5 w lines ls 2, '' u 1:9 w lines ls 3, '' u 1:13 w lines ls 4, \
-	'' u 1:($5+$9+$13) w lines ls 5 t "sum"
-
-set autoscale x
-set autoscale y
+# history
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 
-# history per mppt
 set ylabel "MPPT1"
 set output "/tmp/mosmix-mppt1.png" 
-p history u 1:4 w lines, '' u 1:5 w lines, '' u 1:6 w lines, '' u 1:7 w lines, '' u 1:8 w lines
+p history u 1:"base" t "base" w lines, '' u 1:"exp1" t "exp" w lines, '' u 1:"mppt1" t "mppt" w lines, '' u 1:"err1" t "err" w lines, '' u 1:"fac1" t "fac" w lines
+
 set ylabel "MPPT2"
 set output "/tmp/mosmix-mppt2.png" 
-p history u 1:4 w lines, '' u 1:9 w lines, '' u 1:10 w lines, '' u 1:11 w lines, '' u 1:12 w lines
+p history u 1:"base" t "base" w lines, '' u 1:"exp2" t "exp" w lines, '' u 1:"mppt2" t "mppt" w lines, '' u 1:"err2" t "err" w lines, '' u 1:"fac2" t "fac" w lines
+
 set ylabel "MPPT3"
 set output "/tmp/mosmix-mppt3.png" 
-p history u 1:4 w lines, '' u 1:13 w lines, '' u 1:14 w lines, '' u 1:15 w lines, '' u 1:16 w lines
+p history u 1:"base" t "base" w lines, '' u 1:"exp3" t "exp" w lines, '' u 1:"mppt3" t "mppt" w lines, '' u 1:"err3" t "err" w lines, '' u 1:"fac3" t "fac" w lines
 
-# history errors
 set ylabel "Errors"
 set output "/tmp/mosmix-errors.png"
-p history u 1:7 w lines, '' u 1:11 w lines, '' u 1:15 w lines
+p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
 
-# history factors
 set ylabel "Factors"
 set output "/tmp/mosmix-factors.png" 
-p history u 1:8 w lines, '' u 1:12 w lines, '' u 1:16 w lines
+p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"fac3" t "fac3" w lines
+
+
+# forecasts
+set xrange [4:20]
+set yrange [0:5000]
+set xtics 1
+
+set ylabel "Today"
+set output "/tmp/mosmix-today.png" 
+p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
+     '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
+     '' u 1:"exp1" t "exp1" w lines ls 1,\
+     '' u 1:"exp2" t "exp2" w lines ls 2,\
+     '' u 1:"exp3" t "exp3" w lines ls 3, \
+	 '' u 1:($5+$9+$13) w lines ls 8 t "sum"
+
+set ylabel "Tomorrow"
+set output "/tmp/mosmix-tomorrow.png" 
+p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
+        '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
+        '' u 1:"exp1" t "exp1" w lines ls 1,\
+        '' u 1:"exp2" t "exp2" w lines ls 2,\
+        '' u 1:"exp3" t "exp3" w lines ls 3, \
+	    '' u 1:($5+$9+$13) t "sum" w lines ls 8
+
+
+# pstate
+set ylabel "PState"
+set xrange [0:1440]
+set yrange [*:*] 
+set y2range [0:1000]
+set xtics time 60 format "%tM"
+set output "/tmp/mosmix-pstate.png"
+p pstate u 1:"pv" t "pv" w lines ls 8,\
+      '' u 1:"load" t "load" w lines ls 3,\
+      '' u 1:"akku" t "akku" w lines ls 2,\
+      '' u 1:"grid" t "grid" w lines ls 1,\
+      '' u 1:"soc" t "soc" w lines ls 4 axes x1y2
