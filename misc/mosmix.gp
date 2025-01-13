@@ -7,7 +7,7 @@ history="/tmp/fronius-mosmix-history.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
-set terminal svg size 1000,400
+set terminal svg size 1400,600
 set datafile separator whitespace
 set key autotitle columnhead
 
