@@ -6,7 +6,8 @@ tomorrow="/tmp/fronius-mosmix-tomorrow.csv"
 history="/tmp/fronius-mosmix-history.csv"
 
 #set terminal wxt size 1200,400
-set terminal pngcairo size 1000,400
+#set terminal pngcairo size 1000,400
+set terminal svg size 1000,400
 set datafile separator whitespace
 set key autotitle columnhead
 
@@ -23,35 +24,36 @@ set style line 5 linecolor "navy" lw 1
 
 set boxwidth 0.33 relative
 set style fill solid 0.5
-set xtics nomirror
-set ytics nomirror
 
 set grid xtics ytics mytics
 set mytics 2
 set grid
+set xtics nomirror
+set ytics nomirror
+set tics format "%2.0s%c"
 
 
 # history
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 
 set ylabel "MPPT1"
-set output "/tmp/mosmix-mppt1.png" 
+set output "/tmp/mosmix-mppt1.svg" 
 p history u 1:"base" t "base" w lines, '' u 1:"exp1" t "exp" w lines, '' u 1:"mppt1" t "mppt" w lines, '' u 1:"err1" t "err" w lines, '' u 1:"fac1" t "fac" w lines
 
 set ylabel "MPPT2"
-set output "/tmp/mosmix-mppt2.png" 
+set output "/tmp/mosmix-mppt2.svg" 
 p history u 1:"base" t "base" w lines, '' u 1:"exp2" t "exp" w lines, '' u 1:"mppt2" t "mppt" w lines, '' u 1:"err2" t "err" w lines, '' u 1:"fac2" t "fac" w lines
 
 set ylabel "MPPT3"
-set output "/tmp/mosmix-mppt3.png" 
+set output "/tmp/mosmix-mppt3.svg" 
 p history u 1:"base" t "base" w lines, '' u 1:"exp3" t "exp" w lines, '' u 1:"mppt3" t "mppt" w lines, '' u 1:"err3" t "err" w lines, '' u 1:"fac3" t "fac" w lines
 
 set ylabel "Errors"
-set output "/tmp/mosmix-errors.png"
+set output "/tmp/mosmix-errors.svg"
 p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
 
 set ylabel "Factors"
-set output "/tmp/mosmix-factors.png" 
+set output "/tmp/mosmix-factors.svg" 
 p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"fac3" t "fac3" w lines
 
 
@@ -61,7 +63,7 @@ set yrange [0:5000]
 set xtics 1
 
 set ylabel "Today"
-set output "/tmp/mosmix-today.png" 
+set output "/tmp/mosmix-today.svg" 
 p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
      '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
      '' u 1:"exp1" t "exp1" w lines ls 1,\
@@ -70,7 +72,7 @@ p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
 	 '' u 1:($5+$9+$13) w lines ls 8 t "sum"
 
 set ylabel "Tomorrow"
-set output "/tmp/mosmix-tomorrow.png" 
+set output "/tmp/mosmix-tomorrow.svg" 
 p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
         '' u 1:"exp1" t "exp1" w lines ls 1,\
@@ -85,7 +87,7 @@ set xrange [0:1440]
 set yrange [*:*] 
 set y2range [0:1000]
 set xtics time 60 format "%tM"
-set output "/tmp/mosmix-pstate.png"
+set output "/tmp/mosmix-pstate.svg"
 p pstate u 1:"pv" t "pv" w lines ls 8,\
       '' u 1:"load" t "load" w lines ls 3,\
       '' u 1:"akku" t "akku" w lines ls 2,\
