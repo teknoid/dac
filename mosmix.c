@@ -293,11 +293,10 @@ void mosmix_dump_history_noon() {
 		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
 }
 
-void mosmix_plot() {
+void mosmix_dump_csv() {
 	dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
 	dump_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
 	dump_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
-	system(GNUPLOT);
 }
 
 int mosmix_load(const char *filename) {

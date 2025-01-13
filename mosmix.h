@@ -10,8 +10,6 @@
 #define MOSMIX_HISTORY_CSV		"/tmp/fronius-mosmix-history.csv"
 #define MOSMIX_HISTORY			"/tmp/fronius-mosmix-history.bin"
 
-#define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
-
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
 #define MOSMIX_HEADER	" Rad1h SunD1  base  exp1 mppt1  err1  fac1  exp2 mppt2  err2  fac2  exp3 mppt3  err3  fac3  exp4 mppt4  err4  fac4"
@@ -54,7 +52,7 @@ void mosmix_dump_tomorrow(struct tm *now);
 void mosmix_dump_history_today(struct tm *now);
 void mosmix_dump_history_full(struct tm *now);
 void mosmix_dump_history_noon();
-void mosmix_plot();
+void mosmix_dump_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_collect(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
 void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);

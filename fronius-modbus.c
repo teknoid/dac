@@ -31,6 +31,8 @@
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
+#define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
+
 #define POWERFLOW_JSON			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 #define POWERFLOW_FILE			"/tmp/powerflow.json"
 
@@ -409,7 +411,7 @@ static int choose_program() {
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
-	// enough pv available for survive + heating
+	// enough pv available to survive + heating
 	if (gstate->heating > 10)
 		return select_program(&PLENTY);
 
@@ -940,6 +942,9 @@ static void hourly(time_t now_ts) {
 	calculate_mosmix();
 	choose_program();
 
+	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
+	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
+
 	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 
@@ -951,17 +956,17 @@ static void hourly(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 
-	// gstate (counter) / pstate (1h aggregated) mppt's
-	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
-
 	// create/append pstate minutes csv
 	if (now->tm_hour == 0)
 		dump_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
 	else
 		dump_table_csv_append((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
-	// create gnuplot diagrams
-	mosmix_plot();
+	// create mosmix history, today, tomorrow csv
+	mosmix_dump_csv();
+
+	// plot diagrams
+	system(GNUPLOT);
 }
 
 static void minly(time_t now_ts) {
