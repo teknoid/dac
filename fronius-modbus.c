@@ -670,20 +670,24 @@ static void calculate_mosmix() {
 	// calculate survival factor
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
-	int available = gstate->expected + gstate->akku;
 	int needed = collect_load(from, hours);
-	float survive = needed ? (float) available / (float) needed : 0.0;
+	int tocharge = needed - gstate->akku;
+	if (tocharge < 0)
+		tocharge = 0;
+	int available = gstate->expected - tocharge;
+	if (available < 0)
+		available = 0;
+	float survive = needed ? (float) (gstate->akku + available) / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->expected, tocharge, available, gstate->akku, needed, survive);
 
 	// calculate heating factor
 	int heating_total = collect_heating_total();
 	mosmix_heating(now, heating_total, &hours, &from, &to);
-	available = gstate->expected - needed;
 	needed = heating_total * hours;
-	float heating = needed && available > 0 ? (float) available / (float) needed : 0.0;
+	float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d available=%d --> %.2f", needed, available, heating);
+	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
