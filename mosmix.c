@@ -130,7 +130,7 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	*err = error * 100; // store as x100 scaled
 	// new factor
 	float old = FLOAT100(*fac);
-	float new = base ? (float) mppt / (float) base : 1;
+	float new = base ? (float) mppt / (float) base : 0;
 	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
 	*fac = new * 100; // store as x100 scaled
 }
