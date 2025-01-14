@@ -1,6 +1,8 @@
 # gnuplot -p misc/mosmix.gp
 
 pstate="/tmp/fronius-pstate-minutes.csv"
+gstate="/tmp/fronius-gstate-today.csv"
+gstatew="/tmp/fronius-gstate-week.csv"
 today="/tmp/fronius-mosmix-today.csv"
 tomorrow="/tmp/fronius-mosmix-tomorrow.csv"
 history="/tmp/fronius-mosmix-history.csv"
@@ -59,10 +61,41 @@ set output "/tmp/mosmix-factors.svg"
 p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"fac3" t "fac3" w lines
 
 
+# gstate weekly
+set ylabel "GState week"
+set output "/tmp/mosmix-gstate-week.svg"
+p gstatew u 1:"pv" t "pv" w lines,\
+       '' u 1:"↑grid" t "produced" w lines,\
+       '' u 1:"↓grid" t "consumed" w lines,\
+       '' u 1:"akku" t "akku" w lines,\
+       '' u 1:"mppt1" t "mppt1" w lines,\
+       '' u 1:"mppt2" t "mppt2" w lines,\
+       '' u 1:"mppt3" t "mppt3" w lines,\
+       '' u 1:"ttl" t "ttl" w lines,\
+       '' u 1:"surv" t "survive" w lines,\
+       '' u 1:"heat" t "heating" w lines
+
+
+# gstate
+set ylabel "GState"
+set xrange [0:24]
+set xtics 1
+set output "/tmp/mosmix-gstate.svg"
+p gstate u 1:"pv" t "pv" w lines,\
+      '' u 1:"↑grid" t "produced" w lines,\
+      '' u 1:"↓grid" t "consumed" w lines,\
+      '' u 1:"akku" t "akku" w lines,\
+      '' u 1:"mppt1" t "mppt1" w lines,\
+      '' u 1:"mppt2" t "mppt2" w lines,\
+      '' u 1:"mppt3" t "mppt3" w lines,\
+      '' u 1:"ttl" t "ttl" w lines,\
+      '' u 1:"surv" t "survive" w lines,\
+      '' u 1:"heat" t "heating" w lines
+
+
 # forecasts
 set xrange [4:20]
 set yrange [0:5000]
-set xtics 1
 
 set ylabel "Today"
 set output "/tmp/mosmix-today.svg" 
@@ -99,9 +132,3 @@ p pstate u 1:(0):"pv" w filledc below ls 1,\
       '' u 1:(0):"grid" w filledc above ls 3 t "grid",\
       '' u 1:"load" t "load" w lines ls 4,\
       '' u 1:"soc" t "soc" w lines ls 5 axes x1y2
-
-#set ylabel "Grid"
-#set output "/tmp/mosmix-grid.svg"
-#p pstate using 1:(0):"grid" w filledc below lt 1, \
-#      '' using 1:(0):"grid" w filledc above lt 1
-
