@@ -40,17 +40,11 @@ set tics format "%2.0s%c"
 # history
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 
-set ylabel "MPPT1"
-set output "/tmp/mosmix-mppt1.svg" 
-p history u 1:"base" t "base" w lines, '' u 1:"exp1" t "exp" w lines, '' u 1:"mppt1" t "mppt" w lines, '' u 1:"err1" t "err" w lines, '' u 1:"fac1" t "fac" w lines
+set ylabel "MPPTs"
+set output "/tmp/mosmix-mppt.svg" 
+p history u 1:"mppt1" t "mppt1" w lines, '' u 1:"mppt2" t "mppt2" w lines, '' u 1:"mppt3" t "mppt3" w lines, '' u 1:"exp1" t "exp" w lines, '' u 1:"base" t "base" w lines 
 
-set ylabel "MPPT2"
-set output "/tmp/mosmix-mppt2.svg" 
-p history u 1:"base" t "base" w lines, '' u 1:"exp2" t "exp" w lines, '' u 1:"mppt2" t "mppt" w lines, '' u 1:"err2" t "err" w lines, '' u 1:"fac2" t "fac" w lines
-
-set ylabel "MPPT3"
-set output "/tmp/mosmix-mppt3.svg" 
-p history u 1:"base" t "base" w lines, '' u 1:"exp3" t "exp" w lines, '' u 1:"mppt3" t "mppt" w lines, '' u 1:"err3" t "err" w lines, '' u 1:"fac3" t "fac" w lines
+set xzeroaxis linetype 16 linewidth 0.5
 
 set ylabel "Errors"
 set output "/tmp/mosmix-errors.svg"
