@@ -343,7 +343,9 @@ int mosmix_load(const char *filename) {
 	return 0;
 }
 
-static void fake() {
+static void fix() {
+//	ZERO(history);
+//	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 //	for (int i = 0; i < 24 * 7; i++) {
 //		mosmix_t *m = &history[i];
 //		// recalculate
@@ -353,6 +355,7 @@ static void fake() {
 //		calc("MPPT4", i, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
 //	}
 //	store_blob(MOSMIX_HISTORY, history, sizeof(history));
+//	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
 }
 
 static void test() {
@@ -418,7 +421,7 @@ int mosmix_main(int argc, char **argv) {
 	set_debug(1);
 
 	test();
-	fake();
+	fix();
 
 	return 0;
 }
