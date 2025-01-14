@@ -469,7 +469,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (t->power == (t->adj ? 100 : 1))
 		return 0;
 
-	// we can steal akkus charge charge power or victims load
+	// we can steal akkus charge power or victims load
 	int steal = 0;
 	if (v == &a1)
 		steal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
@@ -488,7 +488,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", steal, v->name, t->name, t->total, min);
 
-	// ramp down victim, akku ramps down itself
+	// ramp down victim, ramp up thief (akku ramps down itself)
 	if (v != &a1)
 		ramp_device(v, v->load * -1);
 	ramp_device(t, power);
@@ -799,11 +799,16 @@ static void calculate_pstate() {
 	}
 
 	// calculate ramp up/down power
-	pstate->ramp = pstate->grid * -1 - RAMP_OFFSET;
-	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
+	pstate->ramp = pstate->grid * -1;
+	// stable window between 0..25
+	if (-RAMP_WINDOW < pstate->grid && pstate->grid < 0)
 		pstate->ramp = 0;
+	// ramp down as soon as we are consuming grid
+	if (0 < pstate->grid && pstate->grid < RAMP_WINDOW)
+		pstate->ramp = -RAMP_WINDOW;
+	// when akku is charging it regulates around 0, so set stable window between -25..+25
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
-		pstate->ramp = 0; // akku is regulating around 0
+		pstate->ramp = 0;
 
 	// state is stable when we have three times no grid changes
 	if (!s1->dgrid && !s2->dgrid && !s3->dgrid)

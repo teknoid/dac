@@ -760,11 +760,13 @@ static void calculate_pstate2() {
 //	pstate->cload = (pstate->pv + pstate->akku + pstate->grid) * -1;
 
 	// calculate ramp up/down power
-	pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
-	if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..50
-		pstate->ramp = 0;
+	pstate->ramp = (pstate->grid + pstate->akku) * -1;
+	if (-RAMP_WINDOW < pstate->grid && pstate->grid < 0)
+		pstate->ramp = 0; 									// stable window between 0..25
+	if (0 < pstate->grid && pstate->grid < RAMP_WINDOW)
+		pstate->ramp = -RAMP_WINDOW; 						// ramp down as soon as we are consuming grid
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
-		pstate->ramp = 0; // akku is regulating around 0
+		pstate->ramp = 0; 									// akku is regulating around 0 so set stable window between -25..+25
 
 	// state is stable when we have three times no grid changes
 	if (!pstate->dgrid && !h1->dgrid && !h2->dgrid)
@@ -1290,20 +1292,20 @@ int ramp_akku(device_t *akku, int power) {
 
 	if (power) {
 
-		// force akku charging by recalculate ramp power only from grid
-		pstate->ramp = (pstate->grid) * -1 - RAMP_OFFSET;
+		// allow akku charging by recalculate ramp power only from grid
+		pstate->ramp = (pstate->grid) * -1;
 		if (!PSTATE_ACTIVE && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
-		if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
+		if (0 < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..25
 			pstate->ramp = 0;
 
 	} else {
 
-		// force akku charge power releasing by recalculate ramp power from grid and akku
-		pstate->ramp = (pstate->grid + pstate->akku) * -1 - RAMP_OFFSET;
+		// force akku to release charging power by recalculate ramp power from grid and akku
+		pstate->ramp = (pstate->grid + pstate->akku) * -1;
 		if (!PSTATE_ACTIVE && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
-		if (-RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between -25..50
+		if (RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW * 2) // stable between 25..50
 			pstate->ramp = 0;
 
 	}
