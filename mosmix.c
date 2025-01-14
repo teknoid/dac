@@ -126,11 +126,11 @@ static void update_today_tomorrow() {
 
 static void calc(const char *id, int hour, int base, int exp, int mppt, int *err, int *fac) {
 	// error expected vs. actual
-	float error = exp ? (float) mppt / (float) exp : 0;
+	float error = exp ? (float) mppt / (float) exp - 1.0 : 0.0;
 	*err = error * 100; // store as x100 scaled
 	// new factor
 	float old = FLOAT100(*fac);
-	float new = base ? (float) mppt / (float) base : 0;
+	float new = base ? (float) mppt / (float) base : 0.0;
 	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
 	*fac = new * 100; // store as x100 scaled
 }
