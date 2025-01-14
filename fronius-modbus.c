@@ -809,7 +809,7 @@ static void calculate_pstate() {
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
 		pstate->ramp = 0;
-	// 50% more rampdown when pv tendence is falling
+	// 50% more ramp down when pv tendency is falling
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
 

@@ -346,8 +346,11 @@ int mosmix_load(const char *filename) {
 static void fake() {
 //	for (int i = 0; i < 24 * 7; i++) {
 //		mosmix_t *m = &history[i];
-//		memset(m, 0, sizeof(mosmix_t));
-//		m->fac1 = m->fac2 = m->fac3 = m->fac4 = 100;
+//		// recalculate
+//		calc("MPPT1", i, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+//		calc("MPPT2", i, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+//		calc("MPPT3", i, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+//		calc("MPPT4", i, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
 //	}
 //	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
