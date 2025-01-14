@@ -5,6 +5,8 @@
 
 // hexdump -v -e '16 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
+#define GSTATE_TODAY_CSV		"/tmp/fronius-gstate-today.csv"
+#define GSTATE_WEEK_CSV			"/tmp/fronius-gstate-week.csv"
 
 // hexdump -v -e '23 "%6d ""\n"' /tmp/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"

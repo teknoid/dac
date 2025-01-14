@@ -900,13 +900,13 @@ static void daily(time_t now_ts) {
 
 	// aggregate 24 pstate hours into one day
 	pstate_t pd;
-	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
+	aggregate((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
 	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
-	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
@@ -939,7 +939,7 @@ static void hourly(time_t now_ts) {
 	// aggregate 59 minutes into current hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = PSTATE_HOUR_NOW;
-	aggregate_table((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
+	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// recalculate gstate, mosmix, then choose potd
@@ -963,12 +963,16 @@ static void hourly(time_t now_ts) {
 
 	// create/append pstate minutes csv
 	if (now->tm_hour == 0)
-		dump_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
+		store_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
 	else
-		dump_table_csv_append((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
+		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
+
+	// create gstate daily/weekly
+	store_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
+	store_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
 
 	// create mosmix history, today, tomorrow csv
-	mosmix_dump_csv();
+	mosmix_store_csv();
 
 	// plot diagrams
 	system(GNUPLOT);
@@ -979,7 +983,7 @@ static void minly(time_t now_ts) {
 
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-	aggregate_table((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 //	if (pstate->pv)
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
@@ -1359,14 +1363,14 @@ static int single() {
 
 	// aggregate 24 pstate hours into one day
 	pstate_t pd;
-	aggregate_table((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
+	aggregate((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
 	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
 	print_state(NULL);
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
-	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 	print_gstate(NULL);

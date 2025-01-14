@@ -877,7 +877,7 @@ static void daily(time_t now_ts) {
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
-	aggregate_table((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 

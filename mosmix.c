@@ -267,14 +267,14 @@ void mosmix_24h(int day, mosmix_csv_t *sum) {
 
 void mosmix_dump_today(struct tm *now) {
 	mosmix_t m;
-	cumulate_table((int*) &m, (int*) today, MOSMIX_SIZE, 24);
+	cumulate((int*) &m, (int*) today, MOSMIX_SIZE, 24);
 	dump_table((int*) today, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX today", MOSMIX_HEADER);
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
 void mosmix_dump_tomorrow(struct tm *now) {
 	mosmix_t m;
-	cumulate_table((int*) &m, (int*) tomorrow, MOSMIX_SIZE, 24);
+	cumulate((int*) &m, (int*) tomorrow, MOSMIX_SIZE, 24);
 	dump_table((int*) tomorrow, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX tomorrow", MOSMIX_HEADER);
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
@@ -291,12 +291,6 @@ void mosmix_dump_history_noon() {
 	xlog("MOSMIX history noon\n    "MOSMIX_HEADER);
 	for (int i = 0; i < 7; i++)
 		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
-}
-
-void mosmix_dump_csv() {
-	dump_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
-	dump_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
-	dump_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
 int mosmix_load(const char *filename) {
@@ -342,6 +336,11 @@ void mosmix_load_state() {
 
 void mosmix_store_state() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
+}
+void mosmix_store_csv() {
+	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
+	store_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
+	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
 static void fake() {

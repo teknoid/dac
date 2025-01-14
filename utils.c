@@ -705,14 +705,6 @@ void append_timeframe(char *message, int sec) {
 	strcat(message, c);
 }
 
-int load_csv(const char *filename, void *data, size_t cols, size_t rows) {
-	return 0;
-}
-
-int store_csv(const char *filename, void *data, size_t cols, size_t rows) {
-	return 0;
-}
-
 int load_blob(const char *filename, void *data, size_t size) {
 	FILE *fp = fopen(filename, "rb");
 	if (fp == NULL)
@@ -760,7 +752,7 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
-void aggregate_table(int *target, int *table, int cols, int rows) {
+void aggregate(int *target, int *table, int cols, int rows) {
 	memset(target, 0, sizeof(int) * cols);
 	for (int x = 0; x < cols; x++) {
 		int count = 0;
@@ -778,7 +770,7 @@ void aggregate_table(int *target, int *table, int cols, int rows) {
 	}
 }
 
-void cumulate_table(int *target, int *table, int cols, int rows) {
+void cumulate(int *target, int *table, int cols, int rows) {
 	memset(target, 0, sizeof(int) * cols);
 	for (int x = 0; x < cols; x++)
 		for (int y = 0; y < rows; y++) {
@@ -787,7 +779,7 @@ void cumulate_table(int *target, int *table, int cols, int rows) {
 		}
 }
 
-void dump_table_csv(int *table, int cols, int rows, const char *header, const char *filename) {
+void store_csv(int *table, int cols, int rows, const char *header, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
 	FILE *fp = fopen(filename, "w");
@@ -814,7 +806,7 @@ void dump_table_csv(int *table, int cols, int rows, const char *header, const ch
 	xlog("UTILS stored %s", filename);
 }
 
-void dump_table_csv_append(int *table, int cols, int rows, int offset, const char *filename) {
+void append_csv(int *table, int cols, int rows, int offset, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
 	FILE *fp = fopen(filename, "a");
