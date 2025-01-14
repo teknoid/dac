@@ -16,7 +16,7 @@
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
 #define SUSPICIOUS				500
-#define RAMP_WINDOW				25
+#define RAMP_WINDOW				33
 #define NOISE					25
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5

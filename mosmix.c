@@ -293,6 +293,20 @@ void mosmix_dump_history_noon() {
 		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
 }
 
+void mosmix_load_state() {
+	ZERO(history);
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
+}
+
+void mosmix_store_state() {
+	store_blob(MOSMIX_HISTORY, history, sizeof(history));
+}
+void mosmix_store_csv() {
+	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
+	store_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
+	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
+}
+
 int mosmix_load(const char *filename) {
 	char *strings[MOSMIX_COLUMNS];
 	char buf[LINEBUF];
@@ -327,20 +341,6 @@ int mosmix_load(const char *filename) {
 
 	update_today_tomorrow();
 	return 0;
-}
-
-void mosmix_load_state() {
-	ZERO(history);
-	load_blob(MOSMIX_HISTORY, history, sizeof(history));
-}
-
-void mosmix_store_state() {
-	store_blob(MOSMIX_HISTORY, history, sizeof(history));
-}
-void mosmix_store_csv() {
-	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
-	store_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
-	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
 static void fake() {
