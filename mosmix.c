@@ -37,10 +37,10 @@ static void parse(char **strings, size_t size) {
 }
 
 static void expected(mosmix_t *m, mosmix_t *fcts) {
-	m->exp1 = m->base * FLOAT100(fcts->fac1);
-	m->exp2 = m->base * FLOAT100(fcts->fac2);
-	m->exp3 = m->base * FLOAT100(fcts->fac3);
-	m->exp4 = m->base * FLOAT100(fcts->fac4);
+	m->exp1 = m->base * (1 + FLOAT100(fcts->fac1));
+	m->exp2 = m->base * (1 + FLOAT100(fcts->fac2));
+	m->exp3 = m->base * (1 + FLOAT100(fcts->fac3));
+	m->exp4 = m->base * (1 + FLOAT100(fcts->fac4));
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -72,7 +72,7 @@ static void average(mosmix_t *avg, int h) {
 	avg->fac2 = counts.fac2 ? avg->fac2 / counts.fac2 : 0;
 	avg->fac3 = counts.fac3 ? avg->fac3 / counts.fac3 : 0;
 	avg->fac4 = counts.fac4 ? avg->fac4 / counts.fac4 : 0;
-	if (avg->fac1 != 100)
+	if (avg->fac1)
 		xdebug("MOSMIX hour %02d average factors %5.2f %5.2f %5.2f %5.2f", h, FLOAT100(avg->fac1), FLOAT100(avg->fac2), FLOAT100(avg->fac3), FLOAT100(avg->fac4));
 }
 
@@ -130,7 +130,7 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	*err = error * 100; // store as x100 scaled
 	// new factor
 	float old = FLOAT100(*fac);
-	float new = base ? (float) mppt / (float) base : 0.0;
+	float new = base ? (float) mppt / (float) base - 1.0 : 0.0;
 	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
 	*fac = new * 100; // store as x100 scaled
 }
