@@ -74,7 +74,11 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
-static void powerflow() {
+static void store_json() {
+	// pstate
+	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
+
+	// powerflow
 	FILE *fp = fopen(POWERFLOW_FILE, "w");
 	fprintf(fp, POWERFLOW_JSON, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
 	fflush(fp);
@@ -191,7 +195,11 @@ static void update_f10(sunspec_t *ss) {
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
 		pstate->mppt1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		if (pstate->mppt1 == 1)
+			pstate->mppt1 = 0; // noise
 		pstate->mppt2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		if (pstate->mppt2 == 1)
+			pstate->mppt2 = 0; // noise
 		counter->mppt1 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
 		counter->mppt2 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
@@ -221,7 +229,11 @@ static void update_f7(sunspec_t *ss) {
 		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
 		pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		if (pstate->mppt3 == 1)
+			pstate->mppt3 = 0; // noise
 		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		if (pstate->mppt4 == 1)
+			pstate->mppt4 = 0; // noise
 		counter->mppt3 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
 		counter->mppt4 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
@@ -1031,7 +1043,7 @@ static void fronius() {
 		calculate_pstate();
 
 		// web output
-		powerflow();
+		store_json();
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {

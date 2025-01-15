@@ -129,3 +129,5 @@ void store_csv(int *table, int cols, int rows, const char *header, const char *f
 void append_csv(int *table, int cols, int rows, int offset, const char *filename);
 void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header);
 void dump_struct(int *values, int size, const char *idx, const char *title);
+
+void store_struct_json(int *values, int size, const char *header, const char *filename);

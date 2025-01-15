@@ -872,3 +872,29 @@ void dump_struct(int *values, int size, const char *idx, const char *title) {
 	}
 	xdebug(c);
 }
+
+void store_struct_json(int *values, int size, const char *header, const char *filename) {
+	FILE *fp = fopen(filename, "w");
+	if (fp == NULL) {
+		xerr("UTILS Cannot open file %s for writing", filename);
+		return;
+	}
+
+	int i = 0;
+	char *str = strdup(header); // strtok() needs write access to the string(!)
+	char *p = strtok(str, " ");
+
+	fprintf(fp, "{");
+	while (p != NULL && i < size) {
+		fprintf(fp, "\"%s\":\"%d\"", p, values[i]);
+		if (i != size - 1)
+			fprintf(fp, ", ");
+		p = strtok(NULL, " ");
+		i++;
+	}
+	fprintf(fp, "}");
+
+	fflush(fp);
+	fclose(fp);
+	//xdebug("UTILS stored %s", filename);
+}

@@ -12,6 +12,7 @@
 #define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
 #define PSTATE_M_CSV			"/tmp/fronius-pstate-minutes.csv"
+#define PSTATE_JSON				"/tmp/fronius-pstate.json"
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300

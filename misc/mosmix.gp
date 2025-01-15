@@ -20,7 +20,7 @@ set style line 9 linecolor "black" lw 1
 # thin lines 
 set style line 1 linecolor rgb "#FAD967" lw 1			# PV
 set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
-set style line 3 linecolor "red" lw 1					# Grid download
+set style line 3 linecolor "orange-red" lw 1			# Grid download
 set style line 4 linecolor "orchid" lw 1				# Grid upload
 set style line 5 linecolor "navy" lw 1					# Load
 set style line 6 linecolor "olive" lw 1					# SoC
