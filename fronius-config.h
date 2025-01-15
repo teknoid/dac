@@ -5,14 +5,14 @@
 
 // hexdump -v -e '16 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
-#define GSTATE_TODAY_CSV		"/tmp/fronius-gstate-today.csv"
-#define GSTATE_WEEK_CSV			"/tmp/fronius-gstate-week.csv"
+#define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
+#define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
 
 // hexdump -v -e '23 "%6d ""\n"' /tmp/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
-#define PSTATE_M_CSV			"/tmp/fronius-pstate-minutes.csv"
-#define PSTATE_JSON				"/tmp/fronius-pstate.json"
+#define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
+#define PSTATE_JSON				"/run/mcp/pstate.json"
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300

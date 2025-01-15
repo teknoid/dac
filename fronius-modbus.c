@@ -34,7 +34,7 @@
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
 
 #define POWERFLOW_JSON			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
-#define POWERFLOW_FILE			"/tmp/powerflow.json"
+#define POWERFLOW_FILE			"/run/mcp/powerflow.json"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -74,7 +74,7 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
-static void store_json() {
+static void run_json() {
 	// pstate
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
 
@@ -83,6 +83,24 @@ static void store_json() {
 	fprintf(fp, POWERFLOW_JSON, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
+}
+
+static void run_csv() {
+	// create/append pstate minutes csv
+	if (now->tm_hour == 0)
+		store_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
+	else
+		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
+
+	// create gstate daily/weekly
+	store_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
+	store_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
+
+	// create mosmix history, today, tomorrow csv
+	mosmix_store_csv();
+
+	// plot diagrams
+	system(GNUPLOT);
 }
 
 static device_t* get_by_name(const char *name) {
@@ -976,21 +994,8 @@ static void hourly(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 
-	// create/append pstate minutes csv
-	if (now->tm_hour == 0)
-		store_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
-	else
-		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
-
-	// create gstate daily/weekly
-	store_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
-	store_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
-
-	// create mosmix history, today, tomorrow csv
-	mosmix_store_csv();
-
-	// plot diagrams
-	system(GNUPLOT);
+	// create csv files and plot diagrams
+	run_csv();
 }
 
 static void minly(time_t now_ts) {
@@ -1043,7 +1048,7 @@ static void fronius() {
 		calculate_pstate();
 
 		// web output
-		store_json();
+		run_json();
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
@@ -1051,6 +1056,7 @@ static void fronius() {
 			calculate_mosmix();
 			choose_program();
 			print_state(0);
+			run_csv();
 			continue;
 		}
 

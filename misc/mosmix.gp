@@ -1,11 +1,11 @@
 # gnuplot -p misc/mosmix.gp
 
-pstate="/tmp/fronius-pstate-minutes.csv"
-gstate="/tmp/fronius-gstate-today.csv"
-gstatew="/tmp/fronius-gstate-week.csv"
-today="/tmp/fronius-mosmix-today.csv"
-tomorrow="/tmp/fronius-mosmix-tomorrow.csv"
-history="/tmp/fronius-mosmix-history.csv"
+pstate="/run/mcp/pstate-minutes.csv"
+gstate="/run/mcp/gstate-today.csv"
+gstatew="/run/mcp/gstate-week.csv"
+today="/run/mcp/mosmix-today.csv"
+tomorrow="/run/mcp/mosmix-tomorrow.csv"
+history="/run/mcp/mosmix-history.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -40,7 +40,7 @@ set tics format "%2.0s%c"
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 
 set ylabel "MPPTs"
-set output "/tmp/mosmix-mppt.svg" 
+set output "/run/mcp/mosmix-mppt.svg" 
 p history u 1:"mppt1" t "mppt1" w lines lt 1,\
        '' u 1:"mppt2" t "mppt2" w lines lt 2,\
        '' u 1:"mppt3" t "mppt3" w lines lt 3,\
@@ -51,17 +51,17 @@ p history u 1:"mppt1" t "mppt1" w lines lt 1,\
 set xzeroaxis linetype 16 linewidth 0.5
 
 set ylabel "Errors"
-set output "/tmp/mosmix-errors.svg"
+set output "/run/mcp/mosmix-errors.svg"
 p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
 
 set ylabel "Factors"
-set output "/tmp/mosmix-factors.svg" 
+set output "/run/mcp/mosmix-factors.svg" 
 p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"fac3" t "fac3" w lines
 
 
 # gstate weekly
 set ylabel "GState week"
-set output "/tmp/mosmix-gstate-week.svg"
+set output "/run/mcp/mosmix-gstate-week.svg"
 p gstatew u 1:"mppt1" t "mppt1"    w lines,\
        '' u 1:"mppt2" t "mppt2"    w lines,\
        '' u 1:"mppt3" t "mppt3"    w lines,\
@@ -78,7 +78,7 @@ p gstatew u 1:"mppt1" t "mppt1"    w lines,\
 set ylabel "GState"
 set xrange [0:24]
 set xtics 1
-set output "/tmp/mosmix-gstate.svg"
+set output "/run/mcp/mosmix-gstate.svg"
 p gstate u 1:"mppt1" t "mppt1"    w lines,\
       '' u 1:"mppt2" t "mppt2"    w lines,\
       '' u 1:"mppt3" t "mppt3"    w lines,\
@@ -96,7 +96,7 @@ set xrange [4:20]
 set yrange [0:5000]
 
 set ylabel "Today"
-set output "/tmp/mosmix-today.svg" 
+set output "/run/mcp/mosmix-today.svg" 
 p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
      '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
      '' u 1:"exp1"  t "exp1"  w lines lt 1,\
@@ -105,7 +105,7 @@ p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
 	 '' u 1:($5+$9+$13) w lines ls 1 lw 2 t "sum"
 
 set ylabel "Tomorrow"
-set output "/tmp/mosmix-tomorrow.svg" 
+set output "/run/mcp/mosmix-tomorrow.svg" 
 p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
@@ -121,7 +121,7 @@ set yrange [*:*]
 set y2range [0:1000]
 set xtics time 60 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
-set output "/tmp/mosmix-pstate.svg"
+set output "/run/mcp/mosmix-pstate.svg"
 p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
       '' u 1:(0):"pv"   w filledc above ls 1,\
       '' u 1:(0):"akku" w filledc below ls 2 t "akku",\

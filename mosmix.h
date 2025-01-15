@@ -5,10 +5,10 @@
 #define MOSMIX_COLUMNS			5
 
 // hexdump -v -e '19 "%6d ""\n"' /tmp/fronius-mosmix-history.bin
-#define MOSMIX_TODAY_CSV		"/tmp/fronius-mosmix-today.csv"
-#define MOSMIX_TOMORROW_CSV		"/tmp/fronius-mosmix-tomorrow.csv"
-#define MOSMIX_HISTORY_CSV		"/tmp/fronius-mosmix-history.csv"
 #define MOSMIX_HISTORY			"/tmp/fronius-mosmix-history.bin"
+#define MOSMIX_HISTORY_CSV		"/run/mcp/mosmix-history.csv"
+#define MOSMIX_TOMORROW_CSV		"/run/mcp/mosmix-tomorrow.csv"
+#define MOSMIX_TODAY_CSV		"/run/mcp/mosmix-today.csv"
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
