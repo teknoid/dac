@@ -1665,9 +1665,9 @@ int ramp_akku(device_t *akku, int power) {
 	// ramp down request
 	if (power < 0) {
 
-		// skip ramp downs if we still have enough surplus (akku ramps down itself)
+		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itselfF
 		int surp = (pstate->grid + pstate->akku) * -1;
-		if (surp > 0)
+		if (a1.state == Charge && surp > -NOISE)
 			return 1; // loop done
 
 		// forward ramp down request to next device as long as other devices active

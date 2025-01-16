@@ -103,6 +103,8 @@
 #include "display-menu.h"
 #endif
 
+#define SAVE_RUNTIME		"cp -r /run/mcp /tmp"
+
 mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_module_t *module = NULL;
@@ -371,6 +373,9 @@ int main(int argc, char **argv) {
 		xlog("MCP online");
 		pause();
 	}
+
+	xlog("MCP saving runtime directory: %s", SAVE_RUNTIME);
+	system(SAVE_RUNTIME);
 
 	// stop all modules
 	module_stop(module);
