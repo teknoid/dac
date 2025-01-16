@@ -342,11 +342,31 @@ static int check_override(device_t *d, int power) {
 	return power;
 }
 
-static void print_state(device_t *d) {
+static void print_gstate() {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "FRONIUS");
+	xlogl_int_b(line, "PVday", gstate->pv);
+	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
+	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
+	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
+	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, 0, 0, "Today", gstate->today);
+	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
+	xlogl_int(line, 0, 0, "Exp", gstate->expected);
+	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, 0, 0, "Akku", gstate->akku);
+	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
+	strcat(line, " potd:");
+	strcat(line, potd ? potd->name : "NULL");
+	xlogl_end(line, strlen(line), 0);
+}
+
+static void print_pstate_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
-	// dstate
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (DD->adj)
 			snprintf(value, 5, " %3d", DD->power);
@@ -378,7 +398,6 @@ static void print_state(device_t *d) {
 		strcat(line, value);
 	}
 
-	// pstate
 	xlogl_bits16(line, "  Flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
@@ -390,25 +409,6 @@ static void print_state(device_t *d) {
 
 	if (d)
 		xlogl_int(line, 0, 0, d->name, d->timer);
-	xlogl_end(line, strlen(line), 0);
-
-	// gstate
-	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PVday", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
-	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Today", gstate->today);
-	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Exp", gstate->expected);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
-	strcat(line, " potd:");
-	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -1069,7 +1069,8 @@ static void fronius() {
 			calculate_gstate();
 			calculate_mosmix();
 			choose_program();
-			print_state(0);
+			print_gstate();
+			print_pstate_dstate(0);
 			plot();
 			continue;
 		}
@@ -1102,9 +1103,11 @@ static void fronius() {
 		if (!device)
 			device = steal();
 
-		// print state once per minute / when delta / on device action
+		// print gstate ever 15min, pstate once per minute / when delta / on device action
+		if (now->tm_min % 15 == 0)
+			print_gstate();
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
-			print_state(device);
+			print_pstate_dstate(device);
 
 		// minutely tasks
 		if (now->tm_sec == 59) {
@@ -1408,7 +1411,9 @@ static int single() {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
-	print_state(NULL);
+	print_gstate();
+	print_pstate_dstate(NULL);
+
 	stop();
 	return 0;
 }
