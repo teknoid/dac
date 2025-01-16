@@ -647,13 +647,6 @@ static device_t* response(device_t *d) {
 	int expected = d->xload;
 	d->xload = 0; // reset
 
-	// ignore responses below NOISE
-	if (abs(expected) < NOISE) {
-		xdebug("FRONIUS ignoring expected response below NOISE %d from %s", expected, d->name);
-		d->state = Active;
-		return 0;
-	}
-
 	// valid response is at least 1/3 of expected
 	int response = expected > 0 ? (delta > expected / 3) : (delta < expected / 3);
 
@@ -787,18 +780,6 @@ static void calculate_gstate() {
 		gstate->ttl = 0;
 }
 
-// shape pstate values below NOISE
-static void shape_pstate() {
-	if (abs(pstate->dgrid) < NOISE)
-		pstate->dgrid = 0;
-	if (abs(pstate->dload) < NOISE)
-		pstate->dload = 0;
-	if (abs(pstate->akku) < NOISE)
-		pstate->akku = 0;
-//	if (abs(pstate->grid) < NOISE)
-//		pstate->grid = 0;
-}
-
 static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
@@ -818,11 +799,15 @@ static void calculate_pstate() {
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
 	pstate->sdgrid += abs(pstate->dgrid);
+	if (abs(pstate->dgrid) < NOISE)
+		pstate->dgrid = 0; // shape dgrid
 
 	// calculate load, delta load + sum
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
 	pstate->dload = pstate->load - s1->load;
 	pstate->sdload += abs(pstate->dload);
+	if (abs(pstate->dload) < NOISE)
+		pstate->dload = 0; // shape dload
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > NOISE)
@@ -844,7 +829,6 @@ static void calculate_pstate() {
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
 		pstate->ramp = pstate->xload = pstate->dxload = pstate->pv = pstate->dpv = pstate->mppt1 = pstate->mppt2 = pstate->mppt3 = pstate->mppt4 = 0;
-		shape_pstate();
 		return;
 	}
 
@@ -856,14 +840,14 @@ static void calculate_pstate() {
 
 	// calculate ramp up/down power
 	pstate->ramp = pstate->grid * -1;
-	// stable window between 0..RAMP_WINDOW
-	if (-RAMP_WINDOW < pstate->grid && pstate->grid < 0)
+	// stable when grid between -RAMP_WINDOW..+NOISE
+	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		pstate->ramp = 0;
-	// ramp down as soon as we are consuming grid
-	if (0 < pstate->grid && pstate->grid < RAMP_WINDOW)
+	// ramp down as soon as grid goes over NOISE
+	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = -RAMP_WINDOW;
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
-	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid < RAMP_WINDOW)
+	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
 	// 50% more ramp down when pv tendency is falling
 	if (pstate->ramp < 0 && m1->dpv < 0)
@@ -931,8 +915,6 @@ static void calculate_pstate() {
 	if (f7 && !f7->active) {
 //		xlog("FRONIUS Fronius7 is not active!");
 	}
-
-	shape_pstate();
 }
 
 static void emergency() {
@@ -1672,7 +1654,7 @@ int ramp_boiler(device_t *boiler, int power) {
 	// update power values
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
-	boiler->xload = boiler->total * step / -100;
+	boiler->xload = step > 1 || step < -1 ? boiler->total * step / -100 : 0;
 	boiler->aload = pstate ? pstate->load : 0;
 	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done

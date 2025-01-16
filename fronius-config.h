@@ -20,7 +20,7 @@
 #define BASELOAD				300
 #define SUSPICIOUS				500
 #define RAMP_WINDOW				33
-#define NOISE					25
+#define NOISE					10
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
 
