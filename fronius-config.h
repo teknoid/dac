@@ -13,6 +13,8 @@
 #define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
 #define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
 #define PSTATE_JSON				"/run/mcp/pstate.json"
+#define GSTATE_JSON				"/run/mcp/gstate.json"
+#define DSTATE_JSON				"/run/mcp/dstate.json"
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300

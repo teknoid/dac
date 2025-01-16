@@ -74,13 +74,37 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
-static void create_json() {
+static void create_pstate_json() {
 	// pstate
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
 
-	// powerflow
+	// feed Fronius powerflow web application
 	FILE *fp = fopen(POWERFLOW_FILE, "w");
 	fprintf(fp, POWERFLOW_JSON, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
+	fflush(fp);
+	fclose(fp);
+}
+
+static void create_gstate_dstate_json() {
+	// pstate
+	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, GSTATE_JSON);
+
+	// devices
+	FILE *fp = fopen(DSTATE_JSON, "w");
+	fprintf(fp, "[");
+	int i = 0;
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (i)
+			fprintf(fp, ",");
+		fprintf(fp, "\{");
+		fprintf(fp, "\"name\":\"%s\",", DD->name);
+		fprintf(fp, "\"state\":%d,", DD->state);
+		fprintf(fp, "\"total\":%d,", DD->total);
+		fprintf(fp, "\"load\":%d", DD == &a1 ? pstate->akku : DD->load);
+		fprintf(fp, "}");
+		i++;
+	}
+	fprintf(fp, "]");
 	fflush(fp);
 	fclose(fp);
 }
@@ -494,23 +518,23 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 		return 0;
 
 	// we can steal akkus charge power or victims load
-	int steal = 0;
+	int psteal = 0;
 	if (v == &a1)
-		steal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
+		psteal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
 	else
-		steal = v->load;
+		psteal = v->load;
 
 	// nothing to steal
-	if (!steal)
+	if (!psteal)
 		return 0;
 
 	// not enough to steal
 	int min = t->adj ? t->total / 100 : t->total; // adjustable: 1% of total, dumb: total
-	int power = pstate->ramp + steal;
+	int power = pstate->ramp + psteal;
 	if (power < min)
 		return 0;
 
-	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", steal, v->name, t->name, t->total, min);
+	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", psteal, v->name, t->name, t->total, min);
 
 	// ramp down victim, ramp up thief (akku ramps down itself)
 	if (v != &a1)
@@ -1048,7 +1072,9 @@ static void fronius() {
 		calculate_pstate();
 
 		// web output
-		create_json();
+		create_pstate_json();
+		if (now->tm_sec % 10 == 0)
+			create_gstate_dstate_json();
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
