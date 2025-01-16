@@ -345,7 +345,7 @@ static int check_override(device_t *d, int power) {
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PVday", gstate->pv);
+	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
 	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
