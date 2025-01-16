@@ -45,6 +45,7 @@ static volatile counter_t *counter = 0;
 #define COUNTER_NOW				(&counter_hours[now->tm_hour])
 #define COUNTER_LAST			(&counter_hours[now->tm_hour > 00 ? now->tm_hour - 1 : 23])
 #define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 00])
+#define COUNTER_0				(&counter_hours[0])
 
 // 24h slots over one week and access pointers
 static gstate_t gstate_hours[24 * 7];
@@ -344,7 +345,7 @@ static int check_override(device_t *d, int power) {
 static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PV", gstate->pv);
+	xlogl_int_b(line, "PVday", gstate->pv);
 	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
 	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
@@ -756,16 +757,23 @@ static void calculate_gstate() {
 	gstate->soc = pstate->soc;
 
 	// get previous values to calculate deltas
+	counter_t *c = COUNTER_LAST, *c0 = COUNTER_0;
 	gstate_t *g = GSTATE_LAST;
-	counter_t *c = COUNTER_LAST;
 
-	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
-	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
+	// pv / consumed / produced: day total
+	gstate->pv = 0;
+	gstate->pv += counter->mppt1 && c0->mppt1 ? counter->mppt1 - c0->mppt1 : 0;
+	gstate->pv += counter->mppt2 && c0->mppt2 ? counter->mppt2 - c0->mppt2 : 0;
+	gstate->pv += counter->mppt3 && c0->mppt3 ? counter->mppt3 - c0->mppt3 : 0;
+	gstate->pv += counter->mppt4 && c0->mppt4 ? counter->mppt4 - c0->mppt4 : 0;
+	gstate->produced = counter->produced && c0->produced ? counter->produced - c0->produced : 0;
+	gstate->consumed = counter->consumed && c0->consumed ? counter->consumed - c0->consumed : 0;
+
+	// mppt: last hour
 	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
 	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
 	gstate->mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
-	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
@@ -1009,7 +1017,10 @@ static void hourly(time_t now_ts) {
 	sunspec_storage_minimum_soc(f10, min);
 
 	// print actual gstate
+	gstate_t g;
+	cumulate((int*) &g, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_struct((int*) &g, GSTATE_SIZE, "[++]", 0);
 	print_gstate(NULL);
 
 	// create/append pstate minutes csv
