@@ -52,6 +52,7 @@ static gstate_t gstate_hours[24 * 7];
 static volatile gstate_t *gstate = 0;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
+#define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
@@ -989,8 +990,9 @@ static void hourly(time_t now_ts) {
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
 	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
 
-	// copy counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
+	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
+	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(gstate_t));
 
 	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
