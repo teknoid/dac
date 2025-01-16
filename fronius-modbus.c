@@ -721,7 +721,7 @@ static void calculate_mosmix() {
 	int available = gstate->expected - tocharge;
 	if (available < 0)
 		available = 0;
-	float survive = needed ? (float) (gstate->akku + available) / (float) needed : 0.0;
+	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->expected, tocharge, available, gstate->akku, needed, survive);
 
@@ -729,7 +729,7 @@ static void calculate_mosmix() {
 	int heating_total = collect_heating_total();
 	mosmix_heating(now, heating_total, &hours, &from, &to);
 	needed = heating_total * hours;
-	float heating = needed ? (float) available / (float) needed : 0.0;
+	float heating = needed ? (float) available / (float) needed - 1.0 : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
 	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
 
@@ -1104,7 +1104,7 @@ static void fronius() {
 			device = steal();
 
 		// print gstate ever 15min, pstate once per minute / when delta / on device action
-		if (now->tm_min % 15 == 0)
+		if (now->tm_min % 15 == 0 && now->tm_sec == 59)
 			print_gstate();
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
 			print_pstate_dstate(device);
