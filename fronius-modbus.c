@@ -74,7 +74,7 @@ static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
 static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
-static void run_json() {
+static void create_json() {
 	// pstate
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
 
@@ -85,13 +85,7 @@ static void run_json() {
 	fclose(fp);
 }
 
-static void run_csv() {
-	// create/append pstate minutes csv
-	if (now->tm_hour == 0)
-		store_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
-	else
-		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
-
+static void plot() {
 	// create gstate daily/weekly
 	store_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
 	store_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
@@ -994,8 +988,14 @@ static void hourly(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	print_gstate(NULL);
 
-	// create csv files and plot diagrams
-	run_csv();
+	// create/append pstate minutes csv
+	if (now->tm_hour == 0)
+		store_csv((int*) pstate_minutes, PSTATE_SIZE, 60, PSTATE_HEADER, PSTATE_M_CSV);
+	else
+		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
+
+	// plot diagrams
+	plot();
 }
 
 static void minly(time_t now_ts) {
@@ -1048,7 +1048,7 @@ static void fronius() {
 		calculate_pstate();
 
 		// web output
-		run_json();
+		create_json();
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
@@ -1056,7 +1056,7 @@ static void fronius() {
 			calculate_mosmix();
 			choose_program();
 			print_state(0);
-			run_csv();
+			plot();
 			continue;
 		}
 
