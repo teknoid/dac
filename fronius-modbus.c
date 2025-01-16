@@ -205,7 +205,7 @@ static int akku_discharge(device_t *akku) {
 
 #ifndef FRONIUS_MAIN
 	// enable discharge
-	int limit = WINTER && (gstate->survive < 10 || gstate->tomorrow < AKKU_CAPACITY);
+	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
 		xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
 		sunspec_storage_limit_both(f10, 0, BASELOAD);
@@ -356,8 +356,8 @@ static void print_gstate() {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
+	xlogl_float(line, 1, gstate->survive > 0, "Survive", FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating > 0, "Heating", FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -405,7 +405,6 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
 
 	if (d)
 		xlogl_int(line, 0, 0, d->name, d->timer);
@@ -449,7 +448,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < 10)
+	if (gstate->survive < 0)
 		return select_program(&MODEST);
 
 	// tomorrow not enough pv - charging akku has priority
@@ -461,7 +460,7 @@ static int choose_program() {
 		return select_program(&GREEDY);
 
 	// enough pv available to survive + heating
-	if (gstate->heating > 10)
+	if (gstate->heating > 0)
 		return select_program(&PLENTY);
 
 	return select_program(&MODEST);
@@ -929,7 +928,7 @@ static void offline() {
 
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
-	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
+	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
 	// fronius_override_seconds("plug5", WAIT_OFFLINE);
 	// fronius_override_seconds("plug6", WAIT_OFFLINE);
 	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
@@ -994,7 +993,7 @@ static void hourly(time_t now_ts) {
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 
 	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && pstate->soc > 111 ? 10 : 5;
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
 
 	// create/append pstate minutes csv
@@ -1705,7 +1704,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// set into standby when full
 		// TODO nachladen?
-		if (pstate->soc == 1000)
+		if (gstate->soc == 1000)
 			return akku_standby(akku);
 
 		// skip ramp ups as long as pv is smaller than load
