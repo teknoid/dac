@@ -342,31 +342,11 @@ static int check_override(device_t *d, int power) {
 	return power;
 }
 
-static void print_gstate(const char *message) {
-	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
-	xlogl_int_b(line, "PVday", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
-	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Today", gstate->today);
-	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Exp", gstate->expected);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
-	strcat(line, " potd:");
-	strcat(line, potd ? potd->name : "NULL");
-	xlogl_end(line, strlen(line), message);
-}
-
 static void print_state(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 
+	// dstate
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (DD->adj)
 			snprintf(value, 5, " %3d", DD->power);
@@ -398,6 +378,7 @@ static void print_state(device_t *d) {
 		strcat(line, value);
 	}
 
+	// pstate
 	xlogl_bits16(line, "  Flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
@@ -409,6 +390,25 @@ static void print_state(device_t *d) {
 
 	if (d)
 		xlogl_int(line, 0, 0, d->name, d->timer);
+	xlogl_end(line, strlen(line), 0);
+
+	// gstate
+	xlogl_start(line, "FRONIUS");
+	xlogl_int_b(line, "PVday", gstate->pv);
+	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
+	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
+	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
+	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, 0, 0, "Today", gstate->today);
+	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
+	xlogl_int(line, 0, 0, "Exp", gstate->expected);
+	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, 0, 0, "Akku", gstate->akku);
+	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
+	strcat(line, " potd:");
+	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -753,7 +753,7 @@ static void calculate_gstate() {
 	counter_t *c = COUNTER_LAST, *c0 = COUNTER_0;
 	gstate_t *g = GSTATE_LAST;
 
-	// pv / consumed / produced: day total
+	// pv / consumed / produced -> day total
 	gstate->pv = 0;
 	gstate->pv += counter->mppt1 && c0->mppt1 ? counter->mppt1 - c0->mppt1 : 0;
 	gstate->pv += counter->mppt2 && c0->mppt2 ? counter->mppt2 - c0->mppt2 : 0;
@@ -762,7 +762,7 @@ static void calculate_gstate() {
 	gstate->produced = counter->produced && c0->produced ? counter->produced - c0->produced : 0;
 	gstate->consumed = counter->consumed && c0->consumed ? counter->consumed - c0->consumed : 0;
 
-	// mppt: last hour
+	// mppt's -> last hour
 	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
 	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
@@ -983,8 +983,7 @@ static void hourly(time_t now_ts) {
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-	// recalculate gstate, mosmix, then choose potd
-	calculate_gstate();
+	// recalculate mosmix and choose potd
 	calculate_mosmix();
 	choose_program();
 
@@ -997,13 +996,6 @@ static void hourly(time_t now_ts) {
 	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && pstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
-
-	// print actual gstate
-	gstate_t g;
-	cumulate((int*) &g, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &g, GSTATE_SIZE, "[++]", 0);
-	print_gstate(NULL);
 
 	// create/append pstate minutes csv
 	if (now->tm_hour == 0)
@@ -1023,6 +1015,9 @@ static void minly(time_t now_ts) {
 	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 //	if (pstate->pv)
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+
+	// calculate new gstate
+	calculate_gstate();
 
 	// clear delta sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1107,7 +1102,7 @@ static void fronius() {
 		if (!device)
 			device = steal();
 
-		// print combined device and pstate once per minute / when delta / device action
+		// print state once per minute / when delta / on device action
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
 			print_state(device);
 
@@ -1406,15 +1401,14 @@ static int single() {
 	aggregate((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
 	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
-	print_state(NULL);
 
 	// aggregate 24 gstate hours into one day
 	gstate_t gd;
 	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
-	print_gstate(NULL);
 
+	print_state(NULL);
 	stop();
 	return 0;
 }
