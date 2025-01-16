@@ -24,6 +24,34 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
+static void scale1(int factor) {
+	float f = 1.0 + FLOAT100(factor);
+	xlog("MOSMIX !!! scaling today's expected MPPT1 values by %5.2", f);
+	for (int i = 0; i < 24; i++)
+		today[i].exp1 *= f;
+}
+
+static void scale2(int factor) {
+	float f = 1.0 + FLOAT100(factor);
+	xlog("MOSMIX !!! scaling today's expected MPPT2 values by %5.2", f);
+	for (int i = 0; i < 24; i++)
+		today[i].exp2 *= f;
+}
+
+static void scale3(int factor) {
+	float f = 1.0 + FLOAT100(factor);
+	xlog("MOSMIX !!! scaling today's expected MPPT3 values by %5.2", f);
+	for (int i = 0; i < 24; i++)
+		today[i].exp3 *= f;
+}
+
+static void scale4(int factor) {
+	float f = 1.0 + FLOAT100(factor);
+	xlog("MOSMIX !!! scaling today's expected MPPT4 values by %5.2", f);
+	for (int i = 0; i < 24; i++)
+		today[i].exp4 *= f;
+}
+
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_csv_t *m = &mosmix_csv[idx];
@@ -37,10 +65,10 @@ static void parse(char **strings, size_t size) {
 }
 
 static void expected(mosmix_t *m, mosmix_t *fcts) {
-	m->exp1 = m->base * (1 + FLOAT100(fcts->fac1));
-	m->exp2 = m->base * (1 + FLOAT100(fcts->fac2));
-	m->exp3 = m->base * (1 + FLOAT100(fcts->fac3));
-	m->exp4 = m->base * (1 + FLOAT100(fcts->fac4));
+	m->exp1 = m->base * (1.0 + FLOAT100(fcts->fac1));
+	m->exp2 = m->base * (1.0 + FLOAT100(fcts->fac2));
+	m->exp3 = m->base * (1.0 + FLOAT100(fcts->fac3));
+	m->exp4 = m->base * (1.0 + FLOAT100(fcts->fac4));
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -138,6 +166,7 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = TODAY(now->tm_hour);
 	mosmix_t *h = HISTORY(now->tm_wday, now->tm_hour);
+	mosmix_t *h1 = HISTORY(now->tm_wday, now->tm_hour > 00 ? now->tm_hour - 1 : 23);
 
 	// copy to history
 	memcpy(h, m, sizeof(mosmix_t));
@@ -153,6 +182,16 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT2", now->tm_hour, h->base, h->exp2, h->mppt2, &h->err2, &h->fac2);
 	calc("MPPT3", now->tm_hour, h->base, h->exp3, h->mppt3, &h->err3, &h->fac3);
 	calc("MPPT4", now->tm_hour, h->base, h->exp4, h->mppt4, &h->err4, &h->fac4);
+
+	// validate today's forecast - if error is greater than 10% scale down all values
+	if (h->err1 < -10 && h1->err1 < -10)
+		scale1((h->err1 + h1->err1) / 2);
+	if (h->err2 < -10 && h1->err2 < -10)
+		scale2((h->err2 + h1->err2) / 2);
+	if (h->err3 < -10 && h1->err3 < -10)
+		scale3((h->err3 + h1->err3) / 2);
+	if (h->err4 < -10 && h1->err4 < -10)
+		scale4((h->err4 + h1->err4) / 2);
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
