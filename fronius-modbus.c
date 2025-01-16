@@ -357,8 +357,8 @@ static void print_gstate() {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive > 0, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating > 0, "Heating", FLOAT10(gstate->heating));
+	xlogl_float(line, 1, gstate->survive < 0, "Survive", 1.0 + FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating < 0, "Heating", 1.0 + FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -721,7 +721,7 @@ static void calculate_mosmix() {
 	int available = gstate->expected - tocharge;
 	if (available < 0)
 		available = 0;
-	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : 0.0;
+	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : -1.0;
 	gstate->survive = survive * 10; // store as x10 scaled
 	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->expected, tocharge, available, gstate->akku, needed, survive);
 
@@ -729,7 +729,7 @@ static void calculate_mosmix() {
 	int heating_total = collect_heating_total();
 	mosmix_heating(now, heating_total, &hours, &from, &to);
 	needed = heating_total * hours;
-	float heating = needed ? (float) available / (float) needed - 1.0 : 0.0;
+	float heating = needed ? (float) available / (float) needed - 1.0 : -1.0;
 	gstate->heating = heating * 10; // store as x10 scaled
 	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
 
