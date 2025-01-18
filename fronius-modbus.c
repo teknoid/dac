@@ -35,6 +35,7 @@
 
 #define POWERFLOW_JSON			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 #define POWERFLOW_FILE			"/run/mcp/powerflow.json"
+#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -1004,6 +1005,10 @@ static void hourly(time_t now_ts) {
 	else
 		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
+	// workaround /run/mcp get's immediately deleted at stop/kill
+	xlog("MCP saving runtime directory: %s", SAVE_RUN_DIRECORY);
+	system(SAVE_RUN_DIRECORY);
+
 	// plot diagrams
 	plot();
 }
@@ -1705,7 +1710,6 @@ int ramp_akku(device_t *akku, int power) {
 	if (power > 0) {
 
 		// set into standby when full
-		// TODO nachladen?
 		if (gstate->soc == 1000)
 			return akku_standby(akku);
 
