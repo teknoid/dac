@@ -26,28 +26,28 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 
 static void scale1(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX !!! scaling today's expected MPPT1 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp1 *= f;
 }
 
 static void scale2(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX !!! scaling today's expected MPPT2 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp2 *= f;
 }
 
 static void scale3(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX !!! scaling today's expected MPPT3 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp3 *= f;
 }
 
 static void scale4(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX !!! scaling today's expected MPPT4 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp4 *= f;
 }
@@ -183,14 +183,18 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT3", now->tm_hour, h->base, h->exp3, h->mppt3, &h->err3, &h->fac3);
 	calc("MPPT4", now->tm_hour, h->base, h->exp4, h->mppt4, &h->err4, &h->fac4);
 
-	// validate today's forecast - if error is greater than 10% scale down all values
-	if (h->err1 < -10 && h1->err1 < -10)
+	// validate today's forecast - if this and last errors are greater than 10% scale all values
+	int e1 = (h->err1 < -10 && h1->err1 < -10) || (h->err1 > 10 && h1->err1 > 10);
+	int e2 = (h->err2 < -10 && h1->err2 < -10) || (h->err2 > 10 && h1->err2 > 10);
+	int e3 = (h->err3 < -10 && h1->err3 < -10) || (h->err3 > 10 && h1->err3 > 10);
+	int e4 = (h->err4 < -10 && h1->err4 < -10) || (h->err4 > 10 && h1->err4 > 10);
+	if (e1)
 		scale1((h->err1 + h1->err1) / 2);
-	if (h->err2 < -10 && h1->err2 < -10)
+	if (e2)
 		scale2((h->err2 + h1->err2) / 2);
-	if (h->err3 < -10 && h1->err3 < -10)
+	if (e3)
 		scale3((h->err3 + h1->err3) / 2);
-	if (h->err4 < -10 && h1->err4 < -10)
+	if (e4)
 		scale4((h->err4 + h1->err4) / 2);
 }
 
