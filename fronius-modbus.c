@@ -96,13 +96,14 @@ static void create_gstate_dstate_json() {
 	FILE *fp = fopen(DSTATE_JSON, "w");
 	fprintf(fp, "[");
 	int i = 0;
-	for (device_t **dd = DEVICES; *dd; dd++) {
+	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (i)
 			fprintf(fp, ",");
 		fprintf(fp, "\{");
 		fprintf(fp, "\"name\":\"%s\",", DD->name);
 		fprintf(fp, "\"state\":%d,", DD->state);
 		fprintf(fp, "\"total\":%d,", DD->total);
+		fprintf(fp, "\"power\":%d,", DD->power);
 		fprintf(fp, "\"load\":%d", DD == &a1 ? pstate->akku : DD->load);
 		fprintf(fp, "}");
 		i++;
