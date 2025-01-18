@@ -29,6 +29,20 @@ static int mean;
 //	free(m);
 //}
 
+static void write_sensors_json() {
+	FILE *fp = fopen(SENSORS_JSON, "w");
+	fprintf(fp, "\{");
+	fprintf(fp, "\"temp_in\":%.1f,", sensors->htu21_temp);
+	fprintf(fp, "\"humi_in\":%.1f,", sensors->htu21_humi);
+	fprintf(fp, "\"temp_out\":%.1f,", sensors->sht31_temp);
+	fprintf(fp, "\"humi_out\":%.1f,", sensors->sht31_humi);
+	fprintf(fp, "\"dewpoint\":%.1f,", sensors->sht31_dew);
+	fprintf(fp, "\"lumi\":%d", sensors->bh1750_lux);
+	fprintf(fp, "}");
+	fflush(fp);
+	fclose(fp);
+}
+
 // topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
 //             ^^^^^^
 static unsigned int get_id(const char *topic, size_t size) {
@@ -489,6 +503,9 @@ static void loop() {
 		return;
 	}
 
+	sleep(1);
+	write_sensors_json();
+
 	while (1) {
 		sleep(1);
 
@@ -510,6 +527,10 @@ static void loop() {
 			}
 			ts = ts->next;
 		}
+
+		time_t now_ts = time(NULL);
+		if (now_ts % 60 == 0)
+			write_sensors_json();
 	}
 }
 
@@ -528,6 +549,9 @@ static int init() {
 	sensors->sht31_humi = UINT16_MAX;
 	sensors->sht31_temp = UINT16_MAX;
 	sensors->sht31_dew = UINT16_MAX;
+	sensors->htu21_humi = UINT16_MAX;
+	sensors->htu21_temp = UINT16_MAX;
+	sensors->htu21_dew = UINT16_MAX;
 	sensors->ml8511_uv = UINT16_MAX;
 
 	return 0;

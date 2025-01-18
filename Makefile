@@ -66,7 +66,7 @@ fronius-modbus: fronius-modbus.o sunspec.o mosmix.o utils.o
 	$(CC) $(CFLAGS) -DFRONIUS_MAIN -c fronius-modbus.c sunspec.c
 	$(CC) $(CFLAGS) -o fronius fronius-modbus.o sunspec.o mosmix.o utils.o -lmodbus -lm -lpthread
 
-sensors: sensors.o utils.o
+sensors: sensors.o utils.o i2c.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
 	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o $(LIBS)
 

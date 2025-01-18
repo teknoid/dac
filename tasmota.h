@@ -1,3 +1,5 @@
+#define SENSORS_JSON		"/run/mcp/sensors.json"
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
