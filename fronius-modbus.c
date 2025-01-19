@@ -823,7 +823,7 @@ static void calculate_pstate() {
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
 	// offline mode when 3x not enough PV production
-	if (pstate->pv < NOISE && s1->pv < NOISE && s2->pv < NOISE && s3->pv < NOISE) {
+	if (pstate->pv < MINIMUM && s1->pv < MINIMUM && s2->pv < MINIMUM && s3->pv < MINIMUM) {
 		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
 		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
@@ -845,7 +845,7 @@ static void calculate_pstate() {
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		pstate->ramp = 0;
-	// ramp down as soon as grid goes over NOISE
+	// ramp down as soon as grid goes above NOISE
 	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = -RAMP_WINDOW;
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
