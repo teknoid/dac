@@ -736,12 +736,9 @@ static void calculate_mosmix() {
 	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
 
 	// actual vs. yesterdays expected ratio
-	int actual = 0;
-	for (int i = 0; i <= now->tm_hour; i++)
-		actual += GSTATE_HOUR(i)->pv;
 	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
-	float error = yesterdays_tomorrow ? (float) actual / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, actual, error);
+	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
+	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
 	// dump todays history
 	mosmix_dump_history_today(now);
