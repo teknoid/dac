@@ -26,28 +26,28 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 
 static void scale1(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp1 *= f;
 }
 
 static void scale2(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp2 *= f;
 }
 
 static void scale3(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp3 *= f;
 }
 
 static void scale4(int factor) {
 	float f = 1.0 + FLOAT100(factor);
-	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2", f);
+	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp4 *= f;
 }
