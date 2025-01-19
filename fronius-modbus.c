@@ -767,6 +767,16 @@ static void calculate_gstate() {
 	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
 	gstate->mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
 
+	// noise
+	if (gstate->mppt1 == 1)
+		gstate->mppt1 = 0;
+	if (gstate->mppt2 == 1)
+		gstate->mppt2 = 0;
+	if (gstate->mppt3 == 1)
+		gstate->mppt3 = 0;
+	if (gstate->mppt4 == 1)
+		gstate->mppt4 = 0;
+
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
