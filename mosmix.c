@@ -24,29 +24,29 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
-static void scale1(int factor) {
-	float f = 1.0 + FLOAT100(factor);
+static void scale1(mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err1);
 	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp1 *= f;
 }
 
-static void scale2(int factor) {
-	float f = 1.0 + FLOAT100(factor);
+static void scale2(mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err2);
 	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp2 *= f;
 }
 
-static void scale3(int factor) {
-	float f = 1.0 + FLOAT100(factor);
+static void scale3(mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err3);
 	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp3 *= f;
 }
 
-static void scale4(int factor) {
-	float f = 1.0 + FLOAT100(factor);
+static void scale4(mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err4);
 	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2f", f);
 	for (int i = 0; i < 24; i++)
 		today[i].exp4 *= f;
@@ -153,7 +153,7 @@ static void update_today_tomorrow() {
 }
 
 static void calc(const char *id, int hour, int base, int exp, int mppt, int *err, int *fac) {
-	// error expected vs. actual
+	// error actual vs. expected
 	float error = exp ? (float) mppt / (float) exp - 1.0 : 0.0;
 	*err = error * 100; // store as x100 scaled
 	// new factor
@@ -166,7 +166,6 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = TODAY(now->tm_hour);
 	mosmix_t *h = HISTORY(now->tm_wday, now->tm_hour);
-	mosmix_t *h1 = HISTORY(now->tm_wday, now->tm_hour > 00 ? now->tm_hour - 1 : 23);
 
 	// copy to history
 	memcpy(h, m, sizeof(mosmix_t));
@@ -183,19 +182,15 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT3", now->tm_hour, h->base, h->exp3, h->mppt3, &h->err3, &h->fac3);
 	calc("MPPT4", now->tm_hour, h->base, h->exp4, h->mppt4, &h->err4, &h->fac4);
 
-	// validate today's forecast - if this and last errors are greater than 10% scale all values
-	int e1 = (h->err1 < -10 && h1->err1 < -10) || (h->err1 > 10 && h1->err1 > 10);
-	int e2 = (h->err2 < -10 && h1->err2 < -10) || (h->err2 > 10 && h1->err2 > 10);
-	int e3 = (h->err3 < -10 && h1->err3 < -10) || (h->err3 > 10 && h1->err3 > 10);
-	int e4 = (h->err4 < -10 && h1->err4 < -10) || (h->err4 > 10 && h1->err4 > 10);
-	if (e1)
-		scale1((h->err1 + h1->err1) / 2);
-	if (e2)
-		scale2((h->err2 + h1->err2) / 2);
-	if (e3)
-		scale3((h->err3 + h1->err3) / 2);
-	if (e4)
-		scale4((h->err4 + h1->err4) / 2);
+	// validate today's forecast - if error is greater than 20% scale all values
+	if (h->err1 < -20 || h->err1 > 20)
+		scale1(h);
+	if (h->err2 < -20 || h->err2 > 20)
+		scale2(h);
+	if (h->err3 < -20 || h->err3 > 20)
+		scale3(h);
+	if (h->err4 < -20 || h->err4 > 20)
+		scale4(h);
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
