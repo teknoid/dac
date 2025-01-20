@@ -197,7 +197,7 @@ int ramp_boiler(device_t *device, int power);
 int ramp_akku(device_t *device, int power);
 
 // devices
-static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 };
+static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };

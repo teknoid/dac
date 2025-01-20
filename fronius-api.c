@@ -424,7 +424,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// we can steal akkus charge charge power or victims load
 	int steal = 0;
-	if (v == &a1)
+	if (v == AKKU)
 		steal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
 	else
 		steal = v->load;
@@ -442,12 +442,12 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", steal, v->name, t->name, t->total, min);
 
 	// ramp down victim, akku ramps down itself
-	if (v != &a1)
+	if (v != AKKU)
 		ramp_device(v, v->load * -1);
 	ramp_device(t, power);
 
 	// give akku time to adjust
-	if (v == &a1)
+	if (v == AKKU)
 		t->timer = WAIT_AKKU_RAMP;
 
 	// no response expected as we put power from one to another device
@@ -789,7 +789,7 @@ static void calculate_pstate2() {
 	pstate->xload = BASELOAD;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
-		if (DD->power > 0 && DD != &a1) // excl. akku; -1 when unitialized!
+		if (DD->power > 0 && DD != AKKU) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;

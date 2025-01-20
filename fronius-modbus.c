@@ -23,9 +23,7 @@
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
 
-#define WAIT_NEXT_RAMP			1
-#define WAIT_RESPONSE			3		// TODO reicht manchmal nicht?
-#define WAIT_NEXT				1
+#define WAIT_RESPONSE			5	// 3s is too less !
 #define WAIT_AKKU_CHARGE		30
 #define WAIT_AKKU_RAMP			10
 
@@ -104,7 +102,7 @@ static void create_gstate_dstate_json() {
 		fprintf(fp, "\"state\":%d,", DD->state);
 		fprintf(fp, "\"total\":%d,", DD->total);
 		fprintf(fp, "\"power\":%d,", DD->power);
-		fprintf(fp, "\"load\":%d", DD == &a1 ? pstate->akku : DD->load);
+		fprintf(fp, "\"load\":%d", DD == AKKU ? pstate->akku : DD->load);
 		fprintf(fp, "}");
 		i++;
 	}
@@ -430,7 +428,7 @@ static int select_program(const potd_t *p) {
 		return 0;
 
 	// potd has changed - reset all devices and wait for new values
-	a1.power = -1;
+	AKKU->power = -1;
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DOWN);
 
@@ -443,6 +441,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
+	return select_program(&GREEDY);
+
 	if (!gstate)
 		return select_program(&MODEST);
 
@@ -522,7 +522,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// we can steal akkus charge power or victims load
 	int psteal = 0;
-	if (v == &a1)
+	if (v == AKKU)
 		psteal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
 	else
 		psteal = v->load;
@@ -540,12 +540,12 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", psteal, v->name, t->name, t->total, min);
 
 	// ramp down victim, ramp up thief (akku ramps down itself)
-	if (v != &a1)
+	if (v != AKKU)
 		ramp_device(v, v->load * -1);
 	ramp_device(t, power);
 
 	// give akku time to adjust
-	if (v == &a1)
+	if (v == AKKU)
 		t->timer = WAIT_AKKU_RAMP;
 
 	// no response expected as we put power from one to another device
@@ -656,8 +656,13 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		d->timer = 0;
-		return 0;
+		if (AKKU->state == Charge) {
+			d->timer = WAIT_AKKU_RAMP;
+			return d;
+		} else {
+			d->timer = 0;
+			return 0;
+		}
 	}
 
 	// standby check was negative - we got a response
@@ -665,7 +670,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = 0;
+		d->timer = AKKU->state == Charge ? WAIT_AKKU_RAMP : 0;
 		return d;
 	}
 
@@ -841,8 +846,10 @@ static void calculate_pstate() {
 		return;
 	}
 
-	// emergency shutdown when last minute extreme akku discharge or grid download
-	if (EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY)) {
+	// emergency shutdown when last 3 seconds extreme grid download or last minute big akku discharge or grid download
+	int e_s3_grid = !AKKU->timer && EMERGENCY && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2 && s3->grid > EMERGENCY * 2;
+	int e_m1_akku_grid = !AKKU->timer && EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+	if (e_s3_grid || e_m1_akku_grid) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
 	}
@@ -883,7 +890,7 @@ static void calculate_pstate() {
 	pstate->xload = BASELOAD;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
-		if (DD->power > 0 && DD != &a1) // excl. akku; -1 when unitialized!
+		if (DD->power > 0 && DD != AKKU) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
@@ -1699,7 +1706,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itselfF
 		int surp = (pstate->grid + pstate->akku) * -1;
-		if (a1.state == Charge && surp > -NOISE)
+		if (AKKU->state == Charge && surp > -NOISE)
 			return 1; // loop done
 
 		// forward ramp down request to next device as long as other devices active
