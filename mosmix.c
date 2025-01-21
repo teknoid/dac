@@ -274,7 +274,7 @@ void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to) {
 	if (*from < *to)
 		*hours = *to - *from;
 	else
-		*hours = *to = *from = 0;
+		*hours = *to = *from = to_expected = from_expected = 0;
 
 	xlog("MOSMIX heating hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, *from, from_expected, *to, to_expected);
 }
