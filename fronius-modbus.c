@@ -429,8 +429,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	// return select_program(&GREEDY);
-	return select_program(&MODEST);
+	return select_program(&GREEDY);
+	// return select_program(&MODEST);
 
 	if (!gstate)
 		return select_program(&MODEST);
