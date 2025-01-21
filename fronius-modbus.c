@@ -684,10 +684,16 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void calculate_mosmix() {
+static void calculate_mosmix(int hourly) {
 	// update forecasts
 	if (mosmix_load(MARIENBERG))
 		return;
+
+	// update produced energy this hour and recalculate mosmix factors for each mppt
+	if (hourly) {
+		mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+		mosmix_dump_today(now);
+	}
 
 	// mosmix 24h raw values forecasts today, tomorrow and tomorrow+1
 	mosmix_csv_t m0, m1, m2;
@@ -729,9 +735,6 @@ static void calculate_mosmix() {
 	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
 	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
-
-	// dump today
-	mosmix_dump_today(now);
 }
 
 static void calculate_gstate() {
@@ -986,11 +989,8 @@ static void hourly(time_t now_ts) {
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-	// update produced energy this hour and recalculate mosmix factors for each mppt
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-
 	// recalculate mosmix and choose potd
-	calculate_mosmix();
+	calculate_mosmix(1);
 	choose_program();
 
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
@@ -1078,7 +1078,7 @@ static void fronius() {
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
 			calculate_gstate();
-			calculate_mosmix();
+			calculate_mosmix(0);
 			choose_program();
 			print_gstate();
 			print_pstate_dstate(0);
@@ -1385,8 +1385,6 @@ static int loop() {
 
 // do all calculations in one single round trip and exit
 static int single() {
-	time_t now_ts = time(NULL);
-
 	init();
 
 	gstate = GSTATE_NOW;
@@ -1402,7 +1400,7 @@ static int single() {
 
 	calculate_pstate();
 	calculate_gstate();
-	calculate_mosmix(now_ts);
+	calculate_mosmix(0);
 	choose_program();
 
 	response(&b1);
