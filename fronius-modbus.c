@@ -511,7 +511,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	// we can steal akkus charge power or victims load
 	int psteal = 0;
 	if (v == AKKU)
-		psteal = pstate->akku < -100 ? pstate->akku * -0.9 : 0;
+		psteal = pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
 	else
 		psteal = v->load;
 
@@ -878,7 +878,7 @@ static void calculate_pstate() {
 	pstate->xload = BASELOAD;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
-		if (DD->power > 0 && DD != AKKU) // excl. akku; -1 when unitialized!
+		if (DD != AKKU && DD->power > 0) // excl. akku; -1 when unitialized!
 			pstate->flags |= FLAG_ACTIVE;
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
