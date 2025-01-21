@@ -429,7 +429,8 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	return select_program(&GREEDY);
+	// return select_program(&GREEDY);
+	return select_program(&MODEST);
 
 	if (!gstate)
 		return select_program(&MODEST);
@@ -1077,12 +1078,19 @@ static void fronius() {
 
 		// initialize program of the day if not yet done and choose storage strategy
 		if (!potd) {
+			xdebug("FRONIUS segfault 1");
 			calculate_gstate();
+			xdebug("FRONIUS segfault 2");
 			calculate_mosmix(0);
+			xdebug("FRONIUS segfault 3");
 			choose_program();
+			xdebug("FRONIUS segfault 4");
 			print_gstate();
+			xdebug("FRONIUS segfault 5");
 			print_pstate_dstate(0);
+			xdebug("FRONIUS segfault 6");
 			plot();
+			xdebug("FRONIUS segfault 7");
 			continue;
 		}
 
@@ -1181,7 +1189,7 @@ static int init() {
 		return xerr("No connection to Fronius10");
 
 	// wait for collecting models
-	sleep(3);
+	sleep(5);
 
 	return 0;
 }
@@ -1669,7 +1677,7 @@ int ramp_boiler(device_t *boiler, int power) {
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!f10 || !pstate)
+	if (!f10 || !pstate || !gstate)
 		return 0;
 
 	// init
