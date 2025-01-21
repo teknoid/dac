@@ -61,6 +61,7 @@ p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"f
 
 # gstate weekly
 set ylabel "GState week"
+set yrange [0:*]
 set output "/run/mcp/mosmix-gstate-week.svg"
 p gstatew u 1:"mppt1" t "mppt1"    w lines,\
        '' u 1:"mppt2" t "mppt2"    w lines,\
@@ -77,6 +78,7 @@ p gstatew u 1:"mppt1" t "mppt1"    w lines,\
 # gstate
 set ylabel "GState"
 set xrange [0:24]
+set yrange [0:*]
 set xtics 1
 set output "/run/mcp/mosmix-gstate.svg"
 p gstate u 1:"mppt1" t "mppt1"    w lines,\
