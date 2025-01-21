@@ -233,7 +233,7 @@ void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to) {
 		if (from_expected > min)
 			break;
 	}
-	*from = h;
+	*from = h != 12 ? h + 1 : h; // assume akku is not yet needed in that hour
 
 	// find tomorrow sunrise
 	for (h = 0; h < 12; h++) {
