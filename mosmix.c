@@ -27,29 +27,29 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 static void scale1(mosmix_t *m) {
 	float f = 1.0 + FLOAT100(m->err1);
 	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2f", f);
-	for (int i = 0; i < 24; i++)
-		today[i].exp1 *= f;
+	for (int h = 0; h < 24; h++)
+		TODAY(h)->exp1 *= f;
 }
 
 static void scale2(mosmix_t *m) {
 	float f = 1.0 + FLOAT100(m->err2);
 	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2f", f);
-	for (int i = 0; i < 24; i++)
-		today[i].exp2 *= f;
+	for (int h = 0; h < 24; h++)
+		TODAY(h)->exp2 *= f;
 }
 
 static void scale3(mosmix_t *m) {
 	float f = 1.0 + FLOAT100(m->err3);
 	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2f", f);
-	for (int i = 0; i < 24; i++)
-		today[i].exp3 *= f;
+	for (int h = 0; h < 24; h++)
+		TODAY(h)->exp3 *= f;
 }
 
 static void scale4(mosmix_t *m) {
 	float f = 1.0 + FLOAT100(m->err4);
 	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2f", f);
-	for (int i = 0; i < 24; i++)
-		today[i].exp4 *= f;
+	for (int h = 0; h < 24; h++)
+		TODAY(h)->exp4 *= f;
 }
 
 static void parse(char **strings, size_t size) {
@@ -156,41 +156,40 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	// error actual vs. expected
 	float error = exp ? (float) mppt / (float) exp - 1.0 : 0.0;
 	*err = error * 100; // store as x100 scaled
-	// new factor
-	float old = FLOAT100(*fac);
+	// factor actual vs. base
 	float new = base ? (float) mppt / (float) base - 1.0 : 0.0;
-	xdebug("MOSMIX %s hour %02d   expected %4d actual %4d error %5.2f   factor old %5.2f new %5.2f", id, hour, exp, mppt, error, old, new);
+	xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, error, new);
 	*fac = new * 100; // store as x100 scaled
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = TODAY(now->tm_hour);
-	mosmix_t *h = HISTORY(now->tm_wday, now->tm_hour);
-
-	// copy to history
-	memcpy(h, m, sizeof(mosmix_t));
 
 	// update actual pv
-	h->mppt1 = mppt1;
-	h->mppt2 = mppt2;
-	h->mppt3 = mppt3;
-	h->mppt4 = mppt4;
+	m->mppt1 = mppt1;
+	m->mppt2 = mppt2;
+	m->mppt3 = mppt3;
+	m->mppt4 = mppt4;
 
 	// recalculate
-	calc("MPPT1", now->tm_hour, h->base, h->exp1, h->mppt1, &h->err1, &h->fac1);
-	calc("MPPT2", now->tm_hour, h->base, h->exp2, h->mppt2, &h->err2, &h->fac2);
-	calc("MPPT3", now->tm_hour, h->base, h->exp3, h->mppt3, &h->err3, &h->fac3);
-	calc("MPPT4", now->tm_hour, h->base, h->exp4, h->mppt4, &h->err4, &h->fac4);
+	calc("MPPT1", now->tm_hour, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+	calc("MPPT2", now->tm_hour, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+	calc("MPPT3", now->tm_hour, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+	calc("MPPT4", now->tm_hour, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
 
 	// validate today's forecast - if error is greater than 20% scale all values
-	if (h->err1 < -20 || h->err1 > 20)
-		scale1(h);
-	if (h->err2 < -20 || h->err2 > 20)
-		scale2(h);
-	if (h->err3 < -20 || h->err3 > 20)
-		scale3(h);
-	if (h->err4 < -20 || h->err4 > 20)
-		scale4(h);
+	if (m->err1 < -20 || m->err1 > 20)
+		scale1(m);
+	if (m->err2 < -20 || m->err2 > 20)
+		scale2(m);
+	if (m->err3 < -20 || m->err3 > 20)
+		scale3(m);
+	if (m->err4 < -20 || m->err4 > 20)
+		scale4(m);
+
+	// save to history
+	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
+	memcpy(mh, m, sizeof(mosmix_t));
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
@@ -331,6 +330,11 @@ void mosmix_dump_history_noon() {
 		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
 }
 
+void mosmix_clear_today_tomorrow() {
+	ZERO(today);
+	ZERO(tomorrow);
+}
+
 void mosmix_load_state() {
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
@@ -349,8 +353,6 @@ int mosmix_load(const char *filename) {
 	char *strings[MOSMIX_COLUMNS];
 	char buf[LINEBUF];
 
-	ZERO(today);
-	ZERO(tomorrow);
 	ZERO(mosmix_csv);
 
 	FILE *fp = fopen(filename, "r");
@@ -448,6 +450,7 @@ static void test() {
 	mosmix_survive(now, 150, &hours, &from, &to);
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
+	mosmix_dump_today(now);
 	mosmix_dump_history_full(now);
 	mosmix_dump_history_noon();
 

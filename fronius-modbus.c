@@ -696,9 +696,6 @@ static void calculate_mosmix() {
 	mosmix_24h(2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	// update produced energy this hour and recalculate mosmix factors for each mppt
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-
 	// collect total expected today, tomorrow and till end of day / start of day
 	int today, tomorrow, sod, eod;
 	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
@@ -733,8 +730,8 @@ static void calculate_mosmix() {
 	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
 
-	// dump todays history
-	mosmix_dump_history_today(now);
+	// dump today
+	mosmix_dump_today(now);
 }
 
 static void calculate_gstate() {
@@ -955,8 +952,10 @@ static void daily(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
-	// dump high noon mosmix slots
+	// dump todays history and high noon mosmix slots, clear all today and tomorrow values
+	mosmix_dump_history_today(now);
 	mosmix_dump_history_noon();
+	mosmix_clear_today_tomorrow();
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -986,6 +985,9 @@ static void hourly(time_t now_ts) {
 	pstate_t *ph = PSTATE_HOUR_NOW;
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
+
+	// update produced energy this hour and recalculate mosmix factors for each mppt
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
 
 	// recalculate mosmix and choose potd
 	calculate_mosmix();
