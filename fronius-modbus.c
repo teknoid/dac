@@ -972,7 +972,7 @@ static void hourly(time_t now_ts) {
 	// resetting noresponse counters and standby states
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
-		if (DD->state == Standby)
+		if (DD != AKKU && DD->state == Standby)
 			DD->state = Active;
 	}
 
