@@ -338,6 +338,7 @@ void menu_handle(int c) {
 		mcp->menu = 0;
 		xlog("leaving menu mode");
 		break;
+	default:
 	}
 
 	// update screen

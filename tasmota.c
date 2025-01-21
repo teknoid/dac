@@ -221,8 +221,10 @@ static int flamingo(unsigned int code) {
 			else if (command == 0)
 				xmas_off();
 			break;
+		default:
 		}
 		break;
+	default:
 	}
 
 	return 0;

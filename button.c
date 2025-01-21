@@ -69,6 +69,7 @@ static void handle_button(unsigned char c) {
 		fronius_boiler3();
 		break;
 #endif
+	default:
 	}
 }
 

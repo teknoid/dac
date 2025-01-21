@@ -280,6 +280,8 @@ int flamingo_main(int argc, char *argv[]) {
 		case 't':
 			flamingo_test(argc, argv);
 			return EXIT_SUCCESS;
+		default:
+			xlog("unknown getopt %c", c);
 		}
 	}
 

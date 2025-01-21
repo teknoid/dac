@@ -555,6 +555,7 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 			c = va_arg(va, char*);
 			strcat(path, c);
 			break;
+		default:
 		}
 		if (stat(path, &st) == -1)
 			if (mkdir(path, 0755))
@@ -629,6 +630,7 @@ const char* resolve_ip(const char *hostname) {
 	case AF_INET6:
 		ptr = &((struct sockaddr_in6*) addr->ai_addr)->sin6_addr;
 		break;
+	default:
 	}
 
 	char *addrstr = malloc(16);

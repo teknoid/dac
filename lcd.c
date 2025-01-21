@@ -110,6 +110,7 @@ static int lcd_gotolc(uint8_t row, uint8_t col) {
 	case 4:
 		lcddata = LCD_LINE4;
 		break;
+	default:
 	}
 	lcddata |= 0x80;
 	lcddata += (col - 1);

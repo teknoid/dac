@@ -38,6 +38,7 @@ static dac_signal_t dac_get_signal() {
 			return spdif;
 		case 0x08:
 			return dop;
+		default:
 		}
 	}
 	return nlock;
@@ -257,6 +258,7 @@ void dac_source(int source) {
 		dac_unmute();
 		display_fullscreen_string("COX");
 		break;
+	default:
 	}
 	mcp->dac_source = source;
 	mcp->dac_state_changed = 1;

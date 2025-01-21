@@ -311,6 +311,7 @@ void mpdclient_handle(int key) {
 	case KEY_F4:
 		external("F4");
 		break;
+	default:
 	}
 }
 

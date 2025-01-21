@@ -66,6 +66,7 @@ static void* rotary_axis(void *arg) {
 			dac_handle(KEY_VOLUMEUP);
 #endif
 			break;
+		default:
 		}
 	}
 

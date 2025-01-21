@@ -58,6 +58,8 @@ int template_main(int argc, char **argv) {
 		switch (c) {
 		case 't':
 			return test();
+		default:
+			xlog("unknown getopt %c", c);
 		}
 	}
 

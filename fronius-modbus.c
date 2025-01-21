@@ -1765,6 +1765,8 @@ int fronius_main(int argc, char **argv) {
 			return loop();
 		case 't':
 			return test();
+		default:
+			xlog("unknown getopt %c", c);
 		}
 	}
 

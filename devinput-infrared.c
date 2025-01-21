@@ -61,6 +61,7 @@ static void ir() {
 			if (seq++ < 4)
 				continue; // skip the always coming first repeat, bug ???
 			break;
+		default:
 		}
 
 		ev.value = seq; // abuse value for sequence
