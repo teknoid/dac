@@ -171,9 +171,6 @@ static int minimum(char *arg) {
 }
 
 static int akku_standby(device_t *akku) {
-	if (akku->state == Standby)
-		return 0; // continue loop
-
 	xdebug("FRONIUS set akku STANDBY");
 #ifndef FRONIUS_MAIN
 	sunspec_storage_limit_both(f10, 0, 0);
@@ -185,9 +182,6 @@ static int akku_standby(device_t *akku) {
 }
 
 static int akku_charge(device_t *akku) {
-	if (akku->state == Charge)
-		return 0; // continue loop
-
 	// enable charging
 	xdebug("FRONIUS set akku CHARGE");
 #ifndef FRONIUS_MAIN
@@ -201,9 +195,6 @@ static int akku_charge(device_t *akku) {
 }
 
 static int akku_discharge(device_t *akku) {
-	if (akku->state == Discharge)
-		return 0; // continue loop
-
 #ifndef FRONIUS_MAIN
 	// enable discharge
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
