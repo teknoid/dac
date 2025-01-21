@@ -171,10 +171,10 @@ static int minimum(char *arg) {
 }
 
 static int akku_standby(device_t *akku) {
-	xdebug("FRONIUS set akku STANDBY");
 #ifndef FRONIUS_MAIN
 	sunspec_storage_limit_both(f10, 0, 0);
 #endif
+	xdebug("FRONIUS set akku STANDBY");
 	akku->state = Standby;
 	akku->timer = WAIT_RESPONSE;
 	akku->power = akku->load = akku->xload = 0; // disable response/standby/steal logic
@@ -182,11 +182,10 @@ static int akku_standby(device_t *akku) {
 }
 
 static int akku_charge(device_t *akku) {
-	// enable charging
-	xdebug("FRONIUS set akku CHARGE");
 #ifndef FRONIUS_MAIN
 	sunspec_storage_limit_discharge(f10, 0);
 #endif
+	xdebug("FRONIUS set akku CHARGE");
 	akku->state = Charge;
 	akku->timer = WAIT_AKKU_CHARGE;
 	akku->load = akku->xload = 0; // disable response/standby/steal logic
@@ -196,7 +195,6 @@ static int akku_charge(device_t *akku) {
 
 static int akku_discharge(device_t *akku) {
 #ifndef FRONIUS_MAIN
-	// enable discharge
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
 		xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
@@ -206,7 +204,6 @@ static int akku_discharge(device_t *akku) {
 		sunspec_storage_limit_charge(f10, 0);
 	}
 #endif
-
 	akku->state = Discharge;
 	akku->timer = WAIT_RESPONSE;
 	akku->power = akku->load = akku->xload = 0; // disable response/standby/steal logic

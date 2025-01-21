@@ -474,7 +474,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	if (storage.StorCtl_Mod == 3 && storage.InWRte == inWRte_sf && storage.OutWRte == outWRte_sf)
 		return 0; // already set
 
-	xlog("SUNSPEC set charge limit to %d W discharge limit to %d W", inWRte, outWRte);
+	xlog("SUNSPEC set charge limit to %d, W discharge limit to %d W", inWRte, outWRte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), 3);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inWRte_sf);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outWRte_sf);
