@@ -24,31 +24,31 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
-static void scale1(mosmix_t *m) {
-	float f = 1.0 + FLOAT100(m->err1);
-	xlog("MOSMIX scaling today's expected MPPT1 values by %5.2f", f);
-	for (int h = 0; h < 24; h++)
+static void scale1(struct tm *now, mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err1 / 2);
+	xlog("MOSMIX scaling today's remaining expected MPPT1 values by %5.2f", f);
+	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp1 *= f;
 }
 
-static void scale2(mosmix_t *m) {
-	float f = 1.0 + FLOAT100(m->err2);
-	xlog("MOSMIX scaling today's expected MPPT2 values by %5.2f", f);
-	for (int h = 0; h < 24; h++)
+static void scale2(struct tm *now, mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err2 / 2);
+	xlog("MOSMIX scaling today's remaining expected MPPT2 values by %5.2f", f);
+	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp2 *= f;
 }
 
-static void scale3(mosmix_t *m) {
-	float f = 1.0 + FLOAT100(m->err3);
-	xlog("MOSMIX scaling today's expected MPPT3 values by %5.2f", f);
-	for (int h = 0; h < 24; h++)
+static void scale3(struct tm *now, mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err3 / 2);
+	xlog("MOSMIX scaling today's remaining expected MPPT3 values by %5.2f", f);
+	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp3 *= f;
 }
 
-static void scale4(mosmix_t *m) {
-	float f = 1.0 + FLOAT100(m->err4);
-	xlog("MOSMIX scaling today's expected MPPT4 values by %5.2f", f);
-	for (int h = 0; h < 24; h++)
+static void scale4(struct tm *now, mosmix_t *m) {
+	float f = 1.0 + FLOAT100(m->err4 / 2);
+	xlog("MOSMIX scaling today's remaining expected MPPT4 values by %5.2f", f);
+	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp4 *= f;
 }
 
@@ -177,15 +177,15 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT3", now->tm_hour, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
 	calc("MPPT4", now->tm_hour, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
 
-	// validate today's forecast - if error is greater than 20% scale all values
+	// validate today's forecast - if error is greater than 20% scale all remaining values
 	if (m->err1 < -20 || m->err1 > 20)
-		scale1(m);
+		scale1(now, m);
 	if (m->err2 < -20 || m->err2 > 20)
-		scale2(m);
+		scale2(now, m);
 	if (m->err3 < -20 || m->err3 > 20)
-		scale3(m);
+		scale3(now, m);
 	if (m->err4 < -20 || m->err4 > 20)
-		scale4(m);
+		scale4(now, m);
 
 	// save to history
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
