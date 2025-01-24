@@ -573,7 +573,7 @@ static void test() {
 }
 
 static void migrate() {
-	// return;
+	return;
 
 	mosmix_old_t old[24 * 7];
 	ZERO(old);
