@@ -133,7 +133,8 @@ static void base_factors(int h) {
 	if (!rad1h_ok) {
 		// initial values determined in January 2025 from MPPT1
 		xdebug("MOSMIX no day found with SunD1 < %d at hour %d, using initial values", SUND1_MINIMUM, h);
-		rad1h_1 = rad1h_2 = rad1h_3 = rad1h_4 = 055;
+		rad1h_1 = rad1h_2 = rad1h_3 = rad1h_4 = 55;
+		sund1_1 = sund1_2 = sund1_3 = sund1_4 = 122;
 		return;
 	}
 
@@ -572,11 +573,11 @@ static void test() {
 }
 
 static void migrate() {
-	return;
+	// return;
 
 	mosmix_old_t old[24 * 7];
 	ZERO(old);
-	load_blob(MOSMIX_HISTORY, old, sizeof(old));
+	load_blob("/work/fronius-mosmix-history.bin", old, sizeof(old));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_old_t *o = &old[i];
