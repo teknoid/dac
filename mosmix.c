@@ -239,13 +239,11 @@ static void update_today_tomorrow() {
 static void calc(const char *id, int hour, int base, int exp, int mppt, int *err, int *fac) {
 	// error actual vs. expected
 	float e = exp ? (float) mppt / (float) exp : 1.0;
-	if (e > 5.0)
-		e = 5.0; // shape
 	*err = e * 100; // store as x100 scaled
 	// factor actual vs. base
 	float f = base ? (float) mppt / (float) base : 0.0;
-	// xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, e, f);
 	*fac = f * 100; // store as x100 scaled
+	// xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, e, f);
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -264,13 +262,13 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	calc("MPPT4", now->tm_hour, m->base4, m->exp4, m->mppt4, &m->err4, &m->fac4);
 
 	// validate today's forecast - if error is greater than 20% scale all remaining values
-	if (m->err1 < -20 || m->err1 > 20)
+	if (m->err1 < 80 || m->err1 > 120)
 		scale1(now, m);
-	if (m->err2 < -20 || m->err2 > 20)
+	if (m->err2 < 80 || m->err2 > 120)
 		scale2(now, m);
-	if (m->err3 < -20 || m->err3 > 20)
+	if (m->err3 < 80 || m->err3 > 120)
 		scale3(now, m);
-	if (m->err4 < -20 || m->err4 > 20)
+	if (m->err4 < 80 || m->err4 > 120)
 		scale4(now, m);
 
 	// save to history
