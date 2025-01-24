@@ -964,9 +964,6 @@ static void daily(time_t now_ts) {
 	mosmix_dump_history_today(now);
 	mosmix_dump_history_noon();
 	mosmix_clear_today_tomorrow();
-	mosmix_base_factors(11);
-	mosmix_base_factors(12);
-	mosmix_base_factors(13);
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
