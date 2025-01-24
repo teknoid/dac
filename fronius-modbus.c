@@ -970,6 +970,7 @@ static void daily(time_t now_ts) {
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	mosmix_store_state();
 #endif
 }
 
