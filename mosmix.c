@@ -156,12 +156,16 @@ static void update_today_tomorrow() {
 
 static void calc(const char *id, int hour, int base, int exp, int mppt, int *err, int *fac) {
 	// error actual vs. expected
-	float error = exp ? (float) mppt / (float) exp - 1.0 : 0.0;
-	*err = error * 100; // store as x100 scaled
+	float e = exp ? (float) mppt / (float) exp - 1.0 : 0.0;
+	if (e > 5.0)
+		e = 5.0; // shape
+	*err = e * 100; // store as x100 scaled
 	// factor actual vs. base
-	float new = base ? (float) mppt / (float) base - 1.0 : 0.0;
-	xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, error, new);
-	*fac = new * 100; // store as x100 scaled
+	float f = base ? (float) mppt / (float) base - 1.0 : 0.0;
+	if (f > 2.0)
+		f = 2.0; // shape
+	xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, e, f);
+	*fac = f * 100; // store as x100 scaled
 }
 
 void mosmix_base_factors(int h) {
@@ -466,7 +470,7 @@ static void recalc() {
 	}
 
 	// mosmix_store_state();
-	// mosmix_store_csv();
+	mosmix_store_csv();
 	mosmix_dump_history_noon();
 }
 
