@@ -429,7 +429,7 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	return select_program(&GREEDY);
+	// return select_program(&GREEDY);
 	// return select_program(&MODEST);
 
 	if (!gstate)
@@ -913,7 +913,7 @@ static void calculate_pstate() {
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (!f10->active) {
+	if (f10 && !f10->active) {
 //		xlog("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_VALID;
 	}
@@ -960,6 +960,9 @@ static void daily(time_t now_ts) {
 	mosmix_dump_history_today(now);
 	mosmix_dump_history_noon();
 	mosmix_clear_today_tomorrow();
+//	mosmix_base_factors(11);
+//	mosmix_base_factors(12);
+//	mosmix_base_factors(13);
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -1059,8 +1062,10 @@ static void fronius() {
 		pstate = PSTATE_NOW;
 
 		// issue read request
-		meter->read = 1;
-		f10->read = 1;
+		if (meter)
+			meter->read = 1;
+		if (f10)
+			f10->read = 1;
 		if (f7)
 			f7->read = 1;
 
@@ -1071,28 +1076,21 @@ static void fronius() {
 		// calculate new pstate
 		calculate_pstate();
 
+		// initialize program of the day if not yet done
+		if (!potd) {
+			calculate_gstate();
+			calculate_mosmix(0);
+			choose_program();
+			print_gstate();
+			print_pstate_dstate(0);
+			plot();
+			continue;
+		}
+
 		// web output
 		create_pstate_json();
 		if (now->tm_sec % 10 == 0)
 			create_gstate_dstate_json();
-
-		// initialize program of the day if not yet done and choose storage strategy
-		if (!potd) {
-			xdebug("FRONIUS segfault 1");
-			calculate_gstate();
-			xdebug("FRONIUS segfault 2");
-			calculate_mosmix(0);
-			xdebug("FRONIUS segfault 3");
-			choose_program();
-			xdebug("FRONIUS segfault 4");
-			print_gstate();
-			xdebug("FRONIUS segfault 5");
-			print_pstate_dstate(0);
-			xdebug("FRONIUS segfault 6");
-			plot();
-			xdebug("FRONIUS segfault 7");
-			continue;
-		}
 
 		// check emergency
 		if (PSTATE_EMERGENCY)
@@ -1727,6 +1725,10 @@ int ramp_akku(device_t *akku, int power) {
 		// skip ramp ups as long as pv is smaller than load
 		if (m1_pv < m1_load)
 			return 1; // loop done
+
+		// forward ramp ups to next device if already in charge mode
+		if (akku->state == Charge)
+			return 0;
 
 		// ramp up
 		return akku_charge(akku);
