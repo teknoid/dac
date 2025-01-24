@@ -54,6 +54,7 @@ void mosmix_dump_history_full(struct tm *now);
 void mosmix_dump_history_noon();
 void mosmix_clear_today_tomorrow();
 void mosmix_store_csv();
+void mosmix_base_factors(int h);
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_collect(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
 void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);

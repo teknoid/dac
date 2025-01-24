@@ -13,6 +13,12 @@
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
 
+// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
+//#define BASE					(m->Rad1h)
+//#define BASE					(m->Rad1h + m->SunD1 / 10)
+//#define BASE					(m->Rad1h * (1 + (float) m->SunD1 / 3600))
+#define BASE					(m->Rad1h * 0.55 + m->SunD1 * 1.22)
+
 // all values
 static mosmix_csv_t mosmix_csv[256];
 
@@ -130,11 +136,7 @@ static void update_today_tomorrow() {
 		// update
 		m->Rad1h = mcsv->Rad1h;
 		m->SunD1 = mcsv->SunD1;
-
-		// calculate base value as a combination of Rad1h / SunD1 / TTT etc.
-		m->base = m->Rad1h * (1 + (float) m->SunD1 / 3600);
-		// m->base = m->Rad1h + m->SunD1 / 10;
-		// m->base = m->Rad1h;
+		m->base = BASE;
 
 		if (m->Rad1h)
 			xdebug("MOSMIX updated %02d.%02d. hour %02d Rad1h=%d SunD1=%d base=%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, m->SunD1, m->base);
@@ -160,6 +162,52 @@ static void calc(const char *id, int hour, int base, int exp, int mppt, int *err
 	float new = base ? (float) mppt / (float) base - 1.0 : 0.0;
 	xdebug("MOSMIX %s hour=%02d actual=%4d expected=%4d error=%5.2f factor=%5.2f", id, hour, mppt, exp, error, new);
 	*fac = new * 100; // store as x100 scaled
+}
+
+void mosmix_base_factors(int h) {
+	// find days with no sunshine and calculate Rad1h factor
+	float rad1h_avg = 0.0;
+	int rad1h_count = 0;
+	for (int d = 0; d < 7; d++) {
+		mosmix_t *m = HISTORY(d, h);
+		if (!m->SunD1) {
+			float rad1h = m->Rad1h ? (float) m->mppt1 / (float) m->Rad1h : 0.0;
+			xdebug("MOSMIX Rad1h factor at day %d hour %d is %5.2f", d, h, rad1h);
+			rad1h_avg += rad1h;
+			rad1h_count++;
+		}
+	}
+
+	// nothing found - cannot calculate
+	if (!rad1h_count) {
+		xdebug("MOSMIX no day found with SunD1 = 0 at hour %d", h);
+		return;
+	}
+
+	rad1h_avg /= (float) rad1h_count;
+	xdebug("MOSMIX average hour %d MPPT1 Rad1h factor is %5.2f", h, rad1h_avg);
+
+	// now find days with sunshine and calculate SunD1 factor
+	float sund1_avg = 0.0;
+	int sund1_count = 0;
+	for (int d = 0; d < 7; d++) {
+		mosmix_t *m = HISTORY(d, h);
+		if (m->SunD1) {
+			float sund1 = (float) (m->mppt1 - m->Rad1h * rad1h_avg) / (float) m->SunD1;
+			xdebug("MOSMIX SunD1 factor at day %d hour %d is %5.2f", d, h, sund1);
+			sund1_avg += sund1;
+			sund1_count++;
+		}
+	}
+
+	// nothing found - cannot calculate
+	if (!sund1_count) {
+		xdebug("MOSMIX no day found with SunD1 > 0 at hour %d", h);
+		return;
+	}
+
+	sund1_avg /= (float) sund1_count;
+	xdebug("MOSMIX average hour %d MPPT1 SunD1 factor is %5.2f", h, sund1_avg);
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -383,19 +431,43 @@ int mosmix_load(const char *filename) {
 	return 0;
 }
 
-static void fix() {
-//	ZERO(history);
-//	load_blob(MOSMIX_HISTORY, history, sizeof(history));
-//	for (int i = 0; i < 24 * 7; i++) {
-//		mosmix_t *m = &history[i];
-//		// recalculate
-//		calc("MPPT1", i, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
-//		calc("MPPT2", i, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
-//		calc("MPPT3", i, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
-//		calc("MPPT4", i, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
-//	}
-//	store_blob(MOSMIX_HISTORY, history, sizeof(history));
-//	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
+static void recalc() {
+	ZERO(history);
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
+
+	// recalc base and factors
+	for (int h = 0; h < 24 * 7; h++) {
+		mosmix_t *m = &history[h];
+		m->base = BASE;
+		calc("MPPT1", h, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+		calc("MPPT2", h, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+		calc("MPPT3", h, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+		calc("MPPT4", h, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
+	}
+
+	// recalc expected with new factors
+	mosmix_t avg;
+	for (int h = 0; h < 24; h++) {
+		ZERO(avg);
+		average(&avg, h);
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, h);
+			expected(m, &avg);
+		}
+	}
+
+	// recalc errors
+	for (int h = 0; h < 24 * 7; h++) {
+		mosmix_t *m = &history[h];
+		calc("MPPT1", h, m->base, m->exp1, m->mppt1, &m->err1, &m->fac1);
+		calc("MPPT2", h, m->base, m->exp2, m->mppt2, &m->err2, &m->fac2);
+		calc("MPPT3", h, m->base, m->exp3, m->mppt3, &m->err3, &m->fac3);
+		calc("MPPT4", h, m->base, m->exp4, m->mppt4, &m->err4, &m->fac4);
+	}
+
+	// mosmix_store_state();
+	// mosmix_store_csv();
+	mosmix_dump_history_noon();
 }
 
 static void test() {
@@ -462,7 +534,10 @@ int mosmix_main(int argc, char **argv) {
 	set_debug(1);
 
 	test();
-	fix();
+	recalc();
+	mosmix_base_factors(11);
+	mosmix_base_factors(12);
+	mosmix_base_factors(13);
 
 	return 0;
 }

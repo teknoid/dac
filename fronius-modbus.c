@@ -22,6 +22,7 @@
 #define AKKU_CAPACITY			(f10 ? SFI(f10->nameplate->WHRtg, f10->nameplate->WHRtg_SF) : 0)
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
 #define EMERGENCY				(AKKU_CAPACITY / 10)
+#define AKKU_CHARGING			(AKKU->state == Charge)
 
 #define WAIT_RESPONSE			5	// 3s is too less !
 #define WAIT_AKKU_CHARGE		30
@@ -641,11 +642,14 @@ static device_t* response(device_t *d) {
 	// valid response is at least 1/3 of expected
 	int response = expected > 0 ? (delta > expected / 3) : (delta < expected / 3);
 
+	// load is completely satisfied from secondary inverter
+	int extra = pstate->ac7 > pstate->load * -1;
+
 	// response OK
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		if (AKKU->state == Charge) {
+		if (AKKU_CHARGING && !extra) {
 			d->timer = WAIT_AKKU_RAMP;
 			return d;
 		} else {
@@ -659,7 +663,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = AKKU->state == Charge ? WAIT_AKKU_RAMP : 0;
+		d->timer = AKKU_CHARGING && !extra ? WAIT_AKKU_RAMP : 0;
 		return d;
 	}
 
@@ -960,9 +964,9 @@ static void daily(time_t now_ts) {
 	mosmix_dump_history_today(now);
 	mosmix_dump_history_noon();
 	mosmix_clear_today_tomorrow();
-//	mosmix_base_factors(11);
-//	mosmix_base_factors(12);
-//	mosmix_base_factors(13);
+	mosmix_base_factors(11);
+	mosmix_base_factors(12);
+	mosmix_base_factors(13);
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -1700,7 +1704,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itself
 		int surp = (pstate->grid + pstate->akku) * -1;
-		if (akku->state == Charge && surp > -NOISE)
+		if (AKKU_CHARGING && surp > -NOISE)
 			return 1; // loop done
 
 		// forward ramp down request to next device as long as other devices active
@@ -1727,7 +1731,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 1; // loop done
 
 		// forward ramp ups to next device if already in charge mode
-		if (akku->state == Charge)
+		if (AKKU_CHARGING)
 			return 0;
 
 		// ramp up
