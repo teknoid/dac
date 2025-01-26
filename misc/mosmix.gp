@@ -3,9 +3,10 @@
 pstate="/run/mcp/pstate-minutes.csv"
 gstate="/run/mcp/gstate-today.csv"
 gstatew="/run/mcp/gstate-week.csv"
+history="/run/mcp/mosmix-history.csv"
+factors="/run/mcp/mosmix-factors.csv"
 today="/run/mcp/mosmix-today.csv"
 tomorrow="/run/mcp/mosmix-tomorrow.csv"
-history="/run/mcp/mosmix-history.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -48,15 +49,11 @@ p history u 1:"mppt1" t "mppt1" w lines lt 1,\
        '' u 1:"exp2"  t "exp2"  w lines linecolor rgb "green",\
        '' u 1:"exp3"  t "exp3"  w lines linecolor rgb "blue"
 
-set xzeroaxis linetype 16 linewidth 0.5
-
+# errors
 set ylabel "Errors"
+set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/mosmix-errors.svg"
 p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
-
-set ylabel "Factors"
-set output "/run/mcp/mosmix-factors.svg" 
-p history u 1:"fac1" t "fac1" w lines, '' u 1:"fac2" t "fac2" w lines, '' u 1:"fac3" t "fac3" w lines
 
 
 # gstate weekly
@@ -91,6 +88,14 @@ p gstate u 1:"mppt1" t "mppt1"    w lines,\
       '' u 1:"ttl"   t "ttl"      w lines,\
       '' u 1:"surv"  t "survive"  w lines ls 5,\
       '' u 1:"heat"  t "heating"  w lines ls 6
+
+
+# factors
+set ylabel "Factors"
+set xrange [0:24]
+set output "/run/mcp/mosmix-factors.svg" 
+p factors u 1:"r1" t "r1" w lines, '' u 1:"r2" t "r2" w lines, '' u 1:"r3" t "r3" w lines, '' u 1:"r4" t "r4" w lines,\
+       '' u 1:"s1" t "s1" w lines, '' u 1:"s2" t "s2" w lines, '' u 1:"s3" t "s3" w lines, '' u 1:"s4" t "s4" w lines
 
 
 # forecasts

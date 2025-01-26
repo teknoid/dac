@@ -960,10 +960,11 @@ static void daily(time_t now_ts) {
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
-	// dump todays history and high noon mosmix slots, clear all today and tomorrow values
+	// dump todays history and high noon mosmix slots, clear all today and tomorrow values, recalculate factors
 	mosmix_dump_history_today(now);
 	mosmix_dump_history_noon();
 	mosmix_clear_today_tomorrow();
+	mosmix_factors();
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
