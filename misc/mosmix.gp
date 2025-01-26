@@ -14,17 +14,14 @@ set terminal svg size 1920,800
 set datafile separator whitespace
 set key autotitle columnhead
 
-# thick lines
-set style line 8 linecolor "orange-red" lw 6
-set style line 9 linecolor "black" lw 1
-
-# thin lines 
 set style line 1 linecolor rgb "#FAD967" lw 1			# PV
 set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
 set style line 3 linecolor "orange-red" lw 1			# Grid download
 set style line 4 linecolor "orchid" lw 1				# Grid upload
 set style line 5 linecolor "navy" lw 1					# Load
 set style line 6 linecolor "olive" lw 1					# SoC
+set style line 8 linecolor "orange-red" lw 6			# Rad1h over SunD1
+set style line 9 linecolor "black" lw 1
 
 set style fill solid 1.0
 set boxwidth 0.33 relative
@@ -38,13 +35,12 @@ set tics format "%2.0s%c"
 
 
 # history
-set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
-
 set ylabel "MPPTs"
+set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 set output "/run/mcp/mosmix-mppt.svg" 
-p history u 1:"mppt1" t "mppt1" w lines lt 1,\
-       '' u 1:"mppt2" t "mppt2" w lines lt 2,\
-       '' u 1:"mppt3" t "mppt3" w lines lt 3,\
+p history u 1:"mppt1" t "mppt1" w lines,\
+       '' u 1:"mppt2" t "mppt2" w lines,\
+       '' u 1:"mppt3" t "mppt3" w lines,\
        '' u 1:"exp1"  t "exp1"  w lines linecolor rgb "red",\
        '' u 1:"exp2"  t "exp2"  w lines linecolor rgb "green",\
        '' u 1:"exp3"  t "exp3"  w lines linecolor rgb "blue"
@@ -94,8 +90,12 @@ p gstate u 1:"mppt1" t "mppt1"    w lines,\
 set ylabel "Factors"
 set xrange [0:24]
 set output "/run/mcp/mosmix-factors.svg" 
-p factors u 1:"r1" t "r1" w lines, '' u 1:"r2" t "r2" w lines, '' u 1:"r3" t "r3" w lines, '' u 1:"r4" t "r4" w lines,\
-       '' u 1:"s1" t "s1" w lines, '' u 1:"s2" t "s2" w lines, '' u 1:"s3" t "s3" w lines, '' u 1:"s4" t "s4" w lines
+p factors u 1:"r1" t "r1" w lines,\
+       '' u 1:"r2" t "r2" w lines,\
+       '' u 1:"r3" t "r3" w lines,\
+       '' u 1:"s1" t "s1" w lines linecolor rgb "red",\
+       '' u 1:"s2" t "s2" w lines linecolor rgb "green",\
+       '' u 1:"s3" t "s3" w lines linecolor rgb "blue"
 
 
 # forecasts
