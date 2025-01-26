@@ -199,6 +199,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
 	m->err4 = m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
 
+	// save to history
+	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
+	memcpy(mh, m, sizeof(mosmix_t));
+
 	// validate today's forecast - if error is greater than 20% scale all remaining values
 	if (m->err1 < 80 || m->err1 > 120)
 		scale1(now, m);
@@ -208,10 +212,6 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 		scale3(now, m);
 	if (m->err4 < 80 || m->err4 > 120)
 		scale4(now, m);
-
-	// save to history
-	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
-	memcpy(mh, m, sizeof(mosmix_t));
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
