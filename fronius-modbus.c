@@ -1017,12 +1017,12 @@ static void hourly(time_t now_ts) {
 	else
 		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
+	// plot diagrams
+	plot();
+
 	// workaround /run/mcp get's immediately deleted at stop/kill
 	xlog("MCP saving runtime directory: %s", SAVE_RUN_DIRECORY);
 	system(SAVE_RUN_DIRECORY);
-
-	// plot diagrams
-	plot();
 }
 
 static void minly(time_t now_ts) {
