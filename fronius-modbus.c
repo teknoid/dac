@@ -1019,7 +1019,7 @@ static void hourly(time_t now_ts) {
 	plot();
 
 	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("MCP saving runtime directory: %s", SAVE_RUN_DIRECORY);
+	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
 	system(SAVE_RUN_DIRECORY);
 }
 
@@ -1121,7 +1121,7 @@ static void fronius() {
 		if (!device)
 			device = steal();
 
-		// print gstate ever 15min, pstate once per minute / when delta / on device action
+		// print gstate every 15min, pstate once per minute / when delta / on device action
 		if (now->tm_min % 15 == 0 && now->tm_sec == 59)
 			print_gstate();
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
@@ -1399,15 +1399,17 @@ static int single() {
 	pstate = PSTATE_NOW;
 
 	// issue read request
-	meter->read = 1;
-	f10->read = 1;
+	if (meter)
+		meter->read = 1;
+	if (f10)
+		f10->read = 1;
 	if (f7)
 		f7->read = 1;
 	sleep(1);
 
 	calculate_pstate();
 	calculate_gstate();
-	calculate_mosmix(0);
+	calculate_mosmix();
 	choose_program();
 
 	response(&b1);
