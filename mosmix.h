@@ -77,10 +77,10 @@ typedef struct mosmix_csv_t {
 	int RSunD;
 } mosmix_csv_t;
 
-typedef struct _factors factors_t;
-#define FACTORS_SIZE		(sizeof(factors_t) / sizeof(int))
-#define FACTORS_HEADER	"    r1    r2    r3    r4    s1    s2    s3    s4    e1    e2    e3    e4"
-struct _factors {
+typedef struct _factor factor_t;
+#define FACTOR_SIZE		(sizeof(factor_t) / sizeof(int))
+#define FACTOR_HEADER	"    r1    r2    r3    r4    s1    s2    s3    s4    e1    e2    e3    e4"
+struct _factor {
 	int r1;
 	int r2;
 	int r3;

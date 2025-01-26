@@ -27,7 +27,7 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define HISTORY(d, h)			(&history[24 * d + h])
 
 // rad1/sund1 factors per MPPT and hour and access pointer
-static factors_t factors[24];
+static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
 static void scale1(struct tm *now, mosmix_t *m) {
@@ -70,8 +70,8 @@ static void parse(char **strings, size_t size) {
 	m->RSunD = atoi(strings[5]);
 }
 
-// calculate expected pv as combination of raw mosmix values with string specific factors
-static void expected(mosmix_t *m, factors_t *f) {
+// calculate expected pv as combination of raw mosmix values with mppt specific factors
+static void expected(mosmix_t *m, factor_t *f) {
 	m->exp1 = m->Rad1h * f->r1 / 100 + m->SunD1 * f->s1 / 100;
 	m->exp2 = m->Rad1h * f->r2 / 100 + m->SunD1 * f->s2 / 100;
 	m->exp3 = m->Rad1h * f->r3 / 100 + m->SunD1 * f->s3 / 100;
@@ -120,7 +120,7 @@ static void update_today_tomorrow() {
 
 	// calculate each mppt's forecast today and tomorrow
 	for (int h = 0; h < 24; h++) {
-		factors_t *f = FACTORS(h);
+		factor_t *f = FACTORS(h);
 		mosmix_t *m0 = TODAY(h);
 		mosmix_t *m1 = TOMORROW(h);
 		expected(m0, f);
@@ -132,7 +132,7 @@ void mosmix_factors() {
 	ZERO(factors);
 
 	for (int h = 0; h < 24; h++) {
-		factors_t *f = FACTORS(h);
+		factor_t *f = FACTORS(h);
 
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 		for (int r = 0; r < FACTORS_MAX; r++) {
@@ -181,7 +181,7 @@ void mosmix_factors() {
 			}
 		}
 	}
-	dump_table((int*) factors, FACTORS_SIZE, 24, 0, "MOSMIX factors", FACTORS_HEADER);
+	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -368,7 +368,7 @@ void mosmix_store_state() {
 }
 void mosmix_store_csv() {
 	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
-	store_csv((int*) factors, FACTORS_SIZE, 24, FACTORS_HEADER, MOSMIX_FACTORS_CSV);
+	store_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, MOSMIX_FACTORS_CSV);
 	store_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
 	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
@@ -413,10 +413,10 @@ static void recalc() {
 	mosmix_factors();
 
 	// recalc expected with new factors
-	for (int h = 0; h < 24; h++) {
-		for (int d = 0; d < 7; d++) {
-			factors_t *f = FACTORS(h);
+	for (int d = 0; d < 7; d++) {
+		for (int h = 0; h < 24; h++) {
 			mosmix_t *m = HISTORY(d, h);
+			factor_t *f = FACTORS(h);
 			expected(m, f);
 		}
 	}
