@@ -31,29 +31,29 @@ static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
 static void scale1(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err1 / 2);
-	xlog("MOSMIX scaling today's remaining expected MPPT1 values by %5.2f", f);
+	float f = FLOAT100(m->err1);
+	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", f);
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp1 *= f;
 }
 
 static void scale2(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err2 / 2);
-	xlog("MOSMIX scaling today's remaining expected MPPT2 values by %5.2f", f);
+	float f = FLOAT100(m->err2);
+	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", f);
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp2 *= f;
 }
 
 static void scale3(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err3 / 2);
-	xlog("MOSMIX scaling today's remaining expected MPPT3 values by %5.2f", f);
+	float f = FLOAT100(m->err3);
+	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", f);
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp3 *= f;
 }
 
 static void scale4(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err4 / 2);
-	xlog("MOSMIX scaling today's remaining expected MPPT4 values by %5.2f", f);
+	float f = FLOAT100(m->err4);
+	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", f);
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp4 *= f;
 }
@@ -203,14 +203,15 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 
-	// validate today's forecast - if error is greater than 20% scale all remaining values
-	if (m->err1 < 80 || m->err1 > 120)
+	// validate today's forecast - if error is greater than +/- 10% scale all remaining values
+	xdebug("MOSMIX forecast errors %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+	if (m->err1 < 90 || m->err1 > 110)
 		scale1(now, m);
-	if (m->err2 < 80 || m->err2 > 120)
+	if (m->err2 < 90 || m->err2 > 110)
 		scale2(now, m);
-	if (m->err3 < 80 || m->err3 > 120)
+	if (m->err3 < 90 || m->err3 > 110)
 		scale3(now, m);
-	if (m->err4 < 80 || m->err4 > 120)
+	if (m->err4 < 90 || m->err4 > 110)
 		scale4(now, m);
 }
 
