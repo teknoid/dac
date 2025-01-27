@@ -690,10 +690,6 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_mosmix() {
-	// update forecasts
-	if (mosmix_load(MARIENBERG))
-		return;
-
 	// mosmix 24h raw values forecasts today, tomorrow and tomorrow+1
 	mosmix_csv_t m0, m1, m2;
 	mosmix_24h(0, &m0);
@@ -734,6 +730,17 @@ static void calculate_mosmix() {
 	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
 	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+}
+
+static void update_mosmix() {
+	if (mosmix_load(MARIENBERG))
+		return;
+
+	// update today slot with produced energy this hour
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_dump_today(now);
+
+	calculate_mosmix();
 }
 
 static void calculate_gstate() {
@@ -993,12 +1000,8 @@ static void hourly(time_t now_ts) {
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
 	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
 
-	// update today slot with produced energy this hour
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-	mosmix_dump_today(now);
-
 	// recalculate mosmix and choose potd
-	calculate_mosmix();
+	update_mosmix();
 	choose_program();
 
 	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
