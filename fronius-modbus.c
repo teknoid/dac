@@ -963,7 +963,7 @@ static void daily(time_t now_ts) {
 
 	// dump todays history and high noon mosmix slots, clear all today and tomorrow values, recalculate factors
 	mosmix_dump_history_today(now);
-	mosmix_dump_history_noon();
+	mosmix_dump_history_hours(12);
 	mosmix_clear_today_tomorrow();
 	mosmix_factors();
 

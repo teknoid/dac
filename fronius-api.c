@@ -882,7 +882,7 @@ static void daily(time_t now_ts) {
 	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
 
 	// dump high noon mosmix slots
-	mosmix_dump_history_noon();
+	mosmix_dump_history_hours(12);
 }
 
 static void hourly(time_t now_ts) {

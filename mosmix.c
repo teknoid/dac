@@ -26,7 +26,7 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
-// rad1/sund1 factors per MPPT and hour and access pointer
+// rad1/sund1 coefficients per MPPT and hour and access pointer
 static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
@@ -94,12 +94,12 @@ static void parse(char **strings, size_t size) {
 	m->RSunD = atoi(strings[5]);
 }
 
-// calculate expected pv as combination of raw mosmix values with mppt specific factors
+// calculate expected pv as combination of raw mosmix values with mppt specific coefficients
 static void expected(mosmix_t *m, factor_t *f) {
-	m->exp1 = m->Rad1h * f->r1 / 100 + m->SunD1 * f->s1 / 100;
-	m->exp2 = m->Rad1h * f->r2 / 100 + m->SunD1 * f->s2 / 100;
-	m->exp3 = m->Rad1h * f->r3 / 100 + m->SunD1 * f->s3 / 100;
-	m->exp4 = m->Rad1h * f->r4 / 100 + m->SunD1 * f->s4 / 100;
+	m->exp1 = f->r1 * m->Rad1h / 100 + f->s1 * m->SunD1 / 100;
+	m->exp2 = f->r2 * m->Rad1h / 100 + f->s2 * m->SunD1 / 100;
+	m->exp3 = f->r3 * m->Rad1h / 100 + f->s3 * m->SunD1 / 100;
+	m->exp4 = f->r4 * m->Rad1h / 100 + f->s4 * m->SunD1 / 100;
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -152,6 +152,7 @@ static void update_today_tomorrow() {
 	}
 }
 
+// brute force coefficients determination per MPPT and hour
 void mosmix_factors() {
 	ZERO(factors);
 
@@ -161,27 +162,32 @@ void mosmix_factors() {
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 		for (int r = 0; r < FACTORS_MAX; r++) {
 			for (int s = 0; s < FACTORS_MAX; s++) {
-				mosmix_t cum, c;
+				mosmix_t cum, x;
 				ZERO(cum);
+
 				for (int d = 0; d < 7; d++) {
 					mosmix_t *m = HISTORY(d, h);
 
-					c.exp1 = m->Rad1h * r / 100 + m->SunD1 * s / 100;
-					c.exp2 = m->Rad1h * r / 100 + m->SunD1 * s / 100;
-					c.exp3 = m->Rad1h * r / 100 + m->SunD1 * s / 100;
-					c.exp4 = m->Rad1h * r / 100 + m->SunD1 * s / 100;
+					// calculate expected
+					x.exp1 = r * m->Rad1h / 100 + s * m->SunD1 / 100;
+					x.exp2 = r * m->Rad1h / 100 + s * m->SunD1 / 100;
+					x.exp3 = r * m->Rad1h / 100 + s * m->SunD1 / 100;
+					x.exp4 = r * m->Rad1h / 100 + s * m->SunD1 / 100;
 
-					c.err1 = m->mppt1 > c.exp1 ? m->mppt1 - c.exp1 : c.exp1 - m->mppt1;
-					c.err2 = m->mppt2 > c.exp2 ? m->mppt2 - c.exp2 : c.exp2 - m->mppt2;
-					c.err3 = m->mppt3 > c.exp3 ? m->mppt3 - c.exp3 : c.exp3 - m->mppt3;
-					c.err4 = m->mppt4 > c.exp4 ? m->mppt4 - c.exp4 : c.exp4 - m->mppt4;
+					// calculate absolute error
+					x.err1 = m->mppt1 > x.exp1 ? m->mppt1 - x.exp1 : x.exp1 - m->mppt1;
+					x.err2 = m->mppt2 > x.exp2 ? m->mppt2 - x.exp2 : x.exp2 - m->mppt2;
+					x.err3 = m->mppt3 > x.exp3 ? m->mppt3 - x.exp3 : x.exp3 - m->mppt3;
+					x.err4 = m->mppt4 > x.exp4 ? m->mppt4 - x.exp4 : x.exp4 - m->mppt4;
 
-					cum.err1 += c.err1;
-					cum.err2 += c.err2;
-					cum.err3 += c.err3;
-					cum.err4 += c.err4;
+					// sum up errors
+					cum.err1 += x.err1;
+					cum.err2 += x.err2;
+					cum.err3 += x.err3;
+					cum.err4 += x.err4;
 				}
 
+				// now find the coefficients producing the smallest error and store them to table
 				if (cum.err1 < f->e1) {
 					f->r1 = r;
 					f->s1 = s;
@@ -233,8 +239,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 
+	xdebug("MOSMIX forecast errors Wh %d %d %d %d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
+	xdebug("MOSMIX forecast errors %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+
 	// validate today's forecast - if error is greater than +/- 10% scale all remaining values
-	xdebug("MOSMIX forecast errors %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 	scale1(now, m);
 	scale2(now, m);
 	scale3(now, m);
@@ -373,10 +381,12 @@ void mosmix_dump_history_full(struct tm *now) {
 	dump_table((int*) history, MOSMIX_SIZE, 24 * 7, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
 }
 
-void mosmix_dump_history_noon() {
-	xlog("MOSMIX history noon\n    "MOSMIX_HEADER);
-	for (int i = 0; i < 7; i++)
-		dump_struct((int*) HISTORY(i, 12), MOSMIX_SIZE, "[12]", 0);
+void mosmix_dump_history_hours(int h) {
+	xlog("MOSMIX history hours\n    "MOSMIX_HEADER);
+	char idx[6];
+	snprintf(idx, 6, "[%02d]", h);
+	for (int d = 0; d < 7; d++)
+		dump_struct((int*) HISTORY(d, h), MOSMIX_SIZE, idx, 0);
 }
 
 void mosmix_clear_today_tomorrow() {
@@ -464,7 +474,7 @@ static void recalc() {
 
 	// mosmix_store_state();
 	mosmix_store_csv();
-	mosmix_dump_history_noon();
+	mosmix_dump_history_hours(12);
 }
 
 static void test() {
@@ -478,6 +488,8 @@ static void test() {
 
 	// load state and update forecasts
 	mosmix_load_history();
+	mosmix_factors();
+	mosmix_load(MARIENBERG);
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;
@@ -521,7 +533,9 @@ static void test() {
 
 	mosmix_dump_today(now);
 	mosmix_dump_history_full(now);
-	mosmix_dump_history_noon();
+	mosmix_dump_history_hours(9);
+	mosmix_dump_history_hours(12);
+	mosmix_dump_history_hours(15);
 
 	// mosmix_store_state();
 }
