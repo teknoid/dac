@@ -90,8 +90,8 @@ struct _factor {
 	int e4;
 };
 
-void mosmix_store_state();
-void mosmix_load_state();
+void mosmix_store_history();
+void mosmix_load_history();
 void mosmix_factors();
 void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);

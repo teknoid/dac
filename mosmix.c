@@ -384,14 +384,12 @@ void mosmix_clear_today_tomorrow() {
 	ZERO(tomorrow);
 }
 
-void mosmix_load_state() {
+void mosmix_load_history() {
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
-	mosmix_load(MARIENBERG);
-	mosmix_factors();
 }
 
-void mosmix_store_state() {
+void mosmix_store_history() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 void mosmix_store_csv() {
@@ -479,7 +477,7 @@ static void test() {
 	localtime_r(&now_ts, now);
 
 	// load state and update forecasts
-	mosmix_load_state();
+	mosmix_load_history();
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;

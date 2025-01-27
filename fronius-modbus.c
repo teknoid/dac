@@ -972,7 +972,7 @@ static void daily(time_t now_ts) {
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_state();
+	mosmix_store_history();
 #endif
 }
 
@@ -1180,7 +1180,9 @@ static int init() {
 	load_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	mosmix_load_state();
+	mosmix_load_history();
+	mosmix_factors();
+	mosmix_load(MARIENBERG);
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 	f10 = sunspec_init_poll("fronius10", 1, &update_f10);
@@ -1206,7 +1208,7 @@ static void stop() {
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_state();
+	mosmix_store_history();
 #endif
 
 	if (sock)
