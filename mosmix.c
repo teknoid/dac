@@ -217,7 +217,13 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m->mppt3 = mppt3;
 	m->mppt4 = mppt4;
 
-	// calculate errors as actual vs. expected
+	// calculate errors as actual - expected
+	m->diff1 = m->mppt1 - m->exp1;
+	m->diff2 = m->mppt2 - m->exp2;
+	m->diff3 = m->mppt3 - m->exp3;
+	m->diff4 = m->mppt4 - m->exp4;
+
+	// calculate errors as actual / expected
 	m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
 	m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
 	m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
@@ -446,6 +452,12 @@ static void recalc() {
 	// recalc errors
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_t *m = &history[i];
+
+		m->diff1 = m->mppt1 - m->exp1;
+		m->diff2 = m->mppt2 - m->exp2;
+		m->diff3 = m->mppt3 - m->exp3;
+		m->diff4 = m->mppt4 - m->exp4;
+
 		m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
 		m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
 		m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;

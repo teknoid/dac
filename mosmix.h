@@ -13,7 +13,7 @@
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	" Rad1h SunD1 mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4  err1  err2  err3  err4"
+#define MOSMIX_HEADER	" Rad1h SunD1 mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4 diff1 diff2 diff3 diff4  err1  err2  err3  err4"
 struct _mosmix {
 	// mosmix raw values
 	int Rad1h;
@@ -23,12 +23,17 @@ struct _mosmix {
 	int mppt2;
 	int mppt3;
 	int mppt4;
-	// expected pv calculated from base
+	// expected pv calculated from mosmix forecast
 	int exp1;
 	int exp2;
 	int exp3;
 	int exp4;
-	// error calculated actual vs. expected
+	// error calculated actual - expected
+	int diff1;
+	int diff2;
+	int diff3;
+	int diff4;
+	// error calculated actual / expected
 	int err1;
 	int err2;
 	int err3;
@@ -45,12 +50,7 @@ typedef struct mosmix_old_t {
 	int mppt2;
 	int mppt3;
 	int mppt4;
-	// TODO deprecated - remove
-	int base1;
-	int base2;
-	int base3;
-	int base4;
-	// expected pv calculated from base
+	// expected pv calculated from mosmix forecast
 	int exp1;
 	int exp2;
 	int exp3;
@@ -60,11 +60,6 @@ typedef struct mosmix_old_t {
 	int err2;
 	int err3;
 	int err4;
-	// TODO deprecated - remove
-	int fac1;
-	int fac2;
-	int fac3;
-	int fac4;
 } mosmix_old_t;
 
 typedef struct mosmix_csv_t {

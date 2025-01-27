@@ -46,9 +46,14 @@ p history u 1:"mppt1" t "mppt1" w lines,\
        '' u 1:"exp3"  t "exp3"  w lines linecolor rgb "blue"
 
 # errors
-set ylabel "Errors"
+set ylabel "Errors Wh"
 set xzeroaxis linetype 16 linewidth 0.5
-set output "/run/mcp/mosmix-errors.svg"
+set output "/run/mcp/mosmix-errors-diff.svg"
+p history u 1:"diff1" t "diff1" w lines, '' u 1:"diff2" t "diff2" w lines, '' u 1:"diff3" t "diff3" w lines
+
+set ylabel "Errors %"
+set xzeroaxis linetype 16 linewidth 0.5
+set output "/run/mcp/mosmix-errors-percent.svg"
 p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
 
 
