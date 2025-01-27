@@ -31,31 +31,55 @@ static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
 static void scale1(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err1);
-	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", f);
+	int f = 0;
+	if (m->err1 < 90)
+		f = 90;
+	else if (m->err1 > 110)
+		f = 110;
+	else
+		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp1 *= f;
+		TODAY(h)->exp1 = TODAY(h)->exp1 * f / 100;
+	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", FLOAT100(f));
 }
 
 static void scale2(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err2);
-	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", f);
+	int f = 0;
+	if (m->err2 < 90)
+		f = 90;
+	else if (m->err2 > 110)
+		f = 110;
+	else
+		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp2 *= f;
+		TODAY(h)->exp2 = TODAY(h)->exp2 * f / 100;
+	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", FLOAT100(f));
 }
 
 static void scale3(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err3);
-	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", f);
+	int f = 0;
+	if (m->err3 < 90)
+		f = 90;
+	else if (m->err3 > 110)
+		f = 110;
+	else
+		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp3 *= f;
+		TODAY(h)->exp3 = TODAY(h)->exp3 * f / 100;
+	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", FLOAT100(f));
 }
 
 static void scale4(struct tm *now, mosmix_t *m) {
-	float f = FLOAT100(m->err4);
-	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", f);
+	int f = 0;
+	if (m->err4 < 90)
+		f = 90;
+	else if (m->err4 > 110)
+		f = 110;
+	else
+		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp4 *= f;
+		TODAY(h)->exp4 = TODAY(h)->exp4 * f / 100;
+	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", FLOAT100(f));
 }
 
 static void parse(char **strings, size_t size) {
@@ -205,14 +229,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 
 	// validate today's forecast - if error is greater than +/- 10% scale all remaining values
 	xdebug("MOSMIX forecast errors %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
-	if (m->err1 < 90 || m->err1 > 110)
-		scale1(now, m);
-	if (m->err2 < 90 || m->err2 > 110)
-		scale2(now, m);
-	if (m->err3 < 90 || m->err3 > 110)
-		scale3(now, m);
-	if (m->err4 < 90 || m->err4 > 110)
-		scale4(now, m);
+	scale1(now, m);
+	scale2(now, m);
+	scale3(now, m);
+	scale4(now, m);
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
