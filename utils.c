@@ -713,7 +713,7 @@ int load_blob(const char *filename, void *data, size_t size) {
 		return xerr("UTILS Cannot open file %s for reading", filename);
 	size_t count = fread(data, size, 1, fp);
 	fclose(fp);
-	xlog("UTILS loaded %d bytes from %s", count * size, filename);
+	xlog("UTILS loaded %5d bytes from %s", count * size, filename);
 	return 0;
 }
 
@@ -724,7 +724,7 @@ int store_blob(const char *filename, void *data, size_t size) {
 	size_t count = fwrite(data, size, 1, fp);
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored %d bytes to %s", count * size, filename);
+	xlog("UTILS stored %5d bytes to %s", count * size, filename);
 	return 0;
 }
 
@@ -750,7 +750,7 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored %d bytes to %s", ret * rsize, filename);
+	xlog("UTILS stored %5d bytes to %s", ret * rsize, filename);
 	return 0;
 }
 

@@ -239,8 +239,8 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 
-	xdebug("MOSMIX forecast errors Wh %d %d %d %d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
-	xdebug("MOSMIX forecast errors %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+	xdebug("MOSMIX forecast errors Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
+	xdebug("MOSMIX forecast errors  %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
 	// validate today's forecast - if error is greater than +/- 10% scale all remaining values
 	scale1(now, m);
