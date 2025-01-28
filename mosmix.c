@@ -566,6 +566,7 @@ static void migrate() {
 
 static void wget(struct tm *now, const char *id) {
 	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
+	chdir("/tmp");
 
 	snprintf(ftstamp, 32, "%4d%02d%02d%02d", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, 3);
 	printf("File timestamp %s\n", ftstamp);
@@ -574,7 +575,6 @@ static void wget(struct tm *now, const char *id) {
 	snprintf(furl, 256, "http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/%s/kml/%s", id, fname);
 	printf("File path %s\n", furl);
 
-	chdir("/tmp");
 	snprintf(cmd, 288, "wget -q %s", furl);
 	system(cmd);
 	snprintf(cmd, 288, "unzip -q -o %s", fname);

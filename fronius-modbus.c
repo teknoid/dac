@@ -53,8 +53,9 @@ static volatile gstate_t *gstate = 0;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
+#define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
-#define GSTATE_TODAY			GSTATE_HOUR(0)
+#define GSTATE_HOUR_YDAY(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
 
 // pstate history every second/minute/hour and access pointers
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
@@ -132,7 +133,7 @@ static device_t* get_by_name(const char *name) {
 	return 0;
 }
 
-// sample grid load from meter
+// sample grid values from meter
 static int grid() {
 	pstate_t pp, *p = &pp;
 	sunspec_t *ss = sunspec_init("fronius10", 200);
@@ -742,10 +743,13 @@ static void calculate_mosmix() {
 	gstate->heating = heating * 10; // store as x10 scaled
 	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
 
-	// actual vs. yesterdays expected ratio
-	int yesterdays_tomorrow = GSTATE_HOUR(23)->tomorrow;
-	float error = yesterdays_tomorrow ? (float) gstate->pv / (float) yesterdays_tomorrow : 0;
-	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", yesterdays_tomorrow, gstate->pv, error);
+	// actual vs. expected ratios
+	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
+	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
+	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
+	int forecast_today = GSTATE_HOUR(6)->today;
+	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
+	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 }
 
 static void update_mosmix() {
@@ -1456,7 +1460,6 @@ static int single() {
 
 	print_gstate();
 	print_pstate_dstate(NULL);
-	// store_csv((int*) pstate, PSTATE_SIZE, 1, PSTATE_HEADER, "/tmp/pstate.csv");
 
 	stop();
 	return 0;
