@@ -988,7 +988,6 @@ static void daily(time_t now_ts) {
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_history();
 #endif
 }
 
@@ -1040,6 +1039,11 @@ static void hourly(time_t now_ts) {
 	// workaround /run/mcp get's immediately deleted at stop/kill
 	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
 	system(SAVE_RUN_DIRECORY);
+
+#ifndef FRONIUS_MAIN
+	// we need the history in mosmix.c main()
+	mosmix_store_history();
+#endif
 }
 
 static void minly(time_t now_ts) {
