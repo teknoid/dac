@@ -564,14 +564,8 @@ static void migrate() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
-static void wget(const char *id) {
+static void wget(struct tm *now, const char *id) {
 	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
-
-	// initialize hourly & daily & monthly
-	static struct tm *lt, now_tm, *now = &now_tm;
-	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
 
 	snprintf(ftstamp, 32, "%4d%02d%02d%02d", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, 3);
 	printf("File timestamp %s\n", ftstamp);
@@ -598,38 +592,38 @@ static void wget(const char *id) {
 	system(cmd);
 }
 
-static int cumulate_diffs(struct tm *now) {
+static int diffs(int d) {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
-		mosmix_t *mh = HISTORY(now->tm_wday, h);
+		mosmix_t *mh = HISTORY(d, h);
 		mosmix_t *m = TODAY(h);
-		int pv = mh->mppt1 + mh->mppt2 + mh->mppt3;
+		int pv = mh->mppt1 + mh->mppt2 + mh->mppt3 + mh->mppt4;
 		int diff = pv - m->Rad1h - m->SunD1;
+		diff_sum += abs(diff);
 		if (diff)
 			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d --> err %4d\n", h, pv, m->Rad1h, m->SunD1, diff);
-		diff_sum += abs(diff);
 	}
 	return diff_sum;
 }
 
 static void compare() {
+	mosmix_load_history();
+
 	// initialize hourly & daily & monthly
 	static struct tm *lt, now_tm, *now = &now_tm;
 	time_t now_ts = time(NULL);
 	lt = localtime(&now_ts);
 	memcpy(now, lt, sizeof(*lt));
 
-	mosmix_load_history();
-
-	wget("10577");
+	wget(now, "10577");
 	mosmix_load(CHEMNITZ);
-	int dc = cumulate_diffs(now);
+	int dc = diffs(now->tm_wday);
 
-	wget("10579");
+	wget(now, "10579");
 	mosmix_load(MARIENBERG);
-	int dm = cumulate_diffs(now);
+	int dm = diffs(now->tm_wday);
 
-	printf("Diffs Chemnitz %d   Marienberg %d\n", dc, dm);
+	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);
 }
 
 int mosmix_main(int argc, char **argv) {
