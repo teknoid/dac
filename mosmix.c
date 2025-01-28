@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 
@@ -444,6 +445,8 @@ int mosmix_load(const char *filename) {
 }
 
 static void recalc() {
+	return;
+
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 	mosmix_factors();
@@ -561,6 +564,74 @@ static void migrate() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
+static void wget(const char *id) {
+	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
+
+	// initialize hourly & daily & monthly
+	static struct tm *lt, now_tm, *now = &now_tm;
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
+	snprintf(ftstamp, 32, "%4d%02d%02d%02d", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, 3);
+	printf("File timestamp %s\n", ftstamp);
+	snprintf(fname, 64, "MOSMIX_L_%s_%s.kmz", ftstamp, id);
+	printf("File name %s\n", fname);
+	snprintf(furl, 256, "http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/%s/kml/%s", id, fname);
+	printf("File path %s\n", furl);
+
+	chdir("/tmp");
+	snprintf(cmd, 288, "wget -q %s", furl);
+	system(cmd);
+	snprintf(cmd, 288, "unzip -q -o %s", fname);
+	system(cmd);
+
+	snprintf(ftimestamps, 64, "mosmix-timestamps-%s.json", id);
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file %s timestamps", fname, ftimestamps);
+	system(cmd);
+
+	snprintf(fforecasts, 64, "mosmix-forecasts-%s.json", id);
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file %s forecasts", fname, fforecasts);
+	system(cmd);
+
+	snprintf(cmd, 288, "/usr/local/bin/mosmix-json2csv.sh %s TTT Rad1h SunD1 RSunD", id);
+	system(cmd);
+}
+
+static int cumulate_diffs(struct tm *now) {
+	int diff_sum = 0;
+	for (int h = 0; h < 24; h++) {
+		mosmix_t *mh = HISTORY(now->tm_wday, h);
+		mosmix_t *m = TODAY(h);
+		int pv = mh->mppt1 + mh->mppt2 + mh->mppt3;
+		int diff = pv - m->Rad1h - m->SunD1;
+		if (diff)
+			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d --> err %4d\n", h, pv, m->Rad1h, m->SunD1, diff);
+		diff_sum += abs(diff);
+	}
+	return diff_sum;
+}
+
+static void compare() {
+	// initialize hourly & daily & monthly
+	static struct tm *lt, now_tm, *now = &now_tm;
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
+	mosmix_load_history();
+
+	wget("10577");
+	mosmix_load(CHEMNITZ);
+	int dc = cumulate_diffs(now);
+
+	wget("10579");
+	mosmix_load(MARIENBERG);
+	int dm = cumulate_diffs(now);
+
+	printf("Diffs Chemnitz %d   Marienberg %d\n", dc, dm);
+}
+
 int mosmix_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
@@ -568,6 +639,7 @@ int mosmix_main(int argc, char **argv) {
 	migrate();
 	test();
 	recalc();
+	compare();
 
 	return 0;
 }

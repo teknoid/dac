@@ -60,7 +60,7 @@ p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"e
 # gstate weekly
 set ylabel "GState week"
 set yrange [0:*]
-set output "/run/mcp/mosmix-gstate-week.svg"
+set output "/run/mcp/gstate-week.svg"
 p gstatew u 1:"mppt1" t "mppt1"    w lines,\
        '' u 1:"mppt2" t "mppt2"    w lines,\
        '' u 1:"mppt3" t "mppt3"    w lines,\
@@ -78,7 +78,7 @@ set ylabel "GState"
 set xrange [0:24]
 set yrange [0:*]
 set xtics 1
-set output "/run/mcp/mosmix-gstate.svg"
+set output "/run/mcp/gstate.svg"
 p gstate u 1:"mppt1" t "mppt1"    w lines,\
       '' u 1:"mppt2" t "mppt2"    w lines,\
       '' u 1:"mppt3" t "mppt3"    w lines,\
@@ -114,7 +114,7 @@ p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
      '' u 1:"exp1"  t "exp1"  w lines lt 1,\
      '' u 1:"exp2"  t "exp2"  w lines lt 2,\
      '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	 '' u 1:($5+$9+$13) w lines ls 1 lw 2 t "sum"
+	 '' u 1:($7+$8+$9) w lines ls 1 lw 2 t "sum"
 
 set ylabel "Tomorrow"
 set output "/run/mcp/mosmix-tomorrow.svg" 
@@ -123,7 +123,7 @@ p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($5+$9+$13) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($7+$8+$9) w lines ls 1 lw 2 t "sum"
 
 
 # pstate
@@ -133,7 +133,7 @@ set yrange [*:*]
 set y2range [0:1000]
 set xtics time 60 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
-set output "/run/mcp/mosmix-pstate.svg"
+set output "/run/mcp/pstate.svg"
 p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
       '' u 1:(0):"pv"   w filledc above ls 1,\
       '' u 1:(0):"akku" w filledc below ls 2 t "akku",\
@@ -142,3 +142,25 @@ p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
       '' u 1:(0):"grid" w filledc above ls 4,\
       '' u 1:"load" t "load" w lines ls 5,\
       '' u 1:"soc"  t "soc"  w lines ls 6 axes x1y2
+      
+set ylabel "Grid - Power"
+unset y2range
+set terminal svg size 1920,400
+set output "/run/mcp/pstate-power.svg"
+p pstate u 1:(0):"grid" w filledc below ls 3 t "↓sum",\
+      '' u 1:(0):"grid" w filledc above ls 2 t "↑sum",\
+      '' u 1:"l1"       w lines t "L1",\
+      '' u 1:"l2"       w lines t "L2",\
+      '' u 1:"l3"       w lines t "L3"
+      
+      
+set ylabel "Grid - Voltage"
+set yrange [220:250] 
+set output "/run/mcp/pstate-voltage.svg"
+p pstate u 1:"l1v" w lines t "L1", '' u 1:"l2v" w lines t "L2", '' u 1:"l3v" w lines t "L3"
+
+set ylabel "Grid - Frequency"
+set yrange [4900:5100]
+set ytics format "%.2s"
+set output "/run/mcp/pstate-frequency.svg"
+p pstate u 1:"f"   w lines t "f"

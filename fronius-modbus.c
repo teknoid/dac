@@ -134,16 +134,25 @@ static device_t* get_by_name(const char *name) {
 
 // sample grid load from meter
 static int grid() {
+	pstate_t pp, *p = &pp;
 	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 
-	float grid;
 	while (1) {
-		sunspec_read(ss);
-		grid = SFF(ss->meter->W, ss->meter->W_SF);
-		printf("%.1f\n", grid);
 		msleep(666);
+		sunspec_read(ss);
+
+		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
+		p->l1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		p->l2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		p->l3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+		p->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+		p->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+		p->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+		p->f = ss->meter->Hz; // without scaling factor
+
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->l1, p->l2, p->l3, p->l1v, p->l2v, p->l3v, FLOAT100(p->f));
 	}
 
 	return 0;
@@ -198,11 +207,11 @@ static int akku_discharge(device_t *akku) {
 #ifndef FRONIUS_MAIN
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
-		xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
-		sunspec_storage_limit_both(f10, 0, BASELOAD);
+		if (!sunspec_storage_limit_both(f10, 0, BASELOAD))
+			xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
 	} else {
-		xdebug("FRONIUS set akku DISCHARGE");
-		sunspec_storage_limit_charge(f10, 0);
+		if (!sunspec_storage_limit_charge(f10, 0))
+			xdebug("FRONIUS set akku DISCHARGE");
 	}
 #endif
 	akku->state = Discharge;
@@ -287,6 +296,13 @@ static void update_meter(sunspec_t *ss) {
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
+	pstate->l1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+	pstate->l2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+	pstate->l3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+	pstate->f = ss->meter->Hz; // without scaling factor
 }
 
 static int collect_load(int from, int hours) {
@@ -1008,8 +1024,8 @@ static void hourly(time_t now_ts) {
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(gstate_t));
 
-	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	// storage strategy: standard 6%, winter and tomorrow not much pv expected 10%
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 6;
 	sunspec_storage_minimum_soc(f10, min);
 
 	// create/append pstate minutes csv
@@ -1436,6 +1452,7 @@ static int single() {
 
 	print_gstate();
 	print_pstate_dstate(NULL);
+	// store_csv((int*) pstate, PSTATE_SIZE, 1, PSTATE_HEADER, "/tmp/pstate.csv");
 
 	stop();
 	return 0;
