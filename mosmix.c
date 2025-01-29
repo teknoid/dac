@@ -113,20 +113,17 @@ static void sum(mosmix_t *to, mosmix_t *from) {
 	}
 }
 
-static void update_today_tomorrow() {
-	// get todays and tomorrows year day
-	struct tm tm;
-	time_t t = time(NULL);
-	localtime_r(&t, &tm);
-	int day_today = tm.tm_yday;
-	int day_tomorrow = tm.tm_yday != 365 ? tm.tm_yday + 1 : 0;
+static void update_today_tomorrow(struct tm *now) {
+	int day_today = now->tm_yday;
+	int day_tomorrow = now->tm_yday != 365 ? now->tm_yday + 1 : 0;
 
 	// loop over one week
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_csv_t *mcsv = &mosmix_csv[i];
 
 		// find mosmix slot to update
-		t = mcsv->ts - 1; // fix hour
+		struct tm tm;
+		time_t t = mcsv->ts - 1; // fix hour
 		localtime_r(&t, &tm);
 		mosmix_t *m = 0;
 		if (tm.tm_yday == day_today)
@@ -410,7 +407,7 @@ void mosmix_store_csv() {
 	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
-int mosmix_load(const char *filename) {
+int mosmix_load(struct tm *now, const char *filename) {
 	char *strings[MOSMIX_COLUMNS];
 	char buf[LINEBUF];
 
@@ -440,7 +437,7 @@ int mosmix_load(const char *filename) {
 	fclose(fp);
 	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
 
-	update_today_tomorrow();
+	update_today_tomorrow(now);
 	return 0;
 }
 
@@ -492,7 +489,7 @@ static void test() {
 	// load state and update forecasts
 	mosmix_load_history();
 	mosmix_factors();
-	mosmix_load(MARIENBERG);
+	mosmix_load(now, MARIENBERG);
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;
@@ -616,11 +613,11 @@ static void compare() {
 	memcpy(now, lt, sizeof(*lt));
 
 	wget(now, "10577");
-	mosmix_load(CHEMNITZ);
+	mosmix_load(now, CHEMNITZ);
 	int dc = diffs(now->tm_wday);
 
 	wget(now, "10579");
-	mosmix_load(MARIENBERG);
+	mosmix_load(now, MARIENBERG);
 	int dm = diffs(now->tm_wday);
 
 	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);

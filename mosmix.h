@@ -105,4 +105,4 @@ void mosmix_collect(struct tm *now, int *today, int *tomorrow, int *sod, int *eo
 void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to);
 void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to);
 void mosmix_24h(int day, mosmix_csv_t *sum);
-int mosmix_load(const char *filename);
+int mosmix_load(struct tm *now, const char *filename);

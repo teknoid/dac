@@ -753,7 +753,7 @@ static void calculate_mosmix() {
 }
 
 static void update_mosmix() {
-	if (mosmix_load(MARIENBERG))
+	if (mosmix_load(now, MARIENBERG))
 		return;
 
 	// update today slot with produced energy this hour
@@ -1206,7 +1206,7 @@ static int init() {
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	mosmix_load_history();
 	mosmix_factors();
-	mosmix_load(MARIENBERG);
+	mosmix_load(now, MARIENBERG);
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 	f10 = sunspec_init_poll("fronius10", 1, &update_f10);
