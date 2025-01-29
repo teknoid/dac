@@ -465,15 +465,16 @@ static int choose_program() {
 	if (gstate->tomorrow < AKKU_CAPACITY)
 		return select_program(&MODEST);
 
-	// tomorrow more pv than today - charge akku tommorrow
-	if (gstate->tomorrow > gstate->today)
+	// not enough for heating but akku is 50% full then load boilers 3->2->1
+	if (gstate->heating < 0 && gstate->soc > 500)
+		return select_program(&BOILER3);
+
+	// start heating asap and charge akku tommorrow
+	if (gstate->heating > 0 && gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
 	// enough pv available to survive + heating
-	if (gstate->heating > 0)
-		return select_program(&PLENTY);
-
-	return select_program(&MODEST);
+	return select_program(&PLENTY);
 }
 
 static device_t* rampup(int power) {

@@ -227,7 +227,7 @@ static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 
 
 // force boiler heating first
 static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b2, &b1, &h1, &h2, &h3, &h4, 0 };
+static device_t *DEVICES_BOILER3[] = { &b3, &b2, &b1, &h1, &h2, &h3, &h4, &a1, 0 };
 
 // define POTDs
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
