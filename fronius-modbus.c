@@ -752,17 +752,6 @@ static void calculate_mosmix() {
 	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 }
 
-static void update_mosmix() {
-	if (mosmix_load(now, MARIENBERG))
-		return;
-
-	// update today slot with produced energy this hour
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-	mosmix_dump_today(now);
-
-	calculate_mosmix();
-}
-
 static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
@@ -970,16 +959,20 @@ static void daily(time_t now_ts) {
 	xlog("FRONIUS executing daily tasks...");
 
 	// aggregate 24 pstate hours into one day
-	pstate_t pd;
-	aggregate((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
+	pstate_t pda, pdc;
+	aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
+	cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
 	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
-	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
 
 	// aggregate 24 gstate hours into one day
-	gstate_t gd;
-	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	gstate_t gda, gdc;
+	aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
 	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 
 	// dump todays history and high noon mosmix slots, clear all today and tomorrow values, recalculate factors
 	mosmix_dump_history_today(now);
@@ -1019,8 +1012,11 @@ static void hourly(time_t now_ts) {
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
 	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
 
-	// recalculate mosmix and choose potd
-	update_mosmix();
+	// update & recalculate mosmix, then choose potd
+	mosmix_load(now, MARIENBERG);
+	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_dump_today(now);
+	calculate_mosmix();
 	choose_program();
 
 	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
@@ -1204,6 +1200,7 @@ static int init() {
 	load_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+
 	mosmix_load_history();
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG);
@@ -1447,16 +1444,20 @@ static int single() {
 	steal();
 
 	// aggregate 24 pstate hours into one day
-	pstate_t pd;
-	aggregate((int*) &pd, (int*) pstate_hours, PSTATE_SIZE, 24);
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, now->tm_hour, "FRONIUS pstate_hours", PSTATE_HEADER);
-	dump_struct((int*) &pd, PSTATE_SIZE, "[ØØ]", 0);
+	pstate_t pda, pdc;
+	aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
+	cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
+	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+	dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
 
 	// aggregate 24 gstate hours into one day
-	gstate_t gd;
-	aggregate((int*) &gd, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, now->tm_hour, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &gd, GSTATE_SIZE, "[ØØ]", 0);
+	gstate_t gda, gdc;
+	aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+	dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
+	dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 
 	print_gstate();
 	print_pstate_dstate(NULL);
