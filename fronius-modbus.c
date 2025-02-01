@@ -370,9 +370,9 @@ static void print_gstate() {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, 1, gstate->success > 0, "Success", FLOAT100(gstate->success));
 	xlogl_float(line, 1, gstate->survive > 0, "Survive", FLOAT100(gstate->survive));
 	xlogl_float(line, 1, gstate->heating > 0, "Heating", FLOAT100(gstate->heating));
-	xlogl_float(line, 1, gstate->success > 0, "Success", FLOAT100(gstate->success));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -725,6 +725,11 @@ static int calculate_gstate() {
 	else
 		gstate->ttl = 0;
 
+	// calculate success factor
+	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
+	gstate->success = success * 100; // store as x100 scaled
+	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
+
 	// calculate survival factor
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
@@ -746,11 +751,6 @@ static int calculate_gstate() {
 	float heating = needed ? (float) available / (float) needed - 1.0 : 0;
 	gstate->heating = heating * 100; // store as x100 scaled
 	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, needed, heating);
-
-	// calculate success factor
-	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
-	gstate->success = success * 100; // store as x100 scaled
-	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// choose program of the day
 
