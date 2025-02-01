@@ -750,7 +750,7 @@ static void calculate_gstate() {
 	if (gstate->mppt4 < NOISE)
 		gstate->mppt4 = 0;
 
-	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
+	// akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc - g->soc) : 0;
@@ -761,12 +761,12 @@ static void calculate_gstate() {
 	else
 		gstate->ttl = 0;
 
-	// calculate success factor
+	// success factor
 	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
 	gstate->success = success * 100; // store as x100 scaled
 	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
-	// calculate survival factor
+	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
 	if (tocharge < 0)
 		tocharge = 0;
@@ -777,7 +777,7 @@ static void calculate_gstate() {
 	gstate->survive = survive * 100; // store as x100 scaled
 	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
 
-	// calculate heating factor
+	// heating factor
 	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
 	gstate->heating = heating * 100; // store as x100 scaled
 	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
@@ -805,7 +805,7 @@ static void calculate_pstate() {
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0; // shape dgrid
 
-	// calculate load, delta load + sum
+	// load, delta load + sum
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
 	pstate->dload = pstate->load - s1->load;
 	pstate->sdload += abs(pstate->dload);
@@ -843,7 +843,7 @@ static void calculate_pstate() {
 		return;
 	}
 
-	// calculate ramp up/down power
+	// ramp up/down power
 	pstate->ramp = pstate->grid * -1;
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
