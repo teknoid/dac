@@ -3,7 +3,7 @@
 // hexdump -v -e '6 "%10d ""\n"' /tmp/fronius-counter.bin
 #define COUNTER_FILE			"/tmp/fronius-counter.bin"
 
-// hexdump -v -e '18 "%6d ""\n"' /tmp/fronius-gstate.bin
+// hexdump -v -e '20 "%6d ""\n"' /tmp/fronius-gstate.bin
 #define GSTATE_FILE				"/tmp/fronius-gstate.bin"
 #define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
 #define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
@@ -84,7 +84,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv  heat  succ"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  succ  surv  heat"
 struct _gstate {
 	int pv;
 	int produced;
@@ -93,6 +93,8 @@ struct _gstate {
 	int tomorrow;
 	int sod;
 	int eod;
+	int need_survive;
+	int need_heating;
 	int mppt1;
 	int mppt2;
 	int mppt3;
@@ -101,9 +103,9 @@ struct _gstate {
 	int akku;
 	int dakku;
 	int ttl;
+	int success;
 	int survive;
 	int heating;
-	int success;
 };
 
 // needed for migration
@@ -125,6 +127,7 @@ typedef struct gstate_old_t {
 	int ttl;
 	int survive;
 	int heating;
+	int success;
 } gstate_old_t;
 
 typedef struct _pstate pstate_t;

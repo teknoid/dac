@@ -453,6 +453,42 @@ static int select_program(const potd_t *p) {
 	return 0;
 }
 
+// choose program of the day
+static int choose_program() {
+	// return select_program(&GREEDY);
+	// return select_program(&MODEST);
+
+	if (!gstate)
+		return select_program(&MODEST);
+
+	// akku is empty - charging akku has priority
+	if (gstate->soc < 100)
+		return select_program(&MODEST);
+
+	// we will NOT survive - charging akku has priority
+	if (gstate->survive < -5)
+		return select_program(&MODEST);
+
+	// tomorrow not enough pv - charging akku has priority
+	if (gstate->tomorrow < AKKU_CAPACITY)
+		return select_program(&MODEST);
+
+	// quota not yet achieved and akku not yet enough to survive
+	if (gstate->success < -5 && gstate->akku < gstate->need_survive)
+		return select_program(&MODEST);
+
+	// survive but not enough for heating --> load boilers
+	if (gstate->heating <= 0)
+		return select_program(&BOILERS);
+
+	// start heating asap and charge akku tommorrow
+	if (gstate->heating > 0 && gstate->tomorrow > gstate->today)
+		return select_program(&GREEDY);
+
+	// enough pv available to survive + heating
+	return select_program(&PLENTY);
+}
+
 static device_t* rampup(int power) {
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (ramp_device(DD, power))
@@ -681,7 +717,7 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static int calculate_gstate() {
+static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
@@ -731,58 +767,20 @@ static int calculate_gstate() {
 	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// calculate survival factor
-	int hours, from, to;
-	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
-	int needed = collect_load(from, hours);
-	int tocharge = needed - gstate->akku;
+	int tocharge = gstate->need_survive - gstate->akku;
 	if (tocharge < 0)
 		tocharge = 0;
 	int available = gstate->eod - tocharge;
 	if (available < 0)
 		available = 0;
-	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : -1.0;
+	float survive = gstate->need_survive ? (float) (gstate->akku + available) / (float) gstate->need_survive - 1.0 : 0;
 	gstate->survive = survive * 100; // store as x100 scaled
-	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, needed, survive);
+	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
 
 	// calculate heating factor
-	int heating_total = collect_heating_total();
-	mosmix_heating(now, heating_total, &hours, &from, &to);
-	needed = heating_total * hours;
-	float heating = needed ? (float) available / (float) needed - 1.0 : 0;
+	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
 	gstate->heating = heating * 100; // store as x100 scaled
-	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, needed, heating);
-
-	// choose program of the day
-
-	// return select_program(&GREEDY);
-	// return select_program(&MODEST);
-
-	// akku is empty - charging akku has priority
-	if (gstate->soc < 100)
-		return select_program(&MODEST);
-
-	// we will NOT survive - charging akku has priority
-	if (gstate->survive < -5)
-		return select_program(&MODEST);
-
-	// tomorrow not enough pv - charging akku has priority
-	if (gstate->tomorrow < AKKU_CAPACITY)
-		return select_program(&MODEST);
-
-	// daily quota not yet achieved and akku not yet enough to survive
-	if (gstate->success < -5 && tocharge > 0)
-		return select_program(&MODEST);
-
-	// survive but not enough for heating --> load boilers
-	if (gstate->heating <= 0)
-		return select_program(&BOILERS);
-
-	// start heating asap and charge akku tommorrow
-	if (gstate->heating > 0 && gstate->tomorrow > gstate->today)
-		return select_program(&GREEDY);
-
-	// enough pv available to survive + heating
-	return select_program(&PLENTY);
+	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
 }
 
 static void calculate_pstate() {
@@ -1018,6 +1016,14 @@ static void hourly() {
 	gstate->sod = sod;
 	gstate->eod = eod;
 
+	// collect needed power to survive and to heat
+	int hours, from, to;
+	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
+	gstate->need_survive = collect_load(from, hours);
+	int heating_total = collect_heating_total();
+	mosmix_heating(now, heating_total, &hours, &from, &to);
+	gstate->need_heating = heating_total * hours;
+
 	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(gstate_t));
@@ -1060,6 +1066,7 @@ static void minly() {
 	// calculate new gstate every 10 minutes
 	if (now->tm_min % 10 == 9) {
 		calculate_gstate();
+		choose_program();
 		print_gstate();
 	}
 }
@@ -1105,6 +1112,7 @@ static void fronius() {
 		// initialize program of the day
 		if (!potd) {
 			calculate_gstate();
+			choose_program();
 			print_gstate();
 		}
 
@@ -1431,6 +1439,7 @@ static int single() {
 
 	calculate_pstate();
 	calculate_gstate();
+	choose_program();
 
 	response(&b1);
 	standby();
@@ -1577,6 +1586,7 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->survive = o->survive;
 		n->heating = o->heating;
+		n->success = o->success;
 	}
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	return 0;
