@@ -725,14 +725,6 @@ static int calculate_gstate() {
 	else
 		gstate->ttl = 0;
 
-	// collect mosmix forecasts
-	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->sod = sod;
-	gstate->eod = eod;
-
 	// calculate survival factor
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
@@ -951,7 +943,7 @@ static void burnout() {
 	// fronius_override_seconds("plug8", WAIT_OFFLINE);
 }
 
-static void daily(time_t now_ts) {
+static void daily() {
 	xlog("FRONIUS executing daily tasks...");
 
 	// aggregate 24 pstate hours into one day
@@ -992,7 +984,7 @@ static void daily(time_t now_ts) {
 #endif
 }
 
-static void hourly(time_t now_ts) {
+static void hourly() {
 	xlog("FRONIUS executing hourly tasks...");
 
 	// resetting noresponse counters and standby states
@@ -1016,9 +1008,15 @@ static void hourly(time_t now_ts) {
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
 	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
 
-	// reload and update mosmix
+	// reload and update mosmix, collect new forecasts
+	int today, tomorrow, sod, eod;
 	mosmix_load(now, MARIENBERG);
 	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->sod = sod;
+	gstate->eod = eod;
 
 	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
@@ -1047,7 +1045,7 @@ static void hourly(time_t now_ts) {
 #endif
 }
 
-static void minly(time_t now_ts) {
+static void minly() {
 	// xlog("FRONIUS executing minutely tasks...");
 
 	// aggregate 59 seconds into current minute
@@ -1058,6 +1056,12 @@ static void minly(time_t now_ts) {
 
 	// clear delta sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+
+	// calculate new gstate every 10 minutes
+	if (now->tm_min % 10 == 0) {
+		calculate_gstate();
+		print_gstate();
+	}
 }
 
 static void fronius() {
@@ -1098,8 +1102,8 @@ static void fronius() {
 		// calculate new pstate
 		calculate_pstate();
 
-		// (re)initialize program of the day every 15 minutes
-		if (!potd || (now->tm_min % 15 == 0 && now->tm_sec == 15)) {
+		// initialize program of the day
+		if (!potd) {
 			calculate_gstate();
 			print_gstate();
 		}
@@ -1143,15 +1147,15 @@ static void fronius() {
 
 		// minutely tasks
 		if (now->tm_sec == 59) {
-			minly(now_ts);
+			minly();
 
 			// hourly tasks
 			if (now->tm_min == 59) {
-				hourly(now_ts);
+				hourly();
 
 				// daily tasks
 				if (now->tm_hour == 23)
-					daily(now_ts);
+					daily();
 			}
 		}
 	}
