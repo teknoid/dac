@@ -113,9 +113,20 @@ static void sum(mosmix_t *to, mosmix_t *from) {
 	}
 }
 
+// initially fill today and tomorrow from history
+static void update_today_tomorrow_from_history(struct tm *now) {
+	int day_today = now->tm_wday;
+	int day_tomorrow = day_today < 6 ? day_today + 1 : 0;
+	for (int h = 0; h < 24; h++) {
+		memcpy(TODAY(h), HISTORY(day_today, h), sizeof(mosmix_t));
+		memcpy(TOMORROW(h), HISTORY(day_tomorrow, h), sizeof(mosmix_t));
+	}
+}
+
+// update today and tomorrow with actual data from mosmix kml download
 static void update_today_tomorrow(struct tm *now) {
 	int day_today = now->tm_yday;
-	int day_tomorrow = now->tm_yday != 365 ? now->tm_yday + 1 : 0;
+	int day_tomorrow = now->tm_yday < 365 ? now->tm_yday + 1 : 0;
 
 	// loop over one week
 	for (int i = 0; i < 24 * 7; i++) {
@@ -392,9 +403,11 @@ void mosmix_clear_today_tomorrow() {
 	ZERO(tomorrow);
 }
 
-void mosmix_load_history() {
+void mosmix_load_history(struct tm *now) {
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
+	mosmix_clear_today_tomorrow();
+	update_today_tomorrow_from_history(now);
 }
 
 void mosmix_store_history() {
@@ -487,7 +500,7 @@ static void test() {
 	localtime_r(&now_ts, now);
 
 	// load state and update forecasts
-	mosmix_load_history();
+	mosmix_load_history(now);
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG);
 
@@ -604,13 +617,12 @@ static int diffs(int d) {
 }
 
 static void compare() {
-	mosmix_load_history();
-
-	// initialize hourly & daily & monthly
-	static struct tm *lt, now_tm, *now = &now_tm;
+	// define local time object
+	struct tm now_tm, *now = &now_tm;
 	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
+	localtime_r(&now_ts, now);
+
+	mosmix_load_history(now);
 
 	wget(now, "10577");
 	mosmix_load(now, CHEMNITZ);

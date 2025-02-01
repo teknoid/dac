@@ -84,14 +84,15 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   exp mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv  heat"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   eod mppt1 mppt2 mppt3 mppt4   soc  akku Δakku   ttl  surv  heat"
 struct _gstate {
 	int pv;
 	int produced;
 	int consumed;
 	int today;
 	int tomorrow;
-	int expected;
+//	int sod; TODO migrate
+	int eod;
 	int mppt1;
 	int mppt2;
 	int mppt3;
@@ -226,12 +227,14 @@ static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 
 static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
 
 // force boiler heating first
+static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
 static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &b2, &b1, &h1, &h2, &h3, &h4, &a1, 0 };
+static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
 
 // define POTDs
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
+static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
 static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };

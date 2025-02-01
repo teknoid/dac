@@ -26,7 +26,7 @@
 
 #define WAIT_RESPONSE			5	// 3s is too less !
 #define WAIT_AKKU_CHARGE		30
-#define WAIT_AKKU_RAMP			10
+#define WAIT_AKKU_RAMP			5	// 5 extra seconds to give akku time to adjust
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
@@ -83,6 +83,9 @@ static void create_pstate_json() {
 
 	// feed Fronius powerflow web application
 	FILE *fp = fopen(POWERFLOW_FILE, "w");
+	if (fp == NULL)
+		return;
+
 	fprintf(fp, POWERFLOW_JSON, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
@@ -94,6 +97,9 @@ static void create_gstate_dstate_json() {
 
 	// devices
 	FILE *fp = fopen(DSTATE_JSON, "w");
+	if (fp == NULL)
+		return;
+
 	fprintf(fp, "[");
 	int i = 0;
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -306,6 +312,7 @@ static void update_meter(sunspec_t *ss) {
 	pstate->f = ss->meter->Hz; // without scaling factor
 }
 
+// TODO load auch in gstate speichern und dann average über 1 woche ermitteln
 static int collect_load(int from, int hours) {
 	int load = 0;
 	char line[LINEBUF], value[25];
@@ -359,12 +366,13 @@ static void print_gstate() {
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Exp", gstate->expected);
+//	xlogl_int(line, 0, 0, "SoD", gstate->sod); TODO migrate
+	xlogl_int(line, 0, 0, "EoD", gstate->eod);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive < 0, "Survive", 1.0 + FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating < 0, "Heating", 1.0 + FLOAT10(gstate->heating));
+	xlogl_float(line, 1, gstate->survive < 0, "Survive", FLOAT10(gstate->survive));
+	xlogl_float(line, 1, gstate->heating < 0, "Heating", FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -453,6 +461,28 @@ static int choose_program() {
 	if (!gstate)
 		return select_program(&MODEST);
 
+	// calculate survival factor
+	int hours, from, to;
+	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
+	int needed = collect_load(from, hours);
+	int tocharge = needed - gstate->akku;
+	if (tocharge < 0)
+		tocharge = 0;
+	int available = gstate->eod - tocharge;
+	if (available < 0)
+		available = 0;
+	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : -1.0;
+	gstate->survive = survive * 10; // store as x10 scaled
+	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, needed, survive);
+
+	// calculate heating factor
+	int heating_total = collect_heating_total();
+	mosmix_heating(now, heating_total, &hours, &from, &to);
+	needed = heating_total * hours;
+	float heating = needed ? (float) available / (float) needed - 1.0 : -1.0;
+	gstate->heating = heating * 10; // store as x10 scaled
+	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, needed, heating);
+
 	// akku is empty - charging akku has priority
 	if (gstate->soc < 100)
 		return select_program(&MODEST);
@@ -465,9 +495,9 @@ static int choose_program() {
 	if (gstate->tomorrow < AKKU_CAPACITY)
 		return select_program(&MODEST);
 
-	// not enough for heating but akku is 50% full then load boilers 3->2->1
-	if (gstate->heating < 0 && gstate->soc > 500)
-		return select_program(&BOILER3);
+	// survive but not enough for heating --> load boilers
+	if (gstate->heating < 0)
+		return select_program(&BOILERS);
 
 	// start heating asap and charge akku tommorrow
 	if (gstate->heating > 0 && gstate->tomorrow > gstate->today)
@@ -667,7 +697,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		if (AKKU_CHARGING && !extra) {
+		if (AKKU_CHARGING && !extra && delta < 0) {
 			d->timer = WAIT_AKKU_RAMP;
 			return d;
 		} else {
@@ -681,7 +711,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = AKKU_CHARGING && !extra ? WAIT_AKKU_RAMP : 0;
+		d->timer = AKKU_CHARGING && !extra && delta < 0 ? WAIT_AKKU_RAMP : 0;
 		return d;
 	}
 
@@ -705,52 +735,6 @@ static device_t* response(device_t *d) {
 
 	xdebug("FRONIUS no response from %s count %d/%d", d->name, d->noresponse, STANDBY_NORESPONSE);
 	return 0;
-}
-
-static void calculate_mosmix() {
-	// mosmix 24h raw values forecasts today, tomorrow and tomorrow+1
-	mosmix_csv_t m0, m1, m2;
-	mosmix_24h(0, &m0);
-	mosmix_24h(1, &m1);
-	mosmix_24h(2, &m2);
-	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
-
-	// collect total expected today, tomorrow and till end of day / start of day
-	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->expected = eod;
-
-	// calculate survival factor
-	int hours, from, to;
-	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
-	int needed = collect_load(from, hours);
-	int tocharge = needed - gstate->akku;
-	if (tocharge < 0)
-		tocharge = 0;
-	int available = gstate->expected - tocharge;
-	if (available < 0)
-		available = 0;
-	float survive = needed ? (float) (gstate->akku + available) / (float) needed - 1.0 : -1.0;
-	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->expected, tocharge, available, gstate->akku, needed, survive);
-
-	// calculate heating factor
-	int heating_total = collect_heating_total();
-	mosmix_heating(now, heating_total, &hours, &from, &to);
-	needed = heating_total * hours;
-	float heating = needed ? (float) available / (float) needed - 1.0 : -1.0;
-	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating expected=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->expected, tocharge, available, needed, heating);
-
-	// actual vs. expected ratios
-	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
-	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
-	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
-	int forecast_today = GSTATE_HOUR(6)->today;
-	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
-	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 }
 
 static void calculate_gstate() {
@@ -975,6 +959,14 @@ static void daily(time_t now_ts) {
 	dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
 	dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 
+	// calculate forecast errors - actual vs. expected
+	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
+	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
+	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
+	int forecast_today = GSTATE_HOUR(6)->today;
+	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
+	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
+
 	// dump todays history and high noon mosmix slots, clear all today and tomorrow values, recalculate factors
 	mosmix_dump_history_today(now);
 	mosmix_dump_history_hours(12);
@@ -1013,12 +1005,15 @@ static void hourly(time_t now_ts) {
 	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
 	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
 
-	// update & recalculate mosmix, then choose potd
+	// reload and update mosmix
+	int today, tomorrow, sod, eod;
 	mosmix_load(now, MARIENBERG);
 	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
-	mosmix_dump_today(now);
-	calculate_mosmix();
-	choose_program();
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	// gstate->sod = sod; TODO migrate
+	gstate->eod = eod;
 
 	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
@@ -1034,7 +1029,7 @@ static void hourly(time_t now_ts) {
 	else
 		append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
-	// plot diagrams
+	// paint new diagrams
 	plot();
 
 	// workaround /run/mcp get's immediately deleted at stop/kill
@@ -1055,9 +1050,6 @@ static void minly(time_t now_ts) {
 	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 //	if (pstate->pv)
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
-
-	// calculate new gstate
-	calculate_gstate();
 
 	// clear delta sum counters
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
@@ -1101,14 +1093,11 @@ static void fronius() {
 		// calculate new pstate
 		calculate_pstate();
 
-		// initialize program of the day if not yet done
-		if (!potd) {
+		// (re)initialize program of the day every 15 minutes
+		if (!potd || (now->tm_min % 15 == 0 && now->tm_sec == 59)) {
 			calculate_gstate();
-			calculate_mosmix();
 			choose_program();
 			print_gstate();
-			print_pstate_dstate(0);
-			plot();
 			continue;
 		}
 
@@ -1145,9 +1134,7 @@ static void fronius() {
 		if (!device)
 			device = steal();
 
-		// print gstate every 15min, pstate once per minute / when delta / on device action
-		if (now->tm_min % 15 == 0 && now->tm_sec == 59)
-			print_gstate();
+		// print pstate once per minute / when delta / on device action
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
 			print_pstate_dstate(device);
 
@@ -1202,9 +1189,10 @@ static int init() {
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
-	mosmix_load_history();
+	mosmix_load_history(now);
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG);
+	plot();
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 	f10 = sunspec_init_poll("fronius10", 1, &update_f10);
@@ -1436,7 +1424,6 @@ static int single() {
 
 	calculate_pstate();
 	calculate_gstate();
-	calculate_mosmix();
 	choose_program();
 
 	response(&b1);

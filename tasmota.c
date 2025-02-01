@@ -31,6 +31,9 @@ static int mean;
 
 static void write_sensors_json() {
 	FILE *fp = fopen(SENSORS_JSON, "w");
+	if (fp == NULL)
+		return;
+
 	fprintf(fp, "\{");
 	fprintf(fp, "\"temp_in\":%.1f,", sensors->htu21_temp);
 	fprintf(fp, "\"humi_in\":%.1f,", sensors->htu21_humi);

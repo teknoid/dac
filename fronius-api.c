@@ -276,7 +276,7 @@ static void print_gstate(const char *message) {
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
 	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Exp", gstate->expected);
+	xlogl_int(line, 0, 0, "Exp", gstate->eod);
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
@@ -618,26 +618,26 @@ static void calculate_mosmix() {
 	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
-	gstate->expected = eod;
+	gstate->eod = eod;
 
 	// calculate survival factor
 	int hours, from, to;
 	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
-	int available = gstate->expected + gstate->akku;
+	int available = gstate->eod + gstate->akku;
 	int needed = collect_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;
 	gstate->survive = survive * 10; // store as x10 scaled
-	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->expected, gstate->akku, survive);
+	xdebug("FRONIUS survive needed=%d available=%d (%d expected + %d akku) --> %.2f", needed, available, gstate->eod, gstate->akku, survive);
 
 	// calculate heating factor
 	int heating_total = collect_heating_total();
 	mosmix_heating(now, heating_total, &hours, &from, &to);
 	int needed_heating = heating_total * hours;
-	int remaining = gstate->expected - survive;
+	int remaining = gstate->eod - survive;
 	float heating = needed_heating && remaining > 0 ? (float) (remaining) / (float) needed_heating : 0.0;
 	// float heating = needed ? (float) available / (float) needed : 0.0;
 	gstate->heating = heating * 10; // store as x10 scaled
-	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed_heating, gstate->expected, heating);
+	xdebug("FRONIUS heating needed=%d expected=%d --> %.2f", needed_heating, gstate->eod, heating);
 
 	// actual vs. yesterdays expected ratio
 	int actual = 0;
@@ -1072,7 +1072,7 @@ static int init() {
 
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	mosmix_load_history();
+	mosmix_load_history(now);
 
 	curl10 = curl_init(URL_FLOW10, &memory);
 	if (curl10 == NULL)
