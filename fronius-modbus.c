@@ -26,7 +26,6 @@
 
 #define WAIT_RESPONSE			5	// 3s is too less !
 #define WAIT_AKKU_CHARGE		30
-#define WAIT_AKKU_RAMP			5	// 5 extra seconds to give akku time to adjust
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 
@@ -582,9 +581,9 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 		ramp_device(v, v->load * -1);
 	ramp_device(t, power);
 
-	// give akku time to adjust
+	// give akku time to release power
 	if (v == AKKU)
-		t->timer = WAIT_AKKU_RAMP;
+		t->timer = 2 * WAIT_RESPONSE;
 
 	// no response expected as we put power from one to another device
 	t->xload = 0;
@@ -693,17 +692,15 @@ static device_t* response(device_t *d) {
 	// load is completely satisfied from secondary inverter
 	int extra = pstate->ac7 > pstate->load * -1;
 
+	// wait another 5 seconds to give akku time to release power when ramped up
+	int wait = AKKU_CHARGING && expected < 0 && !extra ? WAIT_RESPONSE : 0;
+
 	// response OK
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		if (AKKU_CHARGING && !extra && delta < 0) {
-			d->timer = WAIT_AKKU_RAMP;
-			return d;
-		} else {
-			d->timer = 0;
-			return 0;
-		}
+		d->timer = wait;
+		return d->timer ? d : 0;
 	}
 
 	// standby check was negative - we got a response
@@ -711,8 +708,8 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = AKKU_CHARGING && !extra && delta < 0 ? WAIT_AKKU_RAMP : 0;
-		return d;
+		d->timer = wait;
+		return d; // recalculate in next round
 	}
 
 	// standby check was positive -> set device into standby
