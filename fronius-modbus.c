@@ -1099,10 +1099,9 @@ static void fronius() {
 		calculate_pstate();
 
 		// (re)initialize program of the day every 15 minutes
-		if (!potd || (now->tm_min % 15 == 0 && now->tm_sec == 59)) {
+		if (!potd || (now->tm_min % 15 == 0 && now->tm_sec == 15)) {
 			calculate_gstate();
 			print_gstate();
-			continue;
 		}
 
 		// web output
