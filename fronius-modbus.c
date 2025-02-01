@@ -1058,7 +1058,7 @@ static void minly() {
 	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
 
 	// calculate new gstate every 10 minutes
-	if (now->tm_min % 10 == 0) {
+	if (now->tm_min % 10 == 9) {
 		calculate_gstate();
 		print_gstate();
 	}
