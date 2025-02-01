@@ -770,19 +770,19 @@ static int calculate_gstate() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < 0)
+	if (gstate->survive < -5)
 		return select_program(&MODEST);
 
 	// tomorrow not enough pv - charging akku has priority
 	if (gstate->tomorrow < AKKU_CAPACITY)
 		return select_program(&MODEST);
 
-	// daily quota not yet successd and akku not yet full enough to survive
-	if (gstate->success < 0 && tocharge > 0)
+	// daily quota not yet achieved and akku not yet enough to survive
+	if (gstate->success < -5 && tocharge > 0)
 		return select_program(&MODEST);
 
 	// survive but not enough for heating --> load boilers
-	if (gstate->heating < 0)
+	if (gstate->heating <= 0)
 		return select_program(&BOILERS);
 
 	// start heating asap and charge akku tommorrow
