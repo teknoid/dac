@@ -781,10 +781,23 @@ void cumulate(int *target, int *table, int cols, int rows) {
 		}
 }
 
+void store_csv_header(const char *header, const char *filename) {
+	FILE *fp = fopen(filename, "wt");
+	if (fp == NULL) {
+		xerr("UTILS Cannot open file %s for writing", filename);
+		return;
+	}
+
+	fprintf(fp, " i%s\n", header);
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS stored header %s", filename);
+}
+
 void store_csv(int *table, int cols, int rows, const char *header, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
-	FILE *fp = fopen(filename, "w");
+	FILE *fp = fopen(filename, "wt");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
@@ -811,7 +824,7 @@ void store_csv(int *table, int cols, int rows, const char *header, const char *f
 void append_csv(int *table, int cols, int rows, int offset, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
-	FILE *fp = fopen(filename, "a");
+	FILE *fp = fopen(filename, "at");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
@@ -876,7 +889,7 @@ void dump_struct(int *values, int size, const char *idx, const char *title) {
 }
 
 void store_struct_json(int *values, int size, const char *header, const char *filename) {
-	FILE *fp = fopen(filename, "w");
+	FILE *fp = fopen(filename, "wt");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
