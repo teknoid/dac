@@ -32,35 +32,51 @@ static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
 static void scale1(struct tm *now, mosmix_t *m) {
-	if (90 < m->err1 && m->err1 < 110)
+	int f = 0;
+	for (int h = 0; h <= now->tm_hour; h++)
+		f += TODAY(h)->err1;
+	f /= now->tm_hour != 0 ? now->tm_hour : 1;
+	if (90 < f && f < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp1 = TODAY(h)->exp1 * m->err1 / 100;
-	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", FLOAT100(m->err1));
+		TODAY(h)->exp1 = TODAY(h)->exp1 * f / 100;
+	xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
 }
 
 static void scale2(struct tm *now, mosmix_t *m) {
-	if (90 < m->err2 && m->err2 < 110)
+	int f = 0;
+	for (int h = 0; h <= now->tm_hour; h++)
+		f += TODAY(h)->err2;
+	f /= now->tm_hour != 0 ? now->tm_hour : 1;
+	if (90 < f && f < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp2 = TODAY(h)->exp2 * m->err2 / 100;
-	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", FLOAT100(m->err2));
+		TODAY(h)->exp2 = TODAY(h)->exp2 * f / 100;
+	xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
 }
 
 static void scale3(struct tm *now, mosmix_t *m) {
-	if (90 < m->err3 && m->err3 < 110)
+	int f = 0;
+	for (int h = 0; h <= now->tm_hour; h++)
+		f += TODAY(h)->err3;
+	f /= now->tm_hour != 0 ? now->tm_hour : 1;
+	if (90 < f && f < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp3 = TODAY(h)->exp3 * m->err3 / 100;
-	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", FLOAT100(m->err3));
+		TODAY(h)->exp3 = TODAY(h)->exp3 * f / 100;
+	xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
 }
 
 static void scale4(struct tm *now, mosmix_t *m) {
-	if (90 < m->err4 && m->err4 < 110)
+	int f = 0;
+	for (int h = 0; h <= now->tm_hour; h++)
+		f += TODAY(h)->err4;
+	f /= now->tm_hour;
+	if (90 < f && f < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp4 = TODAY(h)->exp4 * m->err4 / 100;
-	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", FLOAT100(m->err4));
+		TODAY(h)->exp4 = TODAY(h)->exp4 * f / 100;
+	xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
 }
 
 static void parse(char **strings, size_t size) {
@@ -231,7 +247,7 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	xdebug("MOSMIX forecast errors Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
 	xdebug("MOSMIX forecast errors  %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
-	// validate today's forecast - if error is greater than +/- 10% scale all remaining values
+	// collect sod errors and scale all remaining eod values
 	scale1(now, m);
 	scale2(now, m);
 	scale3(now, m);
