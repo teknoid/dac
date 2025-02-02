@@ -1,16 +1,16 @@
 #include "tasmota-devices.h"
 
-// hexdump -v -e '6 "%10d ""\n"' /tmp/fronius-counter.bin
-#define COUNTER_FILE			"/tmp/fronius-counter.bin"
+// hexdump -v -e '6 "%10d ""\n"' /work/fronius-counter.bin
+#define COUNTER_FILE			"/work/fronius-counter.bin"
 
-// hexdump -v -e '20 "%6d ""\n"' /tmp/fronius-gstate.bin
-#define GSTATE_FILE				"/tmp/fronius-gstate.bin"
+// hexdump -v -e '20 "%6d ""\n"' /work/fronius-gstate.bin
+#define GSTATE_FILE				"/work/fronius-gstate.bin"
 #define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
 #define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
 
-// hexdump -v -e '30 "%6d ""\n"' /tmp/fronius-pstate*.bin
-#define PSTATE_H_FILE			"/tmp/fronius-pstate-hours.bin"
-#define PSTATE_M_FILE			"/tmp/fronius-pstate-minutes.bin"
+// hexdump -v -e '30 "%6d ""\n"' /work/fronius-pstate*.bin
+#define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
+#define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 #define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
 #define PSTATE_JSON				"/run/mcp/pstate.json"
 #define GSTATE_JSON				"/run/mcp/gstate.json"

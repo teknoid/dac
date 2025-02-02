@@ -28,7 +28,7 @@ P2=$3
 P3=$4
 P4=$5
 
-cd /tmp
+cd /work
 F=MOSMIX_L_LATEST_$ID.kmz
 if [ $RELOAD -eq 1 ]; then
   rm -rf mosmix*json

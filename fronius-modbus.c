@@ -1564,7 +1564,7 @@ static int test() {
 static int migrate() {
 	gstate_old_t old[24 * 7];
 	ZERO(old);
-	load_blob("/work/fronius-gstate.bin", old, sizeof(old));
+	load_blob("/tmp/fronius-gstate.bin", old, sizeof(old));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		gstate_old_t *o = &old[i];
