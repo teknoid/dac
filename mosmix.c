@@ -570,6 +570,23 @@ static void migrate() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 
+static void fix() {
+	return;
+
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
+
+	mosmix_t *m = &history[15];
+	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
+	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
+	m->err1 = m->err2 = m->err3 = m->err4 = 100;
+	m = &history[16];
+	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
+	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
+	m->err1 = m->err2 = m->err3 = m->err4 = 100;
+
+	store_blob(MOSMIX_HISTORY, history, sizeof(history));
+}
+
 static void wget(struct tm *now, const char *id) {
 	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
 	chdir("/tmp");
@@ -613,6 +630,8 @@ static int diffs(int d) {
 }
 
 static void compare() {
+	// return;
+
 	// define local time object
 	struct tm now_tm, *now = &now_tm;
 	time_t now_ts = time(NULL);
@@ -639,6 +658,7 @@ int mosmix_main(int argc, char **argv) {
 	test();
 	recalc();
 	compare();
+	fix();
 
 	return 0;
 }
