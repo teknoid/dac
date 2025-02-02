@@ -32,55 +32,35 @@ static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
 static void scale1(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	if (m->err1 < 90)
-		f = 90;
-	else if (m->err1 > 110)
-		f = 110;
-	else
+	if (90 < m->err1 && m->err1 < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp1 = TODAY(h)->exp1 * f / 100;
-	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", FLOAT100(f));
+		TODAY(h)->exp1 = TODAY(h)->exp1 * m->err1 / 100;
+	xlog("MOSMIX scaling today's remaining MPPT1 forecasts by %5.2f", FLOAT100(m->err1));
 }
 
 static void scale2(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	if (m->err2 < 90)
-		f = 90;
-	else if (m->err2 > 110)
-		f = 110;
-	else
+	if (90 < m->err2 && m->err2 < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp2 = TODAY(h)->exp2 * f / 100;
-	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", FLOAT100(f));
+		TODAY(h)->exp2 = TODAY(h)->exp2 * m->err2 / 100;
+	xlog("MOSMIX scaling today's remaining MPPT2 forecasts by %5.2f", FLOAT100(m->err2));
 }
 
 static void scale3(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	if (m->err3 < 90)
-		f = 90;
-	else if (m->err3 > 110)
-		f = 110;
-	else
+	if (90 < m->err3 && m->err3 < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp3 = TODAY(h)->exp3 * f / 100;
-	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", FLOAT100(f));
+		TODAY(h)->exp3 = TODAY(h)->exp3 * m->err3 / 100;
+	xlog("MOSMIX scaling today's remaining MPPT3 forecasts by %5.2f", FLOAT100(m->err3));
 }
 
 static void scale4(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	if (m->err4 < 90)
-		f = 90;
-	else if (m->err4 > 110)
-		f = 110;
-	else
+	if (90 < m->err4 && m->err4 < 110)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp4 = TODAY(h)->exp4 * f / 100;
-	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", FLOAT100(f));
+		TODAY(h)->exp4 = TODAY(h)->exp4 * m->err4 / 100;
+	xlog("MOSMIX scaling today's remaining MPPT4 forecasts by %5.2f", FLOAT100(m->err4));
 }
 
 static void parse(char **strings, size_t size) {

@@ -370,9 +370,9 @@ static void print_gstate() {
 	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, 0, 0, "Akku", gstate->akku);
 	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->success > 0, "Success", FLOAT100(gstate->success));
-	xlogl_float(line, 1, gstate->survive > 0, "Survive", FLOAT100(gstate->survive));
-	xlogl_float(line, 1, gstate->heating > 0, "Heating", FLOAT100(gstate->heating));
+	xlogl_float(line, 1, 0, "Success", FLOAT100(gstate->success));
+	xlogl_float(line, 1, 0, "Survive", FLOAT100(gstate->survive));
+	xlogl_float(line, 1, 0, "Heating", FLOAT100(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -761,11 +761,6 @@ static void calculate_gstate() {
 	else
 		gstate->ttl = 0;
 
-	// success factor
-	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
-	gstate->success = success * 100; // store as x100 scaled
-	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
-
 	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
 	if (tocharge < 0)
@@ -1015,6 +1010,11 @@ static void hourly() {
 	gstate->tomorrow = tomorrow;
 	gstate->sod = sod;
 	gstate->eod = eod;
+
+	// success factor
+	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
+	gstate->success = success * 100; // store as x100 scaled
+	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// collect needed power to survive and to heat
 	int hours, from, to;

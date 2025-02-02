@@ -268,12 +268,12 @@ void xlogl_float(char *line, int colored, int invers, const char *name, float va
 			else
 				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
 		} else {
-			if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
-			else if (value > 0)
+			if (value > 0)
 				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+			else if (value < 0)
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
 			else
-				snprintf(pair, 32, " "BOLD"%s:%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
 		}
 	} else
 		snprintf(pair, 32, " %s:%.2f", name, value);
