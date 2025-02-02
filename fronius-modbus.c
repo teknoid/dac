@@ -1033,8 +1033,7 @@ static void hourly() {
 	sunspec_storage_minimum_soc(f10, min);
 
 	// create/append pstate minutes csv
-	int exists = access(PSTATE_M_CSV, F_OK);
-	if (now->tm_hour == 0 || !exists)
+	if (now->tm_hour == 0 || access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
 	append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
 
