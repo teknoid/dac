@@ -491,8 +491,13 @@ static void recalc() {
 }
 
 static void test() {
-	int itoday, itomorrow, sod, eod, hours, from, to;
 	return;
+
+	int x = 3333;
+	int f = 222;
+	printf("io  %d\n", x * f / 100);
+	printf("io  %d\n", (x * f) / 100);
+	printf("nio %d\n", x * (f / 100));
 
 	// define local time object
 	struct tm now_tm, *now = &now_tm;
@@ -510,6 +515,8 @@ static void test() {
 	mosmix_24h(1, &m1);
 	mosmix_24h(2, &m2);
 	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
+
+	int itoday, itomorrow, sod, eod, hours, from, to;
 
 	// calculate expected today and tomorrow
 	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
