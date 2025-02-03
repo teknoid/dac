@@ -35,8 +35,9 @@ static void scale1(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err1;
-	f /= now->tm_hour != 0 ? now->tm_hour : 1;
-	if (90 < f && f < 110)
+	if (now->tm_hour)
+		f /= now->tm_hour;
+	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp1 = TODAY(h)->exp1 * f / 100;
@@ -47,8 +48,9 @@ static void scale2(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err2;
-	f /= now->tm_hour != 0 ? now->tm_hour : 1;
-	if (90 < f && f < 110)
+	if (now->tm_hour)
+		f /= now->tm_hour;
+	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp2 = TODAY(h)->exp2 * f / 100;
@@ -59,8 +61,9 @@ static void scale3(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err3;
-	f /= now->tm_hour != 0 ? now->tm_hour : 1;
-	if (90 < f && f < 110)
+	if (now->tm_hour)
+		f /= now->tm_hour;
+	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp3 = TODAY(h)->exp3 * f / 100;
@@ -71,8 +74,9 @@ static void scale4(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err4;
-	f /= now->tm_hour;
-	if (90 < f && f < 110)
+	if (now->tm_hour)
+		f /= now->tm_hour;
+	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
 		TODAY(h)->exp4 = TODAY(h)->exp4 * f / 100;
