@@ -35,8 +35,7 @@ static void scale1(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err1;
-	if (now->tm_hour)
-		f /= now->tm_hour;
+	f = f / (now->tm_hour + 1);
 	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
@@ -48,8 +47,7 @@ static void scale2(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err2;
-	if (now->tm_hour)
-		f /= now->tm_hour;
+	f = f / (now->tm_hour + 1);
 	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
@@ -61,8 +59,7 @@ static void scale3(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err3;
-	if (now->tm_hour)
-		f /= now->tm_hour;
+	f = f / (now->tm_hour + 1);
 	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
@@ -74,8 +71,7 @@ static void scale4(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
 		f += TODAY(h)->err4;
-	if (now->tm_hour)
-		f /= now->tm_hour;
+	f = f / (now->tm_hour + 1);
 	if (90 < f && f < 120)
 		return;
 	for (int h = now->tm_hour + 1; h < 24; h++)
@@ -169,8 +165,8 @@ void mosmix_factors() {
 		factor_t *f = FACTORS(h);
 
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-		for (int r = 0; r < FACTORS_MAX; r++) {
-			for (int s = 0; s < FACTORS_MAX; s++) {
+		for (int r = 1; r < FACTORS_MAX; r++) { // cannot be 0
+			for (int s = 0; s < FACTORS_MAX; s++) { // can be 0
 				mosmix_t cum, x;
 				ZERO(cum);
 
@@ -219,6 +215,9 @@ void mosmix_factors() {
 				}
 			}
 		}
+
+		// fix disconnected MPPT4 noise
+		f->r4 = f->s4 = f->e4 = 0;
 	}
 	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 }

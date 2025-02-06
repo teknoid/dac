@@ -466,15 +466,15 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < -5)
+	if (gstate->survive < 0)
 		return select_program(&MODEST);
 
-	// tomorrow not enough pv - charging akku has priority
-	if (gstate->tomorrow < AKKU_CAPACITY)
+	// survive but tomorrow not enough pv - charging akku has priority
+	if (WINTER && gstate->tomorrow < AKKU_CAPACITY)
 		return select_program(&MODEST);
 
-	// quota not yet achieved and akku not yet enough to survive
-	if (gstate->success < -5 && gstate->akku < gstate->need_survive)
+	// quota not yet reached and akku not yet enough to survive
+	if (gstate->success < 0 && gstate->akku < gstate->need_survive)
 		return select_program(&MODEST);
 
 	// survive but not enough for heating --> load boilers
