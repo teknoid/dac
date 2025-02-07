@@ -421,9 +421,10 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
-	xlogl_int(line, 0, 0, "Min", pstate->pvmin);
-	xlogl_int(line, 0, 0, "Max", pstate->pvmax);
-
+	if (pstate->pvmin && pstate->pvmax) {
+		xlogl_int(line, 0, 0, "Min", pstate->pvmin);
+		xlogl_int(line, 0, 0, "Max", pstate->pvmax);
+	}
 	if (d)
 		xlogl_int(line, 0, 0, d->name, d->timer);
 	xlogl_end(line, strlen(line), 0);
