@@ -31,9 +31,10 @@
 
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
 
+#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
+
 #define POWERFLOW_JSON			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 #define POWERFLOW_FILE			"/run/mcp/powerflow.json"
-#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -420,6 +421,8 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
+	xlogl_int(line, 0, 0, "Min", pstate->pvmin);
+	xlogl_int(line, 0, 0, "Max", pstate->pvmax);
 
 	if (d)
 		xlogl_int(line, 0, 0, d->name, d->timer);
@@ -754,6 +757,7 @@ static void calculate_gstate() {
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
 	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc - g->soc) : 0;
+// TODO stimmt jetzt nicht mehr wenn alle 10min gerechnet wird
 	if (gstate->dakku < BASELOAD / -2)
 		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
 	else if (gstate->soc > MIN_SOC)
@@ -793,6 +797,11 @@ static void calculate_pstate() {
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	pstate->sdpv += abs(pstate->dpv);
+// TODO auswerten zb bei DISTORTION nur bis min hoch rampen
+	if (pstate->pv < pstate->pvmin)
+		pstate->pvmin = pstate->pv;
+	if (pstate->pv > pstate->pvmax)
+		pstate->pvmax = pstate->pv;
 
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
@@ -1060,13 +1069,14 @@ static void minly() {
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear delta sum counters
-	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+	pstate->sdpv = pstate->sdgrid = pstate->sdload;
 
-	// calculate new gstate every 10 minutes
+	// every 10 minutes: calculate new gstate, reset minimum + maximum
 	if (now->tm_min % 10 == 9) {
 		calculate_gstate();
 		choose_program();
 		print_gstate();
+		pstate->pvmin = pstate->pvmax = pstate->pv;
 	}
 }
 
