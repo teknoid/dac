@@ -330,6 +330,13 @@ static int collect_load(int from, int hours) {
 
 	// adding +10% Dissipation / Reserve
 	load += load / 10;
+
+	// validate
+	if (load < BASELOAD) {
+		xdebug("FRONIUS impossible collect_load value=%d, using %d x BASELOAD", load, hours);
+		load = hours * BASELOAD;
+	}
+
 	return load;
 }
 
