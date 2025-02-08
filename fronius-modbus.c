@@ -1073,6 +1073,11 @@ static void minly() {
 	// aggregate 59 seconds into current minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+
+	// take over minimum + maximum
+	PSTATE_MIN_NOW->pvmin = pstate->pvmin;
+	PSTATE_MIN_NOW->pvmax = pstate->pvmax;
+
 //	if (pstate->pv)
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
