@@ -1070,7 +1070,7 @@ static void minly() {
 //		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// clear delta sum counters
-	pstate->sdpv = pstate->sdgrid = pstate->sdload;
+	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
 
 	// every 10 minutes: calculate new gstate, reset minimum + maximum
 	if (now->tm_min % 10 == 9) {
