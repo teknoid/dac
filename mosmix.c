@@ -650,11 +650,11 @@ static void compare() {
 	mosmix_load_history(now);
 
 	wget(now, "10577");
-	mosmix_load(now, CHEMNITZ);
+	mosmix_load(now, "/tmp/CHEMNITZ.csv");
 	int dc = diffs(now->tm_wday);
 
 	wget(now, "10579");
-	mosmix_load(now, MARIENBERG);
+	mosmix_load(now, "/tmp/MARIENBERG.csv");
 	int dm = diffs(now->tm_wday);
 
 	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);
