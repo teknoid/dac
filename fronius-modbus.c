@@ -1678,10 +1678,9 @@ int ramp_heater(device_t *heater, int power) {
 		xdebug("FRONIUS switching %s OFF", heater->name);
 
 #ifndef FRONIUS_MAIN
-	if (power)
-		tasmota_power(heater->id, heater->r, 1);
-	else
-		tasmota_power(heater->id, heater->r, 0);
+	int ret = tasmota_power(heater->id, heater->r, power ? 1 : 0);
+	if (ret < 0)
+		return ret;
 #endif
 
 	// update power values
