@@ -82,7 +82,7 @@ static void create_pstate_json() {
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
 
 	// feed Fronius powerflow web application
-	FILE *fp = fopen(POWERFLOW_FILE, "w");
+	FILE *fp = fopen(POWERFLOW_FILE, "wt");
 	if (fp == NULL)
 		return;
 
@@ -96,7 +96,7 @@ static void create_gstate_dstate_json() {
 	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, GSTATE_JSON);
 
 	// devices
-	FILE *fp = fopen(DSTATE_JSON, "w");
+	FILE *fp = fopen(DSTATE_JSON, "wt");
 	if (fp == NULL)
 		return;
 
@@ -857,6 +857,8 @@ static void calculate_pstate() {
 
 	// ramp up/down power
 	pstate->ramp = pstate->grid * -1;
+	if (pstate->akku > NOISE)
+		pstate->ramp -= pstate->akku;
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		pstate->ramp = 0;

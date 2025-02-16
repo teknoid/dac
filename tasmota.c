@@ -30,7 +30,7 @@ static int mean;
 //}
 
 static void write_sensors_json() {
-	FILE *fp = fopen(SENSORS_JSON, "w");
+	FILE *fp = fopen(SENSORS_JSON, "wt");
 	if (fp == NULL)
 		return;
 

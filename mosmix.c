@@ -425,7 +425,7 @@ int mosmix_load(struct tm *now, const char *filename) {
 
 	ZERO(mosmix_csv);
 
-	FILE *fp = fopen(filename, "r");
+	FILE *fp = fopen(filename, "rt");
 	if (fp == NULL)
 		return xerr("MOSMIX Cannot open file %s for reading", filename);
 

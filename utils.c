@@ -35,7 +35,7 @@ static FILE *xlog_file;
 static pthread_mutex_t lock;
 
 static void xlog_open() {
-	xlog_file = fopen(filename, "a");
+	xlog_file = fopen(filename, "at");
 	if (xlog_file == 0) {
 		perror("error opening logfile!");
 		exit(EXIT_FAILURE);
