@@ -159,9 +159,8 @@ set yrange [220:250]
 set output "/run/mcp/pstate-voltage.svg"
 p pstate u 1:"l1v" w lines t "L1", '' u 1:"l2v" w lines t "L2", '' u 1:"l3v" w lines t "L3"
 
-set ylabel "Grid - Frequency"
-set yrange [4900:5100]
-set ytics format "%.2s"
+set ylabel "Grid - Frequency +/-"
+set yrange [-100:100]
 set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
 

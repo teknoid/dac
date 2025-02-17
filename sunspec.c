@@ -325,7 +325,7 @@ static void* poll(void *arg) {
 				sleep(ss->sleep);
 		}
 
-		xlog("SUNSPEC %s aborting poll due to too many errors", ss->name);
+		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
@@ -447,7 +447,7 @@ void sunspec_stop(sunspec_t *ss) {
 
 int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	if (!ss->storage)
-		return 0;
+		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
 	sunspec_storage_t storage;
@@ -455,7 +455,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
 	if (!wchaMax)
-		return 0;
+		return ENOENT;
 
 	if (inWRte < 0)
 		inWRte = 0;
@@ -472,7 +472,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	int outWRte_sf = SFOUT(outWRte, sf) * 100 / wchaMax;
 
 	if (storage.StorCtl_Mod == 3 && storage.InWRte == inWRte_sf && storage.OutWRte == outWRte_sf)
-		return 0; // already set
+		return EALREADY; // already set
 
 	xlog("SUNSPEC set charge limit to %d, W discharge limit to %d W", inWRte, outWRte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), 3);
@@ -481,12 +481,12 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%.1f OutWRte=%.1f WchaMax=%d", storage.StorCtl_Mod, SFF(storage.InWRte, sf), SFF(storage.OutWRte, sf), wchaMax);
 
-	return storage.StorCtl_Mod == 3 ? 0 : -1;
+	return storage.StorCtl_Mod == 3 ? 0 : EIO;
 }
 
 int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 	if (!ss->storage)
-		return 0;
+		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
 	sunspec_storage_t storage;
@@ -494,7 +494,7 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
 	if (!wchaMax)
-		return 0;
+		return ENOENT;
 
 	if (inWRte < 0)
 		inWRte = 0;
@@ -505,7 +505,7 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 	int inWRte_sf = SFOUT(inWRte, sf) * 100 / wchaMax;
 
 	if (storage.StorCtl_Mod == 1 && storage.InWRte == inWRte_sf)
-		return 0; // already set
+		return EALREADY; // already set
 
 	xlog("SUNSPEC set charge limit to %d W", inWRte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), 1);
@@ -513,12 +513,12 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%.1f OutWRte=%.1f WchaMax=%d", storage.StorCtl_Mod, SFF(storage.InWRte, sf), SFF(storage.OutWRte, sf), wchaMax);
 
-	return storage.StorCtl_Mod == 1 ? 0 : -1;
+	return storage.StorCtl_Mod == 1 ? 0 : EIO;
 }
 
 int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 	if (!ss->storage)
-		return 0;
+		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
 	sunspec_storage_t storage;
@@ -526,7 +526,7 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
 	if (!wchaMax)
-		return 0;
+		return ENOENT;
 
 	if (outWRte < 0)
 		outWRte = 0;
@@ -537,7 +537,7 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 	int outWRte_sf = SFOUT(outWRte, sf) * 100 / wchaMax;
 
 	if (storage.StorCtl_Mod == 2 && storage.OutWRte == outWRte_sf)
-		return 0; // already set
+		return EALREADY; // already set
 
 	xlog("SUNSPEC set discharge limit to %d W", outWRte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), 2);
@@ -545,12 +545,12 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%.1f OutWRte=%.1f WchaMax=%d", storage.StorCtl_Mod, SFF(storage.InWRte, sf), SFF(storage.OutWRte, sf), wchaMax);
 
-	return storage.StorCtl_Mod == 2 ? 0 : -1;
+	return storage.StorCtl_Mod == 2 ? 0 : EIO;
 }
 
 int sunspec_storage_limit_reset(sunspec_t *ss) {
 	if (!ss->storage)
-		return 0;
+		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
 	sunspec_storage_t storage;
@@ -561,7 +561,7 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	int limit_sf = SFOUT(100, sf);
 
 	if (storage.StorCtl_Mod == 0)
-		return 0; // already set
+		return EALREADY; // already set
 
 	xlog("SUNSPEC reset charge/discharge limits");
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), 0);
@@ -570,12 +570,12 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 	xlog("SUNSPEC StorCtl_Mod=%d InWRte=%d OutWRte=%d WchaMax=%d", storage.StorCtl_Mod, SFI(storage.InWRte, sf), SFI(storage.OutWRte, sf), wchaMax);
 
-	return storage.StorCtl_Mod == 0 ? 0 : -1;
+	return storage.StorCtl_Mod == 0 ? 0 : EIO;
 }
 
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (!ss->storage)
-		return 0;
+		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
 	sunspec_storage_t storage;
@@ -583,14 +583,14 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 
 	int soc_sf = SFOUT(soc, storage.MinRsvPct_SF);
 	if (storage.MinRsvPct == soc_sf)
-		return 0; // already set
+		return EALREADY; // already set
 
 	xlog("SUNSPEC setting minimum SoC to %d%%", soc);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->MinRsvPct), soc_sf);
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 	xlog("SUNSPEC MinRsvPct=%d", SFI(storage.MinRsvPct, storage.MinRsvPct_SF));
 
-	return storage.MinRsvPct == soc_sf ? 0 : -1;
+	return storage.MinRsvPct == soc_sf ? 0 : EIO;
 }
 
 int test(int argc, char **argv) {

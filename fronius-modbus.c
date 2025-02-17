@@ -192,7 +192,7 @@ static int storage_min(char *arg) {
 
 static int akku_standby(device_t *akku) {
 #ifndef FRONIUS_MAIN
-	if (sunspec_storage_limit_both(f10, 0, 0))
+	if (!sunspec_storage_limit_both(f10, 0, 0))
 		xdebug("FRONIUS set akku STANDBY");
 #endif
 	akku->state = Standby;
@@ -202,7 +202,7 @@ static int akku_standby(device_t *akku) {
 
 static int akku_charge(device_t *akku) {
 #ifndef FRONIUS_MAIN
-	if (sunspec_storage_limit_discharge(f10, 0))
+	if (!sunspec_storage_limit_discharge(f10, 0))
 		xdebug("FRONIUS set akku CHARGE");
 #endif
 	akku->state = Charge;
@@ -230,6 +230,7 @@ static void update_f10(sunspec_t *ss) {
 	if (!pstate || !counter)
 		return;
 
+	pstate->f = ss->inverter->Hz - 5000; // store only the diff
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
@@ -308,7 +309,7 @@ static void update_meter(sunspec_t *ss) {
 	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
 	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
 	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-	pstate->f = ss->meter->Hz; // without scaling factor
+	// pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
 // TODO load auch in gstate speichern und dann average über 1 woche ermitteln
@@ -510,13 +511,15 @@ static int ramp_multi(device_t *d) {
 		if (old_ramp < 0 && pstate->ramp > -NOISE)
 			pstate->ramp = 0;
 		xdebug("FRONIUS old_ramp=%d new_ramp=%d", old_ramp, pstate->ramp);
+		msleep(66);
 	}
 	return ret;
 }
 
 static device_t* rampup() {
-	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_DISTORTION)
-		return 0;
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
+		if (PSTATE_MIN_LAST1->ramp < 1000)
+			return 0;
 
 	device_t *d = 0, **dd = potd->devices;
 	while (*dd && pstate->ramp > 0) {
@@ -673,7 +676,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// akku or no expected delta load - no response to check
-	if (d == &a1 || !d->xload)
+	if (d == AKKU || !d->xload)
 		return 0;
 
 	int delta = pstate->load - d->aload;
@@ -877,7 +880,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (PSTATE_SEC_NEXT->pv) { // avoid DISTORTION at startup
+	if (PSTATE_SEC_NEXT->pv) { // suppress DISTORTION at startup
 		int d0 = pstate->sdpv > m1->pv;
 		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
 		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
@@ -1140,7 +1143,7 @@ static void fronius() {
 			calculate_gstate();
 			choose_program();
 			print_gstate();
-			continue; // initial roundtrip
+			continue; // initial roundtrip to get pstate deltas
 		}
 
 		// web output
@@ -1773,6 +1776,7 @@ int ramp_akku(device_t *akku, int power) {
 
 	// init
 	if (akku->power == -1) {
+		akku->power = 0;
 
 		// enable discharging
 		if (PSTATE_OFFLINE)
@@ -1814,8 +1818,8 @@ int ramp_akku(device_t *akku, int power) {
 	// ramp up request
 	if (power > 0) {
 
-		// expect all DC power to consume up to battery's charge maximum
-		akku->xload = pstate->mppt1 + pstate->mppt2 < AKKU_CHARGE_MAX ? (pstate->mppt1 + pstate->mppt2) * -1 : AKKU_CHARGE_MAX * -1;
+		// expect to consume all DC power up to battery's charge maximum
+		akku->xload = (pstate->mppt1 + pstate->mppt2) < AKKU_CHARGE_MAX ? (pstate->mppt1 + pstate->mppt2) * -1 : AKKU_CHARGE_MAX * -1;
 
 		// set into standby when full
 		if (gstate->soc == 1000)
@@ -1849,7 +1853,7 @@ int fronius_main(int argc, char **argv) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
-			// -1: charge only, 1: discharge only, 0: charge and discharge
+			// -X: limit charge, +X: limit dscharge, 0: no limits
 			return battery(optarg);
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt

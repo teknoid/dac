@@ -193,22 +193,23 @@ void mosmix_factors() {
 				}
 
 				// now find the coefficients producing the smallest error and store them to table
-				if (cum.err1 < f->e1) {
+				// TODO find out how s influences result, currently set as 1 : 0.33
+				if (cum.err1 < f->e1 && r > s * 3) {
 					f->r1 = r;
 					f->s1 = s;
 					f->e1 = cum.err1;
 				}
-				if (cum.err2 < f->e2) {
+				if (cum.err2 < f->e2 && r > s * 3) {
 					f->r2 = r;
 					f->s2 = s;
 					f->e2 = cum.err2;
 				}
-				if (cum.err3 < f->e3) {
+				if (cum.err3 < f->e3 && r > s * 3) {
 					f->r3 = r;
 					f->s3 = s;
 					f->e3 = cum.err3;
 				}
-				if (cum.err4 < f->e4) {
+				if (cum.err4 < f->e4 && r > s * 3) {
 					f->r4 = r;
 					f->s4 = s;
 					f->e4 = cum.err4;
@@ -251,10 +252,12 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	xdebug("MOSMIX forecast errors  %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
 	// collect sod errors and scale all remaining eod values
-	scale1(now, m);
-	scale2(now, m);
-	scale3(now, m);
-	scale4(now, m);
+	if (m->Rad1h) {
+		scale1(now, m);
+		scale2(now, m);
+		scale3(now, m);
+		scale4(now, m);
+	}
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
@@ -454,11 +457,12 @@ int mosmix_load(struct tm *now, const char *filename) {
 }
 
 static void recalc() {
-	return;
+	// return;
 
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 	mosmix_factors();
+	return;
 
 	// recalc expected with new factors
 	for (int d = 0; d < 7; d++) {
