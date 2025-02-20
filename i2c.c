@@ -50,10 +50,10 @@ void i2c_put(int fd, uint8_t addr, uint8_t value) {
 	pthread_mutex_lock(&lock);
 
 	if (ioctl(fd, I2C_SLAVE, addr) < 0)
-		xlog("Error addressing device 0x%02x", addr);
+		xlog("I2C Error addressing device 0x%02x", addr);
 
 	if (write(fd, &value, 1) != 1)
-		xlog("Error writing to device");
+		xlog("I2C Error writing to device");
 
 	pthread_mutex_unlock(&lock);
 }
@@ -62,10 +62,10 @@ void i2c_get(int fd, uint8_t addr, uint8_t *value) {
 	pthread_mutex_lock(&lock);
 
 	if (ioctl(fd, I2C_SLAVE, addr) < 0)
-		xlog("Error addressing device 0x%02x", addr);
+		xlog("I2C Error addressing device 0x%02x", addr);
 
 	if (read(fd, value, 1) != 1)
-		xlog("Error reading from device");
+		xlog("I2C Error reading from device");
 
 	pthread_mutex_unlock(&lock);
 }
@@ -76,10 +76,10 @@ void i2c_get_int(int fd, uint8_t addr, uint16_t *value) {
 	pthread_mutex_lock(&lock);
 
 	if (ioctl(fd, I2C_SLAVE, addr) < 0)
-		xlog("Error addressing device 0x%02x", addr);
+		xlog("I2C Error addressing device 0x%02x", addr);
 
 	if (read(fd, buf, 2) != 2)
-		xlog("Error reading from device");
+		xlog("I2C Error reading from device");
 
 	*value = buf[0] << 8 | buf[1];
 
@@ -115,7 +115,7 @@ int i2c_read(int fd, uint8_t addr, uint8_t reg, uint8_t *val) {
 	pthread_mutex_lock(&lock);
 	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
 		pthread_mutex_unlock(&lock);
-		return xerr("Error reading data from register 0x%02x", reg);
+		return xerr("I2C Error reading data from register 0x%02x", reg);
 	}
 	pthread_mutex_unlock(&lock);
 
@@ -152,7 +152,7 @@ int i2c_read_int(int fd, uint8_t addr, uint8_t reg, uint16_t *val) {
 	pthread_mutex_lock(&lock);
 	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
 		pthread_mutex_unlock(&lock);
-		return xerr("Error reading data from register 0x%02x", reg);
+		return xerr("I2C Error reading data from register 0x%02x", reg);
 	}
 	pthread_mutex_unlock(&lock);
 
@@ -189,7 +189,7 @@ int i2c_read_block(int fd, uint8_t addr, uint8_t reg, uint8_t *block, int size) 
 	pthread_mutex_lock(&lock);
 	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
 		pthread_mutex_unlock(&lock);
-		return xerr("Error reading data from register 0x%02x", reg);
+		return xerr("I2C Error reading data from register 0x%02x", reg);
 	}
 	pthread_mutex_unlock(&lock);
 
@@ -223,7 +223,7 @@ int i2c_write(int fd, uint8_t addr, uint8_t reg, uint8_t value) {
 	pthread_mutex_lock(&lock);
 	if (ioctl(fd, I2C_RDWR, &packets) < 0) {
 		pthread_mutex_unlock(&lock);
-		return xerr("Error writing data into register 0x%02x", reg);
+		return xerr("I2C Error writing data into register 0x%02x", reg);
 	}
 	pthread_mutex_unlock(&lock);
 
