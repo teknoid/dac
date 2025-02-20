@@ -111,8 +111,8 @@ static void create_gstate_dstate_json() {
 		fprintf(fp, "\{");
 		fprintf(fp, "\"name\":\"%s\",", DD->name);
 		fprintf(fp, "\"state\":%d,", DD->state);
-		fprintf(fp, "\"total\":%d,", DD->total);
 		fprintf(fp, "\"power\":%d,", DD->power);
+		fprintf(fp, "\"total\":%d,", DD == AKKU ? AKKU_CHARGE_MAX : DD->total);
 		fprintf(fp, "\"load\":%d", DD == AKKU ? pstate->akku : DD->load);
 		fprintf(fp, "}");
 		i++;
@@ -231,6 +231,9 @@ static void update_f10(sunspec_t *ss) {
 		return;
 
 	pstate->f = ss->inverter->Hz - 5000; // store only the diff
+	pstate->l1v = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+	pstate->l2v = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+	pstate->l3v = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
@@ -306,10 +309,10 @@ static void update_meter(sunspec_t *ss) {
 	pstate->l1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->l2 = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->l3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-	// pstate->f = ss->meter->Hz - 5000; // store only the diff
+//	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+//	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+//	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+//	pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
 // TODO load auch in gstate speichern und dann average über 1 woche ermitteln
@@ -388,19 +391,35 @@ static void print_gstate() {
 
 static void print_pstate_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
+	xlogl_start(line, "FRONIUS  ");
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		if (DD->adj)
-			snprintf(value, 5, " %3d", DD->power);
-		else
-			snprintf(value, 5, "   %c", DD->power ? 'X' : '_');
-		strcat(line, value);
-	}
-
-	strcat(line, "   st ");
-	for (device_t **dd = potd->devices; *dd; dd++) {
-		snprintf(value, 5, "%d", DD->state);
+		switch (DD->state) {
+		case 0:
+			snprintf(value, 5, " .");
+			break;
+		case 1:
+			if (DD->adj)
+				snprintf(value, 5, " %3d", DD->power);
+			else
+				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
+			break;
+		case 2:
+			snprintf(value, 5, " S");
+			break;
+		case 3:
+			snprintf(value, 5, " s");
+			break;
+		case 4:
+			snprintf(value, 5, " C");
+			break;
+		case 5:
+			snprintf(value, 5, " D");
+			break;
+		default:
+			snprintf(value, 5, " ?");
+			break;
+		}
 		strcat(line, value);
 	}
 
@@ -488,13 +507,13 @@ static int choose_program() {
 	if (gstate->success < 0 && gstate->akku < gstate->need_survive)
 		return select_program(&MODEST);
 
+	// start heating asap and charge akku tommorrow
+	if (gstate->tomorrow > gstate->today)
+		return select_program(&GREEDY);
+
 	// survive but not enough for heating --> load boilers
 	if (gstate->heating <= 0)
 		return select_program(&BOILERS);
-
-	// start heating asap and charge akku tommorrow
-	if (gstate->heating > 0 && gstate->tomorrow > gstate->today)
-		return select_program(&GREEDY);
 
 	// enough pv available to survive + heating
 	return select_program(&PLENTY);
@@ -510,7 +529,6 @@ static int ramp_multi(device_t *d) {
 			pstate->ramp = 0;
 		if (old_ramp < 0 && pstate->ramp > -NOISE)
 			pstate->ramp = 0;
-		xdebug("FRONIUS old_ramp=%d new_ramp=%d", old_ramp, pstate->ramp);
 		msleep(66);
 	}
 	return ret;
@@ -552,6 +570,10 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// thief already (full) on
 	if (t->power == (t->adj ? 100 : 1))
+		return 0;
+
+	// do not steal when victim is in override mode
+	if (v->override)
 		return 0;
 
 	// we can steal akkus charge power or victims load
@@ -624,6 +646,8 @@ static int force_standby() {
 		return 0;
 	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
 		return 0;
+	else if (now->tm_mon == 2 || now->tm_mon == 1) // only when very hot
+		return TEMP_IN > 27;
 
 	return TEMP_IN > 25; // too hot for heating
 }
@@ -1786,11 +1810,12 @@ int ramp_akku(device_t *akku, int power) {
 		return akku_standby(akku);
 	}
 
-	// average pv and load of last minute
+	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	int m1_pv = m1->pv;
-	int m1_load = m1->load * -1;
-	m1_load += m1_load / 10; // + 10%
+	int m1_surp = (m1->grid + m1->akku) * -1;
+	int m1_load = m1->load * -1 + m1->load / -10; // + 10%;
+	xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_surp, m1_load);
 
 	// ramp down request
 	if (power < 0) {
@@ -1799,17 +1824,16 @@ int ramp_akku(device_t *akku, int power) {
 		akku->xload = pstate->akku * -1;
 
 		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itself
-		int surp = (pstate->grid + pstate->akku) * -1;
-		if (AKKU_CHARGING && surp > -NOISE)
+		if (AKKU_CHARGING && m1_surp > -NOISE)
+			return 1; // loop done
+
+		// skip ramp downs as long as we have more pv than load
+		if (m1_pv > m1_load)
 			return 1; // loop done
 
 		// forward ramp down request to next device as long as other devices active
 		if (PSTATE_ACTIVE)
 			return 0; // continue loop
-
-		// skip ramp downs as long as we have more pv than load
-		if (m1_pv > m1_load)
-			return 1; // loop done
 
 		// ramp down - enable discharging
 		return akku_discharge(akku);
@@ -1831,7 +1855,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// forward ramp ups to next device if already in charge mode
 		if (AKKU_CHARGING)
-			return 0;
+			return 0; // continue loop
 
 		// ramp up
 		return akku_charge(akku);
