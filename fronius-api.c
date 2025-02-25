@@ -448,7 +448,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// give akku time to adjust
 	if (v == AKKU)
-		t->timer = WAIT_AKKU_RAMP;
+		pstate->timer = WAIT_AKKU_RAMP;
 
 	// no response expected as we put power from one to another device
 	t->xload = 0;
@@ -558,7 +558,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		d->timer = 0;
+		pstate->timer = 0;
 		if (pstate->soc < 1000)
 			sleep(WAIT_AKKU_RAMP); // delay next round to give akku time to adjust
 		return 0;
@@ -569,7 +569,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = 0;
+		pstate->timer = 0;
 		return d;
 	}
 
@@ -829,7 +829,7 @@ static void calculate_pstate2() {
 
 static int calculate_next_round(device_t *d) {
 	if (d)
-		return d->timer;
+		return WAIT_RESPONSE;
 
 	if (PSTATE_OFFLINE || PSTATE_BURNOUT)
 		return WAIT_OFFLINE;
@@ -1208,7 +1208,6 @@ int ramp_heater(device_t *heater, int power) {
 	heater->load = power ? heater->total : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
 	heater->aload = pstate ? pstate->load : 0;
-	heater->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -1278,7 +1277,6 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->xload = boiler->total * step / -100;
 	boiler->aload = pstate ? pstate->load : 0;
-	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 

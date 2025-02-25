@@ -196,7 +196,7 @@ static int akku_standby(device_t *akku) {
 		xdebug("FRONIUS set akku STANDBY");
 #endif
 	akku->state = Standby;
-	akku->timer = WAIT_RESPONSE;
+	pstate->timer = WAIT_RESPONSE;
 	return 0; // continue loop
 }
 
@@ -206,7 +206,7 @@ static int akku_charge(device_t *akku) {
 		xdebug("FRONIUS set akku CHARGE");
 #endif
 	akku->state = Charge;
-	akku->timer = WAIT_AKKU_CHARGE;
+	pstate->timer = WAIT_AKKU_CHARGE;
 	return 1; // loop done
 }
 
@@ -222,7 +222,7 @@ static int akku_discharge(device_t *akku) {
 	}
 #endif
 	akku->state = Discharge;
-	akku->timer = WAIT_RESPONSE;
+	pstate->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -451,8 +451,8 @@ static void print_pstate_dstate(device_t *d) {
 		xlogl_int(line, 0, 0, "Min", pstate->pvmin);
 		xlogl_int(line, 0, 0, "Max", pstate->pvmax);
 	}
-	if (d)
-		xlogl_int(line, 0, 0, d->name, d->timer);
+	if (pstate->timer)
+		xlogl_int(line, 0, 0, "Timer", pstate->timer);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -464,7 +464,10 @@ static int ramp(device_t *d, int power) {
 		xdebug("FRONIUS ramp↑ +%d %s", power, d->name);
 	else
 		xdebug("FRONIUS ramp 0 %s", d->name);
-	return (d->ramp)(d, power);
+	int ret = (d->ramp)(d, power);
+	if (ret)
+		pstate->timer = WAIT_RESPONSE;
+	return ret;
 }
 
 static int select_program(const potd_t *p) {
@@ -602,7 +605,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// give akku time to release power
 	if (v == AKKU)
-		t->timer = 4 * WAIT_RESPONSE;
+		pstate->timer = 4 * WAIT_RESPONSE;
 
 	// no response expected as we put power from one to another device
 	t->xload = 0;
@@ -693,12 +696,6 @@ static device_t* standby() {
 
 static device_t* response(device_t *d) {
 
-	// ramp timer not yet expired -> continue main loop
-	if (d->timer > 0) {
-		d->timer--;
-		return d;
-	}
-
 	// akku or no expected delta load - no response to check
 	if (d == AKKU || !d->xload)
 		return 0;
@@ -720,8 +717,8 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		d->timer = wait;
-		return d->timer ? d : 0;
+		pstate->timer = wait;
+		return pstate->timer ? d : 0;
 	}
 
 	// standby check was negative - we got a response
@@ -729,7 +726,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		d->timer = wait;
+		pstate->timer = wait;
 		return d; // recalculate in next round
 	}
 
@@ -875,8 +872,8 @@ static void calculate_pstate() {
 	}
 
 	// emergency shutdown when last 3 seconds extreme grid download or last minute big akku discharge or grid download
-	int e_s3_grid = !AKKU->timer && EMERGENCY && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2 && s3->grid > EMERGENCY * 2;
-	int e_m1_akku_grid = !AKKU->timer && EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+	int e_s3_grid = EMERGENCY && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2 && s3->grid > EMERGENCY * 2;
+	int e_m1_akku_grid = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
 	if (e_s3_grid || e_m1_akku_grid) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
@@ -910,8 +907,8 @@ static void calculate_pstate() {
 		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
 		if (d0 || d1 || d2)
 			pstate->flags |= FLAG_DISTORTION;
-		if (PSTATE_DISTORTION)
-			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m1->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		// if (PSTATE_DISTORTION)
+		// xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m1->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
@@ -939,8 +936,8 @@ static void calculate_pstate() {
 	// clear flag when values not valid
 	pstate->flags |= FLAG_VALID;
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
-	if (abs(sum) > SUSPICIOUS) {
-		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
+	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
+		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
@@ -955,6 +952,8 @@ static void calculate_pstate() {
 	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
+		if (!pstate->timer)
+			pstate->timer = WAIT_RESPONSE; // load timer if not already
 	}
 	if (f10 && !f10->active) {
 //		xlog("FRONIUS Fronius10 is not active!");
@@ -1175,37 +1174,44 @@ static void fronius() {
 		if (now->tm_sec % 10 == 0)
 			create_gstate_dstate_json();
 
-		// check emergency
-		if (PSTATE_EMERGENCY)
-			emergency();
+		// no actions until timer is expired
+		if (pstate->timer)
+			pstate->timer--;
 
-		// check offline
-		if (PSTATE_OFFLINE)
-			offline();
+		else {
 
-		// check burnout
-		if (PSTATE_BURNOUT)
-			burnout();
+			// check emergency
+			if (PSTATE_EMERGENCY)
+				emergency();
 
-		// prio1: check response from previous action
-		if (device)
-			device = response(device);
+			// check offline
+			if (PSTATE_OFFLINE)
+				offline();
 
-		// prio2: perform standby check logic
-		if (!device)
-			device = standby();
+			// check burnout
+			if (PSTATE_BURNOUT)
+				burnout();
 
-		// prio3: ramp down in reverse order
-		if (!device && pstate->ramp < 0)
-			device = rampdown();
+			// prio1: check response from previous action
+			if (device)
+				device = response(device);
 
-		// prio4: ramp up in order
-		if (!device && pstate->ramp > 0)
-			device = rampup();
+			// prio2: perform standby check logic
+			if (!device)
+				device = standby();
 
-		// prio5: check if higher priorized device can steal from lower priorized
-		if (!device)
-			device = steal();
+			// prio3: ramp down in reverse order
+			if (!device && pstate->ramp < 0)
+				device = rampdown();
+
+			// prio4: ramp up in order
+			if (!device && pstate->ramp > 0)
+				device = rampup();
+
+			// prio5: check if higher priorized device can steal from lower priorized
+			if (!device)
+				device = steal();
+		}
 
 		// print pstate once per minute / when delta / on device action
 		if (PSTATE_DELTA || device || now->tm_sec == 59)
@@ -1721,7 +1727,6 @@ int ramp_heater(device_t *heater, int power) {
 	heater->load = power ? heater->total : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
 	heater->aload = pstate ? pstate->load : 0;
-	heater->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -1790,7 +1795,6 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->xload = boiler->total * step / -100;
 	boiler->aload = pstate ? pstate->load : 0;
-	boiler->timer = WAIT_RESPONSE;
 	return 1; // loop done
 }
 
@@ -1813,27 +1817,28 @@ int ramp_akku(device_t *akku, int power) {
 	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	int m1_pv = m1->pv;
+	int m1_grid = m1->grid;
 	int m1_surp = (m1->grid + m1->akku) * -1;
 	int m1_load = m1->load * -1 + m1->load / -10; // + 10%;
-	xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_surp, m1_load);
+	xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
+
+	// for multi-ramp to decide if we can continue
+	akku->xload = pstate->akku * -1;
 
 	// ramp down request
 	if (power < 0) {
-
-		// expect to release all charging power
-		akku->xload = pstate->akku * -1;
 
 		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itself
 		if (AKKU_CHARGING && m1_surp > -NOISE)
 			return 1; // loop done
 
-		// skip ramp downs as long as we have more pv than load
-		if (m1_pv > m1_load)
-			return 1; // loop done
-
 		// forward ramp down request to next device as long as other devices active
 		if (PSTATE_ACTIVE)
 			return 0; // continue loop
+
+		// skip ramp downs as long as we have more pv than load
+		if (m1_pv > m1_load)
+			return 1; // loop done
 
 		// ramp down - enable discharging
 		return akku_discharge(akku);
@@ -1842,22 +1847,19 @@ int ramp_akku(device_t *akku, int power) {
 	// ramp up request
 	if (power > 0) {
 
-		// expect to consume all DC power up to battery's charge maximum
-		akku->xload = (pstate->mppt1 + pstate->mppt2) < AKKU_CHARGE_MAX ? (pstate->mppt1 + pstate->mppt2) * -1 : AKKU_CHARGE_MAX * -1;
-
 		// set into standby when full
 		if (gstate->soc == 1000)
 			return akku_standby(akku);
+
+		// forward ramp ups to next device if we still have grid upload
+		if (AKKU_CHARGING && m1_grid < -NOISE)
+			return 0; // continue loop
 
 		// skip ramp ups as long as pv is smaller than load
 		if (m1_pv < m1_load)
 			return 1; // loop done
 
-		// forward ramp ups to next device if already in charge mode
-		if (AKKU_CHARGING)
-			return 0; // continue loop
-
-		// ramp up
+		// ramp up - enable charging
 		return akku_charge(akku);
 	}
 
