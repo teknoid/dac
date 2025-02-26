@@ -451,7 +451,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 		pstate->timer = WAIT_AKKU_RAMP;
 
 	// no response expected as we put power from one to another device
-	t->xload = 0;
+	t->delta = 0;
 	return 1;
 }
 
@@ -537,12 +537,12 @@ static device_t* standby() {
 
 static device_t* response(device_t *d) {
 	// no expected delta load - no response to check
-	if (!d->xload)
+	if (!d->delta)
 		return 0;
 
 	int delta = pstate->p1 - d->p1;
-	int expected = d->xload;
-	d->xload = 0; // reset
+	int expected = d->delta;
+	d->delta = 0; // reset
 
 	// ignore responses below NOISE
 	if (abs(expected) < NOISE) {
@@ -579,7 +579,7 @@ static device_t* response(device_t *d) {
 		ramp_device(d, d->total * -1);
 		d->noresponse = 0;
 		d->state = Standby;
-		d->xload = 0; // no response from switch off expected
+		d->delta = 0; // no response from switch off expected
 		return d; // recalculate in next round
 	}
 
@@ -1206,7 +1206,7 @@ int ramp_heater(device_t *heater, int power) {
 	// update power values
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
-	heater->xload = power ? heater->total * -1 : heater->total;
+	heater->delta = power ? heater->total * -1 : heater->total;
 	heater->p1 = pstate ? pstate->p1 : 0; // TODO
 	return 1; // loop done
 }
@@ -1275,7 +1275,7 @@ int ramp_boiler(device_t *boiler, int power) {
 	// update power values
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
-	boiler->xload = boiler->total * step / -100;
+	boiler->delta = boiler->total * step / -100;
 	boiler->p1 = pstate ? pstate->p1 : 0; // TODO
 	return 1; // loop done
 }
@@ -1283,7 +1283,7 @@ int ramp_boiler(device_t *boiler, int power) {
 int ramp_akku(device_t *akku, int power) {
 
 	// disable response/standby logic
-	akku->load = akku->xload = 0;
+	akku->load = akku->delta = 0;
 	akku->power = 1; // always enabled
 
 	// TODO untested logic

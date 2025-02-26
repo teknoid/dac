@@ -19,7 +19,7 @@
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
 #define SUSPICIOUS				500
-#define MINIMUM					100
+#define MINIMUM					(BASELOAD / 2)
 #define RAMP_WINDOW				33
 #define NOISE					10
 #define OVERRIDE				600
@@ -212,8 +212,8 @@ struct _device {
 	const int total;
 	enum dstate state;
 	int power;
+	int delta;
 	int load;
-	int xload;
 	int p1;
 	int p2;
 	int p3;
