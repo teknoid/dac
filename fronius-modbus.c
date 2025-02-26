@@ -26,7 +26,8 @@
 #define EMERGENCY				(AKKU_CAPACITY / 10)
 #define AKKU_CHARGING			(AKKU->state == Charge)
 
-#define WAIT_RESPONSE			5	// 3s is too less !
+#define WAIT_SPIKE				5
+#define WAIT_RESPONSE			3
 #define WAIT_AKKU_CHARGE		30
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
@@ -154,15 +155,15 @@ static int grid() {
 		sunspec_read(ss);
 
 		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-		p->l1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		p->l2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		p->l3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-		p->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-		p->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-		p->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 		p->f = ss->meter->Hz; // without scaling factor
 
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->l1, p->l2, p->l3, p->l1v, p->l2v, p->l3v, FLOAT100(p->f));
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
 	}
 
 	return 0;
@@ -196,7 +197,6 @@ static int akku_standby(device_t *akku) {
 		xdebug("FRONIUS set akku STANDBY");
 #endif
 	akku->state = Standby;
-	pstate->timer = WAIT_RESPONSE;
 	return 0; // continue loop
 }
 
@@ -206,8 +206,7 @@ static int akku_charge(device_t *akku) {
 		xdebug("FRONIUS set akku CHARGE");
 #endif
 	akku->state = Charge;
-	pstate->timer = WAIT_AKKU_CHARGE;
-	return 1; // loop done
+	return WAIT_AKKU_CHARGE; // loop done
 }
 
 static int akku_discharge(device_t *akku) {
@@ -222,8 +221,7 @@ static int akku_discharge(device_t *akku) {
 	}
 #endif
 	akku->state = Discharge;
-	pstate->timer = WAIT_RESPONSE;
-	return 1; // loop done
+	return WAIT_RESPONSE; // loop done
 }
 
 static void update_f10(sunspec_t *ss) {
@@ -231,9 +229,9 @@ static void update_f10(sunspec_t *ss) {
 		return;
 
 	pstate->f = ss->inverter->Hz - 5000; // store only the diff
-	pstate->l1v = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-	pstate->l2v = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-	pstate->l3v = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
+	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
@@ -306,12 +304,12 @@ static void update_meter(sunspec_t *ss) {
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
-	pstate->l1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	pstate->l2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	pstate->l3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-//	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-//	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-//	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+//	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+//	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+//	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
@@ -341,6 +339,15 @@ static int collect_load(int from, int hours) {
 	}
 
 	return load;
+}
+
+static void store_phase_power(device_t *d) {
+	if (!pstate)
+		return;
+
+	d->p1 = pstate->p1;
+	d->p2 = pstate->p2;
+	d->p3 = pstate->p3;
 }
 
 static int collect_heating_total() {
@@ -464,9 +471,12 @@ static int ramp(device_t *d, int power) {
 		xdebug("FRONIUS ramp↑ +%d %s", power, d->name);
 	else
 		xdebug("FRONIUS ramp 0 %s", d->name);
+
+	// set response timer
 	int ret = (d->ramp)(d, power);
-	if (ret)
-		pstate->timer = WAIT_RESPONSE;
+	if (pstate->timer < ret)
+		pstate->timer = ret;
+
 	return ret;
 }
 
@@ -700,12 +710,25 @@ static device_t* response(device_t *d) {
 	if (d == AKKU || !d->xload)
 		return 0;
 
-	int delta = pstate->load - d->aload;
-	int expected = d->xload;
+	int expected = d->xload * -1;
 	d->xload = 0; // reset
 
+	// calculate delta power per phase
+	int d1 = pstate->p1 - d->p1;
+	if (-NOISE < d1 && d1 < NOISE)
+		d1 = 0;
+	int d2 = pstate->p2 - d->p2;
+	if (-NOISE < d2 && d2 < NOISE)
+		d2 = 0;
+	int d3 = pstate->p3 - d->p3;
+	if (-NOISE < d3 && d3 < NOISE)
+		d3 = 0;
+
 	// valid response is at least 1/3 of expected
-	int response = expected > 0 ? (delta > expected / 3) : (delta < expected / 3);
+	int r1 = expected > 0 ? (d1 > expected / 3) : (d1 < expected / 3);
+	int r2 = expected > 0 ? (d2 > expected / 3) : (d2 < expected / 3);
+	int r3 = expected > 0 ? (d3 > expected / 3) : (d3 < expected / 3);
+	int res = r1 || r2 || r3;
 
 	// load is completely satisfied from secondary inverter
 	int extra = pstate->ac7 > pstate->load * -1;
@@ -714,16 +737,16 @@ static device_t* response(device_t *d) {
 	int wait = AKKU_CHARGING && expected < 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
-	if (d->state == Active && response) {
-		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
+	if (d->state == Active && res) {
+		xdebug("FRONIUS response OK from %s, expected %d deltas %d %d %d", d->name, expected, d1, d2, d3);
 		d->noresponse = 0;
 		pstate->timer = wait;
 		return pstate->timer ? d : 0;
 	}
 
 	// standby check was negative - we got a response
-	if (d->state == Standby_Check && response) {
-		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
+	if (d->state == Standby_Check && res) {
+		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d %d %d", d->name, expected, d1, d2, d3);
 		d->noresponse = 0;
 		d->state = Active;
 		pstate->timer = wait;
@@ -731,8 +754,8 @@ static device_t* response(device_t *d) {
 	}
 
 	// standby check was positive -> set device into standby
-	if (d->state == Standby_Check && !response) {
-		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d --> entering standby", d->name, expected, delta);
+	if (d->state == Standby_Check && !res) {
+		xdebug("FRONIUS standby check positive for %s, delta load expected %d actual %d %d %d  --> entering standby", d->name, expected, d1, d2, d3);
 		ramp(d, d->total * -1);
 		d->noresponse = 0;
 		d->state = Standby;
@@ -741,7 +764,7 @@ static device_t* response(device_t *d) {
 	}
 
 	// ignore standby check when power was released
-	if (expected > 0)
+	if (expected < 0)
 		return 0;
 
 	// perform standby check when noresponse counter reaches threshold
@@ -953,7 +976,7 @@ static void calculate_pstate() {
 		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
 		if (!pstate->timer)
-			pstate->timer = WAIT_RESPONSE; // load timer if not already
+			pstate->timer = WAIT_SPIKE; // load timer if not already running
 	}
 	if (f10 && !f10->active) {
 //		xlog("FRONIUS Fronius10 is not active!");
@@ -1726,8 +1749,8 @@ int ramp_heater(device_t *heater, int power) {
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->aload = pstate ? pstate->load : 0;
-	return 1; // loop done
+	store_phase_power(heater);
+	return WAIT_RESPONSE; // loop done
 }
 
 // echo p:0:0 | socat - udp:boiler3:1975
@@ -1794,8 +1817,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->xload = boiler->total * step / -100;
-	boiler->aload = pstate ? pstate->load : 0;
-	return 1; // loop done
+	store_phase_power(boiler);
+	return WAIT_RESPONSE; // loop done
 }
 
 int ramp_akku(device_t *akku, int power) {

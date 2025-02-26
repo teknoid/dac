@@ -540,7 +540,7 @@ static device_t* response(device_t *d) {
 	if (!d->xload)
 		return 0;
 
-	int delta = pstate->load - d->aload;
+	int delta = pstate->p1 - d->p1;
 	int expected = d->xload;
 	d->xload = 0; // reset
 
@@ -1207,7 +1207,7 @@ int ramp_heater(device_t *heater, int power) {
 	heater->power = power;
 	heater->load = power ? heater->total : 0;
 	heater->xload = power ? heater->total * -1 : heater->total;
-	heater->aload = pstate ? pstate->load : 0;
+	heater->p1 = pstate ? pstate->p1 : 0; // TODO
 	return 1; // loop done
 }
 
@@ -1276,7 +1276,7 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->power = power;
 	boiler->load = boiler->total * boiler->power / 100;
 	boiler->xload = boiler->total * step / -100;
-	boiler->aload = pstate ? pstate->load : 0;
+	boiler->p1 = pstate ? pstate->p1 : 0; // TODO
 	return 1; // loop done
 }
 
