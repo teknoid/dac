@@ -13,6 +13,8 @@
 #include "curl.h"
 #include "mcp.h"
 
+// gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c curl.c -lcurl
+
 #define STRIP			"192.168.25.239"
 #define DELAY_FADE		1000
 #define DELAY_BLINK		500
@@ -36,10 +38,8 @@
 #define BB  			.114
 
 enum emode {
-	None, Fade, Blink
+	None, Color, Fade, Blink
 };
-
-// gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c frozen.c
 
 static int sock = 0;
 static struct sockaddr_in sock_addr_in = { 0 };
@@ -68,9 +68,14 @@ static int ddp() {
 }
 
 static void blink_loop() {
+	xdebug("LEDSTRIP running blink_loop()");
+
 	// store colors
 	uint8_t rr = r, gg = g, bb = b;
 	for (int i = 0; i < 3; i++) {
+		if (!power || mode != Blink)
+			return;
+
 		r = blink_color == RED ? 0xff : 0;
 		g = blink_color == GREEN ? 0xff : 0;
 		b = blink_color == BLUE ? 0xff : 0;
@@ -91,6 +96,8 @@ static void blink_loop() {
 }
 
 static void fade_loop() {
+	xdebug("LEDSTRIP running fade_loop()");
+
 	uint8_t rr = r ? r : 0x55;
 	uint8_t gg = g ? g : 0x55;
 	uint8_t bb = b ? b : 0x55;
@@ -144,45 +151,6 @@ static void fade_loop() {
 	}
 }
 
-static void test_fade() {
-	return;
-
-	r = g = b = 0;
-	ddp();
-	ledstrip_on();
-
-	for (r = 0; r < 0xff; r++) {
-		ddp();
-		msleep(10);
-	}
-	r = g = b = 0;
-	ddp();
-
-	for (g = 0; g < 0xff; g++) {
-		ddp();
-		msleep(10);
-	}
-	r = g = b = 0;
-	ddp();
-
-	for (b = 0; b < 0xff; b++) {
-		ddp();
-		msleep(10);
-	}
-
-	r = g = b = 0;
-	ddp();
-	ledstrip_off();
-}
-
-static void test_blink() {
-//	return;
-
-	ledstrip_blink_red();
-	ledstrip_blink_green();
-	ledstrip_blink_blue();
-}
-
 // http://192.168.25.239/cm?cmnd=backlog+power+ON
 int ledstrip_on() {
 	char url[128];
@@ -214,7 +182,6 @@ void ledstrip_mode_fade() {
 	mode = Fade;
 	if (!power)
 		ledstrip_on();
-	xlog("LEDSTRIP mode Fade");
 }
 
 void ledstrip_mode_blink() {
@@ -223,14 +190,18 @@ void ledstrip_mode_blink() {
 	mode = Blink;
 	if (!power)
 		ledstrip_on();
-	xlog("LEDSTRIP mode Blink");
 }
 
-void ledstrip_color(uint8_t rr, uint8_t gg, uint8_t bb) {
+void ledstrip_mode_color(uint8_t rr, uint8_t gg, uint8_t bb) {
+	old_mode = mode;
+	old_power = power;
 	r = rr;
 	g = gg;
 	b = bb;
-	xlog("LEDSTRIP color %02x%02x%02x", r, g, b);
+	mode = Color;
+	if (!power)
+		ledstrip_on();
+	ddp();
 }
 
 void ledstrip_blink_red() {
@@ -271,6 +242,35 @@ static void loop() {
 	}
 }
 
+static void test_fade() {
+	r = g = b = 0;
+	ddp();
+	ledstrip_on();
+
+	for (r = 0; r < 0xff; r++) {
+		ddp();
+		msleep(10);
+	}
+	r = g = b = 0;
+	ddp();
+
+	for (g = 0; g < 0xff; g++) {
+		ddp();
+		msleep(10);
+	}
+	r = g = b = 0;
+	ddp();
+
+	for (b = 0; b < 0xff; b++) {
+		ddp();
+		msleep(10);
+	}
+
+	r = g = b = 0;
+	ddp();
+	ledstrip_off();
+}
+
 static int init() {
 	// initialize random number generator
 	srand(time(NULL));
@@ -298,10 +298,21 @@ int ledstrip_main(int argc, char **argv) {
 	set_debug(1);
 
 	init();
-	test_fade();
-	test_blink();
 
-	ledstrip_on();
+	ledstrip_mode_color(rand() % 0xff, rand() % 0xff, rand() % 0xff);
+	sleep(3);
+
+	test_fade();
+
+//	ledstrip_blink_red();
+//	loop();
+//
+//	ledstrip_blink_green();
+//	loop();
+//
+//	ledstrip_blink_blue();
+//	loop();
+
 	ledstrip_mode_fade();
 	loop();
 
