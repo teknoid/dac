@@ -16,7 +16,7 @@
 // gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c curl.c -lcurl
 
 #define STRIP			"192.168.25.239"
-#define DELAY_FADE		1000
+#define DELAY_FADE		3000
 #define DELAY_BLINK		500
 #define SINGLE			1
 
@@ -24,8 +24,8 @@
 #define GREEN			2
 #define BLUE			3
 
-#define	YMIN			60
-#define YMAX			90
+#define	YMIN			30
+#define YMAX			70
 
 // Photometric/digital ITU BT.709
 //#define RR				.2126

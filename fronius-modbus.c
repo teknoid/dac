@@ -1314,10 +1314,6 @@ static int init() {
 }
 
 static void stop() {
-	sunspec_stop(f7);
-	sunspec_stop(f10);
-	sunspec_stop(meter);
-
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
@@ -1325,6 +1321,10 @@ static void stop() {
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
 #endif
+
+	sunspec_stop(meter);
+	sunspec_stop(f10);
+	sunspec_stop(f7);
 
 	if (sock)
 		close(sock);

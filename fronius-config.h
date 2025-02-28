@@ -8,7 +8,7 @@
 #define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
 #define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
 
-// hexdump -v -e '32 "%6d ""\n"' /work/fronius-pstate*.bin
+// hexdump -v -e '33 "%6d ""\n"' /work/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
 #define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
