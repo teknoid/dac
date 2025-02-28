@@ -47,6 +47,9 @@ static struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
 static uint8_t power = 0, old_power = 0, mode = 0, old_mode = 0, blink_color = 0, r, g, b;
 
+// echo -n "410B0001000000000004FF000000" |xxd -r -p |nc -4u -w0 licht-decke 4048
+// echo -n "410B000100000000000400FF0000" |xxd -r -p |nc -4u -w0 licht-decke 4048
+// echo -n "410B00010000000000040000FF00" |xxd -r -p |nc -4u -w0 licht-decke 4048
 static int ddp() {
 	unsigned char msg[] = { 0x0b, 0x41, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
@@ -65,7 +68,7 @@ static int ddp() {
 }
 
 static void blink_loop() {
-	// store state and colors
+	// store colors
 	uint8_t rr = r, gg = g, bb = b;
 	for (int i = 0; i < 3; i++) {
 		r = blink_color == RED ? 0xff : 0;
@@ -236,12 +239,12 @@ void ledstrip_blink_red() {
 }
 
 void ledstrip_blink_green() {
-	blink_color = RED;
+	blink_color = GREEN;
 	ledstrip_mode_blink();
 }
 
 void ledstrip_blink_blue() {
-	blink_color = RED;
+	blink_color = BLUE;
 	ledstrip_mode_blink();
 }
 
