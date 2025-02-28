@@ -5,6 +5,10 @@
 #include "curl.h"
 #include "utils.h"
 
+size_t curl_callback_dummy(void *buffer, size_t size, size_t nmemb, void *userp) {
+	return size * nmemb;
+}
+
 static size_t curl_callback(const char *data, size_t size, size_t nmemb, const void *userdata) {
 	response_t *r = (response_t*) userdata;
 	size_t chunksize = size * nmemb;
@@ -62,6 +66,21 @@ int curl_perform(CURL *curl, response_t *memory, parser_t *parser) {
 
 	if (parser != NULL)
 		return (parser)(memory);
+
+	return 0;
+}
+
+int curl_oneshot(const char *url) {
+	CURL *curl = curl_easy_init();
+	if (curl == NULL)
+		return xerr("CURL Error creating CURL handle");
+
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_callback_dummy);
+
+	CURLcode ret = curl_easy_perform(curl);
+	if (ret != CURLE_OK)
+		return xerr("CURL curl perform error %d: %s", ret, curl_easy_strerror(ret));
 
 	return 0;
 }

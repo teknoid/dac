@@ -12,6 +12,7 @@
 #include "frozen.h"
 #include "fronius.h"
 #include "flamingo.h"
+#include "ledstrip.h"
 #include "tasmota-config.h"
 
 #define MEAN	10
@@ -108,16 +109,23 @@ static tasmota_state_t* get_state(unsigned int id) {
 		ts->next = ts_new;
 	}
 
-	xlog("TASMOTA created new state for %06X", ts_new->id);
+	xlog("TASMOTA %06X created new state", ts_new->id);
 	return ts_new;
 }
 
 // execute tasmota BACKLOG command via mqtt publish
-static int backlog(unsigned int id, const char *cmd) {
+static int backlog(unsigned int id, const char *message) {
 	char topic[32];
 	snprintf(topic, 32, "cmnd/%6X/Backlog", id);
-	xlog("TASMOTA executing backlog command %6X :: %s", topic, cmd);
-	return publish(topic, cmd);
+	xlog("TASMOTA %06X executing backlog command :: %s", id, message);
+	return publish(topic, message);
+}
+
+// update tasmota shutter position
+static void update_shutter(unsigned int id, unsigned int position) {
+	tasmota_state_t *ss = get_state(id);
+	ss->position = position;
+	xlog("TASMOTA %06X updated shutter position to %d", ss->id, position);
 }
 
 // update tasmota relay power state
@@ -125,25 +133,18 @@ static void update_relay(unsigned int id, int relay, int power) {
 	tasmota_state_t *ss = get_state(id);
 	if (relay == 0 || relay == 1) {
 		ss->relay1 = power;
-		xlog("TASMOTA updated %6X relay1 state to %d", ss->id, power);
+		xlog("TASMOTA %06X updated relay1 state to %d", ss->id, power);
 	} else if (relay == 2) {
 		ss->relay2 = power;
-		xlog("TASMOTA updated %6X relay2 state to %d", ss->id, power);
+		xlog("TASMOTA %06X updated relay2 state to %d", ss->id, power);
 	} else if (relay == 3) {
 		ss->relay3 = power;
-		xlog("TASMOTA updated %6X relay3 state to %d", ss->id, power);
+		xlog("TASMOTA %06X updated relay3 state to %d", ss->id, power);
 	} else if (relay == 4) {
 		ss->relay4 = power;
-		xlog("TASMOTA updated %6X relay4 state to %d", ss->id, power);
+		xlog("TASMOTA  updated relay4 state to %d", ss->id, power);
 	} else
-		xlog("TASMOTA no relay%d at %6X", ss->id, relay);
-}
-
-// update tasmota shutter position
-static void update_shutter(unsigned int id, unsigned int position) {
-	tasmota_state_t *ss = get_state(id);
-	ss->position = position;
-	xlog("TASMOTA updated %6X shutter position to %d", ss->id, position);
+		xlog("TASMOTA %06X no relay %d", ss->id, relay);
 }
 
 // trigger a button press event
@@ -153,7 +154,7 @@ static void trigger(unsigned int id, int button, int action) {
 	if (!action)
 		return;
 
-	xlog("TASMOTA trigger %6X %d %d", id, button, action);
+	xlog("TASMOTA %06X trigger %d %d", id, button, action);
 
 	if (id == KUECHE && button == 2) {
 		// forcing first boiler to heat up for 10 minutes
@@ -343,8 +344,10 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 			return 0;
 		}
 
-		if (data == DOORBELL)
+		if (data == DOORBELL) {
+			ledstrip_blink_red();
 			return notify("Ding", "Dong", "ding-dong.wav");
+		}
 
 		if (bits == 28)
 			return flamingo(data);
@@ -428,7 +431,7 @@ int tasmota_power_get(unsigned int id, int relay) {
 		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
 	else
 		snprintf(topic, 32, "cmnd/%6X/POWER", id);
-	xlog("TASMOTA requesting power state from %6X:%d", id, relay);
+	xlog("TASMOTA %06X requesting power state from relay %d", id, relay);
 
 	// publish and wait for updating state
 	publish(topic, 0);
@@ -450,6 +453,58 @@ int tasmota_power_get(unsigned int id, int relay) {
 	}
 }
 
+// execute openbeken COLOR command via mqtt publish
+int openbeken_color(unsigned int id, int r, int g, int b) {
+	if (!id)
+		return 0;
+
+	if (r > 0xff)
+		r = 0xff;
+	if (g > 0xff)
+		g = 0xff;
+	if (b > 0xff)
+		b = 0xff;
+
+	char topic[32], message[12];
+	snprintf(topic, 32, "cmnd/%08X/color", id);
+	snprintf(message, 12, "%02x%02x%02x", r, g, b);
+
+	xlog("TASMOTA %08X color %s", id, message);
+	return publish(topic, message);
+}
+
+// execute openbeken DIMMER command via mqtt publish
+int openbeken_dimmer(unsigned int id, int d) {
+	if (!id)
+		return 0;
+
+	if (d > 100)
+		d = 100;
+
+	char topic[32], message[12];
+	snprintf(topic, 32, "cmnd/%08X/dimmer", id);
+	snprintf(message, 12, "%d", d);
+
+	xlog("TASMOTA %08X dimmer %s", id, message);
+	return publish(topic, message);
+}
+
+// execute openbeken SET command via mqtt publish
+int openbeken_set(unsigned int id, int channel, int value) {
+	if (!id)
+		return 0;
+
+	if (value > 100)
+		value = 100;
+
+	char topic[32], message[12];
+	snprintf(topic, 32, "%08X/%d/set", id, channel);
+	snprintf(message, 12, "%d", value);
+
+	xlog("TASMOTA %08X channel %d value %s", id, channel, message);
+	return publish(topic, message);
+}
+
 // execute tasmota POWER ON/OFF command via mqtt publish
 int tasmota_power(unsigned int id, int relay, int power) {
 	if (!id)
@@ -467,12 +522,12 @@ int tasmota_power(unsigned int id, int relay, int power) {
 		const tasmota_config_t *sc = get_config(id);
 		if (sc && sc->timer) {
 			ss->timer = sc->timer;
-			xlog("TASMOTA started timer for %06X %d", ss->id, ss->timer);
+			xlog("TASMOTA %06X started timer %d", ss->id, ss->timer);
 		}
-		xlog("TASMOTA switching %6X:%d %s", id, relay, ON);
+		xlog("TASMOTA %06X switching relay %d %s", id, relay, ON);
 		return publish(topic, ON);
 	} else {
-		xlog("TASMOTA switching %6X:%d %s", id, relay, OFF);
+		xlog("TASMOTA %06X switching relay %d %s", id, relay, OFF);
 		return publish(topic, OFF);
 	}
 }

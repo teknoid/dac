@@ -25,6 +25,10 @@ typedef struct tasmota_state_t {
 	void *next;
 } tasmota_state_t;
 
+int openbeken_color(unsigned int id, int r, int g, int b);
+int openbeken_dimmer(unsigned int id, int d);
+int openbeken_set(unsigned int id, int channel, int value);
+
 int tasmota_power(unsigned int id, int relay, int power);
 int tasmota_power_on(unsigned int id);
 int tasmota_power_off(unsigned int id);

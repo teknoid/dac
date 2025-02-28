@@ -1,3 +1,8 @@
+#define SHUTTER_UP		100
+#define SHUTTER_HALF	50
+#define SHUTTER_DOWN	0
+#define SHUTTER_POS		-1
+
 // Shelly Plugs
 #define PLUG1			0x810F43 // kaputt
 #define PLUG2			0x81420A
@@ -30,10 +35,9 @@
 #define INFRARED		0x555555
 #define AQUA			0x666666
 
-#define SHUTTER_UP		100
-#define SHUTTER_HALF	50
-#define SHUTTER_DOWN	0
-#define SHUTTER_POS		-1
-
 // 433MHz RF Transmitter ID
 #define	DOORBELL		0x670537
+
+// openbekens
+#define LICHT_DECKE		0x9412FC5B
+#define LICHT_TISCH		0x4263E59C

@@ -16,6 +16,7 @@
 
 #include <linux/input-event-codes.h>
 
+#include "ledstrip.h"
 #include "tasmota.h"
 #include "fronius.h"
 #include "button.h"
@@ -62,13 +63,14 @@ static void handle_button(unsigned char c) {
 	case 32 + SHIFT:
 		fronius_override_seconds("wozi", 3600);
 		break;
+#endif
 	case 64:
-		fronius_boiler1();
+		ledstrip_toggle();
+		ledstrip_mode_fade();
 		break;
 	case 64 + SHIFT:
-		fronius_boiler3();
+		ledstrip_blink_red(3);
 		break;
-#endif
 	default:
 	}
 }

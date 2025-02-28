@@ -1,6 +1,7 @@
 /*.o
 /.settings/language.settings.xml
 /mcp
+/ledstrip
 /fronius
 /sunspec
 /mosmix

@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <time.h>
 
+#include "ledstrip.h"
 #include "tasmota.h"
 #include "flamingo.h"
 #include "utils.h"
@@ -25,6 +26,7 @@ void xmas_on() {
 		const xmas_t *device = &devices[i];
 		tasmota_power(device->id, device->relay, 1);
 	}
+	ledstrip_mode_fade();
 #endif
 }
 
@@ -34,6 +36,7 @@ void xmas_off() {
 		const xmas_t *device = &devices[i];
 		tasmota_power(device->id, device->relay, 0);
 	}
+	ledstrip_off();
 #endif
 }
 
