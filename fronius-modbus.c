@@ -535,12 +535,13 @@ static int choose_program() {
 static int ramp_multi(device_t *d) {
 	int ret = ramp(d, pstate->ramp);
 	if (ret) {
-		// recalculate ramp power and continue when possible
+		// recalculate ramp power
 		int old_ramp = pstate->ramp;
 		pstate->ramp -= d->delta;
-		if (old_ramp > 0 && pstate->ramp < NOISE)
+		// too less to forward
+		if (old_ramp > 0 && pstate->ramp < NOISE * 2)
 			pstate->ramp = 0;
-		if (old_ramp < 0 && pstate->ramp > -NOISE)
+		if (old_ramp < 0 && pstate->ramp > NOISE * -2)
 			pstate->ramp = 0;
 		msleep(66);
 	}
@@ -735,7 +736,7 @@ static device_t* response(device_t *d) {
 	int extra = pstate->ac7 > pstate->load * -1;
 
 	// wait more to give akku time to release power when ramped up
-	int wait = AKKU_CHARGING && delta < 0 && !extra ? 3 * WAIT_RESPONSE : 0;
+	int wait = AKKU_CHARGING && delta > 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
 	if (d->state == Active && r) {
@@ -829,7 +830,7 @@ static void calculate_gstate() {
 		available = 0;
 	float survive = gstate->need_survive ? (float) (gstate->akku + available) / (float) gstate->need_survive - 1.0 : 0;
 	gstate->survive = survive * 100; // store as x100 scaled
-	xdebug("FRONIUS survive expected=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
+	xdebug("FRONIUS survive eod=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
 
 	// heating factor
 	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
@@ -1775,8 +1776,7 @@ int ramp_boiler(device_t *boiler, int power) {
 		return 0;
 
 	// power steps
-	int bstep = boiler->total / 100;
-	int step = power / bstep + (power % bstep) / 10;
+	int step = power * 100 / boiler->total;
 	if (!step)
 		return 0;
 
@@ -1881,7 +1881,7 @@ int ramp_akku(device_t *akku, int power) {
 			return akku_standby(akku);
 
 		// forward ramp ups to next device if we still have grid upload
-		if (AKKU_CHARGING && m1_grid < -NOISE)
+		if (AKKU_CHARGING && m1_grid < -RAMP_WINDOW)
 			return 0; // continue loop
 
 		// skip ramp ups as long as pv is smaller than load

@@ -24,18 +24,20 @@
 #define GREEN			2
 #define BLUE			3
 
-#define	YMIN			30
-#define YMAX			70
+#define	YMIN			10
+#define YMAX			50
 
 // Photometric/digital ITU BT.709
-//#define RR				.2126
-//#define GG				.7152
-//#define BB				.0722
+#define RR				.2126
+#define GG				.7152
+#define BB				.0722
 
 // Digital ITU BT.601 (gives more weight to the R and B components)
-#define RR  			.299
-#define GG  			.587
-#define BB  			.114
+// makes no sense on a cyan optimized LED Strip
+// see https://electronics.stackexchange.com/questions/437871/why-cant-rgb-or-bicolour-leds-produce-a-decent-yellow
+//#define RR  			.299
+//#define GG  			.587
+//#define BB  			.114
 
 enum emode {
 	None, Color, Fade, Blink
@@ -113,16 +115,18 @@ static void fade_loop() {
 
 		if (r == rr && g == gg && b == bb) {
 			xlog("LEDSTRIP target color reached %02x%02x%02x", r, g, b);
+			int d, y;
 			while (1) {
 				// dice next color with nearly equal brightness
 				rr = rand() % 0xff;
 				gg = rand() % 0xff;
 				bb = rand() % 0xff;
-				int y = RR * rr + GG * gg + BB * bb;
+				y = RR * rr + GG * gg + BB * bb;
+				d = abs(rr - r) + abs(gg - g) + abs(bb - b);
 				if (YMIN < y && y < YMAX)
 					break;
 			}
-			xlog("LEDSTRIP next target color is %02x%02x%02x", rr, gg, bb);
+			xlog("LEDSTRIP next target color is %02x%02x%02x y=%d d=%d", rr, gg, bb, y, d);
 		}
 
 		if (r != rr) {
