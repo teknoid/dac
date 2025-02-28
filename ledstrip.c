@@ -36,7 +36,7 @@
 #define BB  			.114
 
 enum emode {
-	Constant, Fade, Blink
+	None, Fade, Blink
 };
 
 // gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c frozen.c
@@ -196,12 +196,13 @@ int ledstrip_off() {
 	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+OFF", STRIP);
 	curl_oneshot(url);
 	power = 0;
+	mode = None;
 	xlog("LEDSTRIP switched OFF");
 	return 0;
 }
 
 void ledstrip_toggle() {
-	power ? ledstrip_off() : ledstrip_on();
+	power ? ledstrip_off() : ledstrip_mode_fade();
 }
 
 void ledstrip_mode_fade() {

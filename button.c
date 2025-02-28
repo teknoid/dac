@@ -66,7 +66,6 @@ static void handle_button(unsigned char c) {
 #endif
 	case 64:
 		ledstrip_toggle();
-		ledstrip_mode_fade();
 		break;
 	case 64 + SHIFT:
 		ledstrip_blink_red(3);
