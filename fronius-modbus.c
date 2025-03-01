@@ -586,6 +586,10 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 	if (t->power == (t->adj ? 100 : 1))
 		return 0;
 
+	// akku can not steal power from secondary inverter
+	if (t == AKKU && pstate->ac7 > pstate->load * -1)
+		return 0;
+
 	// do not steal when victim is in override mode
 	if (v->override)
 		return 0;
