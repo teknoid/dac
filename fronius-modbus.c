@@ -484,8 +484,10 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0;
 
+	// potd has changed - reset AKKU only if in charge mode
+	if (AKKU_CHARGING)
+		AKKU->power = -1;
 	// potd has changed - reset all devices and wait for new values
-	AKKU->power = -1;
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp(DD, DOWN);
 

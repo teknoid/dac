@@ -12,7 +12,6 @@
 #include "frozen.h"
 #include "fronius.h"
 #include "flamingo.h"
-#include "ledstrip.h"
 #include "tasmota-config.h"
 
 #define MEAN	10
@@ -344,10 +343,8 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 			return 0;
 		}
 
-		if (data == DOORBELL) {
-			ledstrip_blink_red();
-			return notify("Ding", "Dong", "ding-dong.wav");
-		}
+		if (data == DOORBELL)
+			return notify_red("Ding", "Dong", "ding-dong.wav");
 
 		if (bits == 28)
 			return flamingo(data);

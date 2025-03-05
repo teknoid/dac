@@ -16,6 +16,7 @@
 #include <mqttc.h>
 
 #include "tasmota-devices.h"
+#include "ledstrip.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "utils.h"
@@ -295,7 +296,19 @@ int notify(const char *title, const char *text, const char *sound) {
 
 	lcd(title, text);
 	desktop(title, text);
+	if (sound != NULL)
+		play(sound);
 
+	return 0;
+}
+
+int notify_red(const char *title, const char *text, const char *sound) {
+	xdebug("MQTT notification %s/%s/%s", title, text, sound);
+
+	// TODO blockiert?
+	ledstrip_blink_red();
+	lcd(title, text);
+	desktop(title, text);
 	if (sound != NULL)
 		play(sound);
 

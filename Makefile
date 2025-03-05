@@ -97,7 +97,7 @@ aqua: aqua.o utils.o
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 fronius sunspec mosmix template aqua
+	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 fronius sunspec mosmix template aqua ledstrip
 
 install:
 	@echo "[Installing and starting mcp]"

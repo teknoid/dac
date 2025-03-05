@@ -398,8 +398,9 @@ static int init() {
 }
 
 static void stop() {
-	if (conn)
-		mpd_connection_free(conn);
+// TODO blocks shutdown ???
+//	if (conn)
+//		mpd_connection_free(conn);
 }
 
-MCP_REGISTER(mpd, 4, &init, &stop, &mpdclient);
+MCP_REGISTER(mpd, 9, &init, &stop, &mpdclient);

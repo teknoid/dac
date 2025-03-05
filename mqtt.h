@@ -21,5 +21,6 @@
 #define TOPIC_STAT			"stat"
 
 int notify(const char *title, const char *text, const char *sound);
+int notify_red(const char *title, const char *text, const char *sound);
 
 int publish(const char*, const char*);
