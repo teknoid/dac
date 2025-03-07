@@ -457,7 +457,7 @@ int mosmix_load(struct tm *now, const char *filename) {
 }
 
 static void recalc() {
-	// return;
+	return;
 
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
@@ -587,16 +587,20 @@ static void migrate() {
 static void fix() {
 	return;
 
+	mosmix_t *m;
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));
 
-	mosmix_t *m = &history[15];
-	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
-	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
-	m->err1 = m->err2 = m->err3 = m->err4 = 100;
-	m = &history[16];
-	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
-	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
-	m->err1 = m->err2 = m->err3 = m->err4 = 100;
+	m = &history[152];
+	m->mppt3 = m->diff3 = 0;
+	m->err3 = 100;
+//	m = &history[139];
+//	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
+//	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
+//	m->err1 = m->err2 = m->err3 = m->err4 = 100;
+//	m = &history[140];
+//	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
+//	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
+//	m->err1 = m->err2 = m->err3 = m->err4 = 100;
 
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
@@ -670,9 +674,9 @@ int mosmix_main(int argc, char **argv) {
 
 	migrate();
 	test();
-	recalc();
 	compare();
 	fix();
+	recalc();
 
 	return 0;
 }
