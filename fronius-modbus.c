@@ -800,6 +800,8 @@ static void calculate_gstate() {
 	gstate->consumed = counter->consumed && c0->consumed ? counter->consumed - c0->consumed : 0;
 
 	// mppt's -> last hour
+	// TODO
+	xdebug("FRONIUS counter->mppt3 %d c->mppt3 %d", counter->mppt3, c->mppt3);
 	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
 	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
@@ -1852,7 +1854,7 @@ int ramp_akku(device_t *akku, int power) {
 	int m1_grid = m1->grid;
 	int m1_surp = (m1->grid + m1->akku) * -1;
 	int m1_load = m1->load * -1 + m1->load / -10; // + 10%;
-	xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
+	// xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
 
 	// ramp down request
 	if (power < 0) {
