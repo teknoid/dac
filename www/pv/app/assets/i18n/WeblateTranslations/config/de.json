@@ -1,0 +1,225 @@
+{
+  "BATTERIES": {
+    "AUTO": "Auto",
+    "BAT_M0_SOC_MAX": "Ma­xi­ma­les La­deli­mit",
+    "BAT_M0_SOC_MIN": "Mi­ni­ma­les La­deli­mit",
+    "BAT_M0_SOC_MODE": "SoC-Gren­zen Mo­dus",
+    "BAT_TYPE": "Typ",
+    "BYD_B_BOX_HV": "BYD Pre­mi­um HVS/M",
+    "BatteryLGEnblockE": "Beta",
+    "ERROR_MIN_GREATER_MAX": "Mi­ni­mum ist grö­ßer als Ma­xi­mum",
+    "HYB_BACKUP_CRITICALSOC": "La­de­zu­stand Warn­li­mit",
+    "HYB_BACKUP_RESERVED": "Re­ser­ve­ka­pa­zi­tät",
+    "HYB_BACKUP_SYSTEMDEADLOCKPREVENTION": "Sys­tem­er­hal­tung in der Nacht",
+    "HYB_BM_CHARGEFROMAC": "aus an­de­ren Ge­ne­ra­to­ren im Heim­netz­werk",
+    "HYB_BM_PACMIN": "Max. La­de­leis­tung von AC",
+    "HYB_EM_POWER": "Ziel­wert am Ein­spei­se­pun­kt",
+    "HYB_EVU_CHARGEFROMGRID": "aus an­de­ren Ge­ne­ra­to­ren im Heim­netz­werk und aus dem öf­fent­li­chen Netz",
+    "HYB_GENERATORS": "Bat­te­rie­la­dung aus an­de­ren Quel­len",
+    "MANUAL": "Ma­nu­ell",
+    "SOC_MODE_AUTO": "Au­to­ma­tisch",
+    "SOC_MODE_MANUAL": "Ma­nu­ell",
+    "supportSoc": "Un­ter­stüt­zu­ng SoC Stop",
+    "supportSocActive": "Bat­te­rie­un­ter­stüt­zu­ng für Ohm­pi­lot Eco zu­las­sen",
+    "supportSocMode": "Un­ter­stüt­zu­ng SoC Li­mit Mode",
+    "supportSocMode_auto": "Au­to­ma­tisch",
+    "supportSocMode_manual": "Ma­nu­ell"
+  },
+  "COMMON": {
+    "systemName": "An­la­gen­na­me"
+  },
+  "EMRS": {
+    "OFF": "Aus",
+    "PPV": "Pro­du­zier­te Leis­tung",
+    "ScheduleOnDone": "Soll-Lauf­zeit",
+    "ScheduleOnTime": "Zu er­rei­chen bis",
+    "batteries": "Bat­te­rie",
+    "heatpumps": "Wär­me­pum­pe",
+    "ios": "Last­ma­nage­ment",
+    "label": "Be­zeich­nung",
+    "maxTimeOn": "Ma­xi­ma­le Ein­schalt­dau­er",
+    "minTimeOn": "Mi­ni­ma­le Ein­schalt­dau­er",
+    "mode": "Last",
+    "ohmpilots": "Ohm­pi­lot",
+    "pgrid": "Leis­tungs­über­schuss",
+    "requiredTimeOn": "Ein­schalt­dau­er je Tag",
+    "thresholdOff": "Aus",
+    "thresholdOn": "Ein"
+  },
+  "EXPORTLIMIT": {
+    "HARDLIMIT": {
+      "enabled": "Ab­schalt­funk­ti­on Ein­spei­se­be­gren­zu­ng (Hard Li­mit Trip)"
+    },
+    "LIMIT_INFO": "Der Wech­sel­rich­ter schal­tet ab, wenn die ein­ge­stell­te Ein­spei­se­be­gren­zu­ng über­schrit­ten wird.",
+    "NETWORK_MODE": {
+      "clusterModeActivated": "Meh­re­re Wech­sel­rich­ter li­mi­tie­ren (nur Soft Li­mit)"
+    },
+    "PHASE_INFO": "Pha­sen­zu­ord­nung (L1, L2, L3) von Smart Me­ter & Wech­sel­rich­ter muss über­ein­stim­men!",
+    "PHASE_MODE": {
+      "NO_LIMIT_ENABLED_ERROR": "Soft und / oder Hard Li­mit muss ak­ti­viert sein.",
+      "asymmetricFeedIn": "Li­mit per Pha­se – Asym­me­tri­sche Er­zeu­gung",
+      "asymmetricFeedInError": "\"Meh­re­re Wech­sel­rich­ter li­mi­tie­ren\" muss aus­ge­schal­ten sein für die asym­me­tri­sche Ein­spei­se­be­gren­zu­ng.",
+      "phaseMode": "Leis­tungs­re­duk­ti­on",
+      "phaseSum": "Li­mit Ge­samt­leis­tung",
+      "weakestPhase": "Li­mit per Pha­se – Schwächs­te Pha­se"
+    },
+    "SOFTLIMIT": {
+      "enabled": "Dy­na­mi­sche Ein­spei­se­be­gren­zu­ng (Soft Li­mit)"
+    },
+    "TITEL": "Ein­spei­seli­mit",
+    "WLIM_MAX_FEEDIN": "Max. Netz­ein­spei­se-Leis­tung",
+    "WLIM_MAX_FEEDIN_HARD": "Max. Netz­ein­spei­se-Leis­tung (Hard Li­mit Trip)",
+    "WLIM_MAX_FEEDIN_PER_PHASE": "Max. Netz­ein­spei­se-Leis­tung pro Pha­se",
+    "WLIM_MAX_FEEDIN_PER_PHASE_HARD": "Max. Netz­ein­spei­se-Leis­tung pro Pha­se(Hard Li­mit Trip)",
+    "WLIM_MAX_FEEDIN_PER_PHASE_SOFT": "Max. Netz­ein­spei­se-Leis­tung pro Pha­se (Soft Li­mit)",
+    "WLIM_MAX_FEEDIN_SOFT": "Max. Netz­ein­spei­se-Leis­tung (Soft Li­mit)",
+    "WLIM_MAX_W": "Ma­xi­mal er­laub­te Ein­spei­se­leis­tung des ge­sam­ten Sys­te­ms",
+    "WLIM_MAX_W_HARD": "Ma­xi­mal er­laub­te Ein­spei­se­leis­tung des ge­sam­ten Sys­te­ms (Hard Li­mit Trip)",
+    "WLIM_MAX_W_SOFT": "Ma­xi­mal er­laub­te Ein­spei­se­leis­tung des ge­sam­ten Sys­te­ms (Soft Li­mit)",
+    "WPEAK": "Ge­sam­te DC-An­la­gen­leis­tung",
+    "activated": "Leis­tungs­be­gren­zu­ng",
+    "failSafeModeEnabled": "Wech­sel­rich­ter­leis­tung auf 0% re­du­zie­ren, wenn die Ver­bin­dung zum Smart Me­ter ge­tren­nt ist."
+  },
+  "ICS": {
+    "dyn": "Ein­spei­se­be­gren­zu­ng",
+    "io": "IO Leis­tungs­ma­nage­ment",
+    "mb": "Mod­bus Steue­rung"
+  },
+  "IOMAPPING": {
+    "ActivateBackupInterlock": "Not­strom-Ver­rie­ge­lung ak­ti­vie­ren",
+    "ActivateBackupInterlock2": "Not­strom-Ver­rie­ge­lung ak­ti­vie­ren #2",
+    "GSTR_GPIO_TITLE_AS4777": "Aus­tra­li­en - De­mand Re­spon­se Mo­des (DRM)",
+    "GSTR_GPIO_TITLE_BACKUP": "Not­strom",
+    "GSTR_GPIO_TITLE_DNO": "EVU",
+    "GSTR_GPIO_TITLE_EMRS": "Last­ma­nage­ment",
+    "GSTR_GPIO_TITLE_SMGW_BATTERY_LIMITATION": "Netz­be­zugs­li­mit Bat­te­rie (§ 14a EnWG)",
+    "GSTR_GPIO_TITLE_STORAGE": "Bat­te­rie",
+    "InterlockRelayFeedback": "Feed­back Ver­rie­ge­lung",
+    "OpenGridRelayFeedback": "Feed­back Netz­re­lais of­fen",
+    "OpenGridRelayFeedback2": "Feed­back Netz­re­lais of­fen #2",
+    "PSTR_GPIO_SRC_AS4777_COM_LOAD": "COM LOAD/0",
+    "PSTR_GPIO_SRC_AS4777_DRM15": "DRM 1/5",
+    "PSTR_GPIO_SRC_AS4777_DRM26": "DRM 2/6",
+    "PSTR_GPIO_SRC_AS4777_DRM37": "DRM 3/7",
+    "PSTR_GPIO_SRC_AS4777_DRM48": "DRM 4/8",
+    "PSTR_GPIO_SRC_AS4777_REF_GEN": "REF GEN/0",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_1": "Re­gel 1",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_2": "Re­gel 2",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_3": "Re­gel 3",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_4": "Re­gel 4",
+    "PSTR_GPIO_SRC_EVU_INPUT": "IO-Steue­rung",
+    "PSTR_GPIO_SRC_EVU_OUTPUT": "IO-Steue­rung Rück­mel­dung",
+    "PSTR_GPIO_SRC_SOM_ACK": "Feed­back Ver­rie­ge­lung",
+    "PSTR_GPIO_SRC_SOM_GRANT": "Not­strom-Ver­rie­ge­lung ak­ti­vie­ren",
+    "PSTR_GPIO_SRC_SOM_REQUEST": "Not­strom-An­for­de­rung",
+    "PSTR_GPIO_SRC_STORAGE_ENABLE": "Bat­te­rie ak­ti­vie­ren",
+    "SYSTEM_PRESERVATION_CHANGE": "Un­ter­gren­zen für die Re­ser­ve­ka­pa­zi­tät und das La­de­zu­stand War­nungs­li­mit wur­den auf {{limit}}% ge­set­zt.",
+    "SYSTEM_PRESERVATION_NO_CHANGE": "Die ak­tu­el­le Ein­stel­lung ist be­reits über dem kal­ku­lier­tem Li­mit von {{limit}}%.",
+    "SmartMeterGatewayBatteryLimitationEnable": "Netz­be­zugs­li­mit Bat­te­rie"
+  },
+  "MODBUS": {
+    "baud": "Baud­ra­te",
+    "baud_19200": "19200",
+    "baud_9600": "9600",
+    "ctr": "Steue­rung er­lau­ben",
+    "ip": "IP-Adres­se",
+    "meterAddress": "Zäh­ler­adres­se",
+    "parity": "Pa­ri­tät",
+    "parity_e": "ge­ra­de",
+    "parity_n": "kei­ne",
+    "parity_o": "un­ge­ra­de",
+    "port": "Mod­bus-Port",
+    "restriction": "Steue­rung ein­schrän­ken",
+    "rtu_inverter_slave_id": "Wech­sel­rich­ter­adres­se",
+    "sunspecMode": "Sun­Spec Mo­del Type",
+    "sunspecMode_float": "flo­at",
+    "sunspecMode_int": "int + SF"
+  },
+  "MULTINETWORK": {
+    "MAC_ADDRESS": "MAC-Adres­se",
+    "automatic": "Au­to­ma­tisch",
+    "gateway": "Gate­way",
+    "hostname": "Host­na­me",
+    "ipAddress": "IP-Adres­se",
+    "metric": "Me­trik",
+    "nameservers": "DNS",
+    "psk": "Netz­werk-Schlüs­sel (PSK)",
+    "ssid": "Netz­werk-Name (SSID)",
+    "static": "Sta­tisch",
+    "subnetMask": "Sub­ne­tz-Mas­ke"
+  },
+  "PCC": {
+    "CosPhiControl": {
+      "CPDirection": "Im­pe­danz­ver­hal­ten",
+      "TargetValue": "Leis­tungs­fak­tor (cos φ)"
+    },
+    "EVUOut": "EVU Rück­mel­dung",
+    "PowerLimit": {
+      "TargetValue": "Wirk­leis­tung"
+    },
+    "capacitive": "Ka­pa­zi­tiv",
+    "inductive": "In­duk­tiv"
+  },
+  "POLICY": {
+    "additionalPurposeAgreement": {
+      "analyticalData": "Nut­zungs­da­ten und Ser­vice­da­ten für wei­te­re Ana­ly­sen zur Ver­bes­se­rung un­se­rer Diens­te über­tra­gen",
+      "analyticalDataDetails": "Ich wil­li­ge in die op­tio­na­le, re­gel­mä­ßi­ge Be­reit­stel­lung, Er­he­bung und Aus­wer­tung der mein Fro­ni­us-Ge­rät be­tref­fen­den {{analyticalDataLink}} an bzw. durch die FRO­NI­US IN­TER­NA­TIO­NAL GmbH zu den Zwe­cken der Pro­dukt­ver­bes­se­rung und -op­ti­mie­rung so­wie Feh­ler­dia­gno­se und -be­he­bung ein. <br> Mei­ne Ein­wil­li­gung ist je­der­zeit lo­kal am Ge­rät in den Me­nüs In­be­trieb­nah­me-As­sis­tent und Kom­mu­ni­ka­ti­on/So­lar.web de­ak­ti­vier­bar. Die Recht­mä­ßig­keit der Ver­ar­bei­tung auf Grund­la­ge der Ein­wil­li­gung blei­bt bis zum Wi­der­ruf un­be­rührt.",
+      "analyticalDataLink": "Ana­ly­se, Dia­gno­se- und Nut­zungs­da­ten",
+      "motivationExamples": "Bei­spie­le für be­reit­ge­stell­te Da­ten:<ul><li>Be­trie­bs- und Ge­rä­te­da­ten:<br>Das sind etwa Stand­ort­da­ten, Leis­tungs­da­ten, Ge­rä­te­kon­fi­gu­ra­tio­nen oder Da­ten über den An­la­gen­sta­tus.</li><li>Uplo­ad Sys­tem-Logs:<br>Die Sys­tem-Logs der am Ge­rät lau­fen­den Ser­vices kön­nen auf einen Log-Ser­ver bei Fro­ni­us hoch­ge­la­den wer­den. Dort ste­hen sie un­se­ren Ent­wick­lern für die wei­te­re Ana­ly­se zur Ver­fü­gung. Mit­hil­fe die­ser Da­ten kön­nen nur sel­ten auf­tre­ten­de, aber mög­li­cher­wei­se schwer­wie­gen­de Pro­ble­me schnel­ler ge­fun­den und be­ho­ben wer­den.</li><li>Ak­ti­vier­ba­res Per­for­man­ce Mo­ni­to­ring und Re­porting:<br>Pro­zes­sor­last und Spei­cher­ver­brauch kön­nen über län­ge­re Zeit­räu­me über­wacht wer­den. Die­se In­for­ma­tio­nen hel­fen uns, die Pro­zes­sor- und Spei­cher­aus­las­tung bes­ser nach­voll­zie­hen und Op­ti­mie­run­gen vor­neh­men zu kön­nen.</li></ul>",
+      "motivationHeader": "Da­ten­schutz­be­stim­mun­gen",
+      "motivationText": "Wir bit­ten un­se­re Kun­den, uns durch die Be­reit­stel­lung von Ana­ly­se-, Dia­gno­se-und Nut­zungs­da­ten be­hilf­lich zu sein. Mit der Zu­stim­mung zur Ver­ar­bei­tung die­ser Da­ten un­ter­stüt­zen Sie uns bei der Dia­gno­se und Be­he­bung von un­er­war­te­ten Sys­tem­feh­lern. Sie hel­fen uns da­durch auch, un­se­re Pro­duk­te und Leis­tun­gen wei­ter zu ver­bes­sern und zu op­ti­mie­ren. Die be­reit­ge­stell­ten Da­ten wer­den von uns re­gel­mä­ßig für die­se Zwe­cke er­ho­ben und aus­ge­wer­tet.<br><br>Die Ein­wil­li­gung in die Ver­ar­bei­tung von Ana­ly­se-, Dia­gno­se-und Nut­zungs­da­ten ist op­tio­nal. Stim­men Sie die­ser Da­ten­ver­ar­bei­tung nicht zu, hat das kei­nen Ein­fluss auf un­se­re ver­trag­li­chen Leis­tungs­ver­pflich­tun­gen oder eine be­stehen­de Ver­bin­dung zwi­schen Ih­rem Ge­rät und Fro­ni­us So­lar.web."
+    },
+    "approvalStatus": {
+      "ACCEPTED": "Ja, ich bin mit die­ser tech­nisch not­wen­di­gen Da­ten­ver­ar­bei­tung ein­ver­stan­den.",
+      "AcceptedSolarWeb": "Ja, ich bin mit die­ser tech­nisch not­wen­di­gen Da­ten­ver­ar­bei­tung ein­ver­stan­den.",
+      "DECLINED": "Nein, ich bin mit der Da­ten­ver­ar­bei­tung nicht ein­ver­stan­den und leh­ne die­se ab.",
+      "DeclinedSolarWeb": "Nein, ich bin mit der Da­ten­ver­ar­bei­tung nicht ein­ver­stan­den und leh­ne die­se ab."
+    }
+  },
+  "POWERMETER": {
+    "FEEDIN_METER": "Ein­spei­se­pun­kt",
+    "LOAD_METER": "Ver­brau­cherz­weig",
+    "METER_CAT_BAT": "AC-Spei­cher",
+    "METER_CAT_BHKW": "Block-Heiz­kraft­werk (BHKW)",
+    "METER_CAT_BUILDING": "Ge­bäu­de­tech­nik",
+    "METER_CAT_CLIMATE": "Kli­ma- / Kühl­ge­rä­te",
+    "METER_CAT_ECAR": "Elek­tro­fahr­zeu­ge",
+    "METER_CAT_HEATPUMP": "Wär­me­pum­pe",
+    "METER_CAT_OTHER": "Sons­ti­ge",
+    "METER_CAT_OTHERHEATING": "Hei­zu­ng",
+    "METER_CAT_PUMP": "Pum­pe",
+    "METER_CAT_PV_BAT": "Wech­sel­rich­ter + AC-Spei­cher",
+    "METER_CAT_WHITEGOODS": "Weiß­wa­ren",
+    "METER_CAT_WINDMILL": "Wind­rad",
+    "METER_CAT_WR": "Wech­sel­rich­ter",
+    "POSITION_CON": "Ver­brau­cher­zäh­ler",
+    "POSITION_GEN": "Er­zeu­ger­zäh­ler",
+    "TYPE_SMRTU": "Fro­ni­us Smart Me­ter (RTU)",
+    "TYPE_SMTCP": "Fro­ni­us Smart Me­ter (TCP)",
+    "category": "Ka­te­go­rie",
+    "id": "Mod­bus Adres­se",
+    "ip": "IP-Adres­se",
+    "isLoadMeter": "An­wen­dung",
+    "name": "Name",
+    "port": "Port",
+    "position": "An­wen­dung",
+    "type": "Typ"
+  },
+  "SOLARWEB": {
+    "REMOTE_CONTROL_OFF": "Aus",
+    "REMOTE_CONTROL_ON": "Ein",
+    "connectionKeepAlive": "Da­ten sen­den",
+    "customerRemoteControlProfileActive": "Cloud-Steue­rung für vir­tu­el­le Kraft­wer­ke zu­las­sen (Custo­mer)",
+    "enableRemoteControl": "Cloud-Steue­rung für Netz­be­trei­ber/En­er­gie­ver­sor­ger er­lau­ben",
+    "technicianRemoteControlProfileActive": "Cloud-Steue­rung für Re­gu­lie­rungs­zwe­cke zu­las­sen (Tech­ni­ci­an)"
+  },
+  "SOLAR_API": {
+    "SolarAPIv1Enabled": "Kom­mu­ni­ka­ti­on über So­lar API ak­ti­vie­ren"
+  },
+  "TIME_OF_USE": {
+    "REGULATION_CHARGE_MAX": "Max. La­de­leis­tung",
+    "REGULATION_CHARGE_MIN": "Min. La­de­leis­tung",
+    "REGULATION_DISCHARGE_MAX": "Max. Ent­la­de­leis­tung",
+    "REGULATION_DISCHARGE_MIN": "Min. Ent­la­de­leis­tung"
+  }
+}

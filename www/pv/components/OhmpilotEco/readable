@@ -1,0 +1,26 @@
+{
+	"Body" : 
+	{
+		"Data" : {}
+	},
+	"Head" : 
+	{
+		"Note" : "this internal API may be changed any time",
+		"RequestArguments" : 
+		{
+			"method" : "GET",
+			"resource" : "OhmpilotEco/readable"
+		},
+		"Status" : 
+		{
+			"Code" : 0,
+			"ErrorDetail" : 
+			{
+				"Nodes" : []
+			},
+			"Reason" : "",
+			"UserMessage" : ""
+		},
+		"Timestamp" : "2025-01-12T13:09:31+00:00"
+	}
+}

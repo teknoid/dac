@@ -1,0 +1,40 @@
+hr						{ display:none !important }
+
+main-menu				{ display:none }
+site-header				{ display:none }
+energy-value			{ display:none }
+device-state			{ display:none }
+router-outlet			{ display:none }
+user-menu				{ display:none }
+site-state-bar			{ display:none }
+mat-tab-group			{ display:none }
+
+.js-status-bar-bg		{ display:none !important }
+.mat-tab-body			{ display:none !important }
+.mat-tab-header			{ display:none !important }
+.mat-tab-group			{ display:none !important }
+.mat-card-title			{ display:none !important }
+.cardwrapper-col-sm-5	{ display:none !important }
+.cardwrapper-col-sm-12	{ display:none !important }
+.power-component-details-overlay	{ display:none !important }
+
+.beneath-header			{ top:0 !important; height:auto !important }
+.app-content			{ margin-bottom:0px !important }
+.card-wrapper			{ padding:0 !important }
+.container-fluid		{ padding:0 !important }
+.app-content-container	{ padding:0 !important }
+.mat-card				{ padding:0 !important; box-shadow:unset !important }
+
+card-wrapper .cardwrapper-row { margin-right:0; margin-left:0; padding:0 }
+card-wrapper .card-view .card-inner { padding-left:0; padding-right:0; padding:0 }
+
+@media (max-width: 479px) {
+  card-wrapper .card-inner mat-card.mat-card:not(.isAccordion) { padding-bottom:0 !important }
+  card-wrapper .card-inner { margin-top:0; margin-bottom:0 }
+}
+
+@media (min-width: 769px) {
+  app					{ top:-20px }
+  card-wrapper .cardwrapper-col-md-6 { width:100% }
+}
+

@@ -1,0 +1,226 @@
+{
+  "BATTERIES": {
+    "AUTO": "Auto",
+    "BAT_M0_SOC_MAX": "SoC Max­imum",
+    "BAT_M0_SOC_MIN": "SoC Min­im­um",
+    "BAT_M0_SOC_MODE": "SoC Lim­it Mode",
+    "BAT_TYPE": "Type",
+    "BYD_B_BOX_HV": "BYD Premi­um HVS/M",
+    "BatteryLGEnblockE": "Beta",
+    "BatteryLGGEN3M": "LG FLEX",
+    "ERROR_MIN_GREATER_MAX": "Min­im­um is bigger than max­imum",
+    "HYB_BACKUP_CRITICALSOC": "SoC warn­ing level",
+    "HYB_BACKUP_RESERVED": "Re­serve Ca­pa­city",
+    "HYB_BACKUP_SYSTEMDEADLOCKPREVENTION": "Sys­tem pre­ser­va­tion dur­ing night",
+    "HYB_BM_CHARGEFROMAC": "from oth­er gen­er­at­ors in the home net­work",
+    "HYB_BM_PACMIN": "Max. Char­ging Power from AC",
+    "HYB_EM_POWER": "Target value at feed-in point",
+    "HYB_EVU_CHARGEFROMGRID": "from oth­er gen­er­at­ors in the home net­work and from pub­lic grid",
+    "HYB_GENERATORS": "Bat­tery char­ging from oth­er sources",
+    "MANUAL": "Manu­al",
+    "SOC_MODE_AUTO": "Auto­mat­ic",
+    "SOC_MODE_MANUAL": "Manu­al",
+    "supportSoc": "Sup­port SoC Stop",
+    "supportSocActive": "Al­low bat­tery sup­port for Ohm­pilot Eco",
+    "supportSocMode": "Sup­port SoC Lim­it Mode",
+    "supportSocMode_auto": "Auto­mat­ic",
+    "supportSocMode_manual": "Manu­al"
+  },
+  "COMMON": {
+    "systemName": "PV Sys­tem Name"
+  },
+  "EMRS": {
+    "OFF": "Off",
+    "PPV": "Power Pro­duc­tion",
+    "ScheduleOnDone": "De­sired dur­a­tion",
+    "ScheduleOnTime": "Fin­ish un­til",
+    "batteries": "Bat­tery",
+    "heatpumps": "Heat pump",
+    "ios": "Load Man­age­ment",
+    "label": "Name",
+    "maxTimeOn": "Max­imum dur­a­tion",
+    "minTimeOn": "Min­im­um dur­a­tion",
+    "mode": "Load",
+    "ohmpilots": "Ohm­pilot",
+    "pgrid": "Power Sur­plus",
+    "requiredTimeOn": "Dur­a­tion per Day",
+    "thresholdOff": "Off",
+    "thresholdOn": "On"
+  },
+  "EXPORTLIMIT": {
+    "HARDLIMIT": {
+      "enabled": "Ex­port Lim­it Pro­tec­tion (Hard Lim­it Trip)"
+    },
+    "LIMIT_INFO": "The in­ver­t­er switches off, when the set ex­port lim­it pro­tec­tion value is ex­ceeded.",
+    "NETWORK_MODE": {
+      "clusterModeActivated": "Lim­it mul­tiple in­verters (only Soft Lim­it)"
+    },
+    "PHASE_INFO": "Smart met­er & in­ver­t­er phase align­ment (L1, L2, L3) must match!",
+    "PHASE_MODE": {
+      "NO_LIMIT_ENABLED_ERROR": "Soft and / or Hard Lim­it must be ac­tiv­ated.",
+      "asymmetricFeedIn": "Lim­it per phase – asym­met­ric gen­er­a­tion",
+      "asymmetricFeedInError": "\"Lim­it mul­tiple in­verters\" has to be turned off for asym­met­ric gen­er­a­tion lim­it.",
+      "phaseMode": "Power Re­duc­tion",
+      "phaseSum": "Total Power Lim­it",
+      "weakestPhase": "Lim­it per phase – weak­est phase"
+    },
+    "SOFTLIMIT": {
+      "enabled": "Ex­port Lim­it Con­trol (Soft Lim­it)"
+    },
+    "TITEL": "Ex­port Lim­it",
+    "WLIM_MAX_FEEDIN": "Max­imum grid feed-in power",
+    "WLIM_MAX_FEEDIN_HARD": "Max­imum grid feed-in power (Hard Lim­it Trip)",
+    "WLIM_MAX_FEEDIN_PER_PHASE": "Max­imum grid feed-in power per phase",
+    "WLIM_MAX_FEEDIN_PER_PHASE_HARD": "Max­imum grid feed-in power per phase (Hard Lim­it Trip)",
+    "WLIM_MAX_FEEDIN_PER_PHASE_SOFT": "Max­imum grid feed-in power per phase (Soft Lim­it)",
+    "WLIM_MAX_FEEDIN_SOFT": "Max­imum grid feed-in power (Soft Lim­it Trip)",
+    "WLIM_MAX_W": "Max­imum Per­miss­ible Ex­port Power of En­tire Sys­tem",
+    "WLIM_MAX_W_HARD": "Max­imum Per­miss­ible Ex­port Power of En­tire Sys­tem (Hard Lim­it Trip)",
+    "WLIM_MAX_W_SOFT": "Max­imum Per­miss­ible Ex­port Power of En­tire Sys­tem (Soft Lim­it)",
+    "WPEAK": "Total DC power of the En­tire Sys­tem",
+    "activated": "Power Con­trol",
+    "failSafeModeEnabled": "Re­duce in­ver­t­er power to 0% if met­er con­nec­tion has been lost."
+  },
+  "ICS": {
+    "dyn": "Ex­port Lim­it­a­tion",
+    "io": "IO Power­lim­it",
+    "mb": "Mod­bus Con­trol"
+  },
+  "IOMAPPING": {
+    "ActivateBackupInterlock": "Ac­tiv­ate back­up in­ter­lock",
+    "ActivateBackupInterlock2": "Ac­tiv­ate back­up in­ter­lock #2",
+    "GSTR_GPIO_TITLE_AS4777": "Aus­tralia - De­mand Re­sponse Modes (DRM)",
+    "GSTR_GPIO_TITLE_BACKUP": "Back­up Power",
+    "GSTR_GPIO_TITLE_DNO": "DNO",
+    "GSTR_GPIO_TITLE_EMRS": "Load Man­age­ment",
+    "GSTR_GPIO_TITLE_SMGW_BATTERY_LIMITATION": "Bat­tery Grid Im­port Lim­it (§ 14a EnWG)",
+    "GSTR_GPIO_TITLE_STORAGE": "Bat­tery",
+    "InterlockRelayFeedback": "Back­up in­ter­lock feed­back",
+    "OpenGridRelayFeedback": "Open grid re­lais feed­back",
+    "OpenGridRelayFeedback2": "Open grid re­lais feed­back #2",
+    "PSTR_GPIO_SRC_AS4777_COM_LOAD": "COM LOAD/0",
+    "PSTR_GPIO_SRC_AS4777_DRM15": "DRM 1/5",
+    "PSTR_GPIO_SRC_AS4777_DRM26": "DRM 2/6",
+    "PSTR_GPIO_SRC_AS4777_DRM37": "DRM 3/7",
+    "PSTR_GPIO_SRC_AS4777_DRM48": "DRM 4/8",
+    "PSTR_GPIO_SRC_AS4777_REF_GEN": "REF GEN/0",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_1": "Rule 1",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_2": "Rule 2",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_3": "Rule 3",
+    "PSTR_GPIO_SRC_EMRS_OUTPUT_4": "Rule 4",
+    "PSTR_GPIO_SRC_EVU_INPUT": "IO con­trol",
+    "PSTR_GPIO_SRC_EVU_OUTPUT": "IO con­trol feed­back",
+    "PSTR_GPIO_SRC_SOM_ACK": "Lock­ing feed­back",
+    "PSTR_GPIO_SRC_SOM_GRANT": "Grant emer­gency power lock­ing",
+    "PSTR_GPIO_SRC_SOM_REQUEST": "Emer­gency power re­quest",
+    "PSTR_GPIO_SRC_STORAGE_ENABLE": "En­able bat­tery",
+    "SYSTEM_PRESERVATION_CHANGE": "Min­im­um lim­it for back­up re­serve ca­pa­city and SOC-Warn­ing Level was set to {{limit}}%.",
+    "SYSTEM_PRESERVATION_NO_CHANGE": "The cur­rent set­ting is already above the cal­cu­lated lim­it of {{limit}}%.",
+    "SmartMeterGatewayBatteryLimitationEnable": "Bat­tery Grid Im­port Lim­it"
+  },
+  "MODBUS": {
+    "baud": "Baud Rate",
+    "baud_19200": "19200",
+    "baud_9600": "9600",
+    "ctr": "Al­low Con­trol",
+    "ip": "IP Ad­dress",
+    "meterAddress": "Met­er Ad­dress",
+    "parity": "Par­ity",
+    "parity_e": "even",
+    "parity_n": "none",
+    "parity_o": "odd",
+    "port": "Mod­bus Port",
+    "restriction": "Re­strict Con­trol",
+    "rtu_inverter_slave_id": "In­ver­t­er Ad­dress",
+    "sunspecMode": "Sun­Spec Mod­el Type",
+    "sunspecMode_float": "float",
+    "sunspecMode_int": "int + SF"
+  },
+  "MULTINETWORK": {
+    "MAC_ADDRESS": "MAC Ad­dress",
+    "automatic": "Auto­mat­ic",
+    "gateway": "Gate­way",
+    "hostname": "Host­name",
+    "ipAddress": "IP Ad­dress",
+    "metric": "Met­ric",
+    "nameservers": "DNS",
+    "psk": "Net­work Key (PSK)",
+    "ssid": "Net­work Name (SSID)",
+    "static": "Stat­ic",
+    "subnetMask": "Sub­net Mask"
+  },
+  "PCC": {
+    "CosPhiControl": {
+      "CPDirection": "Im­ped­ance re­sponse",
+      "TargetValue": "Power Factor (cos φ)"
+    },
+    "EVUOut": "DNO Feed­back",
+    "PowerLimit": {
+      "TargetValue": "Act­ive Power"
+    },
+    "capacitive": "Ca­pa­cit­ive",
+    "inductive": "In­duct­ive"
+  },
+  "POLICY": {
+    "additionalPurposeAgreement": {
+      "analyticalData": "Trans­fer us­age data and ser­vice data for fur­ther ana­lysis to im­prove our ser­vices",
+      "analyticalDataDetails": "I con­sent to the {{analyticalDataLink}} con­cern­ing my Froni­us device to or by FRONI­US IN­TER­NA­TION­AL GmbH for the pur­poses of product im­prove­ment and op­tim­iz­a­tion as well as fault dia­gnosis and elim­in­a­tion. My con­sent can be de­ac­tiv­ated loc­ally on the device at any time in the Com­mis­sion­ing Wiz­ard and Com­mu­nic­a­tion/Sol­ar.web menus. The law­ful­ness of the pro­cessing based on the con­sent re­mains un­af­fected un­til re­voc­a­tion.",
+      "analyticalDataLink": "op­tion­al peri­od­ic pro­vi­sion, col­lec­tion and ana­lysis of dia­gnost­ic and us­age data",
+      "motivationExamples": "Ex­amples of provided data:<ul><li>Op­er­at­ing and device data:<br>These are, for ex­ample, loc­a­tion data, per­form­ance data, device con­fig­ur­a­tions or data about the plant status.</li><li>Up­load sys­tem logs:<br>The sys­tem logs of the ser­vices run­ning on the device can be up­loaded to a log serv­er at Froni­us. There they are avail­able to our de­velopers for fur­ther ana­lysis. With the help of this data, rarely oc­cur­ring but po­ten­tially ser­i­ous prob­lems can be found and remedied more quickly.</li><li>Ac­tivat­able per­form­ance mon­it­or­ing and re­porting:<br>Pro­cessor load and memory us­age can be mon­itored over longer peri­ods of time. This in­form­a­tion helps us to better un­der­stand pro­cessor and memory util­iz­a­tion and to and to be able to car­ry out op­tim­iz­a­tions.</ul></li>",
+      "motivationHeader": "Pri­vacy Policy",
+      "motivationText": "We ask our cus­tom­ers to help us by provid­ing ana­lyt­ics, dia­gnostics and us­age data. By agree­ing to the pro­cessing of this data, you help us dia­gnose and resolve un­ex­pec­ted sys­tem er­rors. By doing so, you also help us to fur­ther im­prove and op­tim­ize our pro­ducts and ser­vices. We reg­u­larly col­lect and eval­u­ate the data provided for these pur­poses.<br><br>Con­sent to the pro­cessing of ana­lysis, dia­gnost­ic and us­age data is op­tion­al. If you do not con­sent to this data pro­cessing, it will not af­fect our con­trac­tu­al per­form­ance ob­lig­a­tions or an ex­isting con­nec­tion between your device and Froni­us Sol­ar.web."
+    },
+    "approvalStatus": {
+      "ACCEPTED": "Yes, I agree with this tech­nic­ally ne­ces­sary data pro­cessing.",
+      "AcceptedSolarWeb": "Yes, I agree with this tech­nic­ally ne­ces­sary data pro­cessing.",
+      "DECLINED": "No, I do not agree with the data pro­cessing and re­ject it.",
+      "DeclinedSolarWeb": "No, I do not agree with the data pro­cessing and re­ject it."
+    }
+  },
+  "POWERMETER": {
+    "FEEDIN_METER": "Grid con­nec­tion point",
+    "LOAD_METER": "Load branch",
+    "METER_CAT_BAT": "AC coupled bat­tery",
+    "METER_CAT_BHKW": "Com­bined heat and power (CHP)",
+    "METER_CAT_BUILDING": "Build­ing",
+    "METER_CAT_CLIMATE": "Cli­mate",
+    "METER_CAT_ECAR": "Elec­tric vehicle",
+    "METER_CAT_HEATPUMP": "Heat pump",
+    "METER_CAT_OTHER": "Oth­er",
+    "METER_CAT_OTHERHEATING": "Heat­ing",
+    "METER_CAT_PUMP": "Pump",
+    "METER_CAT_PV_BAT": "PV in­ver­t­er + AC coupled bat­tery",
+    "METER_CAT_WHITEGOODS": "White goods",
+    "METER_CAT_WINDMILL": "Wind turbine",
+    "METER_CAT_WR": "In­ver­t­er",
+    "POSITION_CON": "Con­sump­tion met­er",
+    "POSITION_GEN": "Pro­duc­tion met­er",
+    "TYPE_SMRTU": "Froni­us Smart Met­er (RTU)",
+    "TYPE_SMTCP": "Froni­us Smart Met­er (TCP)",
+    "category": "Cat­egory",
+    "id": "Mod­bus Ad­dress",
+    "ip": "IP Ad­dress",
+    "isLoadMeter": "Ap­plic­a­tion",
+    "name": "Name",
+    "port": "Port",
+    "position": "Ap­plic­a­tion",
+    "type": "Type"
+  },
+  "SOLARWEB": {
+    "REMOTE_CONTROL_OFF": "Off",
+    "REMOTE_CONTROL_ON": "On",
+    "connectionKeepAlive": "Send Data",
+    "customerRemoteControlProfileActive": "Al­low cloud con­trol for Vir­tu­al Power Plants (Cus­tom­er)",
+    "enableRemoteControl": "Al­low cloud con­trol for net­work op­er­ator/en­er­gy sup­plier",
+    "technicianRemoteControlProfileActive": "Al­low cloud con­trol for reg­u­lat­ory pur­poses (Tech­ni­cian)"
+  },
+  "SOLAR_API": {
+    "SolarAPIv1Enabled": "Ac­tiv­ate com­mu­nic­a­tion via Sol­ar API"
+  },
+  "TIME_OF_USE": {
+    "REGULATION_CHARGE_MAX": "Max. char­ging power",
+    "REGULATION_CHARGE_MIN": "Min. char­ging power",
+    "REGULATION_DISCHARGE_MAX": "Max. dis­charge power",
+    "REGULATION_DISCHARGE_MIN": "Min. dis­charge power"
+  }
+}

@@ -1,0 +1,154 @@
+{
+	"_active_meta": {
+		"displayType": "Switch",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "Boolean",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_initialCommissioningActive_meta": {
+		"displayType": "Switch",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "Boolean",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_initialCommissioningTimestamp_meta": {
+		"displayType": "Text",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "String",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_stateNetwork_meta": {
+		"displayType": "Text",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "String",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_stateService_meta": {
+		"displayType": "Text",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "String",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_stateSolarweb_meta": {
+		"displayType": "Text",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "String",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_stepNetwork_meta": {
+		"displayType": "Integer",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "Integer",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"_stepService_meta": {
+		"displayType": "Integer",
+		"readPermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleRemote": true,
+			"RoleTechnician": true
+		},
+		"uiExtension": {
+			"dictionaryPrefix": "CONFIG.WIZARD"
+		},
+		"valueType": "Integer",
+		"writePermission": {
+			"RoleCustomer": true,
+			"RoleEverybody": true,
+			"RoleTechnician": true
+		}
+	},
+	"active": false,
+	"initialCommissioningActive": false,
+	"initialCommissioningTimestamp": "2000-01-03T00:00:57+0000",
+	"stateNetwork": "done",
+	"stateService": "done",
+	"stateSolarweb": "registered",
+	"stepNetwork": 1,
+	"stepService": 1
+}

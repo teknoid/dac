@@ -1,0 +1,97 @@
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Light.6d2d51951f189f7f.ttf) format("truetype");font-weight:300;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Regular.6d220b904eef61e1.ttf) format("truetype");font-weight:400;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Medium.50e73d0c201f239d.ttf) format("truetype");font-weight:500;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Bold.015f3ac44f081e28.ttf) format("truetype");font-weight:700;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Black.64c342ce0a2472b7.ttf) format("truetype");font-weight:900;font-style:normal}
+
+body, html { 
+	font-family: Roboto,Arial,sans-serif;
+	font-weight: 400;
+	font-style: normal;
+	font-size: 14px;
+	line-height: 1.0;
+	bottom: 0;
+	top: 0;
+	left: 0;
+	padding: 0;
+	margin: 0;
+	color: #3b3b3d;
+	display: flex;
+	float: left
+}
+
+@media (max-width: 2000px) {
+	iframe					{ width:420px; height:430px }
+	.powerflow				{ display:block; float:inline-end }
+	.mosmix					{  }
+	.svg					{ max-width:1500px }
+	
+	dl 						{ }
+	dl dt					{ width:35px; float:left; writing-mode:sideways-rl; position:relative; top:10px; left:-20px; z-index:+1 }
+	dl dd					{ width:35px; height:100px; float:left; margin:0 15px 0 -45px; border:1px solid lightgrey; position:relative }
+	dl dd .bar				{ width:35px; display:block; position:absolute; bottom:0px; text-align:center }
+	dl dd .p				{ background:skyblue }
+	dl dd .z				{ background:silver; height:100% !important }
+	dl dd .load				{ position:relative; top:80px; text-align:center }
+	dl dd.akku .m			{ background:palegreen }
+	dl dd.akku .p			{ background:orangered }
+}
+
+@media (max-width: 1100px) {
+	iframe					{ width:1000px; height:950px }
+	.powerflow				{ display:block; float:inline-end }
+	.mosmix					{ position:relative; top:50px }
+	.state					{ font-size:32px }
+	.svg					{ max-width:1000px }
+
+	dl 						{ font-size:32px }
+	dl dt					{ width:95px; float:left; writing-mode:sideways-rl; position:relative; top:20px; left:-32px; z-index:+1 }
+	dl dd					{ width:95px; height:300px; float:left; margin:0 15px 0 -100px; border:2px solid lightgrey; position:relative }
+	dl dd .bar				{ width:95px; display:block; position:absolute; bottom:0px; text-align:center }
+	dl dd .p				{ background:skyblue }
+	dl dd .z				{ background:silver; height:100% !important }
+	dl dd .load				{ position:relative; top:250px; text-align:center }
+	dl dd.akku .m			{ background:palegreen }
+	dl dd.akku .p			{ background:orangered }
+}
+
+.lv							{ margin:4px 10px; padding:4px 10px }
+.l							{ display:inline-flex }
+.v							{ display:inline-flex; float:right }
+.u							{ display:inline-flex; float:right }
+
+.state						{ display:flex }
+.pstate						{ width:50% }
+.gstate						{ width:50% }
+.dstate						{ margin:0 10px; padding:4px 10px }
+
+.noise						{ background-color:lightgrey }
+.pv-p						{ background-color:#FAD967 }
+.grid-p						{ background-color:orangered }
+.grid-m						{ background-color:palegreen }
+.akku-p						{ background-color:#FEAD00 }
+.akku-m						{ background-color:palegreen }
+.load-p, .load-m			{ background-color:skyblue }
+.xload-p, .xload-m			{ background-color:skyblue }
+.dxlod-p, .dxlod-m			{ background-color:skyblue }
+.mppt1-p					{ background-color:#FAD967 }
+.mppt2-p					{ background-color:#FAD967 }
+.mppt3-p					{ background-color:#FAD967 }
+.ramp-p						{ background-color:orchid }
+.ramp-m						{ background-color:deepskyblue }
+.flags-p	 				{ background-color:peru }
+
+.↓grid-p					{ background-color:lightsalmon }
+.↑grid-p					{ background-color:palegreen }
+.today-p					{ background-color:lightgrey }
+.tomo-p						{ background-color:lightgrey }
+.eod-p						{ background-color:lightgrey }
+.soc-p						{ background-color:olive }
+.ttl-p						{ background-color:olive }
+.surv-p, .heat-p, .succ-p	{ background-color:palegreen }
+.surv-m, .heat-m, .succ-m	{ background-color:orangered }
+
+.temp_in					{ background-color:lightgrey }
+.temp_out					{ background-color
+:lightgrey }
+

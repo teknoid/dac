@@ -1,0 +1,85 @@
+{
+	"Body" : 
+	{
+		"Data" : 
+		{
+			"16580608" : 
+			{
+				"attributes" : 
+				{
+					".simple-version-field" : "BYD2;10000;53490001;3.22",
+					"[ENABLE]" : "true",
+					"[VISIBLE]" : "true",
+					"addr" : "21",
+					"connection" : "{\"id\":\"rtu-generic-storage_/dev/rtu0\",\"name\":\"modbus-rtu-hub\",\"protocol\":\"ModbusRTU\",\"rtu-interface\":\"/dev/rtu0\",\"socket\":\"/tmp/modbus-rtu-hub.rtu0.uds\"}\n",
+					"createTS" : "1735544871",
+					"group-id" : "generic-storage-group",
+					"has_internal_dcdc" : "false",
+					"hw_version" : "5.0",
+					"id" : "rtu-generic-storage_/dev/rtu0@21",
+					"if" : "modbus-rtu-hub;/dev/rtu0",
+					"internal_dcdc_is_configurable" : "false",
+					"manufacturer" : "BYD",
+					"max_udc" : "233.6",
+					"min_udc" : "160",
+					"model" : "BYD Battery-Box Premium HV",
+					"nameplate" : "{\"calMode\":0,\"calPowerChargeMax\":0,\"calPowerChargeMin\":0,\"calPowerDischargeMax\":0,\"calPowerDischargeMin\":0,\"calWaitDischargeT\":0,\"capacity_wh\":11059,\"enable_iso_measurement\":false,\"immediateChargeRequestStop\":0,\"is_generic_storage\":true,\"manufacturer\":\"BYD\",\"max_power_charge_w\":10240,\"max_power_discharge_w\":10240,\"max_soc\":100,\"max_udc\":233,\"min_soc\":5,\"min_udc\":160,\"model\":\"BYD Battery-Box Premium HV\",\"module_number\":1,\"numberModulesPerStack\":0,\"numberParallelStacks\":0,\"peak_power_charge_sec\":10,\"peak_power_charge_w\":13312,\"peak_power_discharge_sec\":10,\"peak_power_discharge_w\":13312,\"protocol_version_major\":1,\"protocol_version_minor\":0,\"serial\":\"P030T020Z2307281782     \",\"tCellMax\":0,\"tCellMin\":0,\"targetSoCServiceMode\":0}\n",
+					"protocol_version_major" : "1",
+					"protocol_version_minor" : "0",
+					"serial" : "P030T020Z2307281782     ",
+					"storage_interface_id" : "0x53490001",
+					"sw_version" : "3.22"
+				},
+				"channels" : 
+				{
+					"BAT_CURRENT_DC_F64" : 0.0,
+					"BAT_CURRENT_DC_INTERNAL_F64" : 0.0,
+					"BAT_ENERGYACTIVE_ESTIMATION_MAX_CAPACITY_F64" : 3549600.0,
+					"BAT_ENERGYACTIVE_LIFETIME_CHARGED_F64" : 4478562000.0,
+					"BAT_ENERGYACTIVE_LIFETIME_DISCHARGED_F64" : 3422667600.0,
+					"BAT_ENERGYACTIVE_MAX_CAPACITY_F64" : 39016800.0,
+					"BAT_MODE_CELL_STATE_U16" : 3.0,
+					"BAT_MODE_HYBRID_OPERATING_STATE_U16" : 1.0,
+					"BAT_MODE_LAST_FAULT_PARAMETER_U16" : 0.0,
+					"BAT_MODE_STATE_U16" : 0.0,
+					"BAT_MODE_U16" : 2.0,
+					"BAT_MODE_WAKE_ENABLE_STATUS_U16" : 1.0,
+					"BAT_TEMPERATURE_CELL_F64" : 12.0,
+					"BAT_TEMPERATURE_CELL_MAX_F64" : 13.0,
+					"BAT_TEMPERATURE_CELL_MIN_F64" : 11.0,
+					"BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16" : 9.0999999999999996,
+					"BAT_VALUE_STATE_OF_HEALTH_RELATIVE_U16" : 98.0,
+					"BAT_VALUE_WARNING_CODE_U16" : 46.0,
+					"BAT_VOLTAGE_DC_INTERNAL_F64" : 206.19999999999999,
+					"COMPONENTS_MODE_ENABLE_U16" : 1.0,
+					"COMPONENTS_MODE_VISIBLE_U16" : 1.0,
+					"COMPONENTS_TIME_STAMP_U64" : 1736687300.0,
+					"DCLINK_POWERACTIVE_LIMIT_DISCHARGE_F64" : 8248.0,
+					"DCLINK_POWERACTIVE_MAX_F32" : 8368.0,
+					"DCLINK_VOLTAGE_MEAN_F32" : 205.90000000000001,
+					"DEVICE_TEMPERATURE_AMBIENTEMEAN_F32" : 17.0
+				}
+			}
+		}
+	},
+	"Head" : 
+	{
+		"Note" : "this internal API may be changed any time",
+		"RequestArguments" : 
+		{
+			"method" : "GET",
+			"resource" : "BatteryManagementSystem/readable"
+		},
+		"Status" : 
+		{
+			"Code" : 0,
+			"ErrorDetail" : 
+			{
+				"Nodes" : []
+			},
+			"Reason" : "",
+			"UserMessage" : ""
+		},
+		"Timestamp" : "2025-01-12T13:08:21+00:00"
+	}
+}

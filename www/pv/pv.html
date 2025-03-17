@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<head>
+	<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+	<link rel="shortcut icon" type="image/png" href="favicon.png">
+	<link rel="stylesheet" href="pv.css">
+	<script src="pv.js"></script>
+	<title>PV</title>
+</head>
+
+<body>
+	<div>
+		<div class="powerflow">
+			<iframe frameBorder="0" src="fronius.html"></iframe>
+			
+			<div class="state">
+				<div class="pstate">
+					<div class="lv pv">
+						<div class="l">PV</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv akku">
+						<div class="l">Akku</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv grid">
+						<div class="l">Grid</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv load">
+						<div class="l">Load</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv xload">
+						<div class="l">XLoad</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv dxlod">
+						<div class="l">DXLoad</div>
+						<div class="u" style="margin-right:2px">&nbsp;%</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv mppt1">
+						<div class="l">MPPT1</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv mppt2">
+						<div class="l">MPPT2</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv mppt3">
+						<div class="l">MPPT3</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv ramp">
+						<div class="l">Ramp</div>
+						<div class="u">&nbsp;W</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv flags">
+						<div class="l">Flags</div>
+						<div class="v"></div>
+					</div>
+				</div>
+
+				<div class="gstate">
+					<div class="lv pv">
+						<div class="l">∑PV</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv ↑grid">
+						<div class="l">↑Grid</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv ↓grid">
+						<div class="l">↓Grid</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv today">
+						<div class="l">Today</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv tomo">
+						<div class="l">Tomorrow</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv eod">
+						<div class="l">End of Day</div>
+						<div class="u">&nbsp;Wh</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv soc">
+						<div class="l">SoC</div>
+						<div class="u">&nbsp;%</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv ttl">
+						<div class="l">TTL</div>
+						<div class="u">&nbsp;h</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv succ">
+						<div class="l">Success</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv surv">
+						<div class="l">Survive</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv heat">
+						<div class="l">Heating</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv temp_in">
+						<div class="l">Temp in</div>
+						<div class="u">&nbsp;°C</div>
+						<div class="v"></div>
+					</div>
+					<div class="lv temp_out">
+						<div class="l">Temp out</div>
+						<div class="u">&nbsp;°C</div>
+						<div class="v"></div>
+					</div>
+				</div>
+			</div>
+			<div class="dstate">
+				<dl></dl>
+			</div>
+		</div>
+
+		<div class="mosmix">
+			<img class="svg" src="/pv/data/pstate.svg" />
+			<img class="svg" src="/pv/data/gstate.svg" />
+			<img class="svg" src="/pv/data/gstate-week.svg" />
+			<img class="svg" src="/pv/data/mosmix-today.svg" />
+			<img class="svg" src="/pv/data/mosmix-tomorrow.svg" />
+			<img class="svg" src="/pv/data/mosmix-mppt.svg" />
+			<img class="svg" src="/pv/data/mosmix-errors-percent.svg" />
+			<img class="svg" src="/pv/data/mosmix-errors-diff.svg" />
+			<img class="svg" src="/pv/data/mosmix-factors.svg" />
+			<img class="svg" src="/pv/data/pstate-power.svg" />
+			<img class="svg" src="/pv/data/pstate-voltage.svg" />
+			<img class="svg" src="/pv/data/pstate-frequency.svg" />
+			<img class="svg" src="/pv/data/pstate-min-max.svg" />
+		</div>
+	</div>
+</body>
+
+</html>

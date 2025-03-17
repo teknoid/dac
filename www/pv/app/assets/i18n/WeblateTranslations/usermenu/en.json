@@ -1,0 +1,67 @@
+{
+  "CHANGEUSER": {
+    "ATTENTION": "At­ten­tion!",
+    "CANCEL": "Can­cel",
+    "CHANGEUSER": "Change User",
+    "CHANGEUSER_PROFI": "Lo­gin Coun­try Setup",
+    "CHANGE_PW": "Change Pass­word",
+    "CONNECTION_LOST": "Con­nec­tion to in­ver­t­er lost!",
+    "FORGOT_PASSWORD": "For­got pass­word?",
+    "INIT_PW_HINT": {
+      "CUSTOMER": "Se­cure the set­tings of your in­ver­t­er with a cus­tom­er pass­word.",
+      "TECHNICIAN": "Se­cure the product set­tings of your in­ver­t­er with a tech­ni­cian pass­word. This must be ac­cess­ible for trained per­son­nel only."
+    },
+    "INIT_PW_HINT_CAPTION": {
+      "CUSTOMER": "Cus­tom­er pass­word",
+      "TECHNICIAN": "Tech­ni­cian pass­word"
+    },
+    "KEEP_ME_LOGGED_IN": "Keep me logged in",
+    "LOGIN": "User Lo­gin",
+    "LOGINBUTTON": "Lo­gin",
+    "LOGIN_NO_SUCCESS": "Au­then­tic­a­tion has failed",
+    "LOGOUT": "Logout",
+    "LOGOUT_401": "Ac­cess denied due to in­valid cre­den­tials. (401)",
+    "LOGOUT_SUCCESS": "You've been logged out suc­cess­fully!",
+    "OLD_NO_SUCCESS": "Old pass­word wrong.",
+    "PASSWORD": "Pass­word",
+    "PASSWORD_RECOVERY": {
+      "CHALLENGE_HINT": "The pin for your pass­word re­cov­ery re­quest is:",
+      "ERROR_VERIFY_SIGNATURE": "Re­cov­ery code is in­cor­rect.",
+      "REGENERATE": "Re­gen­er­ate",
+      "REMAINING_SIGNATURE_CHECKS": "Your re­main­ing sig­na­ture checks have ex­pired. Please gen­er­ate a new pin and for­ward it to your Froni­us Tech­nical Sup­port.",
+      "RESET_ACCOUNT": "Re­cov­er your ac­count",
+      "SIGNATURE": "Re­cov­ery Key",
+      "TECHSUPPORT_HINT": "Sys­tem own­ers may reset the cus­tom­er pass­word them­selves in Sol­ar.web un­der \"Set­tings\" / \"Com­pon­ents\". **Note for in­stallers only:** Use the \"Re­cov­ery Key\" func­tion in the Sol­ar.SOS portal ( ht­tps://sol­ar-sos.froni­us.com ) to re­ceive a Re­cov­ery Key.",
+      "YOUR_CHALLENGE": "Your Pin"
+    },
+    "PASSWORD_REPEAT": "Re­peat pass­word",
+    "PWINPUTPROFI": "Ac­cess Code Coun­try Setup",
+    "PWOLD": "Old pass­word",
+    "SAVEBUTTON": "Save",
+    "SELECT_USER": "User",
+    "SET_PW": "Set a pass­word",
+    "UNLOCKBUTTON": "Un­lock",
+    "UNLOCKED_PROFI": "You have suc­cess­fully un­lock­ed the coun­try setup set­tings.",
+    "UNLOCKPROFI_HINT1": "Enter the ac­cess code to un­lock the coun­try setup set­tings.",
+    "UNLOCKPROFI_HINT2": "In­cor­rect set­tings can cause mal­func­tions and fail­ures of the in­ver­t­er.",
+    "UNLOCK_HINT": "For en­ter­ing {{requestor}} please lo­gin as a {{user}}.",
+    "VALIDATOR_1_NUMBER": "At least one nu­mer­ic char­ac­ter",
+    "VALIDATOR_8_OR_MORE": "At least 8 char­ac­ters",
+    "VALIDATOR_PW_NO_MATCH": "The pass­word does not match.",
+    "VALIDATOR_UPPER_AND_LOWER": "Up­per and lower case let­ters"
+  },
+  "CLOSE": "Col­lapse",
+  "LANGUAGE": "Lan­guage",
+  "MESSAGES": "No­ti­fic­a­tions",
+  "SERVICEINFO": {
+    "DATE": "Date",
+    "DEVICENAME": "Device name",
+    "SERIALNUMBER": "Seri­al num­ber",
+    "SERVICEINFO": "In­form­a­tion",
+    "SETUP_GRIDCODE": "Grid Code",
+    "SETUP_REGION": "Coun­try / Re­gion",
+    "SOFTWARE_VERSION": "Soft­ware ver­sion",
+    "TIME": "Time",
+    "TIMEZONE": "Time zone"
+  }
+}

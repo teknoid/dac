@@ -1,0 +1,67 @@
+{
+  "CHANGEUSER": {
+    "ATTENTION": "Ach­tung!",
+    "CANCEL": "Ab­bre­chen",
+    "CHANGEUSER": "Be­nut­zer wech­seln",
+    "CHANGEUSER_PROFI": "Län­der-Set­up An­mel­dung",
+    "CHANGE_PW": "Pass­wort än­dern",
+    "CONNECTION_LOST": "Ver­bin­dung zum Ge­rät ver­lo­ren!",
+    "FORGOT_PASSWORD": "Pass­wort ver­ges­sen?",
+    "INIT_PW_HINT": {
+      "CUSTOMER": "Schüt­zen Sie die­sen Ein­stel­lungs­be­reich Ih­res Wech­sel­rich­ters mit ei­nem Kun­den-Pass­wort.",
+      "TECHNICIAN": "Schüt­zen Sie die Pro­dukt-Ein­stel­lun­gen Ih­res Wech­sel­rich­ters mit ei­nem Tech­ni­ker-Pass­wort. Die­ses darf nur aus­ge­bil­de­tem Fach­per­so­nal zu­gäng­lich sein."
+    },
+    "INIT_PW_HINT_CAPTION": {
+      "CUSTOMER": "Kun­den-Pass­wort",
+      "TECHNICIAN": "Tech­ni­ker-Pass­wort"
+    },
+    "KEEP_ME_LOGGED_IN": "An­ge­mel­det blei­ben",
+    "LOGIN": "Be­nut­zer­an­mel­dung",
+    "LOGINBUTTON": "An­mel­den",
+    "LOGIN_NO_SUCCESS": "Au­then­ti­fi­zie­rung fehl­ge­schla­gen",
+    "LOGOUT": "Ab­mel­den",
+    "LOGOUT_401": "Zu­griff auf­grund von un­gül­ti­gen An­mel­de­da­ten ver­wei­gert. (401)",
+    "LOGOUT_SUCCESS": "Sie wur­den er­folg­reich aus­ge­log­gt!",
+    "OLD_NO_SUCCESS": "Das alte Pass­wort ist falsch.",
+    "PASSWORD": "Pass­wort",
+    "PASSWORD_RECOVERY": {
+      "CHALLENGE_HINT": "Der Pin für das Zu­rück­set­zen des Pass­worts lau­tet:",
+      "ERROR_VERIFY_SIGNATURE": "Frei­schalt-Code ist nicht kor­re­kt.",
+      "REGENERATE": "Er­neu­ern",
+      "REMAINING_SIGNATURE_CHECKS": "Die ma­xi­ma­le An­zahl an Ver­su­chen die Si­gna­tur zu prü­fen wur­de er­reicht. Bit­te ge­ne­rie­ren Sie einen neu­en Pin und lei­ten Sie die­sen an Ih­ren Fro­ni­us Tech­ni­schen Sup­port wei­ter.",
+      "RESET_ACCOUNT": "Be­nut­zer­kon­to wie­der­her­stel­len",
+      "SIGNATURE": "Frei­schalt-Code",
+      "TECHSUPPORT_HINT": "An­la­gen­be­sit­zer kön­nen das Kun­den­pass­wort in So­lar.web un­ter \"Ein­stel­lun­gen\" / \"Kom­po­nen­ten\" selbst zu­rück­set­zen. Hin­weis nur für In­stal­la­teu­re: Nut­zen Sie die Funk­ti­on \"Frei­schalt-Code\" im So­lar.SOS-Por­tal ( https://so­lar-sos.fro­ni­us.com ), um einen Frei­schalt-Code zu er­hal­ten.",
+      "YOUR_CHALLENGE": "Ihr Pin"
+    },
+    "PASSWORD_REPEAT": "Pass­wort wie­der­ho­len",
+    "PWINPUTPROFI": "Zu­gan­gs-Code Län­der-Set­up",
+    "PWOLD": "Al­tes Pass­wort",
+    "SAVEBUTTON": "Spei­chern",
+    "SELECT_USER": "Be­nut­zer",
+    "SET_PW": "Pass­wort ver­ge­ben",
+    "UNLOCKBUTTON": "Frei­schal­ten",
+    "UNLOCKED_PROFI": "Sie ha­ben die Län­der-Set­up Ein­stel­lun­gen er­folg­reich frei­ge­schal­tet.",
+    "UNLOCKPROFI_HINT1": "Ge­ben Sie den Zu­gan­gs-Code ein, um die Län­der-Set­up Ein­stel­lun­gen zu ent­sper­ren.",
+    "UNLOCKPROFI_HINT2": "Fal­sche Ein­stel­lun­gen kön­nen Funk­ti­ons­stö­run­gen und Aus­fäl­le am Wech­sel­rich­ter ver­ur­sa­chen.",
+    "UNLOCK_HINT": "Um {{requestor}} zu ent­sper­ren, mel­den Sie sich bit­te als {{user}} an.",
+    "VALIDATOR_1_NUMBER": "Min­des­tens eine Zahl",
+    "VALIDATOR_8_OR_MORE": "Min­des­tens 8 Zei­chen",
+    "VALIDATOR_PW_NO_MATCH": "Das Pass­wort stim­mt nicht über­ein.",
+    "VALIDATOR_UPPER_AND_LOWER": "Groß- und Klein­buch­sta­ben"
+  },
+  "CLOSE": "Ein­klap­pen",
+  "LANGUAGE": "Sprache",
+  "MESSAGES": "Be­nach­rich­ti­gun­gen",
+  "SERVICEINFO": {
+    "DATE": "Da­tum",
+    "DEVICENAME": "Ge­rä­tena­me",
+    "SERIALNUMBER": "Se­ri­en­num­mer",
+    "SERVICEINFO": "In­for­ma­ti­on",
+    "SETUP_GRIDCODE": "Län­der-Set­up",
+    "SETUP_REGION": "Land / Re­gi­on",
+    "SOFTWARE_VERSION": "Soft­ware-Ver­si­on",
+    "TIME": "Zeit",
+    "TIMEZONE": "Zeit­zo­ne"
+  }
+}

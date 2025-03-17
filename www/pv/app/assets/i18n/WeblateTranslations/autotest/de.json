@@ -1,0 +1,100 @@
+{
+  "PDF": {
+    "DATE_TIME": "Date and Time",
+    "INVERTER_NR": "Item Num­ber",
+    "INVERTER_SERIAL": "Seri­al Num­ber",
+    "Limit value": "Value",
+    "NAME": "Name",
+    "RESULT": {
+      "FACALTERNATIVEINNERLIMITMAX": "Over­fre­quency Al­tern­at­ive Lim­it f>",
+      "FACALTERNATIVEINNERLIMITMAX_CHILD": {
+        "AUTOTESTFAC_FREQUENCY_INNER_MAX_02_F32": "Trip Value",
+        "AUTOTESTFAC_MODE_INNER_MAX_02_U16": "Test res­ult",
+        "AUTOTESTFAC_MODE_INNER_MAX_02_U16_FAILED": "Failed",
+        "AUTOTESTFAC_MODE_INNER_MAX_02_U16_SUCCEEDED": "Suc­ceeded",
+        "GRIDLIMITFAC_FREQUENCY_INNER_MAX_02_F32": "Lim­it Set­ting",
+        "GRIDLIMITFAC_TIME_INNER_MAX_02_F32": "Trip Time"
+      },
+      "FACALTERNATIVEINNERLIMITMIN": "Un­der­fre­quency Al­tern­at­ive Lim­it f<",
+      "FACALTERNATIVEINNERLIMITMIN_CHILD": {
+        "AUTOTESTFAC_FREQUENCY_INNER_MIN_02_F32": "Trip Value",
+        "AUTOTESTFAC_MODE_INNER_MIN_02_U16": "Test Res­ult",
+        "AUTOTESTFAC_MODE_INNER_MIN_02_U16_FAILED": "Failed",
+        "AUTOTESTFAC_MODE_INNER_MIN_02_U16_SUCCEEDED": "Suc­ceeded",
+        "GRIDLIMITFAC_FREQUENCY_INNER_MIN_02_F32": "Lim­it Set­ting",
+        "GRIDLIMITFAC_TIME_INNER_MIN_02_F32": "Trip Time"
+      },
+      "FACINNERLIMITMAX": "Over­fre­quency Out­er Lim­it f>>",
+      "FACINNERLIMITMAX_CHILD": {
+        "AUTOTESTFAC_FREQUENCY_INNER_MAX_01_F32": "Trip Value",
+        "AUTOTESTFAC_MODE_INNER_MAX_01_U16": "Test Res­ult",
+        "AUTOTESTFAC_MODE_INNER_MAX_01_U16_FAILED": "Failed",
+        "AUTOTESTFAC_MODE_INNER_MAX_01_U16_SUCCEEDED": "Suc­ceeded",
+        "GRIDLIMITFAC_FREQUENCY_INNER_MAX_F32": "Lim­it Set­ting",
+        "GRIDLIMITFAC_TIME_INNER_MAX_F32": "Trip Time"
+      },
+      "FACINNERLIMITMIN": "Un­der­fre­quency Out­er Lim­it f<<",
+      "FACINNERLIMITMIN_CHILD": {
+        "AUTOTESTFAC_FREQUENCY_INNER_MIN_01_F32": "Trip Value",
+        "AUTOTESTFAC_MODE_INNER_MIN_01_U16": "Test Res­ult",
+        "AUTOTESTFAC_MODE_INNER_MIN_01_U16_FAILED": "Failed",
+        "AUTOTESTFAC_MODE_INNER_MIN_01_U16_SUCCEEDED": "Suc­ceeded",
+        "GRIDLIMITFAC_FREQUENCY_INNER_MIN_F32": "Lim­it Set­ting",
+        "GRIDLIMITFAC_TIME_INNER_MIN_F32": "Trip Time"
+      },
+      "TEST_RESULT": "Test Res­ult",
+      "TEST_RESULT_CHILD": {
+        "AUTOTEST_MODE_OVERALL_U16": "Over­all Test Res­ult",
+        "AUTOTEST_MODE_OVERALL_U16_FAILED": "Failed",
+        "AUTOTEST_MODE_OVERALL_U16_SUCCEEDED": "Suc­ceeded"
+      },
+      "VACINNERLIMITMIN": "Un­der­voltage In­ner Lim­it U<",
+      "VACINNERLIMITMIN_CHILD": {
+        "AUTOTESTUAC_MODE_INNER_MIN_U16": "Test Res­ult",
+        "AUTOTESTUAC_MODE_INNER_MIN_U16_FAILED": "Failed",
+        "AUTOTESTUAC_MODE_INNER_MIN_U16_SUCCEEDED": "Suc­ceeded",
+        "AUTOTESTUAC_VOLTAGE_INNER_MIN_01_F32": "Trip Value L1",
+        "AUTOTESTUAC_VOLTAGE_INNER_MIN_02_F32": "Trip Value L2",
+        "AUTOTESTUAC_VOLTAGE_INNER_MIN_03_F32": "Trip Value L3",
+        "GRIDLIMITUAC_TIME_INNER_MIN_F32": "Trip Time",
+        "GRIDLIMITUAC_VOLTAGE_INNER_MIN_F32": "Lim­it Set­ting"
+      },
+      "VACLONGTIMELIMIT": "Over­voltage Long Time Av­er­age Lim­it U>",
+      "VACLONGTIMELIMIT_CHILD": {
+        "AUTOTESTUACLONG_MODE_MAX_U16": "Test Res­ult",
+        "AUTOTESTUACLONG_MODE_MAX_U16_FAILED": "Failed",
+        "AUTOTESTUACLONG_MODE_MAX_U16_SUCCEEDED": "Suc­ceeded",
+        "AUTOTESTUACLONG_VOLTAGE_MAX_01_F32": "Trip Value L1",
+        "AUTOTESTUACLONG_VOLTAGE_MAX_02_F32": "Trip Value L2",
+        "AUTOTESTUACLONG_VOLTAGE_MAX_03_F32": "Trip Value L3",
+        "GRIDLIMITUACLONGTIME_TIME_MAX_F32": "Trip Time",
+        "GRIDLIMITUACLONGTIME_VOLTAGE_MAX_F32": "Lim­it Set­ting"
+      },
+      "VACOUTERLIMITMAX": "Over­voltage Out­er Lim­it U>>",
+      "VACOUTERLIMITMAX_CHILD": {
+        "AUTOTESTUAC_MODE_OUTER_MAX_U16": "Test Res­ult",
+        "AUTOTESTUAC_MODE_OUTER_MAX_U16_FAILED": "Failed",
+        "AUTOTESTUAC_MODE_OUTER_MAX_U16_SUCCEEDED": "Suc­ceeded",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MAX_01_F32": "Trip Value L1",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MAX_02_F32": "Trip Value L2",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MAX_03_F32": "Trip Value L3",
+        "GRIDLIMITUAC_TIME_OUTER_MAX_F32": "Trip Time",
+        "GRIDLIMITUAC_VOLTAGE_OUTER_MAX_F32": "Lim­it Set­ting"
+      },
+      "VACOUTERLIMITMIN": "Un­der­voltage Out­er Lim­it U<<",
+      "VACOUTERLIMITMIN_CHILD": {
+        "AUTOTESTUAC_MODE_OUTER_MIN_U16": "Test Res­ult",
+        "AUTOTESTUAC_MODE_OUTER_MIN_U16_FAILED": "Failed",
+        "AUTOTESTUAC_MODE_OUTER_MIN_U16_SUCCEEDED": "Suc­ceeded",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MIN_01_F32": "Trip Value L1",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MIN_02_F32": "Trip Value L2",
+        "AUTOTESTUAC_VOLTAGE_OUTER_MIN_03_F32": "Trip Value L3",
+        "GRIDLIMITUAC_TIME_OUTER_MIN_F32": "Trip Time",
+        "GRIDLIMITUAC_VOLTAGE_OUTER_MIN_F32": "Lim­it Set­ting"
+      }
+    },
+    "TITLE": "Autotest (CEI 0-21)",
+    "UNIT": "Unit",
+    "VALUE": "Value"
+  }
+}

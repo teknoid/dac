@@ -1,0 +1,110 @@
+{
+	"Body" : 
+	{
+		"Data" : 
+		{
+			"16711680" : 
+			{
+				"attributes" : 
+				{
+					".simple-version-field" : "G65;;8c;",
+					"FRONIUS identification code" : "731",
+					"Manufacturer Serial Number" : "057234X",
+					"Measurement mode selection" : "1",
+					"Measurement system" : "0",
+					"Production Year" : "2023",
+					"Revision Code" : "4",
+					"Version Code" : "1",
+					"Wrong connection management enabling" : "1",
+					"Wrong connection management status" : "0",
+					"[ENABLE]" : "true",
+					"[VISIBLE]" : "true",
+					"addr" : "1",
+					"category" : "",
+					"connection" : "{\"id\":\"rtu-meter_/dev/rtu1\",\"name\":\"modbus-rtu-hub\",\"protocol\":\"ModbusRTU\",\"rtu-interface\":\"/dev/rtu1\",\"socket\":\"/tmp/modbus-rtu-hub.rtu1.uds\"}\n",
+					"createTS" : "1735544873",
+					"id" : "rtu-meter_/dev/rtu1@1",
+					"if" : "modbus-rtu-hub;/dev/rtu1",
+					"label" : "<primary>",
+					"main" : "this",
+					"manufacturer" : "Fronius",
+					"meter-location" : "0",
+					"model" : "Smart Meter TS 65A-3",
+					"phaseCnt" : "3",
+					"serial" : "1788609964",
+					"this.rev-hw" : "0",
+					"this.rev-sw" : "1.4"
+				},
+				"channels" : 
+				{
+					"COMPONENTS_MODE_ENABLE_U16" : 1.0,
+					"COMPONENTS_MODE_VISIBLE_U16" : 1.0,
+					"COMPONENTS_TIME_STAMP_U64" : 1736687410.0,
+					"SMARTMETER_CURRENT_01_F64" : 0.54400000000000004,
+					"SMARTMETER_CURRENT_02_F64" : -0.28499999999999998,
+					"SMARTMETER_CURRENT_03_F64" : -0.308,
+					"SMARTMETER_CURRENT_AC_SUM_NOW_F64" : -0.048999999999999932,
+					"SMARTMETER_ENERGYACTIVE_ABSOLUT_MINUS_F64" : 9256715.0,
+					"SMARTMETER_ENERGYACTIVE_ABSOLUT_PLUS_F64" : 1153972.0,
+					"SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64" : 1153972.0,
+					"SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64" : 9256715.0,
+					"SMARTMETER_ENERGYREACTIVE_CONSUMED_SUM_F64" : 1700731.0,
+					"SMARTMETER_ENERGYREACTIVE_PRODUCED_SUM_F64" : 1161400.0,
+					"SMARTMETER_FACTOR_POWER_01_F64" : 0.92800000000000005,
+					"SMARTMETER_FACTOR_POWER_02_F64" : -0.76900000000000002,
+					"SMARTMETER_FACTOR_POWER_03_F64" : -0.91700000000000004,
+					"SMARTMETER_FACTOR_POWER_SUM_F64" : 0.071999999999999995,
+					"SMARTMETER_FREQUENCY_MEAN_F64" : 50.0,
+					"SMARTMETER_POWERACTIVE_01_F64" : 100.7,
+					"SMARTMETER_POWERACTIVE_02_F64" : -31.100000000000001,
+					"SMARTMETER_POWERACTIVE_03_F64" : -62.799999999999997,
+					"SMARTMETER_POWERACTIVE_MEAN_01_F64" : 99.354333333333287,
+					"SMARTMETER_POWERACTIVE_MEAN_02_F64" : -33.269666666666694,
+					"SMARTMETER_POWERACTIVE_MEAN_03_F64" : -64.756999999999991,
+					"SMARTMETER_POWERACTIVE_MEAN_SUM_F64" : 6.7000000000000002,
+					"SMARTMETER_POWERAPPARENT_01_F64" : 108.40000000000001,
+					"SMARTMETER_POWERAPPARENT_02_F64" : 40.399999999999999,
+					"SMARTMETER_POWERAPPARENT_03_F64" : 68.400000000000006,
+					"SMARTMETER_POWERAPPARENT_MEAN_01_F64" : 105.43966666666668,
+					"SMARTMETER_POWERAPPARENT_MEAN_02_F64" : 40.192333333333302,
+					"SMARTMETER_POWERAPPARENT_MEAN_03_F64" : 69.052333333333351,
+					"SMARTMETER_POWERAPPARENT_MEAN_SUM_F64" : 217.40000000000001,
+					"SMARTMETER_POWERREACTIVE_01_F64" : -40.299999999999997,
+					"SMARTMETER_POWERREACTIVE_02_F64" : -25.800000000000001,
+					"SMARTMETER_POWERREACTIVE_03_F64" : -27.199999999999999,
+					"SMARTMETER_POWERREACTIVE_MEAN_SUM_F64" : -93.400000000000006,
+					"SMARTMETER_VALUE_LOCATION_U16" : 0.0,
+					"SMARTMETER_VOLTAGE_01_F64" : 231.59999999999999,
+					"SMARTMETER_VOLTAGE_02_F64" : 235.09999999999999,
+					"SMARTMETER_VOLTAGE_03_F64" : 234.5,
+					"SMARTMETER_VOLTAGE_MEAN_01_F64" : 232.96233333333308,
+					"SMARTMETER_VOLTAGE_MEAN_02_F64" : 234.32066666666705,
+					"SMARTMETER_VOLTAGE_MEAN_03_F64" : 234.26133333333317,
+					"SMARTMETER_VOLTAGE_MEAN_12_F64" : 402.10000000000002,
+					"SMARTMETER_VOLTAGE_MEAN_23_F64" : 408.69999999999999,
+					"SMARTMETER_VOLTAGE_MEAN_31_F64" : 403.60000000000002
+				}
+			}
+		}
+	},
+	"Head" : 
+	{
+		"Note" : "this internal API may be changed any time",
+		"RequestArguments" : 
+		{
+			"method" : "GET",
+			"resource" : "PowerMeter/readable"
+		},
+		"Status" : 
+		{
+			"Code" : 0,
+			"ErrorDetail" : 
+			{
+				"Nodes" : []
+			},
+			"Reason" : "",
+			"UserMessage" : ""
+		},
+		"Timestamp" : "2025-01-12T13:10:10+00:00"
+	}
+}
