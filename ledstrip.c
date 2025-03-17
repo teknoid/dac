@@ -15,7 +15,7 @@
 
 // gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c curl.c -lcurl
 
-#define STRIP			"192.168.25.239"
+#define STRIP			"192.168.25.227"
 #define DELAY_FADE		3000
 #define DELAY_BLINK		500
 #define SINGLE			1
