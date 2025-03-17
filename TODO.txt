@@ -1,6 +1,53 @@
+BUGS
+--------------------------------------------------------------------------------------------
+
+ramp wird aufsummiert im emergency mode:
+
+7.03.2025 08:51:24 FRONIUS   D   0 _ _ _ _   0   0   nr 01000000   F:4:4   Flags:00000000 00100001 PV10:2018 PV7:263 Grid:-146 Akku:401 Ramp:-5357 Load:-2253 Min:1122 Max:2755 Timer:1
+17.03.2025 08:51:25 FRONIUS   D   0 _ _ _ _   0   0   nr 01000000   F:4:4   Flags:00000000 00100001 PV10:1844 PV7:263 Grid:22 Akku:258 Ramp:-5357 Load:-2324 Min:1122 Max:2755
+17.03.2025 08:51:26 FRONIUS emergency shutdown at akku=448 grid=22 
+17.03.2025 08:51:26 FRONIUS ramp 0 akku
+17.03.2025 08:51:26 FRONIUS ramp↓ -2000 boiler1
+17.03.2025 08:51:26 FRONIUS ramp↓ -2000 boiler2
+17.03.2025 08:51:26 FRONIUS ramp↓ -2000 boiler3
+17.03.2025 08:51:26 FRONIUS ramp↓ -500 küche
+17.03.2025 08:51:26 FRONIUS ramp↓ -500 wozi
+17.03.2025 08:51:26 FRONIUS ramp↓ -500 schlaf
+17.03.2025 08:51:26 FRONIUS ramp↓ -200 tisch
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 boiler3
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 boiler2
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 tisch
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 schlaf
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 wozi
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 küche
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 boiler1
+17.03.2025 08:51:26 FRONIUS ramp↓ -5357 akku
+17.03.2025 08:51:26 FRONIUS   D   0 _ _ _ _   0   0   nr 01000000   F:4:4   Flags:00000000 00100001 PV10:1771 PV7:263 Grid:22 Akku:448 Ramp:-5805 Load:-2269 Min:1122 Max:2755 Timer:5
+17.03.2025 08:51:27 FRONIUS   D   0 _ _ _ _   0   0   nr 01000000   F:4:4   Flags:00000000 00100001 PV10:1628 PV7:234 Grid:105 Akku:641 Ramp:-5805 Load:-2315 Min:1122 Max:2755 Timer:4
+
+
+mppt3 war früh manchmal 0 -> extreme Sprünge bei den factors
+
+14.03.2025 14:00:00 FRONIUS counter->mppt3 23104302 c->mppt3 23103902
+14.03.2025 14:10:00 FRONIUS counter->mppt3 0 c->mppt3 23104302
+14.03.2025 14:20:00 FRONIUS counter->mppt3 0 c->mppt3 23104302
+14.03.2025 14:30:00 FRONIUS counter->mppt3 0 c->mppt3 23104302
+14.03.2025 14:36:42 FRONIUS counter->mppt3 23104500 c->mppt3 23104302
+14.03.2025 14:40:00 FRONIUS counter->mppt3 23104500 c->mppt3 23104302
+14.03.2025 14:50:00 FRONIUS counter->mppt3 23104500 c->mppt3 23104302
+14.03.2025 15:00:00 FRONIUS counter->mppt3 0 c->mppt3 23104302
+14.03.2025 15:10:00 FRONIUS counter->mppt3 23104600 c->mppt3 0
+14.03.2025 15:20:00 FRONIUS counter->mppt3 23104600 c->mppt3 0
+14.03.2025 15:30:00 FRONIUS counter->mppt3 23104600 c->mppt3 0
+14.03.2025 15:40:00 FRONIUS counter->mppt3 23104600 c->mppt3 0
+14.03.2025 15:50:00 FRONIUS counter->mppt3 23104702 c->mppt3 0
+14.03.2025 16:00:00 FRONIUS counter->mppt3 23104702 c->mppt3 0
+14.03.2025 16:10:00 FRONIUS counter->mppt3 23104702 c->mppt3 23104702
+
+
 
 TODO
-----------------------------------------------
+--------------------------------------------------------------------------------------------
 
 * Sprachausgabe e.g. confirm("Strahler Bad an")
 
