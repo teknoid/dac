@@ -2,7 +2,7 @@
 #define MARIENBERG				"/work/MARIENBERG.csv"
 #define BRAUNSDORF				"/work/BRAUNSDORF.csv"
 
-#define MOSMIX_COLUMNS			5
+#define MOSMIX_COLUMNS			6
 
 // hexdump -v -e '18 "%6d ""\n"' /work/fronius-mosmix-history.bin
 #define MOSMIX_HISTORY			"/work/fronius-mosmix-history.bin"

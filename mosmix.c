@@ -438,12 +438,12 @@ int mosmix_load(struct tm *now, const char *filename) {
 
 	int lines = 0;
 	while (fgets(buf, LINEBUF, fp) != NULL) {
-		int i = 0;
+		int tokens = 0;
 		char *p = strtok(buf, ",");
-		while (p != NULL && i < MOSMIX_COLUMNS) {
-			p[strcspn(p, "\n")] = 0; // remove any NEWLINE
-			strings[i++] = p;
+		while (p != NULL) {
+			strings[tokens] = p;
 			p = strtok(NULL, ",");
+			tokens++;
 		}
 		parse(strings, ARRAY_SIZE(strings));
 		lines++;
