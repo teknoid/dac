@@ -191,25 +191,25 @@ static int storage_min(char *arg) {
 	return sunspec_storage_minimum_soc(ss, min);
 }
 
-static int akku_standby(device_t *akku) {
+static int akku_standby() {
 #ifndef FRONIUS_MAIN
 	if (!sunspec_storage_limit_both(f10, 0, 0))
 		xdebug("FRONIUS set akku STANDBY");
 #endif
-	akku->state = Standby;
+	AKKU->state = Standby;
 	return 0; // continue loop
 }
 
-static int akku_charge(device_t *akku) {
+static int akku_charge() {
 #ifndef FRONIUS_MAIN
 	if (!sunspec_storage_limit_discharge(f10, 0))
 		xdebug("FRONIUS set akku CHARGE");
 #endif
-	akku->state = Charge;
+	AKKU->state = Charge;
 	return WAIT_AKKU_CHARGE; // loop done
 }
 
-static int akku_discharge(device_t *akku) {
+static int akku_discharge() {
 #ifndef FRONIUS_MAIN
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
@@ -220,7 +220,7 @@ static int akku_discharge(device_t *akku) {
 			xdebug("FRONIUS set akku DISCHARGE");
 	}
 #endif
-	akku->state = Discharge;
+	AKKU->state = Discharge;
 	return WAIT_RESPONSE; // loop done
 }
 
@@ -1006,6 +1006,7 @@ static void emergency() {
 }
 
 static void offline() {
+	akku_discharge();
 	// xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
 }
 
@@ -1842,10 +1843,10 @@ int ramp_akku(device_t *akku, int power) {
 
 		// enable discharging
 		if (PSTATE_OFFLINE)
-			return akku_discharge(akku);
+			return akku_discharge();
 
 		// set to standby and wait for ramp request
-		return akku_standby(akku);
+		return akku_standby();
 	}
 
 	// use last minute averages for calculation to suppress spikes
@@ -1875,7 +1876,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 1; // loop done
 
 		// ramp down - enable discharging
-		return akku_discharge(akku);
+		return akku_discharge();
 	}
 
 	// ramp up request
@@ -1886,7 +1887,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// set into standby when full
 		if (gstate->soc == 1000)
-			return akku_standby(akku);
+			return akku_standby();
 
 		// forward ramp ups to next device if we still have grid upload
 		if (AKKU_CHARGING && m1_grid < -RAMP_WINDOW)
@@ -1901,7 +1902,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 0; // continue loop
 
 		// ramp up - enable charging
-		return akku_charge(akku);
+		return akku_charge();
 	}
 
 	return 0;
