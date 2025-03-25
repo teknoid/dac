@@ -25,7 +25,7 @@ static int fd_ir;
 
 static void ir() {
 	struct input_event ev;
-	int n, seq;
+	int n, seq = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");

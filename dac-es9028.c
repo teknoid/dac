@@ -324,7 +324,7 @@ static void dac() {
 		return;
 	}
 
-	char *s;
+	char *s = 0;
 	while (1) {
 		msleep(250);
 

@@ -167,7 +167,7 @@ static void trigger(unsigned int id, int button, int action) {
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
 		tasmota_state_t *ss = get_state(sc.id);
-		int power;
+		int power = 0;
 		if (sc.relay == 0 || sc.relay == 1)
 			power = ss->relay1;
 		else if (sc.relay == 2)

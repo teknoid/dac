@@ -622,7 +622,7 @@ const char* resolve_ip(const char *hostname) {
 		return NULL;
 	}
 
-	void *ptr;
+	void *ptr = 0;
 	switch (addr->ai_family) {
 	case AF_INET:
 		ptr = &((struct sockaddr_in*) addr->ai_addr)->sin_addr;
