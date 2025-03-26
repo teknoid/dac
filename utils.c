@@ -911,5 +911,6 @@ void store_struct_json(int *values, int size, const char *header, const char *fi
 
 	fflush(fp);
 	fclose(fp);
+	free(str);
 	//xdebug("UTILS stored %s", filename);
 }
