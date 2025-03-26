@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 // read videos directory and build json file descriptions according to following scheme:
 // gartencam-20180823-drecksau.mp4 => "23.08.2018 Drecksau"
 
-$videos = "/home/www/webcam/videos/";
+$videos = "/server/www/webcam/videos/";
 $files = array();
 if ($handle = opendir($videos)) {
     while (false !== ($file = readdir($handle))) {

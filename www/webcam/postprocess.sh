@@ -3,7 +3,7 @@
 HM=$(date +"%H%M")
 
 WORK=/ram/webcam
-WWW=/xhome/www/webcam
+WWW=/server/www/webcam
 
 H="1280x720"
 L="640x360"

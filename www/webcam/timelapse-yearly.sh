@@ -1,7 +1,7 @@
 #/bin/sh
 
 WORK=/ram/webcam
-WWW=/xhome/www/webcam
+WWW=/server/www/webcam
 OPTS="-loglevel error -f image2 -r 5"
 
 H="1280:720"

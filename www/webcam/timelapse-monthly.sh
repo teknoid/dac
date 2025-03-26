@@ -1,7 +1,7 @@
 #/bin/sh
 
 WORK=/ram/webcam
-WWW=/xhome/www/webcam
+WWW=/server/www/webcam
 
 case "$HOSTNAME" in
   nanopct4)
@@ -15,7 +15,7 @@ case "$HOSTNAME" in
     COPTSL="-c:v h264_rkmpp -b:v 1536k -s 640:360"
     VF=""
     ;;
-  tron)
+  tron12)
     OPTS="-loglevel error -f image2 -r 30 -threads 4 -vaapi_device /dev/dri/renderD128"
     COPTSH="-vf format=nv12,hwupload -c:v h264_vaapi -b:v 8M"
     COPTSL="-vf format=nv12,hwupload,scale_vaapi=w=640:h=360 -c:v h264_vaapi -b:v 2M"

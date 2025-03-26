@@ -1,7 +1,7 @@
 #/bin/sh
 
 WORK=/ram/webcam
-WWW=/xhome/www/webcam
+WWW=/server/www/webcam
 
 # concatenate
 for X in h l

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+	<title>catcam</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<link rel="icon" href="../favicon.ico" type="image/x-icon">
+	<link rel="shortcut icon" href="../favicon.ico" type="image/x-icon">
+	<link rel="stylesheet" href="../webcam.css">
+</head>
+
+<body>
+	<object type="application/x-vlc-plugin" pluginspage="http://www.videolan.org" version="VideoLAN.VLCPlugin.2" id="vlc" width="1280px" height="720px" events="true" classid="clsid:9BE31822-FDAD-461B-AD51-BE1D1C159921" >
+		<param name="MRL" value="rtsp://realtek:8554/unicast" ref/>
+		<param name="volume" value="100" />
+		<param name="autoplay" value="1" />
+		<param name="AutoLoop" value="1">
+		<param name="Toolbar" value="1">
+		<param name="Visible" value="1">
+		<param name="StartTime" value="0">
+		<param name="BackColor" value="0">
+		<param name="FullscreenEnabled" value="-1">
+		<param name="ExtentWidth" value="12700">
+		<param name="ExtentHeight" value="7144">
+		<param name="BaseURL" ref value="vlc.htm">
+	</object>
+</body>
+</html>

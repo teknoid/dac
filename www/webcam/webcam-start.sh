@@ -1,11 +1,11 @@
 #/bin/sh
 
-# 59 4	* * *	hje	/xhome/www/webcam/webcam-start.sh reset
+# 59 4	* * *	hje	/server/www/webcam/webcam-start.sh reset
 
 DATE=$(date +"%Y%m%d")
 YEAR=$(date +"%Y")
 
-WWW=/xhome/www/webcam
+WWW=/server/www/webcam
 WORK=/ram/webcam
 
 DEV=/dev/video0
@@ -52,24 +52,35 @@ v4l2-ctl -d $DEV --set-fmt-video=width=1280,height=720,pixelformat=MJPG
 
 uvccapture $OPTS -o$WORK/current.jpg -c$WWW/postprocess.sh &
 sleep 1
-echo start uvccapture process $(pidof uvccapture)
+taskset -apc 2 $(pidof uvccapture)
 
-v4l2-ctl -d $DEV --set-ctrl power_line_frequency=1
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl backlight_compensation=0
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl exposure_auto=3
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl exposure_auto_priority=0
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl gain=16
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl white_balance_temperature_auto=0
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl white_balance_temperature=6000
-sleep 1
-v4l2-ctl -d $DEV --set-ctrl focus_auto=1
+#v4l2-ctl -d $DEV --set-ctrl power_line_frequency=1
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl backlight_compensation=0
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl exposure_auto=3
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl exposure_auto_priority=0
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl gain=16
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl white_balance_temperature_auto=0
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl white_balance_temperature=6000
+#sleep 1
+#v4l2-ctl -d $DEV --set-ctrl focus_auto=1
 #sleep 1
 #v4l2-ctl -d $DEV --set-ctrl focus_auto=0
 #sleep 1
 #v4l2-ctl -d $DEV --set-ctrl focus_absolute=102
+
+v4l2-ctl --set-ctrl power_line_frequency=1
+v4l2-ctl --set-ctrl exposure_dynamic_framerate=1
+v4l2-ctl --set-ctrl auto_exposure=3
+v4l2-ctl --set-ctrl white_balance_automatic=0
+v4l2-ctl --set-ctrl white_balance_temperature=6000
+v4l2-ctl --set-ctrl brightness=132
+v4l2-ctl --set-ctrl contrast=48
+v4l2-ctl --set-ctrl saturation=64
+v4l2-ctl --set-ctrl sharpness=148
+v4l2-ctl --set-ctrl backlight_compensation=1
