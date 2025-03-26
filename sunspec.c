@@ -468,7 +468,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
-	sunspec_storage_t storage;
+	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
@@ -507,7 +507,7 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
-	sunspec_storage_t storage;
+	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
@@ -539,7 +539,7 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
-	sunspec_storage_t storage;
+	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
 	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
@@ -571,7 +571,7 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 		return ENOENT;
 
 	// create a local storage model to not interfere with threaded model
-	sunspec_storage_t storage;
+	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
 	int sf = storage.InOutWRte_SF;
