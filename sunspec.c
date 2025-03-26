@@ -29,7 +29,7 @@ static void collect_models(sunspec_t *ss) {
 	int address = SUNSPEC_BASE_ADDRESS;
 	modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
 
-	// 0x53756e53 = 'SunS'
+	// 0x53756e53 == 'SunS'
 	SWAP32(sunspec_id);
 	if (sunspec_id != 0x53756e53) {
 		xlog("SUNSPEC %s no 'SunS' found at address %d", ss->name, address);
@@ -54,9 +54,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->common_size = *size;
 			ss->common_id = *id;
 			if (!ss->common)
-				ss->common = malloc(sizeof(sunspec_common_t));
+				ss->common = malloc(SUNSPEC_COMMON_SIZE);
 			ZEROP(ss->common);
 			xlog("SUNSPEC %s found Common(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_COMMON_SIZE)
+				xlog("SUNSPEC %s WARNING! Common(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_COMMON_SIZE);
 			break;
 
 		case 101:
@@ -66,9 +68,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->inverter_size = *size;
 			ss->inverter_id = *id;
 			if (!ss->inverter)
-				ss->inverter = malloc(sizeof(sunspec_inverter_t));
+				ss->inverter = malloc(SUNSPEC_INVERTER_SIZE);
 			ZEROP(ss->inverter);
 			xlog("SUNSPEC %s found Inverter(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_INVERTER_SIZE)
+				xlog("SUNSPEC %s WARNING! Inverter(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_INVERTER_SIZE);
 			break;
 
 		case 201:
@@ -78,9 +82,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->meter_size = *size;
 			ss->meter_id = *id;
 			if (!ss->meter)
-				ss->meter = malloc(sizeof(sunspec_meter_t));
+				ss->meter = malloc(SUNSPEC_METER_SIZE);
 			ZEROP(ss->meter);
 			xlog("SUNSPEC %s found Meter(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_METER_SIZE)
+				xlog("SUNSPEC %s WARNING! Meter(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_METER_SIZE);
 			break;
 
 		case 120:
@@ -88,9 +94,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->nameplate_size = *size;
 			ss->nameplate_id = *id;
 			if (!ss->nameplate)
-				ss->nameplate = malloc(sizeof(sunspec_nameplate_t));
+				ss->nameplate = malloc(SUNSPEC_NAMEPLATE_SIZE);
 			ZEROP(ss->nameplate);
 			xlog("SUNSPEC %s found Nameplate(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_NAMEPLATE_SIZE)
+				xlog("SUNSPEC %s WARNING! Nameplate(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_NAMEPLATE_SIZE);
 			break;
 
 		case 121:
@@ -98,19 +106,23 @@ static void collect_models(sunspec_t *ss) {
 			ss->basic_size = *size;
 			ss->basic_id = *id;
 			if (!ss->basic)
-				ss->basic = malloc(sizeof(sunspec_basic_t));
+				ss->basic = malloc(SUNSPEC_BASIC_SIZE);
 			ZEROP(ss->basic);
 			xlog("SUNSPEC %s found Basic(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_BASIC_SIZE)
+				xlog("SUNSPEC %s WARNING! Basic(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_BASIC_SIZE);
 			break;
 
 		case 122:
-			ss->extended_addr = address;
-			ss->extended_size = *size;
-			ss->extended_id = *id;
-			if (!ss->extended)
-				ss->extended = malloc(sizeof(sunspec_extended_t));
-			ZEROP(ss->extended);
-			xlog("SUNSPEC %s found Extended(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			ss->status_addr = address;
+			ss->status_size = *size;
+			ss->status_id = *id;
+			if (!ss->status)
+				ss->status = malloc(SUNSPEC_STATUS_SIZE);
+			ZEROP(ss->status);
+			xlog("SUNSPEC %s found status(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_STATUS_SIZE)
+				xlog("SUNSPEC %s WARNING! status(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_STATUS_SIZE);
 			break;
 
 		case 123:
@@ -118,9 +130,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->immediate_size = *size;
 			ss->immediate_id = *id;
 			if (!ss->immediate)
-				ss->immediate = malloc(sizeof(sunspec_immediate_t));
+				ss->immediate = malloc(SUNSPEC_IMMEDIATE_SIZE);
 			ZEROP(ss->immediate);
 			xlog("SUNSPEC %s found Immediate(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_IMMEDIATE_SIZE)
+				xlog("SUNSPEC %s WARNING! Immediate(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_IMMEDIATE_SIZE);
 			break;
 
 		case 124:
@@ -128,9 +142,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->storage_size = *size;
 			ss->storage_id = *id;
 			if (!ss->storage)
-				ss->storage = malloc(sizeof(sunspec_storage_t));
+				ss->storage = malloc(SUNSPEC_STORAGE_SIZE);
 			ZEROP(ss->storage);
 			xlog("SUNSPEC %s found Storage(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_STORAGE_SIZE)
+				xlog("SUNSPEC %s WARNING! Storage(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_STORAGE_SIZE);
 			break;
 
 		case 160:
@@ -138,9 +154,11 @@ static void collect_models(sunspec_t *ss) {
 			ss->mppt_size = *size;
 			ss->mppt_id = *id;
 			if (!ss->mppt)
-				ss->mppt = malloc(sizeof(sunspec_mppt_t));
+				ss->mppt = malloc(SUNSPEC_MPPT_SIZE);
 			ZEROP(ss->mppt);
 			xlog("SUNSPEC %s found MPPT(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_MPPT_SIZE)
+				xlog("SUNSPEC %s WARNING! MPPT(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_MPPT_SIZE);
 			break;
 
 		default:
@@ -153,14 +171,14 @@ static void collect_models(sunspec_t *ss) {
 }
 
 static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, uint16_t *model) {
-	// xdebug("SUNSPEC %s read_model %d", ss->name, id);
+	// xdebug("SUNSPEC %s read_model %d size %d", ss->name, id, size);
 
 	pthread_mutex_lock(&ss->lock);
-	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
+	int rc = modbus_read_registers(ss->mb, addr, size, model);
 	pthread_mutex_unlock(&ss->lock);
 
 	if (rc == -1) {
-		memset(model, 0, size * sizeof(uint16_t) + 2);
+		memset(model, 0, size * sizeof(uint16_t));
 		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 	}
 
@@ -205,12 +223,12 @@ static int read_basic(sunspec_t *ss) {
 	return rc;
 }
 
-static int read_extended(sunspec_t *ss) {
-	if (!ss->extended)
+static int read_status(sunspec_t *ss) {
+	if (!ss->status)
 		return 0;
 
-	int rc = read_model(ss, ss->extended_id, ss->extended_addr, ss->extended_size, (uint16_t*) ss->extended);
-	swap_string(ss->extended->TmSrc, 8);
+	int rc = read_model(ss, ss->status_id, ss->status_addr, ss->status_size, (uint16_t*) ss->status);
+	swap_string(ss->status->TmSrc, 8);
 	return rc;
 }
 
@@ -291,7 +309,7 @@ static void* poll(void *arg) {
 		errors += read_common(ss);
 		errors += read_nameplate(ss);
 		errors += read_basic(ss);
-		errors += read_extended(ss);
+		errors += read_status(ss);
 		errors += read_immediate(ss);
 
 		while (errors > -10) {
@@ -358,7 +376,7 @@ int sunspec_read(sunspec_t *ss) {
 	errors += read_common(ss);
 	errors += read_nameplate(ss);
 	errors += read_basic(ss);
-	errors += read_extended(ss);
+	errors += read_status(ss);
 	errors += read_immediate(ss);
 	errors += read_inverter(ss);
 	errors += read_mppt(ss);

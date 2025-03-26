@@ -42,6 +42,7 @@ typedef struct sunspec_common_t {
 	char SN[32];
 	uint16_t DA;
 } sunspec_common_t;
+#define SUNSPEC_COMMON_SIZE				(sizeof(sunspec_common_t))
 
 typedef struct sunspec_nameplate_t {
 	uint16_t ID;
@@ -73,6 +74,7 @@ typedef struct sunspec_nameplate_t {
 	int16_t MaxDisChaRte_SF;
 	int16_t pad;
 } sunspec_nameplate_t;
+#define SUNSPEC_NAMEPLATE_SIZE			(sizeof(sunspec_nameplate_t))
 
 typedef struct sunspec_basic_t {
 	uint16_t ID;
@@ -108,8 +110,9 @@ typedef struct sunspec_basic_t {
 	int16_t MaxRmpRte_SF;
 	int16_t ECPNomHz_SF;
 } sunspec_basic_t;
+#define SUNSPEC_BASIC_SIZE				(sizeof(sunspec_basic_t))
 
-typedef struct sunspec_extended_t {
+typedef struct sunspec_status_t {
 	uint16_t ID;
 	uint16_t L;
 	uint16_t PVConn;
@@ -130,9 +133,10 @@ typedef struct sunspec_extended_t {
 	char TmSrc[8];
 	uint32_t Tms;
 	uint16_t RtSt;
-	uint16_t Riso;
-	int16_t Riso_SF;
-} sunspec_extended_t;
+	uint16_t Ris;
+	int16_t Ris_SF;
+} sunspec_status_t;
+#define SUNSPEC_STATUS_SIZE				(sizeof(sunspec_status_t))
 
 typedef struct sunspec_immediate_t {
 	uint16_t ID;
@@ -162,6 +166,7 @@ typedef struct sunspec_immediate_t {
 	int16_t OutPFSet_SF;
 	int16_t VArPct_SF;
 } sunspec_immediate_t;
+#define SUNSPEC_IMMEDIATE_SIZE			(sizeof(sunspec_immediate_t))
 
 typedef struct sunspec_inverter_t {
 	uint16_t ID;
@@ -210,6 +215,7 @@ typedef struct sunspec_inverter_t {
 	uint32_t EvtVnd3;
 	uint32_t EvtVnd4;
 } sunspec_inverter_t;
+#define SUNSPEC_INVERTER_SIZE			(sizeof(sunspec_inverter_t))
 
 typedef struct sunspec_mppt_t {
 	uint16_t ID;
@@ -241,7 +247,28 @@ typedef struct sunspec_mppt_t {
 	int16_t Tmp2;
 	uint16_t DCSt2;
 	uint32_t DCEvt2;
+	uint16_t ID3;
+	char IDStr3[16];
+	uint16_t DCA3;
+	uint16_t DCV3;
+	uint16_t DCW3;
+	uint32_t DCWH3;
+	uint32_t Tms3;
+	int16_t Tmp3;
+	uint16_t DCSt3;
+	uint32_t DCEvt3;
+	uint16_t ID4;
+	char IDStr4[16];
+	uint16_t DCA4;
+	uint16_t DCV4;
+	uint16_t DCW4;
+	uint32_t DCWH4;
+	uint32_t Tms4;
+	int16_t Tmp4;
+	uint16_t DCSt4;
+	uint32_t DCEvt4;
 } sunspec_mppt_t;
+#define SUNSPEC_MPPT_SIZE				(sizeof(sunspec_mppt_t))
 
 typedef struct sunspec_storage_t {
 	uint16_t ID;
@@ -271,6 +298,7 @@ typedef struct sunspec_storage_t {
 	int16_t InBatV_SF;
 	int16_t InOutWRte_SF;
 } sunspec_storage_t;
+#define SUNSPEC_STORAGE_SIZE			(sizeof(sunspec_storage_t))
 
 typedef struct sunspec_meter_t {
 	uint16_t ID;
@@ -285,9 +313,9 @@ typedef struct sunspec_meter_t {
 	int16_t PhVphB;
 	int16_t PhVphC;
 	int16_t PPV;
-	int16_t PPVphAB;
-	int16_t PPVphBC;
-	int16_t PPVphCA;
+	int16_t PhVphAB;
+	int16_t PhVphBC;
+	int16_t PhVphCA;
 	int16_t V_SF;
 	int16_t Hz;
 	int16_t Hz_SF;
@@ -330,24 +358,25 @@ typedef struct sunspec_meter_t {
 	uint32_t TotVAhImpPhC;
 	int16_t TotVAh_SF;
 	uint32_t TotVArhImpQ1;
-	uint32_t TotVArhImpQ1phA;
-	uint32_t TotVArhImpQ1phB;
-	uint32_t TotVArhImpQ1phC;
+	uint32_t TotVArhImpQ1PhA;
+	uint32_t TotVArhImpQ1PhB;
+	uint32_t TotVArhImpQ1PhC;
 	uint32_t TotVArhImpQ2;
-	uint32_t TotVArhImpQ2phA;
-	uint32_t TotVArhImpQ2phB;
-	uint32_t TotVArhImpQ2phC;
+	uint32_t TotVArhImpQ2PhA;
+	uint32_t TotVArhImpQ2PhB;
+	uint32_t TotVArhImpQ2PhC;
 	uint32_t TotVArhExpQ3;
-	uint32_t TotVArhExpQ3phA;
-	uint32_t TotVArhExpQ3phB;
-	uint32_t TotVArhExpQ3phC;
+	uint32_t TotVArhExpQ3PhA;
+	uint32_t TotVArhExpQ3PhB;
+	uint32_t TotVArhExpQ3PhC;
 	uint32_t TotVArhExpQ4;
-	uint32_t TotVArhExpQ4phA;
-	uint32_t TotVArhExpQ4phB;
-	uint32_t TotVArhExpQ4phC;
+	uint32_t TotVArhExpQ4PhA;
+	uint32_t TotVArhExpQ4PhB;
+	uint32_t TotVArhExpQ4PhC;
 	int16_t TotVArh_SF;
 	uint32_t Evt;
 } sunspec_meter_t;
+#define SUNSPEC_METER_SIZE				(sizeof(sunspec_meter_t))
 
 typedef struct _sunspec sunspec_t;
 
@@ -380,10 +409,10 @@ struct _sunspec {
 	uint16_t basic_size;
 	uint16_t basic_id;
 
-	sunspec_extended_t *extended;
-	uint16_t extended_addr;
-	uint16_t extended_size;
-	uint16_t extended_id;
+	sunspec_status_t *status;
+	uint16_t status_addr;
+	uint16_t status_size;
+	uint16_t status_id;
 
 	sunspec_immediate_t *immediate;
 	uint16_t immediate_addr;
