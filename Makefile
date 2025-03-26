@@ -4,6 +4,7 @@ INCLUDE = ./include
 LIB = ./lib/$(UNAME_M)
 
 CFLAGS = -I$(INCLUDE) -Wall
+#CFLAGS = -I$(INCLUDE) -Wall -std=gnu99 -ggdb3 -Og
 LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 
 SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
@@ -93,6 +94,11 @@ aqua: aqua.o utils.o
 	$(CC) $(CFLAGS) -DAQUA_MAIN -c aqua.c
 	$(CC) $(CFLAGS) -o aqua aqua.o utils.o
 
+valgrind:
+	sudo cp -rv /work/mcp /run
+	sudo chown hje:hje /run/mcp -R
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp
+	
 .PHONY: clean install install-local install-service keytable
 
 clean:
