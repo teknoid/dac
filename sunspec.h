@@ -10,23 +10,23 @@
 #define OFFSET(model, reg)		(((void*) &reg - (void*) model) / 2)
 
 // SunSpec Inverter States
-#define I_STATUS_OFF 			1	// Wechselrichter ist aus
-#define I_STATUS_SLEEPING 		2	// Auto-Shutdown
-#define I_STATUS_STARTING		3	// Wechselrichter startet
-#define I_STATUS_MPPT			4	// Wechselrichter arbeitet normal
-#define I_STATUS_THROTTLED		5	// Leistungsreduktion aktiv
-#define I_STATUS_SHUTTING_DOWN	6	// Wechselrichter schaltet ab
-#define I_STATUS_FAULT			7	// Ein oder mehr Fehler existieren, siehe St *oder Evt * Register
-#define I_STATUS_STANDBY		8	// Standby
-#define I_STATUS_NO_BUSINIT		9	// Keine SolarNet Kommunikation
-#define I_STATUS_NO_COMM_INV	10	// Keine Kommunikation mit Wechselrichter möglich
-#define I_STATUS_SN_OVERCURRENT	11	// Überstrom an SolarNet Stecker erkannt
-#define I_STATUS_BOOTLOAD		12	// Wechselrichter wird gerade up-gedatet
-#define I_STATUS_AFCI			13	// AFCI Event (Arc-Erkennung)
+#define I_STATUS_OFF 			1		// Wechselrichter ist aus
+#define I_STATUS_SLEEPING 		2		// Auto-Shutdown
+#define I_STATUS_STARTING		3		// Wechselrichter startet
+#define I_STATUS_MPPT			4		// Wechselrichter arbeitet normal
+#define I_STATUS_THROTTLED		5		// Leistungsreduktion aktiv
+#define I_STATUS_SHUTTING_DOWN	6		// Wechselrichter schaltet ab
+#define I_STATUS_FAULT			7		// Ein oder mehr Fehler existieren, siehe St *oder Evt * Register
+#define I_STATUS_STANDBY		8		// Standby
+#define I_STATUS_NO_BUSINIT		9		// Keine SolarNet Kommunikation
+#define I_STATUS_NO_COMM_INV	10		// Keine Kommunikation mit Wechselrichter möglich
+#define I_STATUS_SN_OVERCURRENT	11		// Überstrom an SolarNet Stecker erkannt
+#define I_STATUS_BOOTLOAD		12		// Wechselrichter wird gerade up-gedatet
+#define I_STATUS_AFCI			13		// AFCI Event (Arc-Erkennung)
 
-#define CONNECT_RETRY_TIME		900 		// seconds
-#define SLEEP_TIME_FAULT		10			// 10 sec
-#define SLEEP_TIME_SLEEPING		900			// 15 min
+#define CONNECT_RETRY_TIME		900 	// seconds
+#define SLEEP_TIME_FAULT		10		// 10 sec
+#define SLEEP_TIME_SLEEPING		900		// 15 min
 
 //
 // sunspec models generated from Fronius documentation copied to misc/sunspec-struct-template.ods
