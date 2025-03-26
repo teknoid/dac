@@ -102,15 +102,15 @@ static void collect_models(sunspec_t *ss) {
 			break;
 
 		case 121:
-			ss->basic_addr = address;
-			ss->basic_size = *size;
-			ss->basic_id = *id;
-			if (!ss->basic)
-				ss->basic = malloc(SUNSPEC_BASIC_SIZE);
-			ZEROP(ss->basic);
-			xlog("SUNSPEC %s found Basic(%03d) model size %d at address %d", ss->name, *id, *size, address);
-			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_BASIC_SIZE)
-				xlog("SUNSPEC %s WARNING! Basic(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_BASIC_SIZE);
+			ss->settings_addr = address;
+			ss->settings_size = *size;
+			ss->settings_id = *id;
+			if (!ss->settings)
+				ss->settings = malloc(SUNSPEC_settings_SIZE);
+			ZEROP(ss->settings);
+			xlog("SUNSPEC %s found Settings(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_settings_SIZE)
+				xlog("SUNSPEC %s WARNING! Settings(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_settings_SIZE);
 			break;
 
 		case 122:
@@ -120,21 +120,21 @@ static void collect_models(sunspec_t *ss) {
 			if (!ss->status)
 				ss->status = malloc(SUNSPEC_STATUS_SIZE);
 			ZEROP(ss->status);
-			xlog("SUNSPEC %s found status(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			xlog("SUNSPEC %s found Status(%03d) model size %d at address %d", ss->name, *id, *size, address);
 			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_STATUS_SIZE)
-				xlog("SUNSPEC %s WARNING! status(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_STATUS_SIZE);
+				xlog("SUNSPEC %s WARNING! Status(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_STATUS_SIZE);
 			break;
 
 		case 123:
-			ss->immediate_addr = address;
-			ss->immediate_size = *size;
-			ss->immediate_id = *id;
-			if (!ss->immediate)
-				ss->immediate = malloc(SUNSPEC_IMMEDIATE_SIZE);
-			ZEROP(ss->immediate);
-			xlog("SUNSPEC %s found Immediate(%03d) model size %d at address %d", ss->name, *id, *size, address);
-			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_IMMEDIATE_SIZE)
-				xlog("SUNSPEC %s WARNING! Immediate(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_IMMEDIATE_SIZE);
+			ss->controls_addr = address;
+			ss->controls_size = *size;
+			ss->controls_id = *id;
+			if (!ss->controls)
+				ss->controls = malloc(SUNSPEC_controls_SIZE);
+			ZEROP(ss->controls);
+			xlog("SUNSPEC %s found Controls(%03d) model size %d at address %d", ss->name, *id, *size, address);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_controls_SIZE)
+				xlog("SUNSPEC %s WARNING! Controls(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_controls_SIZE);
 			break;
 
 		case 124:
@@ -215,11 +215,11 @@ static int read_nameplate(sunspec_t *ss) {
 	return rc;
 }
 
-static int read_basic(sunspec_t *ss) {
-	if (!ss->basic)
+static int read_settings(sunspec_t *ss) {
+	if (!ss->settings)
 		return 0;
 
-	int rc = read_model(ss, ss->basic_id, ss->basic_addr, ss->basic_size, (uint16_t*) ss->basic);
+	int rc = read_model(ss, ss->settings_id, ss->settings_addr, ss->settings_size, (uint16_t*) ss->settings);
 	return rc;
 }
 
@@ -232,11 +232,11 @@ static int read_status(sunspec_t *ss) {
 	return rc;
 }
 
-static int read_immediate(sunspec_t *ss) {
-	if (!ss->immediate)
+static int read_controls(sunspec_t *ss) {
+	if (!ss->controls)
 		return 0;
 
-	int rc = read_model(ss, ss->immediate_id, ss->immediate_addr, ss->immediate_size, (uint16_t*) ss->immediate);
+	int rc = read_model(ss, ss->controls_id, ss->controls_addr, ss->controls_size, (uint16_t*) ss->controls);
 	return rc;
 }
 
@@ -253,10 +253,10 @@ static int read_mppt(sunspec_t *ss) {
 		return 0;
 
 	int rc = read_model(ss, ss->mppt_id, ss->mppt_addr, ss->mppt_size, (uint16_t*) ss->mppt);
-	swap_string(ss->mppt->IDStr1, 16);
-	swap_string(ss->mppt->IDStr2, 16);
-	SWAP32(ss->mppt->DCWH1);
-	SWAP32(ss->mppt->DCWH2);
+	swap_string(ss->mppt->m1_IDStr, 16);
+	swap_string(ss->mppt->m2_IDStr, 16);
+	SWAP32(ss->mppt->m1_DCWH);
+	SWAP32(ss->mppt->m2_DCWH);
 	return rc;
 }
 
@@ -308,9 +308,9 @@ static void* poll(void *arg) {
 		// read static models once
 		errors += read_common(ss);
 		errors += read_nameplate(ss);
-		errors += read_basic(ss);
+		errors += read_settings(ss);
 		errors += read_status(ss);
-		errors += read_immediate(ss);
+		errors += read_controls(ss);
 
 		while (errors > -10) {
 
@@ -375,9 +375,9 @@ int sunspec_read(sunspec_t *ss) {
 	int errors = 0;
 	errors += read_common(ss);
 	errors += read_nameplate(ss);
-	errors += read_basic(ss);
+	errors += read_settings(ss);
 	errors += read_status(ss);
-	errors += read_immediate(ss);
+	errors += read_controls(ss);
 	errors += read_inverter(ss);
 	errors += read_mppt(ss);
 	errors += read_storage(ss);
@@ -471,7 +471,7 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
-	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
+	int wchaMax = SFI(storage.WChaMax, storage.WChaMax_SF);
 	if (!wchaMax)
 		return ENOENT;
 
@@ -510,7 +510,7 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
-	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
+	int wchaMax = SFI(storage.WChaMax, storage.WChaMax_SF);
 	if (!wchaMax)
 		return ENOENT;
 
@@ -542,7 +542,7 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 	sunspec_storage_t storage = { 0 };
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
-	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
+	int wchaMax = SFI(storage.WChaMax, storage.WChaMax_SF);
 	if (!wchaMax)
 		return ENOENT;
 
@@ -575,7 +575,7 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) &storage);
 
 	int sf = storage.InOutWRte_SF;
-	int wchaMax = SFI(storage.WchaMax, storage.WchaMax_SF);
+	int wchaMax = SFI(storage.WChaMax, storage.WChaMax_SF);
 	int limit_sf = SFOUT(100, sf);
 
 	if (storage.StorCtl_Mod == 0)
@@ -666,9 +666,9 @@ int test(int argc, char **argv) {
 		xlog("mppt     model validation ID=%d L=%d", mppt.ID, mppt.L);
 
 		xlog("Status %d", inverter.St);
-		xlog("raw  mppt DCW1:%u DCW2:%u", mppt.DCW1, mppt.DCW2);
-		xlog("raw  mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", mppt.Tms1, mppt.DCWH1, mppt.Tms2, mppt.DCWH2);
-		xlog("SWAP mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", SWAP32(mppt.Tms1), SWAP32(mppt.DCWH1), SWAP32(mppt.Tms2), SWAP32(mppt.DCWH2));
+		xlog("raw  mppt DCW1:%u DCW2:%u", mppt.m1_DCW, mppt.m2_DCW);
+		xlog("raw  mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", mppt.m1_Tms, mppt.m1_DCWH, mppt.m2_Tms, mppt.m2_DCWH);
+		xlog("SWAP mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", SWAP32(mppt.m1_Tms), SWAP32(mppt.m1_DCWH), SWAP32(mppt.m2_Tms), SWAP32(mppt.m2_DCWH));
 
 		sleep(3);
 	}

@@ -76,7 +76,7 @@ typedef struct sunspec_nameplate_t {
 } sunspec_nameplate_t;
 #define SUNSPEC_NAMEPLATE_SIZE			(sizeof(sunspec_nameplate_t))
 
-typedef struct sunspec_basic_t {
+typedef struct sunspec_settings_t {
 	uint16_t ID;
 	uint16_t L;
 	uint16_t WMax;
@@ -84,11 +84,11 @@ typedef struct sunspec_basic_t {
 	int16_t VRefOfs;
 	uint16_t VMax;
 	uint16_t VMin;
-	int16_t VAMax;
-	int16_t VARMaxQ1;
-	int16_t VARMaxQ2;
-	int16_t VARMaxQ3;
-	int16_t VARMaxQ4;
+	uint16_t VAMax;
+	int16_t VArMaxQ1;
+	int16_t VArMaxQ2;
+	int16_t VArMaxQ3;
+	int16_t VArMaxQ4;
 	uint16_t WGra;
 	int16_t PFMinQ1;
 	int16_t PFMinQ2;
@@ -104,13 +104,13 @@ typedef struct sunspec_basic_t {
 	int16_t VRefOfs_SF;
 	int16_t VMinMax_SF;
 	int16_t VAMax_SF;
-	int16_t VARMax_SF;
+	int16_t VArMax_SF;
 	int16_t WGra_SF;
 	int16_t PFMin_SF;
 	int16_t MaxRmpRte_SF;
 	int16_t ECPNomHz_SF;
-} sunspec_basic_t;
-#define SUNSPEC_BASIC_SIZE				(sizeof(sunspec_basic_t))
+} sunspec_settings_t;
+#define SUNSPEC_settings_SIZE				(sizeof(sunspec_settings_t))
 
 typedef struct sunspec_status_t {
 	uint16_t ID;
@@ -138,7 +138,7 @@ typedef struct sunspec_status_t {
 } sunspec_status_t;
 #define SUNSPEC_STATUS_SIZE				(sizeof(sunspec_status_t))
 
-typedef struct sunspec_immediate_t {
+typedef struct sunspec_controls_t {
 	uint16_t ID;
 	uint16_t L;
 	uint16_t Conn_WinTms;
@@ -165,8 +165,8 @@ typedef struct sunspec_immediate_t {
 	int16_t WMaxLimPct_SF;
 	int16_t OutPFSet_SF;
 	int16_t VArPct_SF;
-} sunspec_immediate_t;
-#define SUNSPEC_IMMEDIATE_SIZE			(sizeof(sunspec_immediate_t))
+} sunspec_controls_t;
+#define SUNSPEC_controls_SIZE			(sizeof(sunspec_controls_t))
 
 typedef struct sunspec_inverter_t {
 	uint16_t ID;
@@ -225,57 +225,57 @@ typedef struct sunspec_mppt_t {
 	int16_t DCW_SF;
 	int16_t DCWH_SF;
 	uint32_t Evt;
-	uint16_t N;
+	int16_t N;
 	uint16_t TmsPer;
-	uint16_t ID1;
-	char IDStr1[16];
-	uint16_t DCA1;
-	uint16_t DCV1;
-	uint16_t DCW1;
-	uint32_t DCWH1;
-	uint32_t Tms1;
-	int16_t Tmp1;
-	uint16_t DCSt1;
-	uint32_t DCEvt1;
-	uint16_t ID2;
-	char IDStr2[16];
-	uint16_t DCA2;
-	uint16_t DCV2;
-	uint16_t DCW2;
-	uint32_t DCWH2;
-	uint32_t Tms2;
-	int16_t Tmp2;
-	uint16_t DCSt2;
-	uint32_t DCEvt2;
-	uint16_t ID3;
-	char IDStr3[16];
-	uint16_t DCA3;
-	uint16_t DCV3;
-	uint16_t DCW3;
-	uint32_t DCWH3;
-	uint32_t Tms3;
-	int16_t Tmp3;
-	uint16_t DCSt3;
-	uint32_t DCEvt3;
-	uint16_t ID4;
-	char IDStr4[16];
-	uint16_t DCA4;
-	uint16_t DCV4;
-	uint16_t DCW4;
-	uint32_t DCWH4;
-	uint32_t Tms4;
-	int16_t Tmp4;
-	uint16_t DCSt4;
-	uint32_t DCEvt4;
+	uint16_t m1_ID;
+	char m1_IDStr[16];
+	uint16_t m1_DCA;
+	uint16_t m1_DCV;
+	uint16_t m1_DCW;
+	uint32_t m1_DCWH;
+	uint32_t m1_Tms;
+	int16_t m1_Tmp;
+	uint16_t m1_DCSt;
+	uint32_t m1_DCEvt;
+	uint16_t m2_ID;
+	char m2_IDStr[16];
+	uint16_t m2_DCA;
+	uint16_t m2_DCV;
+	uint16_t m2_DCW;
+	uint32_t m2_DCWH;
+	uint32_t m2_Tms;
+	int16_t m2_Tmp;
+	uint16_t m2_DCSt;
+	uint32_t m2_DCEvt;
+	uint16_t m3_ID;
+	char m3_IDStr[16];
+	uint16_t m3_DCA;
+	uint16_t m3_DCV;
+	uint16_t m3_DCW;
+	uint32_t m3_DCWH;
+	uint32_t m3_Tms;
+	int16_t m3_Tmp;
+	uint16_t m3_DCSt;
+	uint32_t m3_DCEvt;
+	uint16_t m4_ID;
+	char m4_IDStr[16];
+	uint16_t m4_DCA;
+	uint16_t m4_DCV;
+	uint16_t m4_DCW;
+	uint32_t m4_DCWH;
+	uint32_t m4_Tms;
+	int16_t m4_Tmp;
+	uint16_t m4_DCSt;
+	uint32_t m4_DCEvt;
 } sunspec_mppt_t;
 #define SUNSPEC_MPPT_SIZE				(sizeof(sunspec_mppt_t))
 
 typedef struct sunspec_storage_t {
 	uint16_t ID;
 	uint16_t L;
-	uint16_t WchaMax;
-	uint16_t WchaGra;
-	uint16_t WdisChaGra;
+	uint16_t WChaMax;
+	uint16_t WChaGra;
+	uint16_t WDisChaGra;
 	uint16_t StorCtl_Mod;
 	uint16_t VAChaMax;
 	uint16_t MinRsvPct;
@@ -289,8 +289,8 @@ typedef struct sunspec_storage_t {
 	uint16_t InOutWRte_RvrtTms;
 	uint16_t InOutWRte_RmpTms;
 	uint16_t ChaGriSet;
-	int16_t WchaMax_SF;
-	int16_t WchaDisChaGra_SF;
+	int16_t WChaMax_SF;
+	int16_t WChaDisChaGra_SF;
 	int16_t VAChaMax_SF;
 	int16_t MinRsvPct_SF;
 	int16_t ChaState_SF;
@@ -404,20 +404,20 @@ struct _sunspec {
 	uint16_t nameplate_size;
 	uint16_t nameplate_id;
 
-	sunspec_basic_t *basic;
-	uint16_t basic_addr;
-	uint16_t basic_size;
-	uint16_t basic_id;
+	sunspec_settings_t *settings;
+	uint16_t settings_addr;
+	uint16_t settings_size;
+	uint16_t settings_id;
 
 	sunspec_status_t *status;
 	uint16_t status_addr;
 	uint16_t status_size;
 	uint16_t status_id;
 
-	sunspec_immediate_t *immediate;
-	uint16_t immediate_addr;
-	uint16_t immediate_size;
-	uint16_t immediate_id;
+	sunspec_controls_t *controls;
+	uint16_t controls_addr;
+	uint16_t controls_size;
+	uint16_t controls_id;
 
 	sunspec_inverter_t *inverter;
 	uint16_t inverter_addr;

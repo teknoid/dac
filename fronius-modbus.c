@@ -238,14 +238,14 @@ static void update_f10(sunspec_t *ss) {
 
 	switch (ss->inverter->St) {
 	case I_STATUS_MPPT:
-		pstate->mppt1 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		if (pstate->mppt1 == 1)
 			pstate->mppt1 = 0; // noise
-		pstate->mppt2 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		if (pstate->mppt2 == 1)
 			pstate->mppt2 = 0; // noise
-		counter->mppt1 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
-		counter->mppt2 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
+		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
 		break;
@@ -272,14 +272,14 @@ static void update_f7(sunspec_t *ss) {
 		// only take over values in MPPT state
 		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
 		pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		pstate->mppt3 = SFI(ss->mppt->DCW1, ss->mppt->DCW_SF);
+		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		if (pstate->mppt3 == 1)
 			pstate->mppt3 = 0; // noise
-		pstate->mppt4 = SFI(ss->mppt->DCW2, ss->mppt->DCW_SF);
+		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		if (pstate->mppt4 == 1)
 			pstate->mppt4 = 0; // noise
-		counter->mppt3 = SFUI(ss->mppt->DCWH1, ss->mppt->DCWH_SF);
-		counter->mppt4 = SFUI(ss->mppt->DCWH2, ss->mppt->DCWH_SF);
+		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
 		break;
