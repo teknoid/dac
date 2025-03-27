@@ -10,7 +10,7 @@
 #include "sunspec.h"
 #include "utils.h"
 
-// gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread
+// gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm
 
 static void swap_string(char *string, int size) {
 	uint16_t *x = (uint16_t*) string;
@@ -19,22 +19,19 @@ static void swap_string(char *string, int size) {
 		SWAP16(*x);
 }
 
-static void collect_models(sunspec_t *ss) {
-	uint32_t sunspec_id;
-
+static int collect_models(sunspec_t *ss) {
 	uint16_t index[2] = { 0, 0 };
 	uint16_t *id = &index[0];
 	uint16_t *size = &index[1];
 
+	uint32_t sunspec_id = 0;
 	int address = SUNSPEC_BASE_ADDRESS;
 	modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
 
 	// 0x53756e53 == 'SunS'
 	SWAP32(sunspec_id);
-	if (sunspec_id != 0x53756e53) {
-		xlog("SUNSPEC %s no 'SunS' found at address %d", ss->name, address);
-		return;
-	}
+	if (sunspec_id != 0x53756e53)
+		return xerr("SUNSPEC %s no 'SunS' found at address %d", ss->name, address);
 
 	xlog("SUNSPEC %s found 'SunS' at address %d", ss->name, address);
 	address += 2;
@@ -168,17 +165,18 @@ static void collect_models(sunspec_t *ss) {
 	}
 
 	pthread_mutex_unlock(&ss->lock);
+	return 0;
 }
 
 static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, uint16_t *model) {
 	// xdebug("SUNSPEC %s read_model %d size %d", ss->name, id, size);
 
 	pthread_mutex_lock(&ss->lock);
-	int rc = modbus_read_registers(ss->mb, addr, size, model);
+	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
 	pthread_mutex_unlock(&ss->lock);
 
 	if (rc == -1) {
-		memset(model, 0, size * sizeof(uint16_t));
+		memset(model, 0, size * sizeof(uint16_t) + 4);
 		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 	}
 
@@ -615,6 +613,16 @@ int test(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+	sunspec_stop(ss);
+	return 0;
+}
+
+int test1(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 // 16bit:38 + 32bit:7
 #define INVERTER_SIZE		52
 #define INVERTER_OFFSET		40070
@@ -632,20 +640,34 @@ int test(int argc, char **argv) {
 #define METER_SIZE			107
 #define METER_OFFSET		40070
 
-	modbus_t *mb = modbus_new_tcp("192.168.25.231", 502);
+	modbus_t *mb = modbus_new_tcp("192.168.25.240", 502);
 	modbus_set_response_timeout(mb, 5, 0);
 	modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
-	modbus_set_slave(mb, 2);
-	modbus_connect(mb);
+	modbus_set_slave(mb, 1);
+	// modbus_set_slave(mb, 2);
+	int rc = modbus_connect(mb);
+	if (rc != 0)
+		return xerrr(rc, "SUNSPEC modbus_connect returned %d", rc);
+
+	uint32_t sunspec_id = 0;
+	int address = SUNSPEC_BASE_ADDRESS;
+	modbus_read_registers(mb, address, 2, (uint16_t*) &sunspec_id);
+
+	// 0x53756e53 == 'SunS'
+	SWAP32(sunspec_id);
+	if (sunspec_id != 0x53756e53)
+		return xerr("SUNSPEC no 'SunS' found at address %d", address);
+
+	xlog("SUNSPEC found 'SunS' at address %d", address);
+	address += 2;
 
 	uint16_t index[2] = { 0, 0 };
-	int offset = SUNSPEC_BASE_ADDRESS - 1;
 	while (1) {
-		modbus_read_registers(mb, offset, 2, (uint16_t*) &index);
+		modbus_read_registers(mb, address, 2, (uint16_t*) &index);
 		if (index[0] == 0xffff && index[1] == 0)
 			break;
-		xlog("ID %d Size %d Offset %d", index[0], index[1], offset);
-		offset += index[1] + 2;
+		xlog("ID %d Size %d Offset %d", index[0], index[1], address);
+		address += index[1] + 2;
 	}
 
 	sunspec_inverter_t inverter;
@@ -667,8 +689,8 @@ int test(int argc, char **argv) {
 
 		xlog("Status %d", inverter.St);
 		xlog("raw  mppt DCW1:%u DCW2:%u", mppt.m1_DCW, mppt.m2_DCW);
-		xlog("raw  mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", mppt.m1_Tms, mppt.m1_DCWH, mppt.m2_Tms, mppt.m2_DCWH);
-		xlog("SWAP mppt Tms1:%u DCWH1:%u Tms2:%u DCWH2:%u", SWAP32(mppt.m1_Tms), SWAP32(mppt.m1_DCWH), SWAP32(mppt.m2_Tms), SWAP32(mppt.m2_DCWH));
+		xlog("raw  mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", mppt.m1_Tms, mppt.m1_DCWH, mppt.m2_Tms, mppt.m2_DCWH);
+		xlog("SWAP mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", SWAP32(mppt.m1_Tms), SWAP32(mppt.m1_DCWH), SWAP32(mppt.m2_Tms), SWAP32(mppt.m2_DCWH));
 
 		sleep(3);
 	}
@@ -679,6 +701,6 @@ int test(int argc, char **argv) {
 
 #ifdef SUNSPEC_MAIN
 int main(int argc, char **argv) {
-	return test(argc, argv);
+	return test1(argc, argv);
 }
 #endif
