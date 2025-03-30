@@ -1207,8 +1207,7 @@ static void fronius() {
 
 		// web output
 		create_pstate_json();
-		if (now->tm_sec % 10 == 0)
-			create_gstate_dstate_json();
+		create_gstate_dstate_json();
 
 		// no actions until timer is expired
 		if (pstate->timer)
