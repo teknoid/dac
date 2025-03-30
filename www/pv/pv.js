@@ -128,7 +128,7 @@ window.onload = function() {
 	update_sensors();
 	
 	setInterval(update_pstate, 2000);
-	setInterval(update_dstate, 10000);
-	setInterval(update_gstate, 60000);
+	setInterval(update_dstate, 2000);
+	setInterval(update_gstate, 2000);
 	setInterval(update_sensors, 60000);
 }
