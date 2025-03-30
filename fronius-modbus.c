@@ -31,13 +31,8 @@
 #define WAIT_AKKU_CHARGE		30
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
-
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
-
 #define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
-
-#define POWERFLOW_JSON			"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
-#define POWERFLOW_FILE			"/run/mcp/powerflow.json"
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -82,42 +77,38 @@ static struct tm *lt, now_tm, *now = &now_tm;
 static int sock = 0;
 
 static void create_pstate_json() {
-	// pstate
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
+}
 
-	// feed Fronius powerflow web application
-	FILE *fp = fopen(POWERFLOW_FILE, "wt");
+static void create_gstate_json() {
+	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, GSTATE_JSON);
+}
+
+// feed Fronius powerflow web application
+static void create_powerflow_json() {
+	FILE *fp = fopen(POWERFLOW_JSON, "wt");
 	if (fp == NULL)
 		return;
 
-	fprintf(fp, POWERFLOW_JSON, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
+	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
 }
 
-static void create_gstate_dstate_json() {
-	// pstate
-	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, GSTATE_JSON);
-
-	// devices
+// devices
+static void create_dstate_json() {
 	FILE *fp = fopen(DSTATE_JSON, "wt");
 	if (fp == NULL)
 		return;
 
-	fprintf(fp, "[");
 	int i = 0;
+	fprintf(fp, "[");
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		if (i)
+		if (i++)
 			fprintf(fp, ",");
-		fprintf(fp, "\{");
-		fprintf(fp, "\"name\":\"%s\",", DD->name);
-		fprintf(fp, "\"state\":%d,", DD->state);
-		fprintf(fp, "\"power\":%d,", DD->power);
-		fprintf(fp, "\"total\":%d,", DD == AKKU ? AKKU_CHARGE_MAX : DD->total);
-		fprintf(fp, "\"load\":%d", DD == AKKU ? pstate->akku : DD->load);
-		fprintf(fp, "}");
-		i++;
+		fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, DD == AKKU ? AKKU_CHARGE_MAX : DD->total, DD == AKKU ? pstate->akku : DD->load);
 	}
+
 	fprintf(fp, "]");
 	fflush(fp);
 	fclose(fp);
@@ -1200,6 +1191,7 @@ static void fronius() {
 		// initialize program of the day
 		if (!potd) {
 			calculate_gstate();
+			create_gstate_json();
 			choose_program();
 			print_gstate();
 			continue; // initial roundtrip to get pstate deltas
@@ -1207,7 +1199,10 @@ static void fronius() {
 
 		// web output
 		create_pstate_json();
-		create_gstate_dstate_json();
+		create_dstate_json();
+		create_powerflow_json();
+		if (now->tm_sec == 0)
+			create_gstate_json();
 
 		// no actions until timer is expired
 		if (pstate->timer)

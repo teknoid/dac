@@ -15,6 +15,10 @@
 #define PSTATE_JSON				"/run/mcp/pstate.json"
 #define GSTATE_JSON				"/run/mcp/gstate.json"
 #define DSTATE_JSON				"/run/mcp/dstate.json"
+#define POWERFLOW_JSON			"/run/mcp/powerflow.json"
+
+#define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
+#define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				300
