@@ -673,7 +673,7 @@ static device_t* steal_multi() {
 		// if enough - ramp up thief - victims gets automatically ramped down in next round
 		if (p > min)
 			if (ramp(DD, p)) {
-				xdebug("FRONIUS steal %d and provide it to %s with total %d min=%d", p, DD->name, DD->total, min);
+				xdebug("FRONIUS %s steal %d (min=%d)", DD->name, p, min);
 				return DD;
 			}
 	}
