@@ -640,6 +640,47 @@ static device_t* steal() {
 	return 0;
 }
 
+static device_t* steal_multi() {
+	// check flags
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
+		return 0;
+
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		// thief not active or in standby
+		if (DD->state == Disabled || DD->state == Standby)
+			continue;
+
+		// thief already (full) on
+		if (DD->power == (DD->adj ? 100 : 1))
+			continue;
+
+		// akku can not steal power from secondary inverter
+		if (DD == AKKU && pstate->ac7 > pstate->load * -1)
+			continue;
+
+		// thief can steal akkus charge power or victims load when not in override mode
+		int p = 0;
+		for (device_t **vv = dd + 1; *vv; vv++)
+			if (*vv == AKKU)
+				p += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
+			else
+				p += !(*vv)->override ? (*vv)->load : 0;
+
+		// adjustable: 1% of total, dumb: total
+		int min = DD->adj ? DD->total / 100 : DD->total;
+		min += min / 10; // add 10%
+
+		// if enough - ramp up thief - victims gets automatically ramped down in next round
+		if (p > min)
+			if (ramp(DD, p)) {
+				xdebug("FRONIUS steal %d and provide it to %s with total %d min=%d", p, DD->name, DD->total, min);
+				return DD;
+			}
+	}
+
+	return 0;
+}
+
 static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xdebug("FRONIUS starting standby check on %s with power=%d", d->name, power);
@@ -1102,8 +1143,8 @@ static void hourly() {
 	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
 	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(gstate_t));
 
-	// storage strategy: standard 6%, winter and tomorrow not much pv expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 6;
+	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
 
 	// create/append pstate minutes csv
