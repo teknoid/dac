@@ -332,7 +332,7 @@ static int collect_load(int from, int hours) {
 	return load;
 }
 
-static void store_phase_power(device_t *d) {
+static void store_meter_power(device_t *d) {
 	if (!pstate)
 		return;
 
@@ -1197,12 +1197,13 @@ static void fronius() {
 			continue; // initial roundtrip to get pstate deltas
 		}
 
-		// web output
-		create_pstate_json();
-		create_dstate_json();
-		create_powerflow_json();
-		if (now->tm_sec == 0)
+		// web output every 2 seconds
+		if (now->tm_sec % 2 == 0) {
+			create_pstate_json();
+			create_dstate_json();
 			create_gstate_json();
+			create_powerflow_json();
+		}
 
 		// no actions until timer is expired
 		if (pstate->timer)
@@ -1756,7 +1757,7 @@ int ramp_heater(device_t *heater, int power) {
 	heater->delta = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
 	heater->power = power;
-	store_phase_power(heater);
+	store_meter_power(heater);
 	return WAIT_RESPONSE; // loop done
 }
 
@@ -1823,7 +1824,7 @@ int ramp_boiler(device_t *boiler, int power) {
 	boiler->delta = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
-	store_phase_power(boiler);
+	store_meter_power(boiler);
 	return WAIT_RESPONSE; // loop done
 }
 

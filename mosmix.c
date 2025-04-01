@@ -145,6 +145,9 @@ static void update_today_tomorrow(struct tm *now) {
 		m->SunD1 = mcsv->SunD1;
 		if (m->Rad1h)
 			xdebug("MOSMIX updated %02d.%02d. hour %02d Rad1h=%d SunD1=%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, m->SunD1);
+		else
+			// SunD1 without Rad1h is not possible
+			m->SunD1 = 0;
 	}
 
 	// calculate each mppt's forecast today and tomorrow
@@ -248,8 +251,9 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 
-	xdebug("MOSMIX forecast errors Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
-	xdebug("MOSMIX forecast errors  %% %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+	xdebug("MOSMIX forecast exp Wh %5d %5d %5d %5d sum %d", m->exp1, m->exp2, m->exp3, m->exp4, m->exp1 + m->exp2 + m->exp3 + m->exp4);
+	xdebug("MOSMIX forecast err Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
+	xdebug("MOSMIX forecast err %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
 	// collect sod errors and scale all remaining eod values
 	if (m->Rad1h) {
