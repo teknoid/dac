@@ -1,3 +1,4 @@
+body					{ line-height: 0 !important }
 hr						{ display:none !important }
 
 main-menu				{ display:none }
@@ -9,13 +10,14 @@ user-menu				{ display:none }
 site-state-bar			{ display:none }
 mat-tab-group			{ display:none }
 
-.js-status-bar-bg		{ display:none !important }
+.js-status-bar-bg		{ display:none !important; border-top:none !important }
 .mat-tab-body			{ display:none !important }
 .mat-tab-header			{ display:none !important }
 .mat-tab-group			{ display:none !important }
 .mat-card-title			{ display:none !important }
 .cardwrapper-col-sm-5	{ display:none !important }
 .cardwrapper-col-sm-12	{ display:none !important }
+.cdk-visually-hidden	{ display:none !important }
 .power-component-details-overlay	{ display:none !important }
 
 .beneath-header			{ top:0 !important; height:auto !important }

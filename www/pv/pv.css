@@ -21,9 +21,8 @@ body, html {
 }
 
 @media (max-width: 2000px) {
-	iframe					{ width:420px; height:430px }
+	iframe					{ width:400px; height:400px }
 	.powerflow				{ display:block; float:inline-end }
-	.mosmix					{  }
 	.svg					{ max-width:1500px }
 	
 	dl 						{ }
@@ -37,10 +36,25 @@ body, html {
 	dl dd.akku .p			{ background:orangered }
 }
 
-@media (max-width: 1100px) {
-	iframe					{ width:1000px; height:950px }
+@media (max-width: 1400px) {
+	iframe					{ width:400px; height:400px }
 	.powerflow				{ display:block; float:inline-end }
-	.mosmix					{ position:relative; top:50px }
+	.svg					{ max-width:960px }
+
+	dl 						{ }
+	dl dt					{ width:35px; float:left; writing-mode:sideways-rl; position:relative; top:10px; left:-20px; z-index:+1 }
+	dl dd					{ width:35px; height:100px; float:left; margin:0 15px 0 -45px; border:1px solid lightgrey; position:relative }
+	dl dd .bar				{ width:35px; display:block; position:absolute; bottom:0px; text-align:center }
+	dl dd .p				{ background:skyblue }
+	dl dd .z				{ background:silver; height:100% !important }
+	dl dd .load				{ position:relative; top:80px; text-align:center }
+	dl dd.akku .m			{ background:palegreen }
+	dl dd.akku .p			{ background:orangered }
+}
+
+@media (max-width: 1100px) {
+	iframe					{ width:1000px; height:1000px }
+	.powerflow				{ display:block; float:inline-end }
 	.state					{ font-size:32px }
 	.svg					{ max-width:1000px }
 
