@@ -141,7 +141,8 @@ p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
       '' u 1:(0):"grid" w filledc below ls 3 t "grid",\
       '' u 1:(0):"grid" w filledc above ls 4,\
       '' u 1:"load" t "load" w lines ls 5,\
-      '' u 1:"soc"  t "soc"  w lines ls 6 axes x1y2
+      '' u 1:"soc"  t "soc"  w lines ls 6 axes x1y2,\
+      50 w lines lt rgb "#f08080" axes x1y2
       
 set ylabel "Grid - Power"
 unset y2range
