@@ -645,7 +645,7 @@ static device_t* steal_multi() {
 	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		return 0;
 
-	for (device_t **dd = DEVICES; *dd; dd++) {
+	for (device_t **dd = potd->devices; *dd; dd++) {
 		// thief not active or in standby
 		if (DD->state == Disabled || DD->state == Standby)
 			continue;
@@ -1282,7 +1282,7 @@ static void fronius() {
 
 			// prio5: check if higher priorized device can steal from lower priorized
 			if (!device)
-				device = steal();
+				device = steal_multi();
 		}
 
 		// print pstate once per minute / when delta / on device action
@@ -1581,7 +1581,7 @@ static int single() {
 	standby();
 	rampdown();
 	rampup();
-	steal();
+	steal_multi();
 
 	// aggregate 24 pstate hours into one day
 	pstate_t pda, pdc;
