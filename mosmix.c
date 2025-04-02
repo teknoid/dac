@@ -127,10 +127,10 @@ static void update_today_tomorrow(struct tm *now) {
 	// loop over one week
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_csv_t *mcsv = &mosmix_csv[i];
-
-		// find mosmix slot to update
-		struct tm tm;
 		time_t t = mcsv->ts - 1; // fix hour
+
+		// find slot to update
+		struct tm tm;
 		localtime_r(&t, &tm);
 		mosmix_t *m = 0;
 		if (tm.tm_yday == day_today)
@@ -460,45 +460,8 @@ int mosmix_load(struct tm *now, const char *filename) {
 	return 0;
 }
 
-static void recalc() {
-	return;
-
-	ZERO(history);
-	load_blob(MOSMIX_HISTORY, history, sizeof(history));
-	mosmix_factors();
-	return;
-
-	// recalc expected with new factors
-	for (int d = 0; d < 7; d++) {
-		for (int h = 0; h < 24; h++) {
-			mosmix_t *m = HISTORY(d, h);
-			factor_t *f = FACTORS(h);
-			expected(m, f);
-		}
-	}
-
-	// recalc errors
-	for (int i = 0; i < 24 * 7; i++) {
-		mosmix_t *m = &history[i];
-
-		m->diff1 = m->mppt1 - m->exp1;
-		m->diff2 = m->mppt2 - m->exp2;
-		m->diff3 = m->mppt3 - m->exp3;
-		m->diff4 = m->mppt4 - m->exp4;
-
-		m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
-		m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
-		m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
-		m->err4 = m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
-	}
-
-	// mosmix_store_state();
-	mosmix_store_csv();
-	mosmix_dump_history_hours(12);
-}
-
 static void test() {
-	return;
+	// return;
 
 	int x = 3333;
 	int f = 222;
@@ -563,8 +526,42 @@ static void test() {
 	mosmix_dump_history_hours(9);
 	mosmix_dump_history_hours(12);
 	mosmix_dump_history_hours(15);
+}
 
-	// mosmix_store_state();
+static void recalc() {
+	return;
+
+	ZERO(history);
+	load_blob(MOSMIX_HISTORY, history, sizeof(history));
+	mosmix_factors();
+
+	// recalc expected with new factors
+	for (int d = 0; d < 7; d++) {
+		for (int h = 0; h < 24; h++) {
+			mosmix_t *m = HISTORY(d, h);
+			factor_t *f = FACTORS(h);
+			expected(m, f);
+		}
+	}
+
+	// recalc errors
+	for (int i = 0; i < 24 * 7; i++) {
+		mosmix_t *m = &history[i];
+
+		m->diff1 = m->mppt1 - m->exp1;
+		m->diff2 = m->mppt2 - m->exp2;
+		m->diff3 = m->mppt3 - m->exp3;
+		m->diff4 = m->mppt4 - m->exp4;
+
+		m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
+		m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
+		m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
+		m->err4 = m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
+	}
+
+	mosmix_store_history();
+	mosmix_store_csv();
+	mosmix_dump_history_hours(12);
 }
 
 static void migrate() {
@@ -652,7 +649,7 @@ static int diffs(int d) {
 }
 
 static void compare() {
-	// return;
+	return;
 
 	// define local time object
 	struct tm now_tm, *now = &now_tm;
@@ -676,11 +673,11 @@ int mosmix_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	migrate();
-	test();
 	compare();
-	fix();
+	migrate();
 	recalc();
+	fix();
+	test();
 
 	return 0;
 }
