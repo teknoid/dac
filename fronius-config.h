@@ -136,7 +136,7 @@ typedef struct gstate_old_t {
 
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv pvmin pvmax  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4    l1    l2    l3   l1v   l2v   l3v     f  ramp   soc timer flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv pvmin pvmax  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc timer flags"
 struct _pstate {
 	int pv;
 	int dpv;

@@ -29,6 +29,7 @@
 #define WAIT_SPIKE				3
 #define WAIT_RESPONSE			5
 #define WAIT_AKKU_CHARGE		30
+#define WAIT_BURNOUT			1800
 
 #define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
@@ -228,6 +229,10 @@ static void update_f10(sunspec_t *ss) {
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
 
 	switch (ss->inverter->St) {
+	case I_STATUS_STARTING:
+		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
+		break;
+
 	case I_STATUS_MPPT:
 		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		if (pstate->mppt1 == 1)
@@ -243,6 +248,7 @@ static void update_f10(sunspec_t *ss) {
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
+		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
@@ -259,6 +265,10 @@ static void update_f7(sunspec_t *ss) {
 		return;
 
 	switch (ss->inverter->St) {
+	case I_STATUS_STARTING:
+		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
+		break;
+
 	case I_STATUS_MPPT:
 		// only take over values in MPPT state
 		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
@@ -277,6 +287,7 @@ static void update_f7(sunspec_t *ss) {
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
+		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
@@ -570,92 +581,18 @@ static device_t* rampdown() {
 	return d;
 }
 
-static int steal_thief_victim(device_t *t, device_t *v) {
-	// thief not active or in standby
-	if (t->state == Disabled || t->state == Standby)
-		return 0;
-
-	// thief already (full) on
-	if (t->power == (t->adj ? 100 : 1))
-		return 0;
-
-	// akku can not steal power from secondary inverter
-	if (t == AKKU && pstate->ac7 > pstate->load * -1)
-		return 0;
-
-	// do not steal when victim is in override mode
-	if (v->override)
-		return 0;
-
-	// we can steal akkus charge power or victims load
-	int psteal = 0;
-	if (v == AKKU)
-		psteal = pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
-	else
-		psteal = v->load;
-
-	// nothing to steal
-	if (!psteal)
-		return 0;
-
-	// not enough to steal
-	int min = t->adj ? t->total / 100 : t->total; // adjustable: 1% of total, dumb: total
-	int power = pstate->ramp + psteal;
-	if (power < min)
-		return 0;
-
-	xdebug("FRONIUS steal %d from %s and provide it to %s with a load of %d min=%d", psteal, v->name, t->name, t->total, min);
-
-	// ramp down victim, ramp up thief (akku ramps down itself)
-	if (v != AKKU)
-		ramp(v, v->load * -1);
-	ramp(t, power);
-
-	// give akku time to release power
-	if (v == AKKU)
-		pstate->timer = 4 * WAIT_RESPONSE;
-
-	// no response expected as we put power from one to another device
-	t->delta = 0;
-	return 1;
-}
-
 static device_t* steal() {
 	// check flags
 	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		return 0;
 
-	// jump to end
-	device_t **tail = potd->devices;
-	while (*tail)
-		tail++;
-	tail--;
-
-	// thief goes forward, victim backward till it reaches thief
-	for (device_t **tt = potd->devices; *tt != 0; tt++)
-		for (device_t **vv = tail; vv != tt; vv--)
-			if (steal_thief_victim(*tt, *vv))
-				return *tt;
-
-	return 0;
-}
-
-static device_t* steal_multi() {
-	// check flags
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
-		return 0;
-
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		// thief not active or in standby
-		if (DD->state == Disabled || DD->state == Standby)
+		// thief not active or in standby - TODO akku cannot actively steal - only by ramping down victims
+		if (DD == AKKU || DD->state == Disabled || DD->state == Standby)
 			continue;
 
 		// thief already (full) on
 		if (DD->power == (DD->adj ? 100 : 1))
-			continue;
-
-		// akku can not steal power from secondary inverter
-		if (DD == AKKU && pstate->ac7 > pstate->load * -1)
 			continue;
 
 		// thief can steal akkus charge power or victims load when not in override mode
@@ -670,12 +607,15 @@ static device_t* steal_multi() {
 		int min = DD->adj ? DD->total / 100 : DD->total;
 		min += min / 10; // add 10%
 
-		// if enough - ramp up thief - victims gets automatically ramped down in next round
-		if (p > min)
-			if (ramp(DD, p)) {
-				xdebug("FRONIUS %s steal %d (min=%d)", DD->name, p, min);
-				return DD;
-			}
+		// not enough to steal
+		if (p < min)
+			continue;
+
+		// ramp up thief - victims gets automatically ramped down in next round
+		if (ramp(DD, p)) {
+			xdebug("FRONIUS %s steal %d (min=%d)", DD->name, p, min);
+			return DD;
+		}
 	}
 
 	return 0;
@@ -925,13 +865,17 @@ static void calculate_pstate() {
 	// offline mode when not enough PV production
 	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
 	if (!online) {
-		int burnout_time = !SUMMER && (now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8);
-		int burnout_possible = TEMP_IN < 20 && pstate->soc > 150;
+		// akku burnout between 6 and 9 o'clock when possible
+		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
+		int burnout_possible = TEMP_IN < 18 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
-			pstate->flags |= FLAG_BURNOUT; // akku burnout between 6 and 9 o'clock when possible
+			pstate->flags |= FLAG_BURNOUT; // burnout
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->ramp = pstate->xload = pstate->dxload = pstate->pv = pstate->dpv = pstate->mppt1 = pstate->mppt2 = pstate->mppt3 = pstate->mppt4 = 0;
+		pstate->ramp = pstate->grid * -1;
+		if (-NOISE < pstate->grid && pstate->grid <= NOISE)
+			pstate->ramp = 0; // shape
+		pstate->xload = pstate->dxload = 0;
 		return;
 	}
 
@@ -1037,18 +981,11 @@ static void emergency() {
 		ramp(DD, DOWN);
 }
 
-static void offline() {
-	akku_discharge();
-	// xlog("FRONIUS offline soc=%.1f temp=%.1f", FLOAT10(pstate->soc), TEMP_IN);
-}
-
 // burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
 static void burnout() {
 	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
-	// fronius_override_seconds("plug5", WAIT_OFFLINE);
-	// fronius_override_seconds("plug6", WAIT_OFFLINE);
-	// fronius_override_seconds("plug7", WAIT_OFFLINE); // makes no sense due to ventilate sleeping room
-	// fronius_override_seconds("plug8", WAIT_OFFLINE);
+	fronius_override_seconds("küche", WAIT_BURNOUT);
+	fronius_override_seconds("wozi", WAIT_BURNOUT);
 }
 
 static void daily() {
@@ -1232,7 +1169,6 @@ static void fronius() {
 		// initialize program of the day
 		if (!potd) {
 			calculate_gstate();
-			create_gstate_json();
 			choose_program();
 			print_gstate();
 			continue; // initial roundtrip to get pstate deltas
@@ -1256,10 +1192,6 @@ static void fronius() {
 			if (PSTATE_EMERGENCY)
 				emergency();
 
-			// check offline
-			if (PSTATE_OFFLINE)
-				offline();
-
 			// check burnout
 			if (PSTATE_BURNOUT)
 				burnout();
@@ -1282,7 +1214,7 @@ static void fronius() {
 
 			// prio5: check if higher priorized device can steal from lower priorized
 			if (!device)
-				device = steal_multi();
+				device = steal();
 		}
 
 		// print pstate once per minute / when delta / on device action
@@ -1581,7 +1513,7 @@ static int single() {
 	standby();
 	rampdown();
 	rampup();
-	steal_multi();
+	steal();
 
 	// aggregate 24 pstate hours into one day
 	pstate_t pda, pdc;
@@ -1741,6 +1673,8 @@ int fronius_override_seconds(const char *name, int seconds) {
 	device_t *d = get_by_name(name);
 	if (!d)
 		return 0;
+	if (d->override)
+		return 0;
 
 	xlog("FRONIUS Activating Override on %s", d->name);
 #ifdef FRONIUS_MAIN
@@ -1873,17 +1807,15 @@ int ramp_akku(device_t *akku, int power) {
 	if (!f10 || !pstate || !gstate)
 		return 0;
 
-	// init
+	// init - set to standby and wait for ramp request
 	if (akku->power == -1) {
 		akku->power = 0;
-
-		// enable discharging
-		if (PSTATE_OFFLINE)
-			return akku_discharge();
-
-		// set to standby and wait for ramp request
 		return akku_standby();
 	}
+
+	// offline - enable discharge
+	if (PSTATE_OFFLINE)
+		return akku_discharge();
 
 	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
@@ -1934,7 +1866,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 1; // loop done
 
 		// charging only at high noon on odd days when below 50%
-		if (SUMMER && pstate->soc > 500 && now->tm_yday % 2 && now->tm_hour < 11)
+		if (SUMMER && pstate->soc > 500 && now->tm_yday % 2 && now->tm_hour < 12)
 			return 0; // continue loop
 
 		// ramp up - enable charging

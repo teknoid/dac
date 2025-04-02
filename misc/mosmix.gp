@@ -150,15 +150,15 @@ set terminal svg size 1920,400
 set output "/run/mcp/pstate-power.svg"
 p pstate u 1:(0):"grid" w filledc below ls 3 t "↓sum",\
       '' u 1:(0):"grid" w filledc above ls 2 t "↑sum",\
-      '' u 1:"l1"       w lines lt 1 t "L1",\
-      '' u 1:"l2"       w lines lt 2 t "L2",\
-      '' u 1:"l3"       w lines lt 3 t "L3"
+      '' u 1:"p1"       w lines lt 1 t "P1",\
+      '' u 1:"p2"       w lines lt 2 t "P2",\
+      '' u 1:"p3"       w lines lt 3 t "P3"
       
       
 set ylabel "Grid - Voltage"
 set yrange [220:250] 
 set output "/run/mcp/pstate-voltage.svg"
-p pstate u 1:"l1v" w lines t "L1", '' u 1:"l2v" w lines t "L2", '' u 1:"l3v" w lines t "L3"
+p pstate u 1:"v1" w lines t "V1", '' u 1:"v2" w lines t "V2", '' u 1:"v3" w lines t "V3"
 
 set ylabel "Grid - Frequency +/-"
 set yrange [-50:50]
