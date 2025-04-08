@@ -19,6 +19,7 @@ mat-tab-group			{ display:none }
 .cardwrapper-col-sm-12	{ display:none !important }
 .cdk-visually-hidden	{ display:none !important }
 .power-component-details-overlay	{ display:none !important }
+.error-overlay			{ line-height:1 }
 
 .beneath-header			{ top:0 !important; height:auto !important }
 .app-content			{ margin-bottom:0px !important }

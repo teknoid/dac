@@ -20,6 +20,7 @@ body, html {
 	float: left
 }
 
+/* desktop */
 @media (max-width: 2000px) {
 	iframe					{ width:400px; height:400px }
 	.powerflow				{ display:block; float:inline-end }
@@ -36,6 +37,7 @@ body, html {
 	dl dd.akku .p			{ background:orangered }
 }
 
+/* laptop */
 @media (max-width: 1400px) {
 	iframe					{ width:400px; height:400px }
 	.powerflow				{ display:block; float:inline-end }
@@ -52,11 +54,12 @@ body, html {
 	dl dd.akku .p			{ background:orangered }
 }
 
-@media (max-width: 1100px) {
-	iframe					{ width:1000px; height:1000px }
+/* mobile */
+@media (max-width: 1000px) {
+	iframe					{ width:980px; height:940px }
 	.powerflow				{ display:block; float:inline-end }
 	.state					{ font-size:32px }
-	.svg					{ max-width:1000px }
+	.svg					{ max-width:980px }
 
 	dl 						{ font-size:32px }
 	dl dt					{ width:95px; float:left; writing-mode:sideways-rl; position:relative; top:20px; left:-32px; z-index:+1 }
