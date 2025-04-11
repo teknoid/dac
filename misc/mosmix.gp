@@ -114,7 +114,7 @@ p today u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
      '' u 1:"exp1"  t "exp1"  w lines lt 1,\
      '' u 1:"exp2"  t "exp2"  w lines lt 2,\
      '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	 '' u 1:($7+$8+$9) w lines ls 1 lw 2 t "sum"
+	 '' u 1:($3+$4+$5) w lines ls 1 lw 2 t "sum"
 
 set ylabel "Tomorrow"
 set output "/run/mcp/mosmix-tomorrow.svg" 
@@ -123,7 +123,7 @@ p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($7+$8+$9) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($3+$4+$5) w lines ls 1 lw 2 t "sum"
 
 
 # pstate
