@@ -28,7 +28,7 @@ function update_dstate() {
 				var height = v.load * 100 / v.total;
 				var load = v.load;
 				var clazz = 'bar';
-				if (v.state == 2) {
+				if (v.state == 3) {
 					clazz += ' z';
 				} else if (v.load < 0) {
 					clazz += ' m';
@@ -53,11 +53,11 @@ function update_gstate() {
 			Object.entries(data).forEach(([k, v]) => {
 				var item = document.querySelector('.gstate .' + k);
 				if (item) { 
-					if (v < 0) {
+					if (v < -10) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-p');
 						item.classList.add(k + '-m');
-					} else if (v > 0) {
+					} else if (v > 10) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-m');
 						item.classList.add(k + '-p');
@@ -91,11 +91,11 @@ function update_pstate() {
 			Object.entries(data).forEach(([k, v]) => {
 				var item = document.querySelector('.pstate .' + k);
 				if (item) { 
-					if (v <= -10) {
+					if (v < -10) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-p');
 						item.classList.add(k + '-m');
-					} else if (v >= 10) {
+					} else if (v > 10) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-m');
 						item.classList.add(k + '-p');
