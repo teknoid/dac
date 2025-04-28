@@ -104,8 +104,8 @@ p factors u 1:"r1" t "r1" w lines,\
 
 
 # forecasts
-set xrange [4:20]
-set yrange [0:8000]
+set xrange [4:21]
+set yrange [0:10000]
 
 set ylabel "Today"
 set output "/run/mcp/mosmix-today.svg" 

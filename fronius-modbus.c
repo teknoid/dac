@@ -630,27 +630,27 @@ static device_t* perform_standby(device_t *d) {
 	return d;
 }
 
-static int force_standby() {
-	if (SUMMER)
-		return 1; // summer mode -> off
+static device_t* standby() {
+	// too hot to heat
+	int force_standby = TEMP_IN > 25;
+
+	// no need to heat
+	if (SUMMER && TEMP_OUT > 10 && TEMP_IN > 20)
+		force_standby = 1;
 
 	// force heating independently from temperature
 	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
-		return 0;
+		force_standby = 0;
 	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
-		return 0;
-	else if (now->tm_mon == 2 || now->tm_mon == 1) // only when very hot
-		return TEMP_IN > 27;
+		force_standby = 0;
+	else if (now->tm_mon == 2 || now->tm_mon == 1) // switch off only when very hot
+		force_standby = TEMP_IN > 27;
 
-	return TEMP_IN > 25; // too hot for heating
-}
-
-static device_t* standby() {
-	// put dumb devices into standby if summer or too hot
-	if (force_standby()) {
-		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
+	// put dumb devices into standby if forced
+	if (force_standby) {
+		xlog("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd; dd++) {
-			if (!DD->adj && DD->state == Active) {
+			if (!DD->adj && (DD->state == Active || DD->state == Active_Checked)) {
 				ramp(DD, DOWN);
 				DD->state = Standby;
 			}
@@ -718,7 +718,7 @@ static device_t* response(device_t *d) {
 	int wait = AKKU_CHARGING && delta > 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
-	if (d->state == Active && r) {
+	if (r && (d->state == Active || d->state == Active_Checked)) {
 		xdebug("FRONIUS response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
 		pstate->timer = wait;
