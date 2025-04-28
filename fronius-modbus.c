@@ -968,11 +968,11 @@ static void calculate_pstate() {
 		pstate->timer = WAIT_SPIKE; // load timer
 	}
 	if (f10 && !f10->active) {
-//		xlog("FRONIUS Fronius10 is not active!");
+		xdebug("FRONIUS Fronius10 is not active!");
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (f7 && !f7->active) {
-//		xlog("FRONIUS Fronius7 is not active!");
+		xdebug("FRONIUS Fronius7 is not active!");
 	}
 }
 
@@ -1241,7 +1241,7 @@ static void fronius() {
 }
 
 static int init() {
-	set_debug(1);
+	// set_debug(1);
 
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
