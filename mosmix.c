@@ -168,8 +168,8 @@ void mosmix_factors() {
 		factor_t *f = FACTORS(h);
 
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-		for (int r = 1; r < FACTORS_MAX; r++) { // cannot be 0
-			for (int s = 0; s < FACTORS_MAX; s++) { // can be 0
+		for (int r = 0; r < FACTORS_MAX; r++) {
+			for (int s = 0; s < FACTORS_MAX; s++) {
 				mosmix_t cum, x;
 				ZERO(cum);
 
@@ -196,7 +196,7 @@ void mosmix_factors() {
 				}
 
 				// now find the coefficients producing the smallest error and store them to table
-				// TODO find out how s influences result, currently set as 1 : 0.33
+				// TODO find out how s influences result, currently set as 3 : 1
 				if (cum.err1 < f->e1 && r > s * 3) {
 					f->r1 = r;
 					f->s1 = s;
