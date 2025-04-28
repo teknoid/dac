@@ -404,25 +404,26 @@ static void print_pstate_dstate(device_t *d) {
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
-		case 0:
+		case Disabled:
 			snprintf(value, 5, " .");
 			break;
-		case 1:
+		case Active:
+		case Active_Checked:
 			if (DD->adj)
 				snprintf(value, 5, " %3d", DD->power);
 			else
 				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
 			break;
-		case 2:
+		case Standby:
 			snprintf(value, 5, " S");
 			break;
-		case 3:
+		case Standby_Check:
 			snprintf(value, 5, " s");
 			break;
-		case 4:
+		case Charge:
 			snprintf(value, 5, " C");
 			break;
-		case 5:
+		case Discharge:
 			snprintf(value, 5, " D");
 			break;
 		default:
@@ -728,7 +729,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Standby_Check && r) {
 		xdebug("FRONIUS standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
-		d->state = Active;
+		d->state = Active_Checked; // mark Active with standby check performed
 		pstate->timer = wait;
 		return d; // recalculate in next round
 	}
@@ -1032,10 +1033,12 @@ static void daily() {
 static void hourly() {
 	xlog("FRONIUS executing hourly tasks...");
 
-	// resetting noresponse counters and standby states
+	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD == AKKU)
+			continue;
 		DD->noresponse = 0;
-		if (DD != AKKU && DD->state == Standby)
+		if (DD->state == Standby || DD->state == Active_Checked)
 			DD->state = Active;
 	}
 

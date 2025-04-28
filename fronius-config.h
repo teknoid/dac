@@ -71,7 +71,7 @@
 #define DOWN					(*dd)->total * -1
 
 enum dstate {
-	Disabled, Active, Standby, Standby_Check, Charge, Discharge
+	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
 };
 
 typedef struct _counter counter_t;
