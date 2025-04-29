@@ -20,9 +20,12 @@
 #define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 #define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 
+#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
+#define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
+
 #define AKKU_BURNOUT			1
-#define BASELOAD				300
 #define SUSPICIOUS				500
+#define BASELOAD				(WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 #define RAMP_WINDOW				35
 #define NOISE					10
@@ -36,9 +39,6 @@
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
 #endif
-
-#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
-#define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
 #define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 

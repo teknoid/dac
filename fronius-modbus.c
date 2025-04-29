@@ -939,9 +939,9 @@ static void calculate_pstate() {
 	if (pstate->timer)
 		return;
 
-	// indicate standby check when deviation between actual load and calculated load is 3x above 33%
-	pstate->dxload = pstate->load < -BASELOAD ? (pstate->xload - pstate->load) * 100 / pstate->xload : 0;
-	if (pstate->dxload > 33 && s1->dxload > 33 && s2->dxload > 33)
+	// indicate standby check when deviation between actual load and calculated load is 3x below 33%
+	pstate->dxload = pstate->load * 100 / pstate->xload;
+	if (pstate->dxload < 33 && s1->dxload < 33 && s2->dxload < 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 	if (PSTATE_CHECK_STANDBY)
 		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
