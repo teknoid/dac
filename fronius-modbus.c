@@ -635,7 +635,7 @@ static device_t* standby() {
 	int force_standby = TEMP_IN > 25;
 
 	// no need to heat
-	if (SUMMER && TEMP_OUT > 10 && TEMP_IN > 20)
+	if (TEMP_OUT > 15 && TEMP_IN > 20)
 		force_standby = 1;
 
 	// force heating independently from temperature
@@ -648,7 +648,7 @@ static device_t* standby() {
 
 	// put dumb devices into standby if forced
 	if (force_standby) {
-		xlog("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
+		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd; dd++) {
 			if (!DD->adj && (DD->state == Active || DD->state == Active_Checked)) {
 				ramp(DD, DOWN);
