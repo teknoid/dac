@@ -939,7 +939,7 @@ static void calculate_pstate() {
 	if (pstate->timer)
 		return;
 
-	// indicate standby check when deviation between actual load and calculated load is 3x below 33%
+	// indicate standby check when actual load is 3x below 33% of calculated load
 	pstate->dxload = pstate->load * 100 / pstate->xload;
 	if (pstate->dxload < 33 && s1->dxload < 33 && s2->dxload < 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
