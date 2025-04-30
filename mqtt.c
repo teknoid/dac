@@ -78,6 +78,15 @@ static uint64_t get_mac(const char *topic, size_t size) {
 	return 0;
 }
 
+// ledstrip blink red
+static void led() {
+	// TODO mcp->notifications_led
+#ifdef LCD
+	// TODO blockiert?
+	ledstrip_blink_red();
+#endif
+}
+
 // show on LCD display line 1 and 2
 static void lcd(const char *line1, const char *line2) {
 	if (!mcp->notifications_lcd)
@@ -305,8 +314,7 @@ int notify(const char *title, const char *text, const char *sound) {
 int notify_red(const char *title, const char *text, const char *sound) {
 	xdebug("MQTT notification %s/%s/%s", title, text, sound);
 
-	// TODO blockiert?
-	ledstrip_blink_red();
+	led();
 	lcd(title, text);
 	desktop(title, text);
 	if (sound != NULL)
