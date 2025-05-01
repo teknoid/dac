@@ -20,7 +20,7 @@ static const xmas_t devices[] = {
 	{ PLUG3, 0 },
 	{ PLUG4, 0 },
 	{ PLUG9, 0 },
-	{ CARPORT, 1 },
+//	{ CARPORT, 1 },
 	{ SCHUPPEN, 1 },
 	{ SWITCHBOX, 4 },
 };
