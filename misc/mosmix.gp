@@ -93,7 +93,7 @@ p gstate u 1:"mppt1" t "mppt1"    w lines,\
 
 # factors
 set ylabel "Factors"
-set xrange [0:24]
+set xrange [4:21]
 set output "/run/mcp/mosmix-factors.svg" 
 p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"r2" t "r2" w lines,\

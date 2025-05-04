@@ -181,24 +181,30 @@ void ledstrip_toggle() {
 }
 
 void ledstrip_mode_fade() {
-	old_mode = mode;
-	old_power = power;
+	if (old_mode != mode)
+		old_mode = mode;
+	if (old_power != power)
+		old_power = power;
 	mode = Fade;
 	if (!power)
 		ledstrip_on();
 }
 
 void ledstrip_mode_blink() {
-	old_mode = mode;
-	old_power = power;
+	if (old_mode != mode)
+		old_mode = mode;
+	if (old_power != power)
+		old_power = power;
 	mode = Blink;
 	if (!power)
 		ledstrip_on();
 }
 
 void ledstrip_mode_color(uint8_t rr, uint8_t gg, uint8_t bb) {
-	old_mode = mode;
-	old_power = power;
+	if (old_mode != mode)
+		old_mode = mode;
+	if (old_power != power)
+		old_power = power;
 	r = rr;
 	g = gg;
 	b = bb;

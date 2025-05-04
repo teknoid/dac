@@ -15,6 +15,7 @@
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
 
 #define FACTORS_MAX				333
+#define NOISE					10
 
 // all values
 static mosmix_csv_t mosmix_csv[256];
@@ -97,6 +98,15 @@ static void expected(mosmix_t *m, factor_t *f) {
 	m->exp2 = f->r2 * m->Rad1h / 100 + f->s2 * m->SunD1 / 100;
 	m->exp3 = f->r3 * m->Rad1h / 100 + f->s3 * m->SunD1 / 100;
 	m->exp4 = f->r4 * m->Rad1h / 100 + f->s4 * m->SunD1 / 100;
+
+	if (m->exp1 < NOISE)
+		m->exp1 = 0;
+	if (m->exp2 < NOISE)
+		m->exp2 = 0;
+	if (m->exp3 < NOISE)
+		m->exp3 = 0;
+	if (m->exp4 < NOISE)
+		m->exp4 = 0;
 }
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -242,10 +252,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m->diff4 = m->mppt4 - m->exp4;
 
 	// calculate errors as actual / expected
-	m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
-	m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
-	m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
-	m->err4 = m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
+	m->err1 = m->exp1 && m->mppt1 ? m->mppt1 * 100 / m->exp1 : 100;
+	m->err2 = m->exp2 && m->mppt2 ? m->mppt2 * 100 / m->exp2 : 100;
+	m->err3 = m->exp3 && m->mppt3 ? m->mppt3 * 100 / m->exp3 : 100;
+	m->err4 = m->exp4 && m->mppt4 ? m->mppt4 * 100 / m->exp4 : 100;
 
 	// save to history
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
