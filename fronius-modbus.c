@@ -542,7 +542,7 @@ static int ramp_multi(device_t *d) {
 	if (ret) {
 		// recalculate ramp power
 		int old_ramp = pstate->ramp;
-		pstate->ramp -= d->delta;
+		pstate->ramp -= d->delta + d->delta / 2; // add 50%
 		// too less to forward
 		if (old_ramp > 0 && pstate->ramp < NOISE * 2)
 			pstate->ramp = 0;
@@ -602,7 +602,7 @@ static device_t* steal() {
 			if (*vv == AKKU)
 				p += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
 			else
-				p += !(*vv)->override ? (*vv)->load : 0;
+				p += !(*vv)->override && !(*vv)->noresponse ? (*vv)->load : 0;
 
 		// adjustable: 1% of total, dumb: total
 		int min = DD->adj ? DD->total / 100 : DD->total;
