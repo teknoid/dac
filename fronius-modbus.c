@@ -184,36 +184,44 @@ static int storage_min(char *arg) {
 }
 
 static int akku_standby() {
+	AKKU->state = Standby;
 #ifndef FRONIUS_MAIN
 	if (!sunspec_storage_limit_both(f10, 0, 0))
 		xdebug("FRONIUS set akku STANDBY");
 #endif
-	AKKU->state = Standby;
 	return 0; // continue loop
 }
 
 static int akku_charge() {
-#ifndef FRONIUS_MAIN
-	if (!sunspec_storage_limit_discharge(f10, 0))
-		xdebug("FRONIUS set akku CHARGE");
-#endif
 	AKKU->state = Charge;
-	return WAIT_AKKU_CHARGE; // loop done
+#ifndef FRONIUS_MAIN
+	if (!sunspec_storage_limit_discharge(f10, 0)) {
+		xdebug("FRONIUS set akku CHARGE");
+		return WAIT_AKKU_CHARGE; // loop done
+	}
+#endif
+	return 0; // continue loop
 }
 
 static int akku_discharge() {
-#ifndef FRONIUS_MAIN
+	AKKU->state = Discharge;
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
-		if (!sunspec_storage_limit_both(f10, 0, BASELOAD))
+#ifndef FRONIUS_MAIN
+		if (!sunspec_storage_limit_both(f10, 0, BASELOAD)) {
 			xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
-	} else {
-		if (!sunspec_storage_limit_charge(f10, 0))
-			xdebug("FRONIUS set akku DISCHARGE");
-	}
+			return WAIT_RESPONSE; // loop done
+		}
 #endif
-	AKKU->state = Discharge;
-	return WAIT_RESPONSE; // loop done
+	} else {
+#ifndef FRONIUS_MAIN
+		if (!sunspec_storage_limit_charge(f10, 0)) {
+			xdebug("FRONIUS set akku DISCHARGE");
+			return WAIT_RESPONSE; // loop done
+		}
+#endif
+	}
+	return 0; // continue loop
 }
 
 static void update_f10(sunspec_t *ss) {
