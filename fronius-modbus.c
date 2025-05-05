@@ -604,7 +604,7 @@ static device_t* steal() {
 		if (DD->power == (DD->adj ? 100 : 1))
 			continue;
 
-		// thief can steal akkus charge power or victims load when not in override mode
+		// thief can steal akkus charge power or victims load when not in override mode and zero noresponse counter
 		int p = 0;
 		for (device_t **vv = dd + 1; *vv; vv++)
 			if (*vv == AKKU)
