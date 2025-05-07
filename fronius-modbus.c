@@ -1876,8 +1876,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (m1_pv < m1_load)
 			return 1; // loop done
 
-		// charging starts at high noon on odd days when below 50%
-		if (SUMMER && (now->tm_yday % 2 || pstate->soc > 500 || now->tm_hour < 12))
+		// charging starts at high noon when below 25%
+		if (SUMMER && (pstate->soc > 250 || now->tm_hour < 12))
 			return 0; // continue loop
 
 		// ramp up - enable charging
