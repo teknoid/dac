@@ -933,7 +933,7 @@ static void calculate_pstate() {
 	// - active devices
 	// - all devices in standby
 	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->xload = BASELOAD;
+	pstate->xload = 0;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
 		if (DD != AKKU && DD->power > 0) // excl. akku; -1 when unitialized!
@@ -941,15 +941,15 @@ static void calculate_pstate() {
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
-	pstate->xload *= -1;
 
 	// no validation as long as timer is running
 	if (pstate->timer)
 		return;
 
-	// indicate standby check when actual load is 3x below 33% of calculated load
-	pstate->dxload = pstate->load * 100 / pstate->xload;
-	if (pstate->dxload <= 33 && s1->dxload <= 33 && s2->dxload <= 33)
+	// indicate standby check when actual load is 3x below 50% of calculated load
+	int zload = -1 * pstate->load - BASELOAD;
+	pstate->dxload = zload > 0 && pstate->xload ? zload * 100 / pstate->xload : 0;
+	if (pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 	if (PSTATE_CHECK_STANDBY)
 		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
