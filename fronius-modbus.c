@@ -514,6 +514,11 @@ static int choose_program() {
 	// return select_program(&GREEDY);
 	// return select_program(&MODEST);
 
+	// summer
+	if (SUMMER)
+		return select_program(&PLENTY);
+
+	// fallback
 	if (!gstate)
 		return select_program(&MODEST);
 
