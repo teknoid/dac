@@ -336,6 +336,7 @@ int main(int argc, char **argv) {
 		case 'i':
 			cfg->interactive = 1;
 			break;
+		default:
 		}
 	}
 
