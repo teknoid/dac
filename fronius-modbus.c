@@ -35,9 +35,6 @@
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
 #define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
 
-// program of the day - choosen by mosmix forecast data
-static potd_t *potd = 0;
-
 // counter history every hour over one day and access pointers
 static counter_t counter_hours[24];
 static volatile counter_t *counter = 0;
@@ -70,6 +67,9 @@ static volatile pstate_t *pstate = 0;
 #define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
+
+// program of the day - choosen by mosmix forecast data
+static potd_t *potd = 0;
 
 // SunSpec modbus devices
 static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
@@ -228,10 +228,10 @@ static void update_f10(sunspec_t *ss) {
 	if (!pstate || !counter)
 		return;
 
-	pstate->f = ss->inverter->Hz - 5000; // store only the diff
-	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
+//	pstate->f = ss->inverter->Hz - 5000; // store only the diff
+//	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+//	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+//	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 	pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
 	pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
@@ -317,10 +317,10 @@ static void update_meter(sunspec_t *ss) {
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-//	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-//	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-//	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-//	pstate->f = ss->meter->Hz - 5000; // store only the diff
+	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+	pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
 // TODO load auch in gstate speichern und dann average über 1 woche ermitteln
