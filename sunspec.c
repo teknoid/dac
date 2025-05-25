@@ -312,9 +312,6 @@ static void* poll(void *arg) {
 
 		while (errors > -10) {
 
-			// set timestamp for callback
-			ss->ts = time(NULL);
-
 			// PROFILING_START
 
 			// read dynamic models in the loop
@@ -325,12 +322,13 @@ static void* poll(void *arg) {
 
 			// PROFILING_LOG(ss->name)
 
-			// execute the callback function to process model data
-			if (ss->callback)
-				(ss->callback)(ss);
-
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
+
+			// execute the callback function to process model data
+			ss->ts = time(NULL);
+			if (ss->callback)
+				(ss->callback)(ss);
 
 			// wait for next second
 			while (ss->ts == time(NULL))
