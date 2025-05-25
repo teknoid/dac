@@ -110,7 +110,7 @@ static pstate_t pstate_history[PSTATE_HISTORY], *pstate = &pstate_history[0];
 static int pstate_history_ptr = 0;
 
 static struct tm *lt, now_tm, *now = &now_tm;
-static int sock = 0;
+static int lock = 0, sock = 0;
 
 // reading Inverter API: CURL handles, response memory, raw date, error counter
 static CURL *curl10, *curl7, *curl_readable;
@@ -448,7 +448,7 @@ static int steal_thief_victim(device_t *t, device_t *v) {
 
 	// give akku time to adjust
 	if (v == AKKU)
-		pstate->timer = WAIT_AKKU_RAMP;
+		lock = WAIT_AKKU_RAMP;
 
 	// no response expected as we put power from one to another device
 	t->delta = 0;
@@ -558,7 +558,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Active && response) {
 		xdebug("FRONIUS response OK from %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
-		pstate->timer = 0;
+		lock = 0;
 		if (pstate->soc < 1000)
 			sleep(WAIT_AKKU_RAMP); // delay next round to give akku time to adjust
 		return 0;
@@ -569,7 +569,7 @@ static device_t* response(device_t *d) {
 		xdebug("FRONIUS standby check negative for %s, delta load expected %d actual %d", d->name, expected, delta);
 		d->noresponse = 0;
 		d->state = Active;
-		pstate->timer = 0;
+		lock = 0;
 		return d;
 	}
 

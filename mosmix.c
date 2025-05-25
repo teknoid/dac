@@ -131,17 +131,16 @@ static void update_today_tomorrow_from_history(struct tm *now) {
 
 // update today and tomorrow with actual data from mosmix kml download
 static void update_today_tomorrow(struct tm *now) {
+	struct tm tm;
 	int day_today = now->tm_yday;
 	int day_tomorrow = now->tm_yday < 365 ? now->tm_yday + 1 : 0;
 
 	// loop over one week
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_csv_t *mcsv = &mosmix_csv[i];
-		time_t t = mcsv->ts - 1; // fix hour
 
 		// find slot to update
-		struct tm tm;
-		localtime_r(&t, &tm);
+		localtime_r(&mcsv->ts, &tm);
 		mosmix_t *m = 0;
 		if (tm.tm_yday == day_today)
 			m = TODAY(tm.tm_hour);
@@ -206,23 +205,22 @@ void mosmix_factors() {
 				}
 
 				// now find the coefficients producing the smallest error and store them to table
-				// TODO find out how s influences result, currently set as 3 : 1
-				if (cum.err1 < f->e1 && r > s * 3) {
+				if (cum.err1 < f->e1) {
 					f->r1 = r;
 					f->s1 = s;
 					f->e1 = cum.err1;
 				}
-				if (cum.err2 < f->e2 && r > s * 3) {
+				if (cum.err2 < f->e2) {
 					f->r2 = r;
 					f->s2 = s;
 					f->e2 = cum.err2;
 				}
-				if (cum.err3 < f->e3 && r > s * 3) {
+				if (cum.err3 < f->e3) {
 					f->r3 = r;
 					f->s3 = s;
 					f->e3 = cum.err3;
 				}
-				if (cum.err4 < f->e4 && r > s * 3) {
+				if (cum.err4 < f->e4) {
 					f->r4 = r;
 					f->s4 = s;
 					f->e4 = cum.err4;
@@ -471,7 +469,7 @@ int mosmix_load(struct tm *now, const char *filename) {
 }
 
 static void test() {
-	// return;
+	return;
 
 	int x = 3333;
 	int f = 222;
@@ -539,7 +537,7 @@ static void test() {
 }
 
 static void recalc() {
-	return;
+//	return;
 
 	ZERO(history);
 	load_blob(MOSMIX_HISTORY, history, sizeof(history));

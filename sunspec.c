@@ -312,9 +312,8 @@ static void* poll(void *arg) {
 
 		while (errors > -10) {
 
-			// wait for next read request
-			while (!ss->read)
-				msleep(100);
+			// set timestamp for callback
+			ss->ts = time(NULL);
 
 			// PROFILING_START
 
@@ -333,8 +332,9 @@ static void* poll(void *arg) {
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 
-			// reset read request
-			ss->read = 0;
+			// wait for next second
+			while (ss->ts == time(NULL))
+				msleep(100);
 
 			// pause when set
 			if (ss->sleep)

@@ -388,7 +388,7 @@ struct _sunspec {
 	int slave;
 	int active;
 	int sleep;
-	int read;
+	time_t ts;
 	sunspec_callback_t callback;
 	pthread_t thread;
 	pthread_mutex_t lock;
