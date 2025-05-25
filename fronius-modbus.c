@@ -1256,16 +1256,6 @@ static int init() {
 	if (sock == 0)
 		return xerr("Error creating socket");
 
-	// initialize hourly & daily & monthly
-	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
-
-	// initialize state and counter pointers
-	counter = COUNTER_NOW;
-	gstate = GSTATE_NOW;
-	pstate = PSTATE_NOW;
-
 	// initialize all devices with start values
 	xlog("FRONIUS initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -1288,6 +1278,17 @@ static int init() {
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
+	// initialize timing
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
+
+	// initialize state and counter pointers
+	counter = COUNTER_NOW;
+	gstate = GSTATE_NOW;
+	pstate = PSTATE_NOW;
+
+	// load mosmix data
 	mosmix_load_history(now);
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG);
