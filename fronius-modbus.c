@@ -36,8 +36,7 @@
 #define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
 
 // counter history every hour over one day and access pointers
-static counter_t counter_hours[24];
-static volatile counter_t *counter = 0;
+static counter_t counter_hours[24], counter_current, *counter = &counter_current;
 #define COUNTER_NOW				(&counter_hours[now->tm_hour])
 #define COUNTER_LAST			(&counter_hours[now->tm_hour > 00 ? now->tm_hour - 1 : 23])
 #define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 00])
@@ -45,8 +44,7 @@ static volatile counter_t *counter = 0;
 #define COUNTER_0				(&counter_hours[0])
 
 // 24h slots over one week and access pointers
-static gstate_t gstate_hours[24 * 7];
-static volatile gstate_t *gstate = 0;
+static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
@@ -56,7 +54,7 @@ static volatile gstate_t *gstate = 0;
 
 // pstate history every second/minute/hour and access pointers
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
-static volatile pstate_t *pstate = 0;
+static volatile pstate_t *pstate = &pstate_seconds[0];
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
 #define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
@@ -69,6 +67,7 @@ static volatile pstate_t *pstate = 0;
 #define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
+#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
@@ -227,10 +226,10 @@ static int akku_discharge() {
 }
 
 static void update_f10(sunspec_t *ss) {
+	time_t ts = ss->ts + 1; // writing the NEXT second
 	struct tm tm;
-	localtime_r(&ss->ts, &tm);
+	localtime_r(&ts, &tm);
 	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-	counter_t *c = COUNTER_HOUR(tm.tm_hour);
 
 	p->f = ss->inverter->Hz - 5000; // store only the diff
 	p->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
@@ -253,8 +252,8 @@ static void update_f10(sunspec_t *ss) {
 		p->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		if (p->mppt2 == 1)
 			p->mppt2 = 0; // noise
-		c->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		c->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
 		break;
@@ -274,10 +273,10 @@ static void update_f10(sunspec_t *ss) {
 }
 
 static void update_f7(sunspec_t *ss) {
+	time_t ts = ss->ts + 1; // writing the NEXT second
 	struct tm tm;
-	localtime_r(&ss->ts, &tm);
+	localtime_r(&ts, &tm);
 	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-	counter_t *c = COUNTER_HOUR(tm.tm_hour);
 
 	switch (ss->inverter->St) {
 	case I_STATUS_STARTING:
@@ -294,8 +293,8 @@ static void update_f7(sunspec_t *ss) {
 		p->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		if (p->mppt4 == 1)
 			p->mppt4 = 0; // noise
-		c->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		c->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
 		break;
@@ -315,13 +314,13 @@ static void update_f7(sunspec_t *ss) {
 }
 
 static void update_meter(sunspec_t *ss) {
+	time_t ts = ss->ts + 1; // writing the NEXT second
 	struct tm tm;
-	localtime_r(&ss->ts, &tm);
+	localtime_r(&ts, &tm);
 	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-	counter_t *c = COUNTER_HOUR(tm.tm_hour);
 
-	c->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
-	c->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
+	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	p->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
@@ -361,9 +360,6 @@ static int collect_load(int from, int hours) {
 }
 
 static void store_meter_power(device_t *d) {
-	if (!pstate)
-		return;
-
 	d->p1 = pstate->p1;
 	d->p2 = pstate->p2;
 	d->p3 = pstate->p3;
@@ -396,8 +392,6 @@ static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "∑PV", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
-	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
@@ -526,10 +520,6 @@ static int choose_program() {
 	// summer
 	if (SUMMER)
 		return select_program(&PLENTY);
-
-	// fallback
-	if (!gstate)
-		return select_program(&MODEST);
 
 	// akku is empty - charging akku has priority
 	if (gstate->soc < 100)
@@ -782,33 +772,17 @@ static void calculate_gstate() {
 	gstate->soc = pstate->soc;
 
 	// get previous values to calculate deltas
-	counter_t *c = COUNTER_LAST, *c0 = COUNTER_0;
-	gstate_t *g = GSTATE_LAST;
+	counter_t *c = COUNTER_0;
+	gstate_t *g = GSTATE_NOW;
 
-	// pv / consumed / produced -> day total
+	// day total: pv / consumed / produced
 	gstate->pv = 0;
-	gstate->pv += counter->mppt1 && c0->mppt1 ? counter->mppt1 - c0->mppt1 : 0;
-	gstate->pv += counter->mppt2 && c0->mppt2 ? counter->mppt2 - c0->mppt2 : 0;
-	gstate->pv += counter->mppt3 && c0->mppt3 ? counter->mppt3 - c0->mppt3 : 0;
-	gstate->pv += counter->mppt4 && c0->mppt4 ? counter->mppt4 - c0->mppt4 : 0;
-	gstate->produced = counter->produced && c0->produced ? counter->produced - c0->produced : 0;
-	gstate->consumed = counter->consumed && c0->consumed ? counter->consumed - c0->consumed : 0;
-
-	// mppt's -> last hour
-	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
-	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
-	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
-	gstate->mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
-
-	// noise
-	if (gstate->mppt1 < NOISE)
-		gstate->mppt1 = 0;
-	if (gstate->mppt2 < NOISE)
-		gstate->mppt2 = 0;
-	if (gstate->mppt3 < NOISE)
-		gstate->mppt3 = 0;
-	if (gstate->mppt4 < NOISE)
-		gstate->mppt4 = 0;
+	gstate->pv += counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
+	gstate->pv += counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
+	gstate->pv += counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
+	gstate->pv += counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
+	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
+	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
 
 	// akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
@@ -1056,14 +1030,11 @@ static void hourly() {
 	PROFILING_START
 	xlog("FRONIUS executing hourly tasks...");
 
-	// aggregate 60 minutes into current hour
+	// aggregate 60 minutes into last hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = PSTATE_HOUR_NOW;
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
-
-	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
-	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", gstate->mppt1, ph->mppt1, gstate->mppt2, ph->mppt2, gstate->mppt3, ph->mppt3);
+	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -1079,10 +1050,30 @@ static void hourly() {
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp(DD, DOWN);
 
+	// calculate mppt's last hour produced
+	counter_t *c = COUNTER_LAST;
+	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
+	int mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
+	int mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
+	int mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
+
+	// noise
+	if (mppt1 < NOISE)
+		mppt1 = 0;
+	if (mppt2 < NOISE)
+		mppt2 = 0;
+	if (mppt3 < NOISE)
+		mppt3 = 0;
+	if (mppt4 < NOISE)
+		mppt4 = 0;
+
+	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
+	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", mppt1, ph->mppt1, mppt2, ph->mppt2, mppt3, ph->mppt3);
+
 	// reload and update mosmix, collect new forecasts
 	int today, tomorrow, sod, eod;
 	mosmix_load(now, MARIENBERG);
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
@@ -1102,18 +1093,19 @@ static void hourly() {
 	mosmix_heating(now, heating_total, &hours, &from, &to);
 	gstate->need_heating = heating_total * hours;
 
-	// copy gstate and counters to next hour (Fronius7 goes into sleep mode - no updates overnight)
-	memcpy(COUNTER_NEXT, (void*) counter, sizeof(counter_t));
-	memcpy(GSTATE_NEXT, (void*) gstate, sizeof(gstate_t));
+	// copy gstate and counters to history
+	memcpy(COUNTER_NOW, (void*) counter, sizeof(counter_t));
+	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 
 	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
 
 	// create/append pstate minutes csv
+	int offset = now->tm_hour == 0 ? 23 * 60 : (now->tm_hour - 1) * 60;
 	if (now->tm_hour == 1 || access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
-	append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, now->tm_hour * 60, PSTATE_M_CSV);
+	append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
 
 	// paint new diagrams
 	plot();
@@ -1133,7 +1125,7 @@ static void hourly() {
 static void minly() {
 	// xlog("FRONIUS executing minutely tasks...");
 
-	// aggregate 60 seconds into current minute
+	// aggregate 60 seconds into last minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 
@@ -1164,8 +1156,6 @@ static void fronius() {
 		now_ts = time(NULL);
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
-		counter = COUNTER_NOW;
-		gstate = GSTATE_NOW;
 		pstate = PSTATE_NOW;
 
 		// calculate pstate
@@ -1280,11 +1270,6 @@ static int init() {
 	time_t now_ts = time(NULL);
 	lt = localtime(&now_ts);
 	memcpy(now, lt, sizeof(*lt));
-
-	// initialize state and counter pointers
-	counter = COUNTER_NOW;
-	gstate = GSTATE_NOW;
-	pstate = PSTATE_NOW;
 
 	// load mosmix data
 	mosmix_load_history(now);
@@ -1507,10 +1492,6 @@ static int loop() {
 static int single() {
 	init();
 
-	gstate = GSTATE_NOW;
-	counter = COUNTER_NOW;
-	pstate = PSTATE_NOW;
-
 	sleep(1);
 
 	calculate_pstate();
@@ -1653,10 +1634,6 @@ static int migrate() {
 		n->today = o->today;
 		n->tomorrow = o->tomorrow;
 		n->eod = o->eod;
-		n->mppt1 = o->mppt1;
-		n->mppt2 = o->mppt2;
-		n->mppt3 = o->mppt3;
-		n->mppt4 = o->mppt4;
 		n->soc = o->soc;
 		n->akku = o->akku;
 		n->dakku = o->dakku;
@@ -1812,7 +1789,7 @@ int ramp_boiler(device_t *boiler, int power) {
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!f10 || !pstate || !gstate)
+	if (!f10)
 		return 0;
 
 	// init - set to standby and wait for ramp request

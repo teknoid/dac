@@ -325,15 +325,15 @@ static void* poll(void *arg) {
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 
-			// writing the NEXT second - not the current one
-			ss->ts = time(NULL) + 1;
+			// update time stamp
+			ss->ts = time(NULL);
 
 			// execute the callback function to process model data
 			if (ss->callback)
 				(ss->callback)(ss);
 
 			// wait for new second
-			while (ss->ts == time(NULL) + 1)
+			while (ss->ts == time(NULL))
 				msleep(100);
 
 			// pause when set

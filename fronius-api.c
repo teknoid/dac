@@ -270,8 +270,6 @@ static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", gstate->pv);
-	xlogl_int_b(line, "PV10", gstate->mppt1 + gstate->mppt2);
-	xlogl_int_b(line, "PV7", gstate->mppt3 + gstate->mppt4);
 	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
 	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, 0, 0, "Today", gstate->today);
@@ -610,8 +608,26 @@ static void calculate_mosmix() {
 	mosmix_24h(2, &m2);
 	xdebug(MOSMIX3X24, m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
+	// calculate mppt's last hour produced
+	counter_t *c = COUNTER_LAST;
+	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
+	int mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
+	int mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
+	int mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
+
+	// noise
+	if (mppt1 < NOISE)
+		mppt1 = 0;
+	if (mppt2 < NOISE)
+		mppt2 = 0;
+	if (mppt3 < NOISE)
+		mppt3 = 0;
+	if (mppt4 < NOISE)
+		mppt4 = 0;
+
+
 	// update produced energy this hour and recalculate mosmix factors for each mppt
-	mosmix_mppt(now, gstate->mppt1, gstate->mppt2, gstate->mppt3, gstate->mppt4);
+	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
 	// collect total expected today, tomorrow and till end of day / start of day
 	int today, tomorrow, sod, eod;
@@ -664,13 +680,13 @@ static void calculate_gstate() {
 	gstate_t *g = GSTATE_LAST;
 	counter_t *c = COUNTER_LAST;
 
+	gstate->pv = 0;
+	gstate->pv += counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
+	gstate->pv += counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
+	gstate->pv += counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
+	gstate->pv += counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
-	gstate->mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
-	gstate->mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
-	gstate->mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
-	gstate->mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
-	gstate->pv = gstate->mppt1 + gstate->mppt2 + gstate->mppt3 + gstate->mppt4;
 
 	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
 	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
