@@ -310,10 +310,10 @@ static void update_meter(sunspec_t *ss) {
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-//	p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-//	p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-//	p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-//	p->f = ss->meter->Hz - 5000; // store only the diff
+//	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+//	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+//	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+//	pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
 static int collect_load(int from, int hours) {
@@ -340,17 +340,17 @@ static int collect_load(int from, int hours) {
 		strcat(line, value);
 	}
 
-	// adding +10% Dissipation / Reserve
-	load += load / 10;
+	// adding +5% dissipation / reserve
+	load += load / 20;
 	load *= -1;
 
-	snprintf(value, 25, " :: TOTAL %d", load);
+	snprintf(value, 25, " --> total %d", load);
 	strcat(line, value);
 	xdebug(line);
 
 	// validate
 	if (load < BASELOAD) {
-		xdebug("FRONIUS impossible collect_load value=%d, using %d hours x BASELOAD", load, hours);
+		xdebug("FRONIUS suspicious collect_load value=%d, using %d hours x BASELOAD", load, hours);
 		load = hours * BASELOAD;
 	}
 
@@ -778,9 +778,30 @@ static void calculate_gstate() {
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
 
-	// akku energy and estimate time to live based on last hour's average load +5% dissipation
+	// akku usable energy and estimated time to live based on last hour's average load +5% extra +50Wh inverter dissipation
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
-	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20) * -1 : 0;
+	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 50) * -1 : 0;
+
+	// collect mosmix forecasts
+	int today, tomorrow, sod, eod;
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	gstate->today = today;
+	gstate->tomorrow = tomorrow;
+	gstate->sod = sod;
+	gstate->eod = eod;
+
+	// success factor
+	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
+	gstate->success = success * 100; // store as x100 scaled
+	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
+
+	// collect needed power to survive and to heat
+	int hours, from, to;
+	mosmix_survive(now, MINIMUM, &hours, &from, &to);
+	gstate->need_survive = collect_load(from, hours);
+	int heating_total = collect_heating_total();
+	mosmix_heating(now, heating_total, &hours, &from, &to);
+	gstate->need_heating = heating_total * hours;
 
 	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
@@ -810,7 +831,6 @@ static void calculate_pstate() {
 	// get history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
-	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
@@ -846,7 +866,7 @@ static void calculate_pstate() {
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
 	// offline mode when not enough PV production
-	int online = pstate->pv > MINIMUM || m0->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
+	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
 	if (!online) {
 		// akku burnout between 6 and 9 o'clock when possible
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -864,7 +884,7 @@ static void calculate_pstate() {
 
 	// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
 	int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
-	int e_long = EMERGENCY && (m0->akku > EMERGENCY || m0->grid > EMERGENCY);
+	int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
 	if (e_short || e_long) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
@@ -884,7 +904,7 @@ static void calculate_pstate() {
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
 	// 50% more ramp down when pv tendency is falling
-	if (pstate->ramp < 0 && m0->dpv < 0)
+	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
 
 	// state is stable when we have 3x no grid changes
@@ -892,14 +912,14 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (m0->pv) { // suppress DISTORTION at startup
-		int d0 = pstate->sdpv > m0->pv;
+	if (pstate->sdpv && m1->sdpv && m2->sdpv) { // suppress DISTORTION at startup
+		int d0 = pstate->sdpv > m1->pv;
 		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
 		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
 		if (d0 || d1 || d2)
 			pstate->flags |= FLAG_DISTORTION;
 		if (PSTATE_DISTORTION)
-			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m0->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
@@ -923,7 +943,7 @@ static void calculate_pstate() {
 	// indicate standby check when actual load is 3x below 50% of calculated load
 	int zload = -1 * pstate->load - BASELOAD;
 	pstate->dxload = zload > 0 && pstate->xload ? zload * 100 / pstate->xload : 0;
-	if (pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
+	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 	if (PSTATE_CHECK_STANDBY)
 		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
@@ -941,7 +961,7 @@ static void calculate_pstate() {
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-		xdebug("FRONIUS wasting %d akku -> grid power", waste);
+		xdebug("FRONIUS wasting power %d akku -> grid", waste);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
@@ -995,12 +1015,16 @@ static void daily() {
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 #endif
-	PROFILING_LOG("daily");
+	PROFILING_LOG("FRONIUS daily");
 }
 
 static void hourly() {
 	PROFILING_START
 	xlog("FRONIUS executing hourly tasks...");
+
+	// copy gstate and counters to history
+	memcpy(COUNTER_NOW, (void*) counter, sizeof(counter_t));
+	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -1016,7 +1040,15 @@ static void hourly() {
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp(DD, DOWN);
 
-	// calculate mppt's last hour produced
+	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(f10, min);
+
+	// workaround /run/mcp get's immediately deleted at stop/kill
+	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
+	system(SAVE_RUN_DIRECORY);
+
+	// calculate last hour produced pv per mppt
 	counter_t *c = COUNTER_LAST;
 	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	int mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
@@ -1033,36 +1065,14 @@ static void hourly() {
 	if (mppt4 < NOISE)
 		mppt4 = 0;
 
-	// reload and update mosmix, collect new forecasts
-	int today, tomorrow, sod, eod;
+	// reload and update mosmix history
 	mosmix_load(now, MARIENBERG);
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
-	gstate->tomorrow = tomorrow;
-	gstate->sod = sod;
-	gstate->eod = eod;
 
-	// success factor
-	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
-	gstate->success = success * 100; // store as x100 scaled
-	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
-
-	// collect needed power to survive and to heat
-	int hours, from, to;
-	mosmix_survive(now, MINIMUM, &hours, &from, &to);
-	gstate->need_survive = collect_load(from, hours);
-	int heating_total = collect_heating_total();
-	mosmix_heating(now, heating_total, &hours, &from, &to);
-	gstate->need_heating = heating_total * hours;
-
-	// copy gstate and counters to history
-	memcpy(COUNTER_NOW, (void*) counter, sizeof(counter_t));
-	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
-
-	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(f10, min);
+#ifndef FRONIUS_MAIN
+	// we need the history in mosmix.c main()
+	mosmix_store_history();
+#endif
 
 	// create/append pstate minutes csv
 	int offset = now->tm_hour == 0 ? 23 * 60 : (now->tm_hour - 1) * 60;
@@ -1073,30 +1083,21 @@ static void hourly() {
 	// paint new diagrams
 	plot();
 
-	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
-	system(SAVE_RUN_DIRECORY);
-
-#ifndef FRONIUS_MAIN
-	// we need the history in mosmix.c main()
-	mosmix_store_history();
-#endif
-
-	PROFILING_LOG("hourly");
+	PROFILING_LOG("FRONIUS hourly");
 }
 
 static void aggregate_mhd() {
 	// aggregate 60 seconds into this minute
 	if (now->tm_sec == 0) {
-		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 		// aggregate 60 minutes into this hour
 		if (now->tm_min == 0) {
-			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
+			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 			// aggregate 24 pstate/gstat hours into this day
 			if (now->tm_hour == 0) {
@@ -1130,7 +1131,7 @@ static void fronius() {
 	// the FRONIUS main loop
 	while (1) {
 
-		// update time, state and counter pointers
+		// get actual time and make a copy
 		now_ts = time(NULL);
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
@@ -1147,14 +1148,6 @@ static void fronius() {
 			calculate_gstate();
 			choose_program();
 			print_gstate();
-		}
-
-		// web output every 2 seconds
-		if (now->tm_sec % 2 == 0) {
-			create_pstate_json();
-			create_dstate_json();
-			create_gstate_json();
-			create_powerflow_json();
 		}
 
 		// no actions until lock is expired
@@ -1210,6 +1203,12 @@ static void fronius() {
 			}
 		}
 
+		// web output
+		create_pstate_json();
+		create_dstate_json();
+		create_gstate_json();
+		create_powerflow_json();
+
 		// wait for next second
 		while (now_ts == time(NULL))
 			msleep(100);
@@ -1223,6 +1222,11 @@ static int init() {
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock == 0)
 		return xerr("Error creating socket");
+
+	// initialize time structure
+	time_t now_ts = time(NULL);
+	lt = localtime(&now_ts);
+	memcpy(now, lt, sizeof(*lt));
 
 	// initialize all devices with start values
 	xlog("FRONIUS initializing devices");
@@ -1246,12 +1250,6 @@ static int init() {
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
-	// initialize timing
-	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
-
-	// load mosmix data
 	mosmix_load_history(now);
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG);
@@ -1472,33 +1470,15 @@ static int loop() {
 static int single() {
 	init();
 
-	sleep(1);
-
+	aggregate_mhd();
 	calculate_pstate();
 	calculate_gstate();
 	choose_program();
-
 	response(&b1);
 	standby();
 	rampdown();
 	rampup();
 	steal();
-
-	// aggregate 24 pstate hours into one day
-	pstate_t pda, pdc;
-	aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
-	cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
-	dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
-	dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
-
-	// aggregate 24 gstate hours into one day
-	gstate_t gda, gdc;
-	aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
-	dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 
 	print_gstate();
 	print_pstate_dstate(NULL);

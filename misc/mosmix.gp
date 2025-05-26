@@ -164,8 +164,3 @@ set ylabel "Grid - Frequency +/-"
 set yrange [-50:50]
 set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
-
-set ylabel "Minimum / Maximum"
-set yrange [*:*]
-set output "/run/mcp/pstate-min-max.svg"
-p pstate u 1:"pv" w lines t "pv" ls 1, '' u 1:"pvmin" w lines t "min" ls 3, '' u 1:"pvmax" w lines t "max" ls 4

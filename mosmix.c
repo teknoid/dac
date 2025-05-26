@@ -171,6 +171,8 @@ static void update_today_tomorrow(struct tm *now) {
 
 // brute force coefficients determination per MPPT and hour
 void mosmix_factors() {
+	PROFILING_START
+
 	ZERO(factors);
 
 	for (int h = 0; h < 24; h++) {
@@ -232,6 +234,7 @@ void mosmix_factors() {
 		f->r4 = f->s4 = f->e4 = 0;
 	}
 	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
+	PROFILING_LOG("MOSMIX factors");
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
