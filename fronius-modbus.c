@@ -54,8 +54,7 @@ static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_HOUR_YDAY(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
 
 // pstate history every second/minute/hour and access pointers
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24];
-static volatile pstate_t *pstate = &pstate_seconds[0];
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
 #define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
@@ -227,32 +226,27 @@ static int akku_discharge() {
 }
 
 static void update_f10(sunspec_t *ss) {
-	time_t ts = ss->ts + 1; // writing the NEXT second
-	struct tm tm;
-	localtime_r(&ts, &tm);
-	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-
-	p->f = ss->inverter->Hz - 5000; // store only the diff
-	p->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-	p->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-	p->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
-	p->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
+	pstate->f = ss->inverter->Hz - 5000; // store only the diff
+	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
+	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
 
 	switch (ss->inverter->St) {
 	case I_STATUS_STARTING:
-		p->ac10 = p->dc10 = p->mppt1 = p->mppt2 = 0;
+		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
 		break;
 
 	case I_STATUS_MPPT:
 		// only take over values in MPPT state
-		p->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		p->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		p->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
-		if (p->mppt1 == 1)
-			p->mppt1 = 0; // noise
-		p->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-		if (p->mppt2 == 1)
-			p->mppt2 = 0; // noise
+		pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
+		pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
+		if (pstate->mppt1 == 1)
+			pstate->mppt1 = 0; // noise
+		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
+		if (pstate->mppt2 == 1)
+			pstate->mppt2 = 0; // noise
 		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
@@ -261,7 +255,7 @@ static void update_f10(sunspec_t *ss) {
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
-		p->ac10 = p->dc10 = p->mppt1 = p->mppt2 = 0;
+		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
@@ -274,26 +268,21 @@ static void update_f10(sunspec_t *ss) {
 }
 
 static void update_f7(sunspec_t *ss) {
-	time_t ts = ss->ts + 1; // writing the NEXT second
-	struct tm tm;
-	localtime_r(&ts, &tm);
-	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-
 	switch (ss->inverter->St) {
 	case I_STATUS_STARTING:
-		p->ac7 = p->dc7 = p->mppt3 = p->mppt4 = 0;
+		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
 		break;
 
 	case I_STATUS_MPPT:
 		// only take over values in MPPT state
-		p->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		p->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		p->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
-		if (p->mppt3 == 1)
-			p->mppt3 = 0; // noise
-		p->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-		if (p->mppt4 == 1)
-			p->mppt4 = 0; // noise
+		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
+		pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
+		if (pstate->mppt3 == 1)
+			pstate->mppt3 = 0; // noise
+		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
+		if (pstate->mppt4 == 1)
+			pstate->mppt4 = 0; // noise
 		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
@@ -302,7 +291,7 @@ static void update_f7(sunspec_t *ss) {
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
-		p->ac7 = p->dc7 = p->mppt3 = p->mppt4 = 0;
+		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
@@ -315,17 +304,12 @@ static void update_f7(sunspec_t *ss) {
 }
 
 static void update_meter(sunspec_t *ss) {
-	time_t ts = ss->ts + 1; // writing the NEXT second
-	struct tm tm;
-	localtime_r(&ts, &tm);
-	pstate_t *p = PSTATE_SEC(tm.tm_sec);
-
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
-	p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-	p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
+	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
 //	p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
 //	p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
 //	p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
@@ -819,6 +803,10 @@ static void calculate_pstate() {
 	// clear all flags
 	pstate->flags = 0;
 
+	// clear delta sum counters every minute
+	if (now->tm_sec == 0)
+		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+
 	// get history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
@@ -826,32 +814,25 @@ static void calculate_pstate() {
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
-	// clear delta sum counters at second 0 or take over from last second
-	if (now->tm_sec == 0)
-		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
-	else {
-		pstate->sdpv = s1->sdpv;
-		pstate->sdgrid = s1->sdgrid;
-		pstate->sdload = s1->sdload;
-	}
-
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
+	if (abs(pstate->dpv) < NOISE)
+		pstate->dpv = 0; // shape dgrid
 	pstate->sdpv += abs(pstate->dpv);
 
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
-	pstate->sdgrid += abs(pstate->dgrid);
 	if (abs(pstate->dgrid) < NOISE)
 		pstate->dgrid = 0; // shape dgrid
+	pstate->sdgrid += abs(pstate->dgrid);
 
 	// load, delta load + sum
 	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
 	pstate->dload = pstate->load - s1->load;
-	pstate->sdload += abs(pstate->dload);
 	if (abs(pstate->dload) < NOISE)
 		pstate->dload = 0; // shape dload
+	pstate->sdload += abs(pstate->dload);
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > NOISE)
@@ -1153,13 +1134,13 @@ static void fronius() {
 		now_ts = time(NULL);
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
-		pstate = PSTATE_NOW;
 
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
 
-		// calculate pstate
+		// calculate pstate and store to history
 		calculate_pstate();
+		memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
 
 		// startup and every 10 minutes: calculate gstate and potd
 		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
