@@ -1030,7 +1030,7 @@ static void hourly() {
 	PROFILING_START
 	xlog("FRONIUS executing hourly tasks...");
 
-	// aggregate 60 minutes into last hour
+	// aggregate 60 minutes into this hour
 	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 	pstate_t *ph = PSTATE_HOUR_NOW;
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
@@ -1125,7 +1125,7 @@ static void hourly() {
 static void minly() {
 	// xlog("FRONIUS executing minutely tasks...");
 
-	// aggregate 60 seconds into last minute
+	// aggregate 60 seconds into this minute
 	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 
