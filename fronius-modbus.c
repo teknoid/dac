@@ -50,6 +50,7 @@ static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
+#define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * (d) + (h)])
 #define GSTATE_HOUR_YDAY(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
 
 // pstate history every second/minute/hour and access pointers
@@ -331,28 +332,41 @@ static void update_meter(sunspec_t *ss) {
 //	p->f = ss->meter->Hz - 5000; // store only the diff
 }
 
-// TODO load auch in gstate speichern und dann average über 1 woche ermitteln
 static int collect_load(int from, int hours) {
-	int load = 0;
 	char line[LINEBUF], value[25];
+
+	// calculate average loads over 24/7
+	int loads[24];
+	ZERO(loads);
+	for (int h = 0; h < 24; h++) {
+		for (int d = 0; d < 7; d++)
+			loads[h] += GSTATE_DAY_HOUR(d, h)->load;
+		loads[h] /= 7;
+	}
+
 	strcpy(line, "FRONIUS mosmix load");
+	int load = 0;
 	for (int i = 0; i < hours; i++) {
 		int hour = from + i;
 		if (hour >= 24)
 			hour -= 24;
-		int hload = PSTATE_HOUR(hour)->load * -1;
+		int hload = loads[hour];
 		load += hload;
 		snprintf(value, 25, " %d:%d", hour, hload);
 		strcat(line, value);
 	}
-	xdebug(line);
 
 	// adding +10% Dissipation / Reserve
 	load += load / 10;
+	load *= -1;
+
+	snprintf(value, 25, " :: TOTAL %d", load);
+	strcat(line, value);
+	xdebug(line);
 
 	// validate
 	if (load < BASELOAD) {
-		xdebug("FRONIUS impossible collect_load value=%d, using %d x BASELOAD", load, hours);
+		xdebug("FRONIUS impossible collect_load value=%d, using %d hours x BASELOAD", load, hours);
 		load = hours * BASELOAD;
 	}
 
@@ -1035,6 +1049,9 @@ static void hourly() {
 	pstate_t *ph = PSTATE_HOUR_NOW;
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
+
+	// store average load in gstate history
+	gstate->load = ph->load;
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
