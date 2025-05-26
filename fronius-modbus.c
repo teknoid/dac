@@ -1160,10 +1160,13 @@ static void fronius() {
 	// the FRONIUS main loop
 	while (1) {
 
-		// update time stamp, state and counter pointers
+		// update time, state and counter pointers
 		now_ts = time(NULL);
 		localtime(&now_ts);
 		memcpy(now, lt, sizeof(*lt));
+		counter = COUNTER_NOW;
+		gstate = GSTATE_NOW;
+		pstate = PSTATE_NOW;
 
 		// calculate pstate
 		calculate_pstate();
@@ -1236,11 +1239,6 @@ static void fronius() {
 					daily();
 			}
 		}
-
-		// bump state and counter pointers
-		counter = COUNTER_NOW;
-		gstate = GSTATE_NOW;
-		pstate = PSTATE_NOW;
 
 		// wait for next second
 		while (now_ts == time(NULL))
