@@ -1076,12 +1076,14 @@ static void aggregate_mhd() {
 	// aggregate 60 seconds into this minute
 	if (now->tm_sec == 0) {
 		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+		PSTATE_MIN_NOW->soc = pstate->soc; // take over raw soc
 		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 		// aggregate 60 minutes into this hour
 		if (now->tm_min == 0) {
 			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+			PSTATE_HOUR_NOW->soc = pstate->soc; // take over raw soc
 			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
@@ -1239,7 +1241,7 @@ static int init() {
 
 	mosmix_load_history(now);
 	mosmix_factors();
-	mosmix_load(now, MARIENBERG, 1);
+	mosmix_load(now, MARIENBERG, 0);
 	plot();
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
@@ -1252,6 +1254,15 @@ static int init() {
 
 	// wait for collecting models and producing data
 	sleep(5);
+
+	// create empty minutes CSV file if not found
+	if (access(PSTATE_M_CSV, F_OK))
+		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
+
+	// fake the hour 0 slot with current values if empty
+	counter_t *c = COUNTER_0;
+	if (c->mppt1 == 0 && c->mppt2 == 0 && c->mppt3 == 0 && c->mppt4 == 0 && c->produced == 0 && c->consumed == 0)
+		memcpy(COUNTER_0, (void*) counter, sizeof(counter_t));
 
 	return 0;
 }
@@ -1490,7 +1501,6 @@ static int fake() {
 	ZEROP(pstate);
 
 	init();
-	sleep(3);
 	stop();
 
 	calculate_pstate();

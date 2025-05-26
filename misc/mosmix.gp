@@ -61,10 +61,7 @@ p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"e
 set ylabel "GState week"
 set yrange [0:*]
 set output "/run/mcp/gstate-week.svg"
-p gstatew u 1:"mppt1" t "mppt1"    w lines,\
-       '' u 1:"mppt2" t "mppt2"    w lines,\
-       '' u 1:"mppt3" t "mppt3"    w lines,\
-       '' u 1:"pv"    t "pv"       w lines,\
+p gstatew u 1:"pv"    t "pv"       w lines,\
        '' u 1:"akku"  t "akku"     w lines,\
        '' u 1:"↑grid" t "produced" w lines,\
        '' u 1:"↓grid" t "consumed" w lines,\
@@ -79,10 +76,7 @@ set xrange [0:24]
 set yrange [0:*]
 set xtics 1
 set output "/run/mcp/gstate.svg"
-p gstate u 1:"mppt1" t "mppt1"    w lines,\
-      '' u 1:"mppt2" t "mppt2"    w lines,\
-      '' u 1:"mppt3" t "mppt3"    w lines,\
-      '' u 1:"pv"    t "pv"       w lines,\
+p gstate u 1:"pv"    t "pv"       w lines,\
       '' u 1:"akku"  t "akku"     w lines,\
       '' u 1:"↑grid" t "produced" w lines,\
       '' u 1:"↓grid" t "consumed" w lines,\
