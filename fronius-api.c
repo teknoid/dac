@@ -657,8 +657,8 @@ static void calculate_mosmix() {
 	gstate->eod = eod;
 
 	// calculate survival factor
-	int hours, from, to;
-	mosmix_survive(now, BASELOAD / 2, &hours, &from, &to);
+	int hours, from, to, fake[24];
+	mosmix_survive(now, fake, &hours, &from, &to);
 	int available = gstate->eod + gstate->akku;
 	int needed = collect_load(from, hours);
 	float survive = needed ? (float) available / (float) needed : 0.0;

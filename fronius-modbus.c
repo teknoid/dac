@@ -69,6 +69,9 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 
+// average loads over 24/7
+static int loads[24];
+
 // program of the day - choosen by mosmix forecast data
 static potd_t *potd = 0;
 
@@ -316,45 +319,28 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
 }
 
-static int collect_load(int from, int hours) {
-	char line[LINEBUF], value[25];
+static void collect_loads() {
+	char line[LINEBUF], value[10];
 
-	// calculate average loads over 24/7
-	int loads[24];
 	ZERO(loads);
 	for (int h = 0; h < 24; h++) {
-		for (int d = 0; d < 7; d++)
-			loads[h] += GSTATE_DAY_HOUR(d, h)->load;
+		for (int d = 0; d < 7; d++) {
+			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
+			if (load < NOISE || load > BASELOAD * 2) {
+				xdebug("FRONIUS suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
+				load = BASELOAD;
+			}
+			loads[h] += load;
+		}
 		loads[h] /= 7;
 	}
 
-	strcpy(line, "FRONIUS mosmix load");
-	int load = 0;
-	for (int i = 0; i < hours; i++) {
-		int hour = from + i;
-		if (hour >= 24)
-			hour -= 24;
-		int hload = loads[hour];
-		load += hload;
-		snprintf(value, 25, " %d:%d", hour, hload);
+	strcpy(line, "FRONIUS average 24/7 loads:");
+	for (int h = 0; h < 24; h++) {
+		snprintf(value, 10, " %d", loads[h]);
 		strcat(line, value);
 	}
-
-	// adding +5% dissipation / reserve
-	load += load / 20;
-	load *= -1;
-
-	snprintf(value, 25, " --> total %d", load);
-	strcat(line, value);
 	xdebug(line);
-
-	// validate
-	if (load < BASELOAD) {
-		xdebug("FRONIUS suspicious collect_load value=%d, using %d hours x BASELOAD", load, hours);
-		load = hours * BASELOAD;
-	}
-
-	return load;
 }
 
 static void store_meter_power(device_t *d) {
@@ -795,13 +781,13 @@ static void calculate_gstate() {
 	gstate->success = success * 100; // store as x100 scaled
 	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
-	// collect needed power to survive and to heat
+	// collect needed power to survive and to heat +50Wh inverter dissipation
 	int hours, from, to;
-	mosmix_survive(now, MINIMUM, &hours, &from, &to);
-	gstate->need_survive = collect_load(from, hours);
 	int heating_total = collect_heating_total();
-	mosmix_heating(now, heating_total, &hours, &from, &to);
-	gstate->need_heating = heating_total * hours;
+	gstate->need_survive = mosmix_survive(now, loads, &hours, &from, &to);
+	gstate->need_survive += hours * 50;
+	gstate->need_heating = mosmix_heating(now, heating_total, &hours, &from, &to);
+	gstate->need_heating += hours * 50;
 
 	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
@@ -995,6 +981,9 @@ static void daily() {
 	PROFILING_START
 	xlog("FRONIUS executing daily tasks...");
 
+	// recalculate average 24/7 loads
+	collect_loads();
+
 	// calculate forecast errors - actual vs. expected
 	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
 	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
@@ -1145,6 +1134,7 @@ static void fronius() {
 
 		// startup and every 10 minutes: calculate gstate and potd
 		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
+			collect_loads();
 			calculate_gstate();
 			choose_program();
 			print_gstate();
@@ -1471,6 +1461,7 @@ static int single() {
 	init();
 
 	aggregate_mhd();
+	collect_loads();
 	calculate_pstate();
 	calculate_gstate();
 	choose_program();

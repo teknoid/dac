@@ -32,6 +32,9 @@ static mosmix_t today[24], tomorrow[24], history[24 * 7];
 static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
+// fake dummy average loads over 24/7
+static int fake_loads[24] = { 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100 };
+
 static void scale1(struct tm *now, mosmix_t *m) {
 	int f = 0;
 	for (int h = 0; h <= now->tm_hour; h++)
@@ -171,8 +174,6 @@ static void update_today_tomorrow(struct tm *now) {
 
 // brute force coefficients determination per MPPT and hour
 void mosmix_factors() {
-	PROFILING_START
-
 	ZERO(factors);
 
 	for (int h = 0; h < 24; h++) {
@@ -234,7 +235,6 @@ void mosmix_factors() {
 		f->r4 = f->s4 = f->e4 = 0;
 	}
 	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
-	PROFILING_LOG("MOSMIX factors");
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -306,16 +306,17 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
 }
 
-// calculate hours to survive next night
-void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to) {
-	int h, from_expected = 0, to_expected = 0;
+// calculate power to survive next night without pv
+int mosmix_survive(struct tm *now, int loads[], int *hours, int *from, int *to) {
+	int h, from_expected = 0, to_expected = 0, needed = 0;
 
 	// find today sundown or now starting backwards from 0:00
 	for (h = 23; h >= 12 && h > now->tm_hour; h--) {
 		mosmix_t *m = TODAY(h);
 		from_expected = SUM_EXP;
-		if (from_expected > min)
+		if (from_expected > loads[h])
 			break;
+		needed += loads[h];
 	}
 	*from = h != 12 ? h + 1 : h; // assume akku is not yet needed in that hour
 
@@ -323,24 +324,26 @@ void mosmix_survive(struct tm *now, int min, int *hours, int *from, int *to) {
 	for (h = 0; h < 12; h++) {
 		mosmix_t *m = TOMORROW(h);
 		to_expected = SUM_EXP;
-		if (to_expected > min)
+		if (to_expected > loads[h])
 			break;
+		needed += loads[h];
 	}
 	*to = h;
 
 	*hours = 24 - *from + *to;
-	xlog("MOSMIX survive hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, *from, from_expected, *to, to_expected);
+	xlog("MOSMIX survive hours=%d from=%d/%d to=%d/%d needed=%d", *hours, *from, from_expected, *to, to_expected, needed);
+	return needed;
 }
 
-// calculate hours where we have enough power for heating
-void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to) {
+// calculate power where we can heat with pv
+int mosmix_heating(struct tm *now, int power, int *hours, int *from, int *to) {
 	int h, from_expected = 0, to_expected = 0;
 
 	// find first hour with enough expected
 	for (h = now->tm_hour; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
 		from_expected = SUM_EXP;
-		if (from_expected > min)
+		if (from_expected > power)
 			break;
 	}
 	*from = h;
@@ -349,7 +352,7 @@ void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to) {
 	for (h = 23; h >= now->tm_hour; h--) {
 		mosmix_t *m = TODAY(h);
 		to_expected = SUM_EXP;
-		if (to_expected > min)
+		if (to_expected > power)
 			break;
 	}
 	*to = h;
@@ -360,7 +363,9 @@ void mosmix_heating(struct tm *now, int min, int *hours, int *from, int *to) {
 	else
 		*hours = *to = *from = to_expected = from_expected = 0;
 
-	xlog("MOSMIX heating hours=%d min=%d from=%d/%d to=%d/%d", *hours, min, *from, from_expected, *to, to_expected);
+	int needed = *hours * power;
+	xlog("MOSMIX heating hours=%d min=%d from=%d/%d to=%d/%d needed=%d", *hours, power, *from, from_expected, *to, to_expected, needed);
+	return needed;
 }
 
 // sum up 24 mosmix slots for one day (with offset)
@@ -509,28 +514,28 @@ static void test() {
 	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
-	mosmix_survive(now, 150, &hours, &from, &to);
+	mosmix_survive(now, fake_loads, &hours, &from, &to);
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	now->tm_hour = 9;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
-	mosmix_survive(now, 150, &hours, &from, &to);
+	mosmix_survive(now, fake_loads, &hours, &from, &to);
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	now->tm_hour = 12;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
-	mosmix_survive(now, 10000, &hours, &from, &to); // -> should be full 24hours
+	mosmix_survive(now, fake_loads, &hours, &from, &to);
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	now->tm_hour = 15;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
-	mosmix_survive(now, 150, &hours, &from, &to);
+	mosmix_survive(now, fake_loads, &hours, &from, &to);
 	mosmix_heating(now, 1500, &hours, &from, &to);
 
 	mosmix_dump_today(now);
