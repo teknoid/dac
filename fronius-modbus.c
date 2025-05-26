@@ -482,10 +482,6 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int(line, 1, 1, "Akku", pstate->akku);
 	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, 0, 0, "Load", pstate->load);
-	if (pstate->pvmin && pstate->pvmax) {
-		xlogl_int(line, 0, 0, "Min", pstate->pvmin);
-		xlogl_int(line, 0, 0, "Max", pstate->pvmax);
-	}
 	if (lock)
 		xlogl_int(line, 0, 0, "Lock", lock);
 	xlogl_end(line, strlen(line), 0);
@@ -785,8 +781,8 @@ static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
-	// store last hours average load in gstate history
-	gstate->load = PSTATE_HOUR_LAST1->load;
+	// store average load in gstate history
+	gstate->load = PSTATE_HOUR_NOW->load;
 
 	// day total: pv / consumed / produced
 	counter_t *c = COUNTER_0;
@@ -824,20 +820,25 @@ static void calculate_pstate() {
 	pstate->flags = 0;
 
 	// get history states
-	pstate_t *m1 = PSTATE_MIN_LAST1;
-	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
+	pstate_t *m0 = PSTATE_MIN_NOW;
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	pstate_t *m2 = PSTATE_MIN_LAST2;
+
+	// clear delta sum counters at second 0 or take over from last second
+	if (now->tm_sec == 0)
+		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+	else {
+		pstate->sdpv = s1->sdpv;
+		pstate->sdgrid = s1->sdgrid;
+		pstate->sdload = s1->sdload;
+	}
 
 	// total PV produced by both inverters
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	pstate->sdpv += abs(pstate->dpv);
-// TODO auswerten zb bei DISTORTION nur bis min hoch rampen
-	if (pstate->pv < pstate->pvmin)
-		pstate->pvmin = pstate->pv;
-	if (pstate->pv > pstate->pvmax)
-		pstate->pvmax = pstate->pv;
 
 	// grid, delta grid and sum
 	pstate->dgrid = pstate->grid - s1->grid;
@@ -864,7 +865,7 @@ static void calculate_pstate() {
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
 	// offline mode when not enough PV production
-	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
+	int online = pstate->pv > MINIMUM || m0->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
 	if (!online) {
 		// akku burnout between 6 and 9 o'clock when possible
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -882,7 +883,7 @@ static void calculate_pstate() {
 
 	// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
 	int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
-	int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+	int e_long = EMERGENCY && (m0->akku > EMERGENCY || m0->grid > EMERGENCY);
 	if (e_short || e_long) {
 		pstate->flags |= FLAG_EMERGENCY;
 		return;
@@ -902,7 +903,7 @@ static void calculate_pstate() {
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
 	// 50% more ramp down when pv tendency is falling
-	if (pstate->ramp < 0 && m1->dpv < 0)
+	if (pstate->ramp < 0 && m0->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
 
 	// state is stable when we have 3x no grid changes
@@ -910,14 +911,14 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_STABLE;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (PSTATE_SEC_NEXT->pv) { // suppress DISTORTION at startup
-		int d0 = pstate->sdpv > m1->pv;
+	if (m0->pv) { // suppress DISTORTION at startup
+		int d0 = pstate->sdpv > m0->pv;
 		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
 		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
 		if (d0 || d1 || d2)
 			pstate->flags |= FLAG_DISTORTION;
-		// if (PSTATE_DISTORTION)
-		// xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m1->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		if (PSTATE_DISTORTION)
+			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, m0->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 	}
 
 	// device loop:
@@ -993,22 +994,6 @@ static void daily() {
 	PROFILING_START
 	xlog("FRONIUS executing daily tasks...");
 
-	// aggregate 24 pstate hours into one day
-	pstate_t pda, pdc;
-	aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
-	cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
-	dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
-	dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
-	dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
-
-	// aggregate 24 gstate hours into one day
-	gstate_t gda, gdc;
-	aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-	dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
-	dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
-	dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
-
 	// calculate forecast errors - actual vs. expected
 	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
 	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
@@ -1035,12 +1020,6 @@ static void daily() {
 static void hourly() {
 	PROFILING_START
 	xlog("FRONIUS executing hourly tasks...");
-
-	// aggregate 60 minutes into this hour
-	// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-	pstate_t *ph = PSTATE_HOUR_NOW;
-	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
-	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -1072,9 +1051,6 @@ static void hourly() {
 		mppt3 = 0;
 	if (mppt4 < NOISE)
 		mppt4 = 0;
-
-	// compare gstate (counter) vs. pstate (1h aggregated) mppt's
-	xlog("FRONIUS gstate/pstate mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d", mppt1, ph->mppt1, mppt2, ph->mppt2, mppt3, ph->mppt3);
 
 	// reload and update mosmix, collect new forecasts
 	int today, tomorrow, sod, eod;
@@ -1128,22 +1104,37 @@ static void hourly() {
 	PROFILING_LOG("hourly");
 }
 
-static void minly() {
-	// xlog("FRONIUS executing minutely tasks...");
-
+static void aggregate_mhd() {
 	// aggregate 60 seconds into this minute
-	// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-	aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+	if (now->tm_sec == 0) {
+		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-	// take over minimum + maximum
-	PSTATE_MIN_NOW->pvmin = pstate->pvmin;
-	PSTATE_MIN_NOW->pvmax = pstate->pvmax;
+		// aggregate 60 minutes into this hour
+		if (now->tm_min == 0) {
+			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+			dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
-//	if (pstate->pv)
-//		dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+			// aggregate 24 pstate/gstat hours into this day
+			if (now->tm_hour == 0) {
+				pstate_t pda, pdc;
+				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
+				cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
+				dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+				dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
+				dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
 
-	// clear delta sum counters
-	pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+				gstate_t gda, gdc;
+				aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+				cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
+				dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
+				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
+			}
+		}
+	}
 }
 
 static void fronius() {
@@ -1164,15 +1155,17 @@ static void fronius() {
 		memcpy(now, lt, sizeof(*lt));
 		pstate = PSTATE_NOW;
 
+		// aggregate values into minute-hour-day when 0-0-0
+		aggregate_mhd();
+
 		// calculate pstate
 		calculate_pstate();
 
-		// startup and every 10 minutes: calculate gstate and potd, reset minimum + maximum
+		// startup and every 10 minutes: calculate gstate and potd
 		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
 			calculate_gstate();
 			choose_program();
 			print_gstate();
-			pstate->pvmin = pstate->pvmax = pstate->pv;
 		}
 
 		// web output every 2 seconds
@@ -1224,7 +1217,7 @@ static void fronius() {
 
 		// minutely tasks
 		if (now->tm_sec == 0) {
-			minly();
+			// minly();
 
 			// hourly tasks
 			if (now->tm_min == 0) {

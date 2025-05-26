@@ -135,8 +135,6 @@ struct _pstate {
 	int pv;
 	int dpv;
 	int sdpv;
-	int pvmin;
-	int pvmax;
 	int grid;
 	int dgrid;
 	int sdgrid;
