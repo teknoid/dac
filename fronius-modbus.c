@@ -992,8 +992,7 @@ static void daily() {
 	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
 	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 
-	// clear mosmix today and tomorrow tables, recalculate factors
-	mosmix_clear_today_tomorrow();
+	// recalculate mosmix factors
 	mosmix_factors();
 
 #ifndef FRONIUS_MAIN
@@ -1052,8 +1051,8 @@ static void hourly() {
 	if (mppt4 < NOISE)
 		mppt4 = 0;
 
-	// reload and update mosmix history
-	mosmix_load(now, MARIENBERG);
+	// reload and update mosmix history, clear at midnight
+	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
 #ifndef FRONIUS_MAIN
@@ -1240,7 +1239,7 @@ static int init() {
 
 	mosmix_load_history(now);
 	mosmix_factors();
-	mosmix_load(now, MARIENBERG);
+	mosmix_load(now, MARIENBERG, 1);
 	plot();
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);

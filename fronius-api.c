@@ -619,7 +619,7 @@ static device_t* response(device_t *d) {
 
 static void calculate_mosmix() {
 	// update forecasts
-	if (mosmix_load(now, MARIENBERG))
+	if (mosmix_load(now, MARIENBERG, now->tm_hour == 0))
 		return;
 
 	// mosmix 24h raw values forecasts today, tomorrow and tomorrow+1
