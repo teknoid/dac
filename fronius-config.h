@@ -3,7 +3,7 @@
 // hexdump -v -e '6 "%10d ""\n"' /work/fronius-counter.bin
 #define COUNTER_FILE			"/work/fronius-counter.bin"
 
-// hexdump -v -e '17 "%6d ""\n"' /work/fronius-gstate.bin
+// hexdump -v -e '16 "%6d ""\n"' /work/fronius-gstate.bin
 #define GSTATE_FILE				"/work/fronius-gstate.bin"
 #define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
 #define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
@@ -88,7 +88,7 @@ struct _counter {
 
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku Δakku   ttl  succ  surv  heat"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  surv  heat"
 struct _gstate {
 	int pv;
 	int produced;
@@ -102,7 +102,6 @@ struct _gstate {
 	int load;
 	int soc;
 	int akku;
-	int dakku;
 	int ttl;
 	int success;
 	int survive;
@@ -118,13 +117,15 @@ typedef struct gstate_old_t {
 	int tomorrow;
 	int sod;
 	int eod;
+	int need_survive;
+	int need_heating;
+	int load;
 	int soc;
 	int akku;
-	int dakku;
 	int ttl;
+	int success;
 	int survive;
 	int heating;
-	int success;
 } gstate_old_t;
 
 typedef struct _pstate pstate_t;

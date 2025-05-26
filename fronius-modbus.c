@@ -785,11 +785,11 @@ static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
-	// get previous values to calculate deltas
-	counter_t *c = COUNTER_0;
-	gstate_t *g = GSTATE_NOW;
+	// store last hours average load in gstate history
+	gstate->load = PSTATE_HOUR_LAST1->load;
 
 	// day total: pv / consumed / produced
+	counter_t *c = COUNTER_0;
 	gstate->pv = 0;
 	gstate->pv += counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	gstate->pv += counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
@@ -798,17 +798,9 @@ static void calculate_gstate() {
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
 
-	// akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
-	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
+	// akku energy and estimate time to live based on last hour's average load +5% dissipation
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
-	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc - g->soc) : 0;
-// TODO stimmt jetzt nicht mehr wenn alle 10min gerechnet wird
-	if (gstate->dakku < BASELOAD / -2)
-		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
-	else if (gstate->soc > MIN_SOC)
-		gstate->ttl = gstate->akku * 60 / BASELOAD; // not yet in discharge phase - use BASELOAD (minutes)
-	else
-		gstate->ttl = 0;
+	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20) * -1 : 0;
 
 	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
@@ -1049,9 +1041,6 @@ static void hourly() {
 	pstate_t *ph = PSTATE_HOUR_NOW;
 	aggregate((int*) ph, (int*) pstate_minutes, PSTATE_SIZE, 60);
 	// dump_struct((int*) ph, PSTATE_SIZE, "[ØØ]", 0);
-
-	// store average load in gstate history
-	gstate->load = ph->load;
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -1651,9 +1640,9 @@ static int migrate() {
 		n->today = o->today;
 		n->tomorrow = o->tomorrow;
 		n->eod = o->eod;
+		n->load = o->load;
 		n->soc = o->soc;
 		n->akku = o->akku;
-		n->dakku = o->dakku;
 		n->ttl = o->ttl;
 		n->survive = o->survive;
 		n->heating = o->heating;

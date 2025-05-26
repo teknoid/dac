@@ -103,6 +103,7 @@ static volatile gstate_t *gstate = 0;
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday - (now->tm_hour > 0 ? now->tm_hour - 1 : 23)])
 #define GSTATE_NEXT				(&gstate_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 00])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + h])
+#define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * (d) + (h)])
 #define GSTATE_TODAY			GSTATE_HOUR(0)
 
 // round robin power power flow and state calculations
@@ -222,24 +223,44 @@ static void bump_pstate() {
 	pstate = pstate_new; // atomic update current pstate pointer
 }
 
-// sum up load for darkness hours - take akku discharge values from yesterday
 static int collect_load(int from, int hours) {
-	int load = 0;
 	char line[LINEBUF], value[25];
+
+	// calculate average loads over 24/7
+	int loads[24];
+	ZERO(loads);
+	for (int h = 0; h < 24; h++) {
+		for (int d = 0; d < 7; d++)
+			loads[h] += GSTATE_DAY_HOUR(d, h)->load;
+		loads[h] /= 7;
+	}
+
 	strcpy(line, "FRONIUS mosmix load");
-	for (int i = from; i < hours; i++) {
+	int load = 0;
+	for (int i = 0; i < hours; i++) {
 		int hour = from + i;
 		if (hour >= 24)
 			hour -= 24;
-		int hload = gstate_hours[hour].dakku;
+		int hload = loads[hour];
 		load += hload;
 		snprintf(value, 25, " %d:%d", hour, hload);
 		strcat(line, value);
 	}
-	xdebug(line);
 
 	// adding +10% Dissipation / Reserve
 	load += load / 10;
+	load *= -1;
+
+	snprintf(value, 25, " :: TOTAL %d", load);
+	strcat(line, value);
+	xdebug(line);
+
+	// validate
+	if (load < BASELOAD) {
+		xdebug("FRONIUS impossible collect_load value=%d, using %d hours x BASELOAD", load, hours);
+		load = hours * BASELOAD;
+	}
+
 	return load;
 }
 
@@ -625,7 +646,6 @@ static void calculate_mosmix() {
 	if (mppt4 < NOISE)
 		mppt4 = 0;
 
-
 	// update produced energy this hour and recalculate mosmix factors for each mppt
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
@@ -676,10 +696,8 @@ static void calculate_gstate() {
 	if (r->pv7_total > 0.0)
 		counter->mppt3 = r->pv7_total; // don't take over zero as Fronius7 might be in sleep mode
 
-	// get previous values to calculate deltas
-	gstate_t *g = GSTATE_LAST;
+	// day total: pv / consumed / produced
 	counter_t *c = COUNTER_LAST;
-
 	gstate->pv = 0;
 	gstate->pv += counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	gstate->pv += counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
@@ -688,16 +706,9 @@ static void calculate_gstate() {
 	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
 	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
 
-	// calculate akku energy and delta (+)charge (-)discharge when soc between 10-90% and estimate time to live when discharging
-	int range_ok = gstate->soc > 100 && gstate->soc < 900 && g->soc > 100 && g->soc < 900;
+	// akku energy and estimate time to live based current load
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
-	gstate->dakku = range_ok ? AKKU_CAPACITY_SOC(gstate->soc - g->soc) : 0;
-	if (gstate->dakku < 0)
-		gstate->ttl = gstate->akku * 60 / gstate->dakku * -1; // in discharge phase - use current discharge rate (minutes)
-	else if (gstate->soc > MIN_SOC)
-		gstate->ttl = gstate->akku * 60 / BASELOAD; // not yet in discharge phase - use BASELOAD (minutes)
-	else
-		gstate->ttl = 0;
+	gstate->ttl = gstate->akku * 60 / pstate->load * -1;
 }
 
 // shape pstate values below NOISE
