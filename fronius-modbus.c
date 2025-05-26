@@ -992,9 +992,7 @@ static void daily() {
 	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
 	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 
-	// dump todays history and high noon mosmix slots, clear all today and tomorrow values, recalculate factors
-	mosmix_dump_history_today(now);
-	mosmix_dump_history_hours(12);
+	// clear mosmix today and tomorrow tables, recalculate factors
 	mosmix_clear_today_tomorrow();
 	mosmix_factors();
 
