@@ -808,13 +808,10 @@ static void calculate_gstate() {
 	gstate->success = success * 100; // store as x100 scaled
 	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
-	// collect needed power to survive and to heat +50Wh inverter dissipation
-	int hours, from, to;
+	// collect needed power to survive (+50Wh inverter dissipation) and to heat
 	int heating_total = collect_heating_total();
-	gstate->need_survive = mosmix_survive(now, loads, &hours, &from, &to);
-	gstate->need_survive += hours * 50;
-	gstate->need_heating = mosmix_heating(now, heating_total, &hours, &from, &to);
-	gstate->need_heating += hours * 50;
+	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 50);
+	gstate->need_heating = mosmix_heating(now, heating_total);
 
 	// survival factor
 	int tocharge = gstate->need_survive - gstate->akku;
