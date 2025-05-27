@@ -14,7 +14,7 @@
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
 
-#define BASELOAD				166
+#define BASELOAD				80
 #define EXTRA					55
 #define FACTORS_MAX				333
 #define NOISE					10
@@ -320,7 +320,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 		if (++h == 24)
 			h = 0;
 		mosmix_t *m = h < 24 ? TODAY(h) : TOMORROW(h);
-		int load = loads[h] < baseload ? loads[h] : baseload;
+		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
 		if (load > SUM_EXP) {
 			snprintf(value, 48, " %d:%d:%d", h, load, SUM_EXP);
 			strcat(line, value);
