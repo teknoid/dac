@@ -309,17 +309,18 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
 }
 
-// collect hours where expected pv cannot satisfy load
+// night: collect hours where pv cannot satisfy load
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF], value[48];
-	int hours = 0, needed = 0;
+	int h = now->tm_hour, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:l:x");
-	int h = now->tm_hour;
-	for (int i = 0; i < 24; i++) {
-		if (++h == 24)
+	while (1) {
+		if (++h == 24) {
+			midnight = 1;
 			h = 0;
-		mosmix_t *m = h < 24 ? TODAY(h) : TOMORROW(h);
+		}
+		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
 		if (load > SUM_EXP) {
 			snprintf(value, 48, " %d:%d:%d", h, load, SUM_EXP);
@@ -327,6 +328,8 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			needed += load + extra;
 			hours++;
 		}
+		if (h == 12 && (now->tm_hour < 6 || midnight))
+			break; // reached high noon this day or next day
 	}
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);
@@ -335,7 +338,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	return needed;
 }
 
-// collect hours where we can heat with pv
+// day: collect hours where we can heat with pv
 int mosmix_heating(struct tm *now, int power) {
 	char line[LINEBUF], value[48];
 	int hours = 0, needed = 0;
@@ -524,7 +527,7 @@ static void test() {
 	mosmix_dump_history_hours(12);
 	mosmix_dump_history_hours(15);
 
-	now->tm_hour = 11;
+	now->tm_hour = 16;
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 	mosmix_survive(now, fake_loads, BASELOAD, EXTRA);
