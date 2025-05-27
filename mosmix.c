@@ -180,7 +180,8 @@ void mosmix_factors() {
 		factor_t *f = FACTORS(h);
 
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-		for (int r = 0; r < FACTORS_MAX; r++) {
+		// model error: r must not be 0 when s is set
+		for (int r = 1; r < FACTORS_MAX; r++) {
 			for (int s = 0; s < FACTORS_MAX; s++) {
 				mosmix_t cum, x;
 				ZERO(cum);
@@ -207,7 +208,7 @@ void mosmix_factors() {
 					cum.err4 += x.err4;
 				}
 
-				// now find the coefficients producing the smallest error and store them to table
+				// take over coefficients calculated the smallest error
 				if (cum.err1 < f->e1) {
 					f->r1 = r;
 					f->s1 = s;

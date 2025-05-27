@@ -552,6 +552,9 @@ static int ramp_multi(device_t *d) {
 }
 
 static device_t* rampup() {
+	if (PSTATE_ALL_STANDBY)
+		return 0;
+
 	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		if (PSTATE_MIN_LAST1->ramp < 1000)
 			return 0;
@@ -582,7 +585,7 @@ static device_t* rampdown() {
 
 static device_t* steal() {
 	// check flags
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || PSTATE_ALL_STANDBY)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -629,6 +632,9 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static device_t* standby() {
+	if (PSTATE_ALL_STANDBY)
+		return 0;
+
 	// too hot to heat
 	int force_standby = TEMP_IN > 25;
 
@@ -1815,7 +1821,7 @@ int ramp_akku(device_t *akku, int power) {
 			return 1; // loop done
 
 		// charging starts at high noon when below 25%
-		if (SUMMER && (pstate->soc > 250 || now->tm_hour < 12))
+		if (SUMMER && (gstate->soc > 250 || now->tm_hour < 12))
 			return 0; // continue loop
 
 		// ramp up - enable charging
