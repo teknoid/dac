@@ -433,10 +433,10 @@ void mosmix_store_history() {
 	store_blob(MOSMIX_HISTORY, history, sizeof(history));
 }
 void mosmix_store_csv() {
-	store_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
-	store_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, MOSMIX_FACTORS_CSV);
-	store_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
-	store_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
+	store_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, MOSMIX_HISTORY_CSV);
+	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, MOSMIX_FACTORS_CSV);
+	store_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TODAY_CSV);
+	store_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, MOSMIX_TOMORROW_CSV);
 }
 
 int mosmix_load(struct tm *now, const char *filename, int clear) {

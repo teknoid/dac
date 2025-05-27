@@ -11,7 +11,10 @@
 // hexdump -v -e '30 "%6d ""\n"' /work/fronius-pstate*.bin
 #define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
 #define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
+
 #define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
+#define LOADS_CSV				"/run/mcp/loads.csv"
+
 #define PSTATE_JSON				"/run/mcp/pstate.json"
 #define GSTATE_JSON				"/run/mcp/gstate.json"
 #define DSTATE_JSON				"/run/mcp/dstate.json"

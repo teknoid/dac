@@ -794,7 +794,32 @@ void store_csv_header(const char *header, const char *filename) {
 	xlog("UTILS stored header %s", filename);
 }
 
-void store_csv(int *table, int cols, int rows, const char *header, const char *filename) {
+void store_array_csv(int array[], int size, const char *header, const char *filename) {
+	char c[8 + 16], v[16];
+
+	FILE *fp = fopen(filename, "wt");
+	if (fp == NULL) {
+		xerr("UTILS Cannot open file %s for writing", filename);
+		return;
+	}
+
+	if (header)
+		fprintf(fp, " i%s\n", header);
+
+	for (int y = 0; y < size; y++) {
+		snprintf(v, 16, "%02d ", y);
+		strcpy(c, v);
+		snprintf(v, 8, "%5d ", array[y]);
+		strcat(c, v);
+		fprintf(fp, "%s\n", c);
+	}
+
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS stored %s", filename);
+}
+
+void store_table_csv(int *table, int cols, int rows, const char *header, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
 	FILE *fp = fopen(filename, "wt");
@@ -821,7 +846,7 @@ void store_csv(int *table, int cols, int rows, const char *header, const char *f
 	xlog("UTILS stored %s", filename);
 }
 
-void append_csv(int *table, int cols, int rows, int offset, const char *filename) {
+void append_table_csv(int *table, int cols, int rows, int offset, const char *filename) {
 	char c[cols * 8 + 16], v[16];
 
 	FILE *fp = fopen(filename, "at");

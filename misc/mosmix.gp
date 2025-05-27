@@ -7,6 +7,7 @@ history="/run/mcp/mosmix-history.csv"
 factors="/run/mcp/mosmix-factors.csv"
 today="/run/mcp/mosmix-today.csv"
 tomorrow="/run/mcp/mosmix-tomorrow.csv"
+loads="/run/mcp/loads.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -59,35 +60,30 @@ p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"e
 
 # gstate weekly
 set ylabel "GState week"
-set yrange [0:*]
+set xrange [0:168]
 set output "/run/mcp/gstate-week.svg"
-p gstatew u 1:"pv"    t "pv"       w lines,\
-       '' u 1:"akku"  t "akku"     w lines,\
-       '' u 1:"↑grid" t "produced" w lines,\
-       '' u 1:"↓grid" t "consumed" w lines,\
+p gstatew u 1:"load"  t "load"     w lines,\
+       '' u 1:"soc"   t "soc"      w lines,\
        '' u 1:"ttl"   t "ttl"      w lines,\
-       '' u 1:"surv"  t "survive"  w lines ls 5,\
-       '' u 1:"heat"  t "heating"  w lines ls 6
+       '' u 1:"surv"  t "survive"  w lines,\
+       '' u 1:"heat"  t "heating"  w lines
 
 
-# gstate
-set ylabel "GState"
-set xrange [0:24]
-set yrange [0:*]
+# gstate daily
+set ylabel "GState today"
+set xrange [0:23]
 set xtics 1
 set output "/run/mcp/gstate.svg"
-p gstate u 1:"pv"    t "pv"       w lines,\
-      '' u 1:"akku"  t "akku"     w lines,\
-      '' u 1:"↑grid" t "produced" w lines,\
-      '' u 1:"↓grid" t "consumed" w lines,\
-      '' u 1:"ttl"   t "ttl"      w lines,\
-      '' u 1:"surv"  t "survive"  w lines ls 5,\
-      '' u 1:"heat"  t "heating"  w lines ls 6
+p gstate  u 1:"load"  t "load"     w lines,\
+       '' u 1:"soc"   t "soc"      w lines,\
+       '' u 1:"ttl"   t "ttl"      w lines,\
+       '' u 1:"surv"  t "survive"  w lines,\
+       '' u 1:"heat"  t "heating"  w lines
 
 
 # factors
 set ylabel "Factors"
-set xrange [4:21]
+set xrange [5:22]
 set output "/run/mcp/mosmix-factors.svg" 
 p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"r2" t "r2" w lines,\
@@ -98,7 +94,7 @@ p factors u 1:"r1" t "r1" w lines,\
 
 
 # forecasts
-set xrange [4:21]
+set xrange [5:22]
 set yrange [0:10000]
 
 set ylabel "Today"
@@ -158,3 +154,12 @@ set ylabel "Grid - Frequency +/-"
 set yrange [-50:50]
 set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
+
+
+# loads
+set ylabel "Average Loads 24/7"
+set xrange [0:23]
+set yrange [*:*]
+set xtics 1 format "%s"
+set output "/run/mcp/loads.svg"
+p loads   u 1:"load"  t "load"     w lines 

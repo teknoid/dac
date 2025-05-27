@@ -70,7 +70,6 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 
 // average loads over 24/7
-// TODO gnuplot
 static int loads[24];
 
 // program of the day - choosen by mosmix forecast data
@@ -122,8 +121,8 @@ static void create_dstate_json() {
 
 static void plot() {
 	// create gstate daily/weekly
-	store_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
-	store_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
+	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
+	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
 
 	// create mosmix history, today, tomorrow csv
 	mosmix_store_csv();
@@ -344,6 +343,10 @@ static void collect_loads() {
 		strcat(line, value);
 	}
 	xdebug(line);
+
+#ifndef FRONIUS_MAIN
+	store_array_csv(loads, 24, "  load", LOADS_CSV);
+#endif
 }
 
 static void store_meter_power(device_t *d) {
@@ -1065,7 +1068,7 @@ static void hourly() {
 	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
 	if (!offset || access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
-	append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
+	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
 
 	// paint new diagrams
 	plot();

@@ -126,8 +126,9 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 void aggregate(int *target, int *table, int cols, int rows);
 void cumulate(int *target, int *table, int cols, int rows);
 void store_csv_header(const char *header, const char *filename);
-void store_csv(int *table, int cols, int rows, const char *header, const char *filename);
-void append_csv(int *table, int cols, int rows, int offset, const char *filename);
+void store_array_csv(int array[], int size, const char *header, const char *filename);
+void store_table_csv(int *table, int cols, int rows, const char *header, const char *filename);
+void append_table_csv(int *table, int cols, int rows, int offset, const char *filename);
 void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header);
 void dump_struct(int *values, int size, const char *idx, const char *title);
 
