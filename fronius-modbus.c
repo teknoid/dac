@@ -747,12 +747,25 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
+static void emergency() {
+	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
+	for (device_t **dd = DEVICES; *dd; dd++)
+		ramp(DD, DOWN);
+}
+
+// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
+static void burnout() {
+	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
+	fronius_override_seconds("küche", WAIT_BURNOUT);
+	fronius_override_seconds("wozi", WAIT_BURNOUT);
+}
+
 static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
 
 	// store average load in gstate history
-	gstate->load = PSTATE_HOUR_NOW->load;
+	gstate->load = PSTATE_HOUR_LAST1->load;
 
 	// day total: pv / consumed / produced
 	counter_t *c = COUNTER_0;
@@ -964,19 +977,6 @@ static void calculate_pstate() {
 	}
 }
 
-static void emergency() {
-	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
-	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp(DD, DOWN);
-}
-
-// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-static void burnout() {
-	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
-	fronius_override_seconds("küche", WAIT_BURNOUT);
-	fronius_override_seconds("wozi", WAIT_BURNOUT);
-}
-
 static void daily() {
 	PROFILING_START
 	xlog("FRONIUS executing daily tasks...");
@@ -1075,17 +1075,15 @@ static void hourly() {
 static void aggregate_mhd() {
 	// aggregate 60 seconds into this minute
 	if (now->tm_sec == 0) {
-		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		PSTATE_MIN_NOW->soc = pstate->soc; // take over raw soc
-		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
+		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+		dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 		// aggregate 60 minutes into this hour
 		if (now->tm_min == 0) {
-			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			PSTATE_HOUR_NOW->soc = pstate->soc; // take over raw soc
-			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
+			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
+			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+			dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 			// aggregate 24 pstate/gstat hours into this day
 			if (now->tm_hour == 0) {
