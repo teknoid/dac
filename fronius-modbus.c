@@ -38,15 +38,15 @@
 // counter history every hour over one day and access pointers
 static counter_t counter_hours[24], counter_current, *counter = &counter_current;
 #define COUNTER_NOW				(&counter_hours[now->tm_hour])
-#define COUNTER_LAST			(&counter_hours[now->tm_hour > 00 ? now->tm_hour - 1 : 23])
-#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 : 00])
+#define COUNTER_LAST			(&counter_hours[now->tm_hour >  0 ? now->tm_hour - 1 : 23])
+#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 :  0])
 #define COUNTER_HOUR(h)			(&counter_hours[h])
 #define COUNTER_0				(&counter_hours[0])
 
-// 24h slots over one week and access pointers
+// 24/7 gstate history slots and access pointers
 static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (!now->tm_wday && !now->tm_hour ? 24 * 7 - 1 : 1)])
+#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
@@ -70,6 +70,7 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 
 // average loads over 24/7
+// TODO gnuplot
 static int loads[24];
 
 // program of the day - choosen by mosmix forecast data
@@ -326,7 +327,9 @@ static void collect_loads() {
 	for (int h = 0; h < 24; h++) {
 		for (int d = 0; d < 7; d++) {
 			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
-			if (load < NOISE || load > BASELOAD * 2) {
+			if (load == 0)
+				load = BASELOAD;
+			if (load < NOISE) {
 				xdebug("FRONIUS suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
 				load = BASELOAD;
 			}
@@ -642,7 +645,9 @@ static device_t* standby() {
 	if (force_standby) {
 		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
 		for (device_t **dd = DEVICES; *dd; dd++) {
-			if (!DD->adj && (DD->state == Active || DD->state == Active_Checked)) {
+			if (DD == AKKU || DD->adj)
+				continue;
+			if (DD->state == Active || DD->state == Active_Checked) {
 				ramp(DD, DOWN);
 				DD->state = Standby;
 			}
@@ -1030,10 +1035,6 @@ static void hourly() {
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
 
-	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
-	system(SAVE_RUN_DIRECORY);
-
 	// calculate last hour produced pv per mppt
 	counter_t *c = COUNTER_LAST;
 	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
@@ -1061,13 +1062,17 @@ static void hourly() {
 #endif
 
 	// create/append pstate minutes csv
-	int offset = now->tm_hour == 0 ? 23 * 60 : (now->tm_hour - 1) * 60;
-	if (now->tm_hour == 1 || access(PSTATE_M_CSV, F_OK))
+	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+	if (!offset || access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
 	append_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
 
 	// paint new diagrams
 	plot();
+
+	// workaround /run/mcp get's immediately deleted at stop/kill
+	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
+	system(SAVE_RUN_DIRECORY);
 
 	PROFILING_LOG("FRONIUS hourly");
 }
@@ -1076,14 +1081,14 @@ static void aggregate_mhd() {
 	// aggregate 60 seconds into this minute
 	if (now->tm_sec == 0) {
 		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
-		dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+		// dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 		// aggregate 60 minutes into this hour
 		if (now->tm_min == 0) {
 			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
-			dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+			// dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 			// aggregate 24 pstate/gstat hours into this day
 			if (now->tm_hour == 0) {
