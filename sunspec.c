@@ -12,6 +12,8 @@
 
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm
 
+// #define AKKU_CONTROL_DISABLED
+
 static void swap_string(char *string, int size) {
 	uint16_t *x = (uint16_t*) string;
 	uint16_t *y = (uint16_t*) string + size / 2;
@@ -462,6 +464,10 @@ void sunspec_stop(sunspec_t *ss) {
 }
 
 int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
+#ifdef AKKU_CONTROL_DISABLED
+	return EPERM;
+#endif
+
 	if (!ss->storage)
 		return ENOENT;
 
@@ -501,6 +507,10 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte) {
 }
 
 int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
+#ifdef AKKU_CONTROL_DISABLED
+	return EPERM;
+#endif
+
 	if (!ss->storage)
 		return ENOENT;
 
@@ -533,6 +543,10 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int inWRte) {
 }
 
 int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
+#ifdef AKKU_CONTROL_DISABLED
+	return EPERM;
+#endif
+
 	if (!ss->storage)
 		return ENOENT;
 
@@ -565,6 +579,10 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int outWRte) {
 }
 
 int sunspec_storage_limit_reset(sunspec_t *ss) {
+#ifdef AKKU_CONTROL_DISABLED
+	return EPERM;
+#endif
+
 	if (!ss->storage)
 		return ENOENT;
 
@@ -590,6 +608,10 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 }
 
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
+#ifdef AKKU_CONTROL_DISABLED
+	return EPERM;
+#endif
+
 	if (!ss->storage)
 		return ENOENT;
 

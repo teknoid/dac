@@ -1331,6 +1331,7 @@ static int calibrate(char *name) {
 	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
+	ss->storage = 0;
 
 	// create a socket if not yet done
 	if (sock == 0)
