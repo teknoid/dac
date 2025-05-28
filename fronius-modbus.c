@@ -845,8 +845,8 @@ static void calculate_gstate() {
 }
 
 static void calculate_pstate() {
-	// clear state flags and ramp value
-	pstate->flags = pstate->ramp = 0;
+	// clear state flags and values
+	pstate->flags = pstate->ramp = pstate->xload = pstate->dxload = 0;
 
 	// clear delta sum counters every minute
 	if (now->tm_sec == 0)
@@ -889,24 +889,6 @@ static void calculate_pstate() {
 	// akku power is Fronius10 DC power minus PV
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
-	// device loop:
-	// - xload/dxload
-	// - all devices up/down/standby
-	pstate->xload = pstate->dxload = 0;
-	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		pstate->xload += DD->load;
-		// (!) power can be -1 when uninitialized
-		if (DD->power > 0)
-			pstate->flags &= ~FLAG_ALL_DOWN;
-		if (!DD->power || (DD->adj && DD->power != 100))
-			pstate->flags &= ~FLAG_ALL_UP;
-		if (DD->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
-	}
-	int p_load = -1 * pstate->load; // - BASELOAD;
-	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
-
 	// offline mode when not enough PV production
 	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
 	if (!online) {
@@ -928,6 +910,27 @@ static void calculate_pstate() {
 		return;
 	}
 
+	// no further calculations while lock active
+	if (lock)
+		return;
+
+	// device loop:
+	// - xload/dxload
+	// - all devices up/down/standby
+	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		pstate->xload += DD->load;
+		// (!) power can be -1 when uninitialized
+		if (DD->power > 0)
+			pstate->flags &= ~FLAG_ALL_DOWN;
+		if (!DD->power || (DD->adj && DD->power != 100))
+			pstate->flags &= ~FLAG_ALL_UP;
+		if (DD->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+	}
+	int p_load = -1 * pstate->load; // - BASELOAD;
+	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
+
 	// ramp up/down power
 	pstate->ramp = pstate->grid * -1;
 	if (pstate->akku > NOISE)
@@ -947,19 +950,15 @@ static void calculate_pstate() {
 	// delay ramp up as long as average pv is below average load
 	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
 	if (pstate->ramp > 0 && m1->pv < m1_load) {
-		xdebug("FRONIUS delay ramp ups as long as average pv %d is below average load %d", m1->pv, m1_load);
+		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1_load);
 		pstate->ramp = 0;
 	}
-
-	// no validation/flags as long as locked
-	if (lock)
-		return;
 
 	// state is stable when we have 3x no grid changes
 	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
 		pstate->flags |= FLAG_STABLE;
 
-	// clear flag when values not valid
+	// set and then clear flag when values not valid
 	pstate->flags |= FLAG_VALID;
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
@@ -988,20 +987,18 @@ static void calculate_pstate() {
 		xdebug("FRONIUS Fronius7 is not active!");
 	}
 
-	// no further checks as long as not valid
+	// no further checks when invalid
 	if (!PSTATE_VALID)
 		return;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (pstate->sdpv && m1->sdpv && m2->sdpv) { // suppress DISTORTION at startup
-		int d0 = pstate->sdpv > m1->pv;
-		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-		if (d0 || d1 || d2)
-			pstate->flags |= FLAG_DISTORTION;
-		if (PSTATE_DISTORTION)
-			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-	}
+	int d0 = pstate->sdpv > m1->pv;
+	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+	if (d0 || d1 || d2)
+		pstate->flags |= FLAG_DISTORTION;
+	if (PSTATE_DISTORTION)
+		xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 
 	// indicate standby check when actual load is 3x below 50% of calculated load
 	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
