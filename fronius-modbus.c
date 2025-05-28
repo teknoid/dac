@@ -519,7 +519,7 @@ static int choose_program() {
 	if (gstate->survive < 0)
 		return select_program(&MODEST);
 
-	// survive but tomorrow not enough pv - charging akku has priority
+	// survive but tomorrow not enough PV - charging akku has priority
 	if (WINTER && gstate->tomorrow < AKKU_CAPACITY)
 		return select_program(&MODEST);
 
@@ -535,7 +535,7 @@ static int choose_program() {
 	if (gstate->heating <= 0)
 		return select_program(&BOILERS);
 
-	// enough pv available to survive + heating
+	// enough PV available to survive + heating
 	return select_program(&PLENTY);
 }
 
@@ -981,10 +981,10 @@ static void calculate_pstate() {
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
-	// 50% more ramp down when pv tendency is falling
+	// 50% more ramp down when PV tendency is falling
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
-	// delay ramp up as long as average pv is below average load
+	// delay ramp up as long as average PV is below average load
 	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
 	if (pstate->ramp > 0 && m1->pv < m1_load) {
 		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1_load);
@@ -1054,11 +1054,11 @@ static void hourly() {
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp(DD, DOWN);
 
-	// storage strategy: standard 5%, winter and tomorrow not much pv expected 10%
+	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(f10, min);
 
-	// calculate last hour produced pv per mppt
+	// calculate last hour produced PV per mppt
 	counter_t *c = COUNTER_LAST;
 	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
 	int mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
@@ -1802,7 +1802,7 @@ int ramp_akku(device_t *akku, int power) {
 		if (AKKU_CHARGING && m1_surp > -NOISE)
 			return 1; // loop done
 
-		// forward ramp down to next device till average pv falls below average load
+		// forward ramp down to next device till average PV falls below average load
 		if (m1_pv > m1_load)
 			return 0; // continue loop
 
