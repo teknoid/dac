@@ -326,21 +326,22 @@ void xlogl_int_B(char *line, const char *name, int value) {
 
 void xlogl_int_noise(char *line, int noise, int invers, const char *name, int value) {
 	char pair[32];
-	if (invers) {
+	if (noise && invers) {
 		if (value <= noise * -1)
 			snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
 		else if (value >= noise)
 			snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
 		else
 			snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
-	} else {
+	} else if (noise) {
 		if (value <= noise * -1)
 			snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
 		else if (value >= noise)
 			snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
 		else
 			snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
-	}
+	} else
+		snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
 	strncat(line, pair, 32);
 }
 
