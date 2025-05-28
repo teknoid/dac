@@ -904,8 +904,8 @@ static void calculate_pstate() {
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
-	int zload = -1 * pstate->load; // - BASELOAD;
-	pstate->dxload = zload > 0 && pstate->xload ? zload * 100 / pstate->xload : 0;
+	int p_load = -1 * pstate->load; // - BASELOAD;
+	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
 
 	// offline mode when not enough PV production
 	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
@@ -944,15 +944,15 @@ static void calculate_pstate() {
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
-	// suppress spikes - skip ramp ups as long as pv is smaller than load
-	if (pstate->ramp > 0 && m1->pv < m1->load * -1)
-		pstate->ramp = 0;
-	// suppress spikes - skip ramp downs as long as pv is bigger than load
-	if (pstate->ramp < 0 && m1->pv > m1->load * -1)
-		pstate->ramp = 0;
 	// 50% more ramp down when pv tendency is falling
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
+	// delay ramp up as long as average pv is below average load
+	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
+	if (pstate->ramp > 0 && m1->pv < m1_load) {
+		xdebug("FRONIUS delay ramp ups as long as average pv %d is below average load %d", m1->pv, m1_load);
+		pstate->ramp = 0;
+	}
 
 	// no validation/flags as long as locked
 	if (lock)
@@ -1209,8 +1209,8 @@ static void fronius() {
 				device = steal();
 		}
 
-		// print pstate once per minute / when delta / on device action
-		if (PSTATE_DELTA || device || now->tm_sec == 0)
+		// print pstate once per minute / when delta / on device action / on grid load
+		if (PSTATE_DELTA || device || now->tm_sec == 0 || pstate->grid > NOISE)
 			print_pstate_dstate(device);
 
 		// minutely tasks
@@ -1792,8 +1792,10 @@ int ramp_akku(device_t *akku, int power) {
 
 	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
+	int m1_pv = m1->pv;
 	int m1_grid = m1->grid;
 	int m1_surp = (m1->grid + m1->akku) * -1;
+	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
 	// xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
 
 	// ramp down request
@@ -1806,8 +1808,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (AKKU_CHARGING && m1_surp > -NOISE)
 			return 1; // loop done
 
-		// forward ramp down request to next device as long as other devices powered
-		if (!PSTATE_ALL_DOWN)
+		// forward ramp down to next device till average pv falls below average load
+		if (m1_pv > m1_load)
 			return 0; // continue loop
 
 		// ramp down - enable discharging
@@ -1824,7 +1826,7 @@ int ramp_akku(device_t *akku, int power) {
 		if (gstate->soc == 1000)
 			return akku_standby();
 
-		// forward ramp ups to next device if we still have grid upload
+		// forward ramp up to next device if we still have average grid upload
 		if (AKKU_CHARGING && m1_grid < -RAMP_WINDOW)
 			return 0; // continue loop
 
