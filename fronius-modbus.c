@@ -845,8 +845,8 @@ static void calculate_gstate() {
 }
 
 static void calculate_pstate() {
-	// clear all flags
-	pstate->flags = 0;
+	// clear state flags and ramp value
+	pstate->flags = pstate->ramp = 0;
 
 	// clear delta sum counters every minute
 	if (now->tm_sec == 0)
@@ -917,9 +917,6 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // burnout
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		pstate->ramp = pstate->grid * -1;
-		if (-NOISE < pstate->grid && pstate->grid <= NOISE)
-			pstate->ramp = 0; // shape
 		return;
 	}
 
