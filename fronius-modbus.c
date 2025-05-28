@@ -846,7 +846,7 @@ static void calculate_gstate() {
 
 static void calculate_pstate() {
 	// clear state flags and values
-	pstate->flags = pstate->ramp = pstate->xload = pstate->dxload = 0;
+	pstate->flags = pstate->ramp = 0;
 
 	// clear delta sum counters every minute
 	if (now->tm_sec == 0)
@@ -914,6 +914,43 @@ static void calculate_pstate() {
 	if (lock)
 		return;
 
+	// first set and then clear VALID flag when values suspicious
+	pstate->flags |= FLAG_VALID;
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
+	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
+		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->load > 0) {
+		xdebug("FRONIUS positive load detected");
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
+		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
+		xdebug("FRONIUS wasting power %d akku -> grid", waste);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
+		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
+		pstate->flags &= ~FLAG_VALID;
+		lock = WAIT_SPIKE; // load timer
+	}
+	if (f10 && !f10->active) {
+		xdebug("FRONIUS Fronius10 is not active!");
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (f7 && !f7->active) {
+		xdebug("FRONIUS Fronius7 is not active!");
+	}
+
+	// no further calculations while invalid
+	if (!PSTATE_VALID)
+		return;
+
+	// state is stable when we have 3x no grid changes
+	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+		pstate->flags |= FLAG_STABLE;
+
 	// device loop:
 	// - xload/dxload
 	// - all devices up/down/standby
@@ -953,43 +990,6 @@ static void calculate_pstate() {
 		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1_load);
 		pstate->ramp = 0;
 	}
-
-	// state is stable when we have 3x no grid changes
-	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
-		pstate->flags |= FLAG_STABLE;
-
-	// set and then clear flag when values not valid
-	pstate->flags |= FLAG_VALID;
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
-	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
-		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->load > 0) {
-		xdebug("FRONIUS positive load detected");
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
-		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-		xdebug("FRONIUS wasting power %d akku -> grid", waste);
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
-		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_VALID;
-		lock = WAIT_SPIKE; // load timer
-	}
-	if (f10 && !f10->active) {
-		xdebug("FRONIUS Fronius10 is not active!");
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (f7 && !f7->active) {
-		xdebug("FRONIUS Fronius7 is not active!");
-	}
-
-	// no further checks when invalid
-	if (!PSTATE_VALID)
-		return;
 
 	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
 	int d0 = pstate->sdpv > m1->pv;
