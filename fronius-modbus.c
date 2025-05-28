@@ -386,18 +386,18 @@ static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "∑PV", gstate->pv);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Today", gstate->today);
-	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "SoD", gstate->sod);
-	xlogl_int(line, 0, 0, "EoD", gstate->eod);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, 0, "Success", FLOAT100(gstate->success));
-	xlogl_float(line, 1, 0, "Survive", FLOAT100(gstate->survive));
-	xlogl_float(line, 1, 0, "Heating", FLOAT100(gstate->heating));
+	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
+	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, "Today", gstate->today);
+	xlogl_int(line, "Tomo", gstate->tomorrow);
+	xlogl_int(line, "SoD", gstate->sod);
+	xlogl_int(line, "EoD", gstate->eod);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, "Akku", gstate->akku);
+	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_int_noise(line, NOISE, 0, "Success", FLOAT100(gstate->success));
+	xlogl_int_noise(line, NOISE, 0, "Survive", FLOAT100(gstate->survive));
+	xlogl_int_noise(line, NOISE, 0, "Heating", FLOAT100(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -458,12 +458,12 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_bits16(line, "  Flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
-	xlogl_int(line, 1, 1, "Grid", pstate->grid);
-	xlogl_int(line, 1, 1, "Akku", pstate->akku);
-	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
-	xlogl_int(line, 0, 0, "Load", pstate->load);
+	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
+	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
+	xlogl_int(line, "Load", pstate->load);
 	if (lock)
-		xlogl_int(line, 0, 0, "Lock", lock);
+		xlogl_int(line, "Lock", lock);
 	xlogl_end(line, strlen(line), 0);
 }
 

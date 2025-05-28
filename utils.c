@@ -256,28 +256,9 @@ void xlogl_bits16(char *line, const char *name, int bits) {
 	strncat(line, c, 32);
 }
 
-void xlogl_float(char *line, int colored, int invers, const char *name, float value) {
+void xlogl_float(char *line, const char *name, float value) {
 	char pair[32];
-
-	if (colored) {
-		if (invers) {
-			if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
-			else if (value > 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
-			else
-				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
-		} else {
-			if (value > 0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
-			else if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
-			else
-				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
-		}
-	} else
-		snprintf(pair, 32, " %s:%.2f", name, value);
-
+	snprintf(pair, 32, " %s:%.2f", name, value);
 	strncat(line, pair, 32);
 }
 
@@ -287,28 +268,29 @@ void xlogl_float_b(char *line, const char *name, float value) {
 	strncat(line, pair, 32);
 }
 
-void xlogl_int(char *line, int colored, int invers, const char *name, int value) {
+void xlogl_float_c(char *line, int invers, const char *name, float value) {
 	char pair[32];
+	if (invers) {
+		if (value < 0)
+			snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+		else if (value > 0)
+			snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+		else
+			snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
+	} else {
+		if (value > 0)
+			snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+		else if (value < 0)
+			snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+		else
+			snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
+	}
+	strncat(line, pair, 32);
+}
 
-	if (colored) {
-		if (invers) {
-			if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
-			else if (value > 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
-			else
-				snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
-		} else {
-			if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
-			else if (value > 0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
-			else
-				snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
-		}
-	} else
-		snprintf(pair, 32, " %s:%d", name, value);
-
+void xlogl_int(char *line, const char *name, int value) {
+	char pair[32];
+	snprintf(pair, 32, " %s:%d", name, value);
 	strncat(line, pair, 32);
 }
 
@@ -339,6 +321,26 @@ void xlogl_int_b(char *line, const char *name, int value) {
 void xlogl_int_B(char *line, const char *name, int value) {
 	char pair[32];
 	snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
+	strncat(line, pair, 32);
+}
+
+void xlogl_int_noise(char *line, int noise, int invers, const char *name, int value) {
+	char pair[32];
+	if (invers) {
+		if (value <= noise * -1)
+			snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
+		else if (value >= noise)
+			snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
+		else
+			snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
+	} else {
+		if (value <= noise * -1)
+			snprintf(pair, 32, " "BOLD"%s:"BRED"%d"RESET, name, value);
+		else if (value >= noise)
+			snprintf(pair, 32, " "BOLD"%s:"BGRN"%d"RESET, name, value);
+		else
+			snprintf(pair, 32, " "BOLD"%s:%d"RESET, name, value);
+	}
 	strncat(line, pair, 32);
 }
 

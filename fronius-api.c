@@ -250,16 +250,16 @@ static void print_gstate(const char *message) {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "FRONIUS");
 	xlogl_int_b(line, "PV", gstate->pv);
-	xlogl_int(line, 1, 0, "↑Grid", gstate->produced);
-	xlogl_int(line, 1, 1, "↓Grid", gstate->consumed);
-	xlogl_int(line, 0, 0, "Today", gstate->today);
-	xlogl_int(line, 0, 0, "Tomo", gstate->tomorrow);
-	xlogl_int(line, 0, 0, "Exp", gstate->eod);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, 0, 0, "Akku", gstate->akku);
-	xlogl_float(line, 0, 0, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, 1, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
-	xlogl_float(line, 1, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
+	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
+	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, "Today", gstate->today);
+	xlogl_int(line, "Tomo", gstate->tomorrow);
+	xlogl_int(line, "Exp", gstate->eod);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, "Akku", gstate->akku);
+	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float_c(line, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
+	xlogl_float_c(line, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), message);
@@ -292,11 +292,11 @@ static void print_state(device_t *d) {
 	xlogl_bits16(line, "  Flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
-	xlogl_int(line, 1, 1, "Grid", pstate->grid);
-	xlogl_int(line, 1, 1, "Akku", pstate->akku);
-	xlogl_int(line, 1, 0, "Ramp", pstate->ramp);
-	xlogl_int(line, 0, 0, "Load", pstate->load);
-	xlogl_float(line, 0, 0, "SoC", FLOAT10(pstate->soc));
+	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
+	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
+	xlogl_int(line, "Load", pstate->load);
+	xlogl_float(line, "SoC", FLOAT10(pstate->soc));
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -771,22 +771,24 @@ static void calculate_pstate2() {
 		xdebug("FRONIUS distortion=%d sum=%d", PSTATE_DISTORTION, dpv_sum);
 
 	// device loop:
-	// - expected load
-	// - active devices
-	// - all devices in standby
-	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->xload = BASELOAD;
+	// - xload/dxload
+	// - all devices up/down/standby
+	pstate->xload = pstate->dxload = 0;
+	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
-		if (DD->power > 0 && DD != AKKU) // excl. akku; -1 when unitialized!
-			pstate->flags |= FLAG_ACTIVE;
+		// (!) power can be -1 when uninitialized
+		if (DD->power > 0)
+			pstate->flags &= ~FLAG_ALL_DOWN;
+		if (!DD->power || (DD->adj && DD->power != 100))
+			pstate->flags &= ~FLAG_ALL_UP;
 		if (DD->state != Standby)
 			pstate->flags &= ~FLAG_ALL_STANDBY;
 	}
-	pstate->xload *= -1;
+	int p_load = -1 * pstate->load; // - BASELOAD;
+	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
 
 	// indicate standby check when deviation between actual load and calculated load is three times above 33%
-	pstate->dxload = pstate->load < -BASELOAD ? (pstate->xload - pstate->load) * 100 / pstate->xload : 0;
 	if (pstate->dxload > 33 && h1->dxload > 33 && h2->dxload > 33)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 	if (PSTATE_CHECK_STANDBY)
@@ -1021,7 +1023,7 @@ static void fronius() {
 		wait = calculate_next_round(device);
 
 		// print pstate history and device state when we have active devices
-		if (PSTATE_ACTIVE)
+		if (!PSTATE_ALL_DOWN)
 			dump_table((int*) pstate_history, PSTATE_SIZE, 3, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
 
 		// set history pointer to next slot
@@ -1281,7 +1283,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// allow akku charging by recalculate ramp power only from grid
 		pstate->ramp = (pstate->grid) * -1;
-		if (!PSTATE_ACTIVE && pstate->ramp < 0)
+		if (PSTATE_ALL_DOWN && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
 		if (0 < pstate->ramp && pstate->ramp < RAMP_WINDOW) // stable between 0..25
 			pstate->ramp = 0;
@@ -1290,7 +1292,7 @@ int ramp_akku(device_t *akku, int power) {
 
 		// force akku to release charging power by recalculate ramp power from grid and akku
 		pstate->ramp = (pstate->grid + pstate->akku) * -1;
-		if (!PSTATE_ACTIVE && pstate->ramp < 0)
+		if (PSTATE_ALL_DOWN && pstate->ramp < 0)
 			pstate->ramp = 0; // no active devices - nothing to ramp down
 		if (RAMP_WINDOW < pstate->ramp && pstate->ramp < RAMP_WINDOW * 2) // stable between 25..50
 			pstate->ramp = 0;

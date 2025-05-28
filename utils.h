@@ -79,14 +79,16 @@ int xerrr(int ret, const char *format, ...);
 void xlogl_start(char *line, const char *s);
 void xlogl_bits(char *line, const char *name, int bits);
 void xlogl_bits16(char *line, const char *name, int bits);
-void xlogl_float(char *line, int colored, int invers, const char *name, float value);
+void xlogl_float(char *line, const char *name, float value);
 void xlogl_float_b(char *line, const char *name, float value);
-void xlogl_int(char *line, int colored, int invers, const char *name, int value);
+void xlogl_float_c(char *line, int invers, const char *name, float value);
+void xlogl_int(char *line, const char *name, int value);
 void xlogl_int_r(char *line, const char *name, int value);
 void xlogl_int_y(char *line, const char *name, int value);
 void xlogl_int_g(char *line, const char *name, int value);
 void xlogl_int_b(char *line, const char *name, int value);
 void xlogl_int_B(char *line, const char *name, int value);
+void xlogl_int_noise(char *line, int noise, int invers, const char *name, int value);
 void xlogl_end(char *line, size_t len, const char *s);
 
 int elevate_realtime(int cpu);
