@@ -944,6 +944,12 @@ static void calculate_pstate() {
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = 0;
+	// suppress spikes - skip ramp ups as long as pv is smaller than load
+	if (pstate->ramp > 0 && m1->pv < m1->load * -1)
+		pstate->ramp = 0;
+	// suppress spikes - skip ramp downs as long as pv is bigger than load
+	if (pstate->ramp < 0 && m1->pv > m1->load * -1)
+		pstate->ramp = 0;
 	// 50% more ramp down when pv tendency is falling
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
@@ -1786,10 +1792,8 @@ int ramp_akku(device_t *akku, int power) {
 
 	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
-	int m1_pv = m1->pv;
 	int m1_grid = m1->grid;
 	int m1_surp = (m1->grid + m1->akku) * -1;
-	int m1_load = m1->load * -1 + m1->load / -10; // + 10%;
 	// xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
 
 	// ramp down request
@@ -1805,10 +1809,6 @@ int ramp_akku(device_t *akku, int power) {
 		// forward ramp down request to next device as long as other devices powered
 		if (!PSTATE_ALL_DOWN)
 			return 0; // continue loop
-
-		// skip ramp downs as long as we have more pv than load
-		if (m1_pv > m1_load)
-			return 1; // loop done
 
 		// ramp down - enable discharging
 		return akku_discharge();
@@ -1827,10 +1827,6 @@ int ramp_akku(device_t *akku, int power) {
 		// forward ramp ups to next device if we still have grid upload
 		if (AKKU_CHARGING && m1_grid < -RAMP_WINDOW)
 			return 0; // continue loop
-
-		// skip ramp ups as long as pv is smaller than load
-		if (m1_pv < m1_load)
-			return 1; // loop done
 
 		// charging starts at high noon when below 25%
 		if (SUMMER && (gstate->soc > 250 || now->tm_hour < 12))
