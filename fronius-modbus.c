@@ -49,9 +49,10 @@ static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
+#define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
-#define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * (d) + (h)])
-#define GSTATE_HOUR_YDAY(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
+#define GSTATE_YDAY_HOUR(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
+#define GSTATE_D_H(d, h)		(&gstate_hours[24 * (d) + (h)])
 
 // pstate history every second/minute/hour and access pointers
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
@@ -189,6 +190,7 @@ static int storage_min(char *arg) {
 
 static int akku_standby() {
 	AKKU->state = Standby;
+	AKKU->power = 0;
 #ifndef FRONIUS_MAIN
 	if (!sunspec_storage_limit_both(f10, 0, 0))
 		xdebug("FRONIUS set akku STANDBY");
@@ -198,6 +200,7 @@ static int akku_standby() {
 
 static int akku_charge() {
 	AKKU->state = Charge;
+	AKKU->power = 1;
 #ifndef FRONIUS_MAIN
 	if (!sunspec_storage_limit_discharge(f10, 0)) {
 		xdebug("FRONIUS set akku CHARGE");
@@ -209,6 +212,7 @@ static int akku_charge() {
 
 static int akku_discharge() {
 	AKKU->state = Discharge;
+	AKKU->power = 0;
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
 #ifndef FRONIUS_MAIN
@@ -325,7 +329,7 @@ static void collect_loads() {
 	ZERO(loads);
 	for (int h = 0; h < 24; h++) {
 		for (int d = 0; d < 7; d++) {
-			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
+			int load = GSTATE_D_H(d, h)->load * -1;
 			if (load == 0)
 				load = BASELOAD;
 			if (load < NOISE) {
@@ -535,6 +539,24 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
+static void emergency() {
+	akku_discharge(); // enable discharge
+	for (device_t **dd = DEVICES; *dd; dd++)
+		ramp(DD, DOWN);
+	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
+}
+
+static void burnout() {
+	akku_discharge(); // enable discharge
+	fronius_override_seconds("küche", WAIT_BURNOUT);
+	fronius_override_seconds("wozi", WAIT_BURNOUT);
+	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
+}
+
+static void offline() {
+	akku_discharge(); // enable discharge
+}
+
 static int ramp_multi(device_t *d) {
 	int ret = ramp(d, pstate->ramp);
 	if (ret) {
@@ -552,7 +574,7 @@ static int ramp_multi(device_t *d) {
 }
 
 static device_t* rampup() {
-	if (PSTATE_ALL_STANDBY)
+	if (PSTATE_ALL_UP || PSTATE_ALL_STANDBY)
 		return 0;
 
 	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
@@ -570,6 +592,11 @@ static device_t* rampup() {
 }
 
 static device_t* rampdown() {
+	if (PSTATE_ALL_DOWN) {
+		akku_discharge(); // enable discharge
+		return 0;
+	}
+
 	// jump to last entry
 	device_t *d = 0, **dd = potd->devices;
 	while (*dd)
@@ -585,7 +612,7 @@ static device_t* rampdown() {
 
 static device_t* steal() {
 	// check flags
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || PSTATE_ALL_STANDBY)
+	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -761,19 +788,6 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-static void emergency() {
-	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
-	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp(DD, DOWN);
-}
-
-// burn out akku between 7 and 9 o'clock if we can re-charge it completely by day
-static void burnout() {
-	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
-	fronius_override_seconds("küche", WAIT_BURNOUT);
-	fronius_override_seconds("wozi", WAIT_BURNOUT);
-}
-
 static void calculate_gstate() {
 	// take over SoC
 	gstate->soc = pstate->soc;
@@ -875,10 +889,28 @@ static void calculate_pstate() {
 	// akku power is Fronius10 DC power minus PV
 	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
+	// device loop:
+	// - xload/dxload
+	// - all devices up/down/standby
+	pstate->xload = pstate->dxload = 0;
+	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		pstate->xload += DD->load;
+		// (!) power can be -1 when uninitialized
+		if (DD->power > 0)
+			pstate->flags &= ~FLAG_ALL_DOWN;
+		if (!DD->power || (DD->adj && DD->power != 100))
+			pstate->flags &= ~FLAG_ALL_UP;
+		if (DD->state != Standby)
+			pstate->flags &= ~FLAG_ALL_STANDBY;
+	}
+	int zload = -1 * pstate->load; // - BASELOAD;
+	pstate->dxload = zload > 0 && pstate->xload ? zload * 100 / pstate->xload : 0;
+
 	// offline mode when not enough PV production
 	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
 	if (!online) {
-		// akku burnout between 6 and 9 o'clock when possible
+		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
 		int burnout_possible = TEMP_IN < 18 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
@@ -888,7 +920,6 @@ static void calculate_pstate() {
 		pstate->ramp = pstate->grid * -1;
 		if (-NOISE < pstate->grid && pstate->grid <= NOISE)
 			pstate->ramp = 0; // shape
-		pstate->xload = pstate->dxload = 0;
 		return;
 	}
 
@@ -917,46 +948,13 @@ static void calculate_pstate() {
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
 
-	// state is stable when we have 3x no grid changes
-	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
-		pstate->flags |= FLAG_STABLE;
-
-	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	if (pstate->sdpv && m1->sdpv && m2->sdpv) { // suppress DISTORTION at startup
-		int d0 = pstate->sdpv > m1->pv;
-		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-		if (d0 || d1 || d2)
-			pstate->flags |= FLAG_DISTORTION;
-		if (PSTATE_DISTORTION)
-			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-	}
-
-	// device loop:
-	// - expected load
-	// - active devices
-	// - all devices in standby
-	pstate->flags |= FLAG_ALL_STANDBY;
-	pstate->xload = 0;
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		pstate->xload += DD->load;
-		if (DD != AKKU && DD->power > 0) // excl. akku; -1 when unitialized!
-			pstate->flags |= FLAG_ACTIVE;
-		if (DD->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
-	}
-
-	// no validation as long as locked
+	// no validation/flags as long as locked
 	if (lock)
 		return;
 
-	// indicate standby check when actual load is 3x below 50% of calculated load
-	int zload = -1 * pstate->load - BASELOAD;
-	pstate->dxload = zload > 0 && pstate->xload ? zload * 100 / pstate->xload : 0;
-	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
-		pstate->flags |= FLAG_CHECK_STANDBY;
-	if (PSTATE_CHECK_STANDBY)
-		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+	// state is stable when we have 3x no grid changes
+	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+		pstate->flags |= FLAG_STABLE;
 
 	// clear flag when values not valid
 	pstate->flags |= FLAG_VALID;
@@ -986,6 +984,27 @@ static void calculate_pstate() {
 	if (f7 && !f7->active) {
 		xdebug("FRONIUS Fronius7 is not active!");
 	}
+
+	// no further checks as long as not valid
+	if (!PSTATE_VALID)
+		return;
+
+	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+	if (pstate->sdpv && m1->sdpv && m2->sdpv) { // suppress DISTORTION at startup
+		int d0 = pstate->sdpv > m1->pv;
+		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+		if (d0 || d1 || d2)
+			pstate->flags |= FLAG_DISTORTION;
+		if (PSTATE_DISTORTION)
+			xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+	}
+
+	// indicate standby check when actual load is 3x below 50% of calculated load
+	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
+		pstate->flags |= FLAG_CHECK_STANDBY;
+	if (PSTATE_CHECK_STANDBY)
+		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
 }
 
 static void daily() {
@@ -996,7 +1015,7 @@ static void daily() {
 	collect_loads();
 
 	// calculate forecast errors - actual vs. expected
-	int forecast_yesterday = GSTATE_HOUR_YDAY(23)->tomorrow;
+	int forecast_yesterday = GSTATE_YDAY_HOUR(23)->tomorrow;
 	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
 	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
 	int forecast_today = GSTATE_HOUR(6)->today;
@@ -1025,8 +1044,6 @@ static void hourly() {
 
 	// resetting noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		if (DD == AKKU)
-			continue;
 		DD->noresponse = 0;
 		if (DD->state == Standby || DD->state == Active_Checked)
 			DD->state = Active;
@@ -1106,9 +1123,9 @@ static void aggregate_mhd() {
 				dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
 
 				gstate_t gda, gdc;
-				aggregate((int*) &gda, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-				cumulate((int*) &gdc, (int*) GSTATE_TODAY, GSTATE_SIZE, 24);
-				dump_table((int*) GSTATE_TODAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+				aggregate((int*) &gda, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+				cumulate((int*) &gdc, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+				dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
 				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
@@ -1142,7 +1159,6 @@ static void fronius() {
 
 		// startup and every 10 minutes: calculate gstate and potd
 		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
-			collect_loads();
 			calculate_gstate();
 			choose_program();
 			print_gstate();
@@ -1154,13 +1170,17 @@ static void fronius() {
 
 		else {
 
-			// check emergency
+			// emergency mode
 			if (PSTATE_EMERGENCY)
 				emergency();
 
-			// check burnout
+			// burnout mode
 			if (PSTATE_BURNOUT)
 				burnout();
+
+			// offline mode
+			if (PSTATE_OFFLINE)
+				offline();
 
 			// prio1: check response from previous action
 			if (device)
@@ -1251,6 +1271,7 @@ static int init() {
 	mosmix_load_history(now);
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG, 0);
+	collect_loads();
 	plot();
 
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
@@ -1760,14 +1781,8 @@ int ramp_akku(device_t *akku, int power) {
 		return 0;
 
 	// init - set to standby and wait for ramp request
-	if (akku->power == -1) {
-		akku->power = 0;
+	if (akku->power == -1)
 		return akku_standby();
-	}
-
-	// offline - enable discharge
-	if (PSTATE_OFFLINE)
-		return akku_discharge();
 
 	// use last minute averages for calculation to suppress spikes
 	pstate_t *m1 = PSTATE_MIN_LAST1;
@@ -1787,8 +1802,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (AKKU_CHARGING && m1_surp > -NOISE)
 			return 1; // loop done
 
-		// forward ramp down request to next device as long as other devices active
-		if (PSTATE_ACTIVE)
+		// forward ramp down request to next device as long as other devices powered
+		if (!PSTATE_ALL_DOWN)
 			return 0; // continue loop
 
 		// skip ramp downs as long as we have more pv than load
