@@ -15,7 +15,7 @@
 // #define STORAGE_CONTROL_DISABLED
 
 // track storage state and limits
-static int storctl, inwrte, outwrte, wchamax, minrsvpct, inoutwrte_sf, minrsvpct_sf;
+static int wchamax, storctl, inwrte, outwrte, inoutwrte_sf, minrsvpct, minrsvpct_sf;
 
 static void swap_string(char *string, int size) {
 	uint16_t *x = (uint16_t*) string;
