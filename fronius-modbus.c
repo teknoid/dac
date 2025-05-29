@@ -568,7 +568,8 @@ static int ramp_multi(device_t *d) {
 			pstate->ramp = 0;
 		if (old_ramp < 0 && pstate->ramp > NOISE * -2)
 			pstate->ramp = 0;
-		msleep(66);
+		if (pstate->ramp)
+			msleep(33);
 	}
 	return ret;
 }
