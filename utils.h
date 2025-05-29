@@ -54,7 +54,7 @@
 
 #define PROFILING_START \
 		struct timespec ts_profiling; \
-		uint64_t ts_profiling_start, ts_profiling_end, ts_profiling_elapsed; \
+		int64_t ts_profiling_start, ts_profiling_end, ts_profiling_ns, ts_profiling_us, ts_profiling_ms; \
 		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
 		ts_profiling_start = ts_profiling.tv_nsec;
 
@@ -65,8 +65,15 @@
 #define PROFILING_LOG(s) \
 		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
 		ts_profiling_end = ts_profiling.tv_nsec; \
-		ts_profiling_elapsed = (ts_profiling_end - ts_profiling_start) / 1000000; \
-		xlog("profiling %s in %lums", s, ts_profiling_elapsed);
+		ts_profiling_ns = ts_profiling_end - ts_profiling_start; \
+		ts_profiling_us = ts_profiling_ns / 1000; \
+		ts_profiling_ms = ts_profiling_us / 1000; \
+		if (ts_profiling_ms) \
+			xlog("%s profiling in %dms", s, ts_profiling_ms); \
+		else if (ts_profiling_us) \
+			xlog("%s profiling in %dus", s, ts_profiling_us); \
+		else \
+			xlog("%s profiling in %dns", s, ts_profiling_ns);
 
 void set_xlog(int output);
 void set_debug(int debug);

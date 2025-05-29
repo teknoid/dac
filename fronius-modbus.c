@@ -954,6 +954,7 @@ static void calculate_pstate() {
 	// device loop:
 	// - xload/dxload
 	// - all devices up/down/standby
+	pstate->xload = 0;
 	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		pstate->xload += DD->load;
@@ -1046,7 +1047,8 @@ static void hourly() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
 		if (DD->state == Standby || DD->state == Active_Checked)
-			DD->state = Active;
+			if (DD != AKKU)
+				DD->state = Active;
 	}
 
 	// force all devices off when offline
@@ -1144,6 +1146,7 @@ static void fronius() {
 
 	// the FRONIUS main loop
 	while (1) {
+		PROFILING_START
 
 		// get actual time and make a copy
 		now_ts = time(NULL);
@@ -1226,6 +1229,8 @@ static void fronius() {
 		create_dstate_json();
 		create_gstate_json();
 		create_powerflow_json();
+
+		PROFILING_LOG("FRONIUS main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))
