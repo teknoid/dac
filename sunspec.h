@@ -28,6 +28,11 @@
 #define SLEEP_TIME_FAULT		10		// 10 sec
 #define SLEEP_TIME_SLEEPING		900		// 15 min
 
+#define STORAGE_LIMIT_BOTH		3
+#define STORAGE_LIMIT_DISCHARGE	2
+#define STORAGE_LIMIT_CHARGE	1
+#define STORAGE_LIMIT_NONE		0
+
 //
 // sunspec models generated from Fronius documentation copied to misc/sunspec-struct-template.ods
 //
