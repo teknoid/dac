@@ -258,6 +258,11 @@ static void update_f10(sunspec_t *ss) {
 		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
+		// update counter hour 0 when empty
+		if (COUNTER_0->mppt1 == 0)
+			COUNTER_0->mppt1 = counter->mppt1;
+		if (COUNTER_0->mppt2 == 0)
+			COUNTER_0->mppt2 = counter->mppt2;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -294,6 +299,11 @@ static void update_f7(sunspec_t *ss) {
 		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 		ss->sleep = 0;
 		ss->active = 1;
+		// update counter hour 0 when empty
+		if (COUNTER_0->mppt3 == 0)
+			COUNTER_0->mppt3 = counter->mppt3;
+		if (COUNTER_0->mppt4 == 0)
+			COUNTER_0->mppt4 = counter->mppt4;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -321,6 +331,11 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
 //	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
+	// update counter hour 0 when empty
+	if (COUNTER_0->produced == 0)
+		COUNTER_0->produced = counter->produced;
+	if (COUNTER_0->consumed == 0)
+		COUNTER_0->consumed = counter->consumed;
 }
 
 static void collect_loads() {
@@ -1293,11 +1308,6 @@ static int init() {
 	// create empty minutes CSV file if not found
 	if (access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
-
-	// fake the hour 0 slot with current values if empty
-	counter_t *c = COUNTER_0;
-	if (c->mppt1 == 0 && c->mppt2 == 0 && c->mppt3 == 0 && c->mppt4 == 0 && c->produced == 0 && c->consumed == 0)
-		memcpy(COUNTER_0, (void*) counter, sizeof(counter_t));
 
 	return 0;
 }
