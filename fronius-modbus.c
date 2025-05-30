@@ -1146,7 +1146,7 @@ static void fronius() {
 
 	// the FRONIUS main loop
 	while (1) {
-		PROFILING_START
+		// PROFILING_START
 
 		// get actual time and make a copy
 		now_ts = time(NULL);
@@ -1230,7 +1230,7 @@ static void fronius() {
 		create_gstate_json();
 		create_powerflow_json();
 
-		PROFILING_LOG("FRONIUS main loop")
+		// PROFILING_LOG("FRONIUS main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))
@@ -1239,7 +1239,7 @@ static void fronius() {
 }
 
 static int init() {
-	set_debug(1);
+	// set_debug(1);
 
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
