@@ -997,9 +997,9 @@ static void calculate_pstate() {
 	if (pstate->ramp < 0 && m1->dpv < 0)
 		pstate->ramp += pstate->ramp / 2;
 	// delay ramp up as long as average PV is below average load
-	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
-	if (pstate->ramp > 0 && m1->pv < m1_load) {
-		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1_load);
+	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
+	if (pstate->ramp > 0 && m1->pv < m1load) {
+		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
 		pstate->ramp = 0;
 	}
 
@@ -1119,28 +1119,27 @@ static void hourly() {
 }
 
 static void minly() {
-	pstate_t *m1 = PSTATE_MIN_LAST1;
-	xdebug("FRONIUS minly m1_pv=%d m1_grid=%d m1_load=%d", m1->pv, m1->grid, m1->load);
+	xlog("FRONIUS minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
 
 	// enable discharge if we have grid download
-	if (pstate->grid > NOISE && m1->grid > NOISE)
+	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
 		akku_discharge();
 }
 
 static void aggregate_mhd() {
-	// aggregate 60 seconds into this minute
+	// aggregate 60 seconds into one minute
 	if (now->tm_sec == 0) {
 		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
 		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
 		// dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
-		// aggregate 60 minutes into this hour
+		// aggregate 60 minutes into one hour
 		if (now->tm_min == 0) {
 			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
 			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
 			// dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
-			// aggregate 24 pstate/gstat hours into this day
+			// aggregate 24 pstate/gstat hours into one day
 			if (now->tm_hour == 0) {
 				pstate_t pda, pdc;
 				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
