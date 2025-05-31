@@ -567,10 +567,6 @@ static void burnout() {
 	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
 }
 
-static void offline() {
-	akku_discharge(); // enable discharge
-}
-
 static int ramp_multi(device_t *d) {
 	int ret = ramp(d, pstate->ramp);
 	if (ret) {
@@ -1047,6 +1043,11 @@ static void daily() {
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 #endif
+
+	// recalculate gstate
+	calculate_gstate();
+	print_gstate();
+
 	PROFILING_LOG("FRONIUS daily");
 }
 
@@ -1115,6 +1116,15 @@ static void hourly() {
 	system(SAVE_RUN_DIRECORY);
 
 	PROFILING_LOG("FRONIUS hourly");
+}
+
+static void minly() {
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	xdebug("FRONIUS minly m1_pv=%d m1_grid=%d m1_load=%d", m1->pv, m1->grid, m1->load);
+
+	// enable discharge if we have grid download
+	if (pstate->grid > NOISE && m1->grid > NOISE)
+		akku_discharge();
 }
 
 static void aggregate_mhd() {
@@ -1196,10 +1206,6 @@ static void fronius() {
 			if (PSTATE_BURNOUT)
 				burnout();
 
-			// offline mode
-			if (PSTATE_OFFLINE)
-				offline();
-
 			// prio1: check response from previous action
 			if (device)
 				device = response(device);
@@ -1227,7 +1233,7 @@ static void fronius() {
 
 		// minutely tasks
 		if (now->tm_sec == 0) {
-			// minly();
+			minly();
 
 			// hourly tasks
 			if (now->tm_min == 0) {
@@ -1800,27 +1806,15 @@ int ramp_akku(device_t *akku, int power) {
 	if (akku->power == -1)
 		return akku_standby();
 
-	// use last minute averages for calculation to suppress spikes
-	pstate_t *m1 = PSTATE_MIN_LAST1;
-	int m1_pv = m1->pv;
-	int m1_grid = m1->grid;
-	int m1_surp = (m1->grid + m1->akku) * -1;
-	int m1_load = (m1->load + m1->load / 10) * -1; // + 10%;
-	// xdebug("FRONIUS akku ramp=%d m1_pv=%d m1_grid=%d m1_surp=%d m1_load=%d", power, m1_pv, m1_grid, m1_surp, m1_load);
-
 	// ramp down request
 	if (power < 0) {
 
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
-		// skip ramp downs if we are in charge mode and still enough surplus - akku ramps down itself
-		if (AKKU_CHARGING && m1_surp > -NOISE)
-			return 1; // loop done
-
-		// forward ramp down to next device till average PV falls below average load
-		if (m1_pv > m1_load)
-			return 0; // continue loop
+		// skip ramp downs as long as we have grid upload (akku ramps down itself / forward to next device)
+		if (PSTATE_MIN_LAST1->grid < -RAMP_WINDOW)
+			return AKKU_CHARGING ? 1 : 0;
 
 		// ramp down - enable discharging
 		return akku_discharge();
@@ -1837,7 +1831,7 @@ int ramp_akku(device_t *akku, int power) {
 			return akku_standby();
 
 		// forward ramp up to next device if we still have average grid upload
-		if (AKKU_CHARGING && m1_grid < -RAMP_WINDOW)
+		if (AKKU_CHARGING && PSTATE_MIN_LAST1->grid < -RAMP_WINDOW)
 			return 0; // continue loop
 
 		// charging starts at high noon when below 25%
