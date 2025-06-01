@@ -407,12 +407,12 @@ static void print_gstate() {
 	xlogl_int(line, "Tomo", gstate->tomorrow);
 	xlogl_int(line, "SoD", gstate->sod);
 	xlogl_int(line, "EoD", gstate->eod);
-	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, "Akku", gstate->akku);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-	xlogl_int_noise(line, NOISE, 0, "Success", FLOAT100(gstate->success));
-	xlogl_int_noise(line, 0, 0, "Survive", FLOAT100(gstate->survive));
-	xlogl_int_noise(line, 0, 0, "Heating", FLOAT100(gstate->heating));
+	xlogl_float_noise(line, NOISE, 0, "Success", FLOAT100(gstate->success));
+	xlogl_float_noise(line, 0, 0, "Survive", FLOAT100(gstate->survive));
+	xlogl_float_noise(line, 0, 0, "Heating", FLOAT100(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -831,6 +831,8 @@ static void calculate_gstate() {
 	// success factor
 	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
 	gstate->success = success * 100; // store as x100 scaled
+	if (gstate->success > 1000)
+		gstate->success = 1000;
 	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// collect needed power to survive (+50Wh inverter dissipation) and to heat
@@ -847,11 +849,15 @@ static void calculate_gstate() {
 		available = 0;
 	float survive = gstate->need_survive ? (float) (gstate->akku + available) / (float) gstate->need_survive - 1.0 : 0;
 	gstate->survive = survive * 100; // store as x100 scaled
+	if (gstate->survive > 1000)
+		gstate->survive = 1000;
 	xdebug("FRONIUS survive eod=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
 
 	// heating factor
 	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
 	gstate->heating = heating * 100; // store as x100 scaled
+	if (gstate->heating > 1000)
+		gstate->heating = 1000;
 	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
 }
 

@@ -88,7 +88,7 @@ void xlogl_bits(char *line, const char *name, int bits);
 void xlogl_bits16(char *line, const char *name, int bits);
 void xlogl_float(char *line, const char *name, float value);
 void xlogl_float_b(char *line, const char *name, float value);
-void xlogl_float_c(char *line, int invers, const char *name, float value);
+void xlogl_float_noise(char *line, int noise, int invers, const char *name, float value);
 void xlogl_int(char *line, const char *name, int value);
 void xlogl_int_r(char *line, const char *name, int value);
 void xlogl_int_y(char *line, const char *name, int value);

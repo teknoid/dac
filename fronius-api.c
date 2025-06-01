@@ -258,8 +258,8 @@ static void print_gstate(const char *message) {
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float_c(line, gstate->survive < 10, "Survive", FLOAT10(gstate->survive));
-	xlogl_float_c(line, gstate->heating < 10, "Heating", FLOAT10(gstate->heating));
+	xlogl_float_noise(line, NOISE, 0, "Survive", FLOAT10(gstate->survive));
+	xlogl_float_noise(line, NOISE, 0, "Heating", FLOAT10(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), message);
