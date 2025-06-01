@@ -410,9 +410,9 @@ static void print_gstate() {
 	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float_noise(line, NOISE, 0, "Success", FLOAT100(gstate->success));
-	xlogl_float_noise(line, 0, 0, "Survive", FLOAT100(gstate->survive));
-	xlogl_float_noise(line, 0, 0, "Heating", FLOAT100(gstate->heating));
+	xlogl_float_noise(line, 0.1, 0, "Success", FLOAT100(gstate->success));
+	xlogl_float_noise(line, 0.0, 0, "Survive", FLOAT100(gstate->survive));
+	xlogl_float_noise(line, 0.0, 0, "Heating", FLOAT100(gstate->heating));
 	strcat(line, " potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
