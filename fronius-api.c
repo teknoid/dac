@@ -701,6 +701,7 @@ static void calculate_pstate1() {
 	pstate->flags = pstate->ramp = 0;
 
 	// take over raw values from Fronius10
+	// TODO separate mppt1 + mppt2, dc10, ac10
 	pstate->akku = r->akku;
 	pstate->grid = r->grid;
 	pstate->load = r->load;
@@ -755,6 +756,7 @@ static void calculate_pstate1() {
 
 static void calculate_pstate2() {
 	// take over raw values from Fronius7
+	// TODO separate mppt3 + mppt7, dc7, ac7
 	pstate->mppt3 = r->pv7;
 
 	// clear VALID flag
