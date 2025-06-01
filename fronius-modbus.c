@@ -338,6 +338,12 @@ static void update_meter(sunspec_t *ss) {
 		COUNTER_0->consumed = counter->consumed;
 }
 
+static void store_meter_power(device_t *d) {
+	d->p1 = pstate->p1;
+	d->p2 = pstate->p2;
+	d->p3 = pstate->p3;
+}
+
 static void collect_loads() {
 	char line[LINEBUF], value[10];
 
@@ -366,12 +372,6 @@ static void collect_loads() {
 #ifndef FRONIUS_MAIN
 	store_array_csv(loads, 24, "  load", LOADS_CSV);
 #endif
-}
-
-static void store_meter_power(device_t *d) {
-	d->p1 = pstate->p1;
-	d->p2 = pstate->p2;
-	d->p3 = pstate->p3;
 }
 
 static int collect_heating_total() {
@@ -1110,7 +1110,7 @@ static void hourly() {
 }
 
 static void minly() {
-	xlog("FRONIUS minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
+	// xlog("FRONIUS minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
 
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
@@ -1161,7 +1161,7 @@ static void fronius() {
 
 	// the FRONIUS main loop
 	while (1) {
-		// PROFILING_START
+		PROFILING_START
 
 		// get actual time and make a copy
 		now_ts = time(NULL);
@@ -1241,7 +1241,7 @@ static void fronius() {
 		create_gstate_json();
 		create_powerflow_json();
 
-		// PROFILING_LOG("FRONIUS main loop")
+		PROFILING_LOG("FRONIUS main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))
