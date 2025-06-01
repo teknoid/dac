@@ -410,10 +410,12 @@ static void print_gstate() {
 	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_bits16(line, "  flags", gstate->flags);
+	strcat(line, " ");
 	xlogl_float_noise(line, 0.1, 0, "Success", FLOAT100(gstate->success));
 	xlogl_float_noise(line, 0.0, 0, "Survive", FLOAT100(gstate->survive));
 	xlogl_float_noise(line, 0.0, 0, "Heating", FLOAT100(gstate->heating));
-	strcat(line, " potd:");
+	strcat(line, "  potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
 }
@@ -470,7 +472,7 @@ static void print_pstate_dstate(device_t *d) {
 		strcat(line, value);
 	}
 
-	xlogl_bits16(line, "  Flags", pstate->flags);
+	xlogl_bits16(line, "  flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
@@ -603,10 +605,8 @@ static device_t* rampup() {
 }
 
 static device_t* rampdown() {
-	if (PSTATE_ALL_DOWN) {
-		akku_discharge(); // enable discharge
+	if (PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY)
 		return 0;
-	}
 
 	// jump to last entry
 	device_t *d = 0, **dd = potd->devices;
@@ -622,8 +622,7 @@ static device_t* rampdown() {
 }
 
 static device_t* steal() {
-	// check flags
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY)
+	if (PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -670,39 +669,7 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static device_t* standby() {
-	if (PSTATE_ALL_STANDBY)
-		return 0;
-
-	// too hot to heat
-	int force_standby = TEMP_IN > 25;
-
-	// no need to heat
-	if (TEMP_OUT > 15 && TEMP_IN > 20)
-		force_standby = 1;
-
-	// force heating independently from temperature
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
-		force_standby = 0;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
-		force_standby = 0;
-	else if (now->tm_mon == 2 || now->tm_mon == 1) // switch off only when very hot
-		force_standby = TEMP_IN > 27;
-
-	// put dumb devices into standby if forced
-	if (force_standby) {
-		xdebug("FRONIUS month=%d out=%.1f in=%.1f --> forcing standby", now->tm_mon, TEMP_OUT, TEMP_IN);
-		for (device_t **dd = DEVICES; *dd; dd++) {
-			if (DD == AKKU || DD->adj)
-				continue;
-			if (DD->state == Active || DD->state == Active_Checked) {
-				ramp(DD, DOWN);
-				DD->state = Standby;
-			}
-		}
-	}
-
-	// check flags
-	if (!PSTATE_CHECK_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
+	if (PSTATE_ALL_STANDBY || !PSTATE_CHECK_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
 		return 0;
 
 	// try first active powered adjustable device with noresponse counter > 0
@@ -729,7 +696,6 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-
 	// akku or no expected delta load - no response to check
 	if (d == AKKU || !d->delta)
 		return 0;
@@ -800,6 +766,9 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate() {
+	// clear state flags and values
+	gstate->flags = 0;
+
 	// take over SoC
 	gstate->soc = pstate->soc;
 
@@ -859,6 +828,22 @@ static void calculate_gstate() {
 	if (gstate->heating > 1000)
 		gstate->heating = 1000;
 	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
+
+	// heating enabled
+	gstate->flags |= FLAG_HEATING;
+	// too hot to heat
+	if (TEMP_IN > 25)
+		gstate->flags &= !FLAG_HEATING;
+	// no need to heat
+	if (TEMP_OUT > 15 && TEMP_IN > 20)
+		gstate->flags &= !FLAG_HEATING;
+	// force heating independently from temperature
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
+		gstate->flags |= FLAG_HEATING;
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
+		gstate->flags |= FLAG_HEATING;
+	else if ((now->tm_mon == 2 || now->tm_mon == 1) && TEMP_IN > 27) // switch off only when very hot
+		gstate->flags &= !FLAG_HEATING;
 }
 
 static void calculate_pstate() {
@@ -1699,6 +1684,12 @@ int ramp_heater(device_t *heater, int power) {
 	if (!power || heater->state == Disabled || heater->state == Standby)
 		return 0; // continue loop
 
+	// heating disabled except override
+	if (power > 0 && !GSTATE_HEATING && !heater->override) {
+		heater->state = Standby;
+		return 0; // continue loop
+	}
+
 	// keep on as long as we have enough power and device is already on
 	if (power > 0 && heater->power)
 		return 0; // continue loop
@@ -1807,9 +1798,9 @@ int ramp_akku(device_t *akku, int power) {
 	if (!f10)
 		return 0;
 
-	// init - set to standby and wait for ramp request
+	// init - set to discharge when offline, otherwise to standby
 	if (akku->power == -1)
-		return akku_standby();
+		return PSTATE_OFFLINE ? akku_discharge() : akku_standby();
 
 	// ramp down request
 	if (power < 0) {
