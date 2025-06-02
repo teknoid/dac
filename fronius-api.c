@@ -22,10 +22,8 @@
 #include "curl.h"
 #include "mcp.h"
 
-#define URL_READABLE			"http://fronius/components/readable"
-#define URL_METER				"http://fronius/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=0"
-#define URL_FLOW10				"http://fronius10/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
-#define URL_FLOW7				"http://fronius7/solar_api/v1/GetPowerFlowRealtimeData.fcgi"
+#define URL_READABLE_F10		"http://fronius10/components/readable"
+#define URL_READABLE_F7			"http://fronius7/components/readable"
 
 #define COUNTER_HISTORY			30		// days
 #define PSTATE_HISTORY			32		// samples
@@ -47,6 +45,19 @@
 
 #define DD						(*dd)
 
+#define JF10MPPT1				" PV_POWERACTIVE_MEAN_01_F32:%f "
+#define JF10MPPT2				" PV_POWERACTIVE_MEAN_02_F32:%f "
+#define JF10TOTALMPPT1			" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
+#define JF10TOTALMPPT2			" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
+#define JF10AC					" ACBRIDGE_POWERACTIVE_SUM_MEAN_F32:%f "
+#define JF10DC					" PV_POWERACTIVE_SUM_F64:%f "
+
+#define JF7MPPT1				" Power_DC_String_1:%f "
+#define JF7MPPT2				" Power_DC_String_2:%f "
+#define JF7TOTALMPPT1			" Energy_DC_String_1:%f "
+#define JF7TOTALMPPT2			" Energy_DC_String_2:%f "
+#define JF7AC					" PowerReal_PAC_Sum:%f "
+
 #define JMC						" SMARTMETER_ENERGYACTIVE_CONSUMED_SUM_F64:%f "
 #define JMP						" SMARTMETER_ENERGYACTIVE_PRODUCED_SUM_F64:%f "
 #define JMV1					" SMARTMETER_VOLTAGE_MEAN_01_F64:%f "
@@ -55,10 +66,6 @@
 #define JMF						" SMARTMETER_FREQUENCY_MEAN_F64:%f "
 
 #define JBSOC					" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
-
-#define JIE1					" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
-#define JIE2					" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
-#define JIP						" PV_POWERACTIVE_SUM_F64:%f "
 
 #define JMMPP					" PowerReal_P_Sum:%f "
 #define JMMC					" EnergyReal_WAC_Sum_Consumed:%f "
@@ -72,11 +79,18 @@ struct _raw {
 	float akku;
 	float grid;
 	float load;
-	float pv10;
-	float pv10_total1;
-	float pv10_total2;
-	float pv7;
-	float pv7_total;
+	float mppt1;
+	float mppt2;
+	float mppt3;
+	float mppt4;
+	float total_mppt1;
+	float total_mppt2;
+	float total_mppt3;
+	float total_mppt4;
+	float ac10;
+	float dc10;
+	float ac7;
+	float dc7;
 	float soc;
 	float produced;
 	float consumed;
@@ -133,66 +147,21 @@ static device_t* get_by_name(const char *name) {
 	return 0;
 }
 
-static int parse_fronius10(response_t *resp) {
-	char *c;
-	int ret;
-
-	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_Akku:%f P_Grid:%f P_Load:%f P_PV:%f } } } }", &r->akku, &r->grid, &r->load, &r->pv10);
-	if (ret != 4)
-		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Site: expected 4 values but got %d", ret);
-
-	// workaround parsing { "Inverters" : { "1" : { ... } } }
-	ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Inverters:%Q } } }", &c);
-	if (ret == 1 && c != NULL) {
-		char *p = c;
-		while (*p != '{')
-			p++;
-		p++;
-		while (*p != '{')
-			p++;
-
-		ret = json_scanf(p, strlen(p) - 1, "{ SOC:%f }", &r->soc);
-		if (ret != 1)
-			xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters->SOC: no result");
-
-		free(c);
-	} else
-		xlog("FRONIUS parse_fronius10() warning! parsing Body->Data->Inverters: no result");
-
-	return 0;
-}
-
-static int parse_fronius7(response_t *resp) {
-	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { Site { P_PV:%f E_Total:%f } } } }", &r->pv7, &r->pv7_total);
-	if (ret != 2)
-		return xerr("FRONIUS parse_fronius7() warning! parsing Body->Data->Site: expected 2 values but got %d", ret);
-
-	return 0;
-}
-
-//static int parse_meter(response_t *resp) {
-//	int ret = json_scanf(resp->buffer, resp->size, "{ Body { Data { "JMMPP JMMC JMMP" } } }", &r->p, &r->consumed, &r->produced);
-//	if (ret != 3)
-//		return xerr("FRONIUS parse_meter() warning! parsing Body->Data: expected 3 values but got %d", ret);
-//
-//	return 0;
-//}
-
-static int parse_readable(response_t *resp) {
+static int parse_readable_fronius10(response_t *resp) {
 	int ret;
 	char *p;
 
-	// workaround for accessing inverter number as key: "262144" : {
-	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), "{ channels { "JIP" } }", &r->pv10);
-	if (ret != 1)
-		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
-
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), "{ channels { "JIE1 JIE2" } }", &r->pv10_total1, &r->pv10_total2);
+	ret = json_scanf(p, strlen(p), "{ channels { "JF10MPPT1 JF10MPPT2 JF10TOTALMPPT1 JF10TOTALMPPT2" } }", &r->mppt1, &r->mppt2, &r->total_mppt1, &r->total_mppt2);
+	if (ret != 4)
+		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 1 values but got %d", ret);
+
+	// workaround for accessing inverter number as key: "262144" : {
+	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
+	ret = json_scanf(p, strlen(p), "{ channels { "JF10AC JF10DC" } }", &r->ac10, &r->dc10);
 	if (ret != 2)
-		return xerr("FRONIUS parse_readable() warning! parsing 393216: expected 2 values but got %d", ret);
+		return xerr("FRONIUS parse_readable() warning! parsing 262144: expected 1 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
@@ -205,6 +174,19 @@ static int parse_readable(response_t *resp) {
 	ret = json_scanf(p, strlen(p), "{ channels { "JMC JMP JMV1 JMV2 JMV3 JMF" } }", &r->consumed, &r->produced, &r->v1, &r->v2, &r->v3, &r->f);
 	if (ret != 6)
 		return xerr("FRONIUS parse_readable() warning! parsing 16252928: expected 6 values but got %d", ret);
+
+	return 0;
+}
+
+static int parse_readable_fronius7(response_t *resp) {
+	int ret;
+	char *p;
+
+	// workaround for accessing inverter number as key: "131170" : {
+	p = strstr(resp->buffer, "\"131170\"") + 8 + 2;
+	ret = json_scanf(p, strlen(p), "{ channels { "JF7MPPT1 JF7MPPT2 JF7TOTALMPPT1 JF7TOTALMPPT2 JF7AC" } }", &r->mppt3, &r->mppt4, &r->total_mppt3, &r->total_mppt4, &r->ac7);
+	if (ret != 5)
+		return xerr("FRONIUS parse_readable() warning! parsing 131170: expected 1 values but got %d", ret);
 
 	return 0;
 }
@@ -701,15 +683,21 @@ static void calculate_gstate() {
 
 static void calculate_pstate1() {
 	// clear state flags and values
-	pstate->flags = pstate->ramp = 0;
+	pstate->flags = pstate->pv = pstate->ramp = 0;
 
 	// take over raw values from Fronius10
 	// TODO separate mppt1 + mppt2, dc10, ac10
 	pstate->akku = r->akku;
 	pstate->grid = r->grid;
 	pstate->load = r->load;
-	pstate->mppt1 = r->pv10;
+	pstate->mppt1 = r->mppt1;
+	pstate->mppt2 = r->mppt2;
 	pstate->soc = r->soc * 10.0;
+	pstate->ac10 = r->ac10;
+	pstate->dc10 = r->dc10;
+
+	pstate->pv += pstate->mppt1;
+	pstate->pv += pstate->mppt2;
 
 	// get 2x history back
 	pstate_t *h1 = get_pstate_history(-1);
@@ -760,7 +748,13 @@ static void calculate_pstate1() {
 static void calculate_pstate2() {
 	// take over raw values from Fronius7
 	// TODO separate mppt3 + mppt7, dc7, ac7
-	pstate->mppt3 = r->pv7;
+	pstate->mppt3 = r->mppt3;
+	pstate->mppt4 = r->mppt4;
+
+	pstate->pv += pstate->mppt3;
+	pstate->pv += pstate->mppt4;
+	pstate->ac7 = r->ac7;
+	pstate->dc7 = pstate->mppt3 + pstate->mppt4; // Fronius7 has no battery - DC is PV only
 
 	// clear VALID flag
 	pstate->flags &= ~FLAG_VALID;
@@ -769,8 +763,7 @@ static void calculate_pstate2() {
 	pstate_t *h1 = get_pstate_history(-1);
 	pstate_t *h2 = get_pstate_history(-2);
 
-	// total pv from both inverters
-	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
+	// pv delta
 	pstate->dpv = pstate->pv - h1->pv;
 
 	// calculate ramp up/down power
@@ -971,7 +964,7 @@ static void fronius() {
 	wait = 1;
 
 	// once upon start: calculate global state + discharge rate and choose program of the day
-	curl_perform(curl_readable, &memory, &parse_readable);
+	curl_perform(curl_readable, &memory, &parse_readable_fronius10);
 	calculate_gstate();
 	choose_program();
 
@@ -1005,7 +998,7 @@ static void fronius() {
 				ramp(DD, DOWN);
 
 		// make Fronius10 API call and calculate first pstate
-		errors += curl_perform(curl10, &memory, &parse_fronius10);
+		errors += curl_perform(curl10, &memory, &parse_readable_fronius10);
 		calculate_pstate1();
 
 		// check emergency
@@ -1018,7 +1011,7 @@ static void fronius() {
 
 		if (PSTATE_VALID) {
 			// make Fronius7 API call and calculate second pstate
-			errors += curl_perform(curl7, &memory, &parse_fronius7);
+			errors += curl_perform(curl7, &memory, &parse_readable_fronius7);
 			calculate_pstate2();
 		}
 
@@ -1099,16 +1092,12 @@ static int init() {
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG, 0);
 
-	curl10 = curl_init(URL_FLOW10, &memory);
+	curl10 = curl_init(URL_READABLE_F10, &memory);
 	if (curl10 == NULL)
 		return xerr("Error initializing libcurl");
 
-	curl7 = curl_init(URL_FLOW7, &memory);
+	curl7 = curl_init(URL_READABLE_F7, &memory);
 	if (curl7 == NULL)
-		return xerr("Error initializing libcurl");
-
-	curl_readable = curl_init(URL_READABLE, &memory);
-	if (curl_readable == NULL)
 		return xerr("Error initializing libcurl");
 
 	return 0;
@@ -1140,11 +1129,11 @@ static int test() {
 		printf("%d ", x[i]);
 	printf("\n");
 
-	CURL *curl_readable = curl_init(URL_READABLE, &memory);
+	CURL *curl_readable = curl_init(URL_READABLE_F10, &memory);
 	if (curl_readable == NULL)
 		return xerr("Error initializing libcurl");
 
-	curl_perform(curl_readable, &memory, &parse_readable);
+	curl_perform(curl_readable, &memory, &parse_readable_fronius10);
 	return 0;
 
 	device_t *d = &b1;
@@ -1152,7 +1141,7 @@ static int test() {
 	d->power = -1;
 	d->addr = resolve_ip(d->name);
 
-	curl_perform(curl_readable, &memory, &parse_readable);
+	curl_perform(curl_readable, &memory, &parse_readable_fronius10);
 	printf("curl perform\n");
 
 	return 0;
