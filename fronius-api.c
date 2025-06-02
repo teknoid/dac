@@ -681,19 +681,22 @@ static void calculate_gstate() {
 
 	// heating enabled
 	gstate->flags |= FLAG_HEATING;
-	// too hot to heat
+	// no need to heat
 	if (TEMP_IN > 25)
 		gstate->flags &= !FLAG_HEATING;
-	// no need to heat
-	if (TEMP_OUT > 15 && TEMP_IN > 20)
+	if (TEMP_IN > 18 && SUMMER)
+		gstate->flags &= !FLAG_HEATING;
+	if (TEMP_IN > 20 && TEMP_OUT > 15 && !SUMMER)
 		gstate->flags &= !FLAG_HEATING;
 	// force heating independently from temperature
 	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
 	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 2 || now->tm_mon == 1) && TEMP_IN > 27) // switch off only when very hot
-		gstate->flags &= !FLAG_HEATING;
+	else if ((now->tm_mon < 3 || now->tm_mon > 9) && TEMP_IN < 28) // nov-mar always if not too hot
+		gstate->flags |= FLAG_HEATING;
+	if (GSTATE_HEATING)
+		xdebug("FRONIUS heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
 }
 
 static void calculate_pstate1() {
@@ -1195,15 +1198,15 @@ int ramp_heater(device_t *heater, int power) {
 
 	// heating disabled except override
 	if (power > 0 && !GSTATE_HEATING && !heater->override) {
+		power = 0;
 		heater->state = Standby;
-		return 0; // continue loop
 	}
 
-	// keep on as long as we have enough power and device is already on
+	// keep on when already on
 	if (power > 0 && heater->power)
 		return 0; // continue loop
 
-	// check if enough power is available to switch on
+	// not enough power available to switch on
 	if (power > 0 && power < heater->total)
 		return 0; // continue loop
 
