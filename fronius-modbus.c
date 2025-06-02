@@ -505,15 +505,16 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0;
 
-	// potd has changed - reset all devices and reset AKKU when in charge mode
-	lock = WAIT_RESPONSE;
+	// potd has changed - reset all devices (except AKKU) and set AKKU to initial state
 	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp(DD, DOWN);
+		if (DD != AKKU)
+			ramp(DD, DOWN);
 	if (AKKU_CHARGING)
 		AKKU->power = -1;
 
 	xlog("FRONIUS selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
+	lock = WAIT_RESPONSE;
 
 	return 0;
 }
