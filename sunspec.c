@@ -340,8 +340,8 @@ static void* poll(void *arg) {
 			// update time stamp
 			ss->ts = time(NULL);
 
-			// execute the callback function to process model data
-			if (ss->callback)
+			// execute the callback function to process model data - only if error-free
+			if (ss->callback && errors == 0)
 				(ss->callback)(ss);
 
 			// wait for new second
