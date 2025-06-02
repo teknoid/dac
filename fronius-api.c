@@ -686,7 +686,6 @@ static void calculate_pstate1() {
 	pstate->flags = pstate->pv = pstate->ramp = 0;
 
 	// take over raw values from Fronius10
-	// TODO separate mppt1 + mppt2, dc10, ac10
 	pstate->akku = r->akku;
 	pstate->grid = r->grid;
 	pstate->load = r->load;
@@ -696,6 +695,7 @@ static void calculate_pstate1() {
 	pstate->ac10 = r->ac10;
 	pstate->dc10 = r->dc10;
 
+	// sum pv
 	pstate->pv += pstate->mppt1;
 	pstate->pv += pstate->mppt2;
 
@@ -747,14 +747,14 @@ static void calculate_pstate1() {
 
 static void calculate_pstate2() {
 	// take over raw values from Fronius7
-	// TODO separate mppt3 + mppt7, dc7, ac7
 	pstate->mppt3 = r->mppt3;
 	pstate->mppt4 = r->mppt4;
-
-	pstate->pv += pstate->mppt3;
-	pstate->pv += pstate->mppt4;
 	pstate->ac7 = r->ac7;
 	pstate->dc7 = pstate->mppt3 + pstate->mppt4; // Fronius7 has no battery - DC is PV only
+
+	// sum pv
+	pstate->pv += pstate->mppt3;
+	pstate->pv += pstate->mppt4;
 
 	// clear VALID flag
 	pstate->flags &= ~FLAG_VALID;
@@ -814,7 +814,7 @@ static void calculate_pstate2() {
 
 	// clear flag when values not valid
 	pstate->flags |= FLAG_VALID;
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->mppt1 + pstate->mppt2;
+	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) {
 		xdebug("FRONIUS suspicious values detected: sum=%d", sum); // probably inverter power dissipations (?)
 		pstate->flags &= ~FLAG_VALID;
