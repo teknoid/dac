@@ -289,14 +289,14 @@ static int read_meter(sunspec_t *ss) {
 }
 
 static void* poll(void *arg) {
-	int rc, errors;
+	int rc, errors_all, errors_now;
 	sunspec_t *ss = (sunspec_t*) arg;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
 		return (void*) 0;
 
 	while (1) {
-		errors = 0;
+		errors_all = 0;
 
 		ss->mb = modbus_new_tcp(ss->ip, 502);
 		modbus_set_response_timeout(ss->mb, 5, 0);
@@ -316,21 +316,23 @@ static void* poll(void *arg) {
 		collect_models(ss);
 
 		// read static models once
-		errors += read_common(ss);
-		errors += read_nameplate(ss);
-		errors += read_settings(ss);
-		errors += read_status(ss);
-		errors += read_controls(ss);
+		errors_all += read_common(ss);
+		errors_all += read_nameplate(ss);
+		errors_all += read_settings(ss);
+		errors_all += read_status(ss);
+		errors_all += read_controls(ss);
 
-		while (errors > -10) {
+		while (errors_all > -10) {
 
 			// PROFILING_START
 
 			// read dynamic models in the loop
-			errors += read_inverter(ss);
-			errors += read_mppt(ss);
-			errors += read_storage(ss);
-			errors += read_meter(ss);
+			errors_now = 0;
+			errors_now += read_inverter(ss);
+			errors_now += read_mppt(ss);
+			errors_now += read_storage(ss);
+			errors_now += read_meter(ss);
+			errors_all += errors_now;
 
 			// PROFILING_LOG(ss->name)
 
@@ -341,7 +343,7 @@ static void* poll(void *arg) {
 			ss->ts = time(NULL);
 
 			// execute the callback function to process model data - only if error-free
-			if (ss->callback && errors == 0)
+			if (ss->callback && errors_now == 0)
 				(ss->callback)(ss);
 
 			// wait for new second
