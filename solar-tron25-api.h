@@ -19,11 +19,11 @@
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h4 = { .id = SWITCHBOX, .r = 3, .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 }, *B3 = &b3;
+static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
+static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
+static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
+static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 3, };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
@@ -63,10 +63,10 @@ struct _raw {
 	float mppt2;
 	float mppt3;
 	float mppt4;
-	float total_mppt1;
-	float total_mppt2;
-	float total_mppt3;
-	float total_mppt4;
+	float mppt1_total;
+	float mppt2_total;
+	float mppt3_total;
+	float mppt4_total;
 	float ac1;
 	float dc1;
 	float ac2;
@@ -95,8 +95,8 @@ static pthread_t thread_update;
 // 393216
 #define JF10MPPT1				" PV_POWERACTIVE_MEAN_01_F32:%f "
 #define JF10MPPT2				" PV_POWERACTIVE_MEAN_02_F32:%f "
-#define JF10TOTALMPPT1			" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
-#define JF10TOTALMPPT2			" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
+#define JF10MPPT1SUM			" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
+#define JF10MPPT2SUM			" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
 #define JF10F					" ACBRIDGE_FREQUENCY_MEAN_F32:%f "
 
 // 262144
@@ -122,8 +122,8 @@ static pthread_t thread_update;
 // 131170
 #define JF7MPPT1				" Power_DC_String_1:%f "
 #define JF7MPPT2				" Power_DC_String_2:%f "
-#define JF7TOTALMPPT1			" Energy_DC_String_1:%f "
-#define JF7TOTALMPPT2			" Energy_DC_String_2:%f "
+#define JF7MPPT1SUM				" Energy_DC_String_1:%f "
+#define JF7MPPT2SUM				" Energy_DC_String_2:%f "
 #define JF7AC					" PowerReal_PAC_Sum:%f "
 
 // inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
@@ -134,27 +134,27 @@ static int parse_inverter1(response_t *resp) {
 
 	// workaround for accessing inverter number as key: "393216" : {
 	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10TOTALMPPT1 JF10TOTALMPPT2 JF10F END, &r->mppt1, &r->mppt2, &r->total_mppt1, &r->total_mppt2, &r->f);
+	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10MPPT1SUM JF10MPPT2SUM JF10F END, &r->mppt1, &r->mppt2, &r->mppt1_total, &r->mppt2_total, &r->f);
 	if (ret != 5)
-		return xerr("SOLAR parse_readable() warning! parsing 393216: expected 5 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing 393216: expected 5 values but got %d", ret);
 
 	// workaround for accessing inverter number as key: "262144" : {
 	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
 	ret = json_scanf(p, strlen(p), CHA JF10AC JF10DC JF10BAT END, &r->ac1, &r->dc1, &r->akku);
 	if (ret != 3)
-		return xerr("SOLAR parse_readable() warning! parsing 262144: expected 3 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing 262144: expected 3 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
 	ret = json_scanf(p, strlen(p), CHA JBSOC END, &r->soc);
 	if (ret != 1)
-		return xerr("SOLAR parse_readable() warning! parsing 16580608: expected 1 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing 16580608: expected 1 values but got %d", ret);
 
 	// workaround for accessing smartmeter number as key: "16252928" : {
 	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
 	ret = json_scanf(p, strlen(p), CHA JMP JMEC JMEP JMP1 JMP2 JMP3 JMV1 JMV2 JMV3 END, &r->grid, &r->cons, &r->prod, &r->p1, &r->p2, &r->p3, &r->v1, &r->v2, &r->v3);
 	if (ret != 9)
-		return xerr("SOLAR parse_readable() warning! parsing 16252928: expected 9 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing 16252928: expected 9 values but got %d", ret);
 
 	return 0;
 }
@@ -167,9 +167,9 @@ static int parse_inverter2(response_t *resp) {
 
 	// workaround for accessing inverter number as key: "131170" : {
 	p = strstr(resp->buffer, "\"131170\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), CHA JF7MPPT1 JF7MPPT2 JF7TOTALMPPT1 JF7TOTALMPPT2 JF7AC END, &r->mppt3, &r->mppt4, &r->total_mppt3, &r->total_mppt4, &r->ac2);
+	ret = json_scanf(p, strlen(p), CHA JF7MPPT1 JF7MPPT2 JF7MPPT1SUM JF7MPPT2SUM JF7AC END, &r->mppt3, &r->mppt4, &r->mppt3_total, &r->mppt4_total, &r->ac2);
 	if (ret != 5)
-		return xerr("SOLAR parse_readable() warning! parsing 131170: expected 1 values but got %d", ret);
+		return xerr("SOLAR parse_inverter2() warning! parsing 131170: expected 5 values but got %d", ret);
 
 	return 0;
 }
@@ -184,14 +184,16 @@ static void* update(void *arg) {
 
 	while (1) {
 
-		if (timelock)
-			wait = 0; // immediately get device response
+		// skip wait to get fresh pstate data
+		if (lock || pstate->grid > NOISE)
+			wait = 0;
 
 		// wait for next second
 		time_t now_ts = time(NULL);
 		while (now_ts == time(NULL))
 			msleep(100);
 
+		// wait
 		if (wait--)
 			continue;
 
@@ -205,7 +207,7 @@ static void* update(void *arg) {
 		pstate->grid = r->grid;
 		pstate->mppt1 = r->mppt1;
 		pstate->mppt2 = r->mppt2;
-		pstate->soc = r->soc * 10.0;
+		pstate->soc = r->soc * 10.0; // store x10 scaled
 		pstate->ac1 = r->ac1;
 		pstate->dc1 = r->dc1;
 		pstate->akku = r->akku;
@@ -216,16 +218,23 @@ static void* update(void *arg) {
 		pstate->v2 = r->v2;
 		pstate->v3 = r->v3;
 		pstate->f = r->f * 100.0 - 5000; // store only the diff
+		counter->mppt1 = r->mppt1_total / 3600; // Watt-seconds
+		counter->mppt2 = r->mppt2_total / 3600; // Watt-seconds
+		counter->produced = r->prod;
+		counter->consumed = r->cons;
 
 		int offline = pstate->mppt1 < NOISE && pstate->mppt2 < NOISE;
 		if (!offline) {
 			// this inverter goes into sleep mode overnight - so read inverter2 only when inverter1 produces PV
 			curl_perform(curl2, &memory, &parse_inverter2);
-			pstate->mppt3 = r->mppt3;
-			pstate->mppt4 = r->mppt4;
-			pstate->ac2 = r->ac2;
-			pstate->dc2 = pstate->mppt3 + pstate->mppt4; // Fronius7 has no battery - DC is PV only
-		}
+			// !!! no regular updates on fields Energy_DC_String_X - so use PowerReal_PAC_Sum for all fields DC/AC values
+			pstate->mppt3 = pstate->ac2 = pstate->dc2 = r->ac2;
+			pstate->mppt4 = 0;
+			counter->mppt3 = r->mppt3_total;
+			counter->mppt4 = r->mppt4_total;
+		} else
+			// reset pstates, keep counters
+			pstate->mppt3 = pstate->mppt4 = pstate->ac2 = pstate->dc2 = 0;
 
 		pthread_mutex_unlock(&pstate_lock);
 
@@ -243,24 +252,23 @@ static void* update(void *arg) {
 		if (COUNTER_0->consumed == 0)
 			COUNTER_0->consumed = counter->consumed;
 
-		if (offline)
-			wait = 300; // offline
-		else
-			wait = 30; // default
+		// offline /default
+		wait = offline ? 300 : 30;
 
-		// xdebug("SOLAR update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d\n", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
+		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
+		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", counter->mppt1, counter->mppt2, counter->mppt3, counter->mppt4, counter->consumed, counter->produced);
 
 		PROFILING_LOG("SOLAR update")
 	}
 }
 
 static int solar_init() {
-	// libcurl API handle for inverter1
+	// libcurl handle for inverter1 API
 	curl1 = curl_init(URL_READABLE_INVERTER1, &memory);
 	if (curl1 == NULL)
 		return xerr("Error initializing libcurl");
 
-	// libcurl API handle for inverter2
+	// libcurl handle for inverter2 API
 	curl2 = curl_init(URL_READABLE_INVERTER2, &memory);
 	if (curl2 == NULL)
 		return xerr("Error initializing libcurl");

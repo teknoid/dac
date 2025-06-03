@@ -15,8 +15,8 @@
 #include "solar.h"
 #include "mcp.h"
 
-#include "solar-tron25-modbus.h"
-//#include "solar-tron25-api.h"
+//#include "solar-tron25-modbus.h"
+#include "solar-tron25-api.h"
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -229,8 +229,8 @@ static void print_pstate_dstate(device_t *d) {
 	}
 #endif
 
-	if (timelock)
-		xlogl_int(line, "Lock", timelock);
+	if (lock)
+		xlogl_int(line, "   Lock", lock);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -245,8 +245,8 @@ static int ramp(device_t *d, int power) {
 
 	// set/reset response lock
 	int ret = (d->ramp)(d, power);
-	if (timelock < ret)
-		timelock = ret;
+	if (lock < ret)
+		lock = ret;
 
 	return ret;
 }
@@ -264,7 +264,7 @@ static int select_program(const potd_t *p) {
 
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
-	timelock = WAIT_RESPONSE;
+	lock = WAIT_RESPONSE;
 
 	return 0;
 }
@@ -377,12 +377,8 @@ static device_t* steal() {
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		// TODO akku cannot actively steal - only by ramping down victims
-		if (DD == AKKU)
-			continue;
-
-		// thief disabled or in standby
-		if (DD->state == Disabled || DD->state == Standby)
+		// thief not active or in standby - TODO akku cannot actively steal - only by ramping down victims
+		if (DD == AKKU || DD->state == Disabled || DD->state == Standby)
 			continue;
 
 		// thief already (full) on
@@ -451,17 +447,9 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-	// akku - no response to check
-	if (d == AKKU)
+	// akku or no expected delta load - no response to check
+	if (d == AKKU || !d->delta)
 		return 0;
-
-	// no expected delta load - no response to check
-	if (!d->delta)
-		return 0;
-
-	// valid response is at least 2/3 of last ramp
-	int delta = d->delta - d->delta / 3;
-	d->delta = 0; // reset
 
 	// calculate delta power per phase
 	int d1 = pstate->p1 - d->p1;
@@ -473,6 +461,10 @@ static device_t* response(device_t *d) {
 	int d3 = pstate->p3 - d->p3;
 	if (-NOISE < d3 && d3 < NOISE)
 		d3 = 0;
+
+	// valid response is at least 2/3 of last ramp
+	int delta = d->delta - d->delta / 3;
+	d->delta = 0; // reset
 
 	// check if we got a response on any phase
 	int r1 = delta > 0 ? d1 > delta : d1 < delta;
@@ -490,8 +482,8 @@ static device_t* response(device_t *d) {
 	if (r && (d->state == Active || d->state == Active_Checked)) {
 		xdebug("SOLAR response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
-		timelock = wait;
-		return timelock ? d : 0;
+		lock = wait;
+		return lock ? d : 0;
 	}
 
 	// standby check was negative - we got a response
@@ -499,7 +491,7 @@ static device_t* response(device_t *d) {
 		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
 		d->state = Active_Checked; // mark Active with standby check performed
-		timelock = wait;
+		lock = wait;
 		return d; // recalculate in next round
 	}
 
@@ -507,7 +499,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Standby_Check && !r) {
 		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 		ramp(d, d->total * -1);
-		d->noresponse = d->delta = timelock = 0; // no response from switch off expected
+		d->noresponse = d->delta = lock = 0; // no response from switch off expected
 		d->state = Standby;
 		return d; // recalculate in next round
 	}
@@ -680,7 +672,7 @@ static void calculate_pstate() {
 	}
 
 	// no further calculations while lock active
-	if (timelock)
+	if (lock)
 		return;
 
 	// first set and then clear VALID flag when values suspicious
@@ -717,7 +709,7 @@ static void calculate_pstate() {
 
 	// no further calculations while invalid
 	if (!PSTATE_VALID) {
-		timelock = WAIT_INVALID;
+		lock = WAIT_INVALID;
 		return;
 	}
 
@@ -856,16 +848,15 @@ static void hourly() {
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
-#ifndef SOLAR_MAIN
-	// we need the history in mosmix.c main()
-	mosmix_store_history();
-#endif
-
 #ifdef SUNSPEC_INVERTER1
 	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
 	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
 	sunspec_storage_minimum_soc(inverter1, min);
 #endif
+
+#ifndef SOLAR_MAIN
+	// we need the history in mosmix.c main()
+	mosmix_store_history();
 
 	// create/append pstate minutes csv
 	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
@@ -873,12 +864,13 @@ static void hourly() {
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
 	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
 
-	// paint new diagrams
-	plot();
-
 	// workaround /run/mcp get's immediately deleted at stop/kill
 	xlog("SOLAR saving runtime directory: %s", SAVE_RUN_DIRECORY);
 	system(SAVE_RUN_DIRECORY);
+#endif
+
+	// paint new diagrams
+	plot();
 
 	PROFILING_LOG("SOLAR hourly");
 }
@@ -958,8 +950,8 @@ static void solar() {
 		}
 
 		// no actions until lock is expired
-		if (timelock)
-			timelock--;
+		if (lock)
+			lock--;
 
 		else {
 
@@ -1025,7 +1017,7 @@ static void solar() {
 }
 
 static int init() {
-	// set_debug(1);
+//	set_debug(1);
 
 	pthread_mutex_init(&pstate_lock, NULL);
 
@@ -1066,13 +1058,13 @@ static int init() {
 	collect_loads();
 	plot();
 
-	// call implementation specific init() function
-	if (solar_init() != 0)
-		return -1;
-
 	// create empty minutes CSV file if not found
 	if (access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
+
+	// call implementation specific init() function
+	if (solar_init() != 0)
+		return -1;
 
 	// wait for collecting models and generating first pstate data
 	sleep(5);
@@ -1081,6 +1073,9 @@ static int init() {
 }
 
 static void stop() {
+	// call implementation specific stop() function
+	solar_stop();
+
 #ifndef SOLAR_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
@@ -1088,9 +1083,6 @@ static void stop() {
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
 #endif
-
-	// call implementation specific stop() function
-	solar_stop();
 
 	if (sock)
 		close(sock);
@@ -1538,6 +1530,12 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power == power)
 		return 0; // continue loop
 
+	// summer: charging boiler3 only between 11 and 15 o'clock
+	if (boiler == B3 && power > 0 && (now->tm_hour < 11 || now->tm_hour >= 15) && SUMMER) {
+		boiler->state = Standby;
+		return 0; // continue loop
+	}
+
 	// send UDP message to device
 	char message[16];
 	snprintf(message, 16, "p:%d:%d", power, 0);
@@ -1601,8 +1599,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
 			return 0; // continue loop
 
-		// charging starts at high noon when below 25%
-		if (SUMMER && (gstate->soc > 250 || now->tm_hour < 12))
+		// summer: charging starts at high noon when below 25%
+		if ((gstate->soc > 250 || now->tm_hour < 12) && SUMMER)
 			return 0; // continue loop
 
 		// enable charging

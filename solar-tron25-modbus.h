@@ -18,11 +18,11 @@
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h4 = { .id = SWITCHBOX, .r = 3, .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 }, *B3 = &b3;
+static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
+static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
+static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
+static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 3, };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
@@ -244,18 +244,22 @@ static int storage_min(char *arg) {
 static int akku_standby() {
 	AKKU->state = Standby;
 	AKKU->power = 0;
+#ifndef SOLAR_MAIN
 	if (!sunspec_storage_limit_both(inverter1, 0, 0))
 		xdebug("SOLAR set akku STANDBY");
+#endif
 	return 0; // continue loop
 }
 
 static int akku_charge() {
 	AKKU->state = Charge;
 	AKKU->power = 1;
+#ifndef SOLAR_MAIN
 	if (!sunspec_storage_limit_discharge(inverter1, 0)) {
 		xdebug("SOLAR set akku CHARGE");
 		return WAIT_AKKU_CHARGE; // loop done
 	}
+#endif
 	return 0; // continue loop
 }
 
@@ -264,15 +268,19 @@ static int akku_discharge() {
 	AKKU->power = 0;
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
+#ifndef SOLAR_MAIN
 		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {
 			xdebug("SOLAR set akku DISCHARGE limit BASELOAD");
 			return WAIT_RESPONSE; // loop done
 		}
+#endif
 	} else {
+#ifndef SOLAR_MAIN
 		if (!sunspec_storage_limit_charge(inverter1, 0)) {
 			xdebug("SOLAR set akku DISCHARGE");
 			return WAIT_RESPONSE; // loop done
 		}
+#endif
 	}
 	return 0; // continue loop
 }

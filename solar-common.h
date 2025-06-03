@@ -242,7 +242,7 @@ static potd_t *potd = 0;
 static int loads[24];
 
 static struct tm now_tm, *now = &now_tm;
-static int timelock = 0, sock = 0;
+static int lock = 0, sock = 0;
 
 // mutex for updating / calculating pstate
 pthread_mutex_t pstate_lock;
