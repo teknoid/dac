@@ -10,7 +10,7 @@
 #include "xmas.h"
 #include "utils.h"
 #include "frozen.h"
-#include "fronius.h"
+#include "solar.h"
 #include "flamingo.h"
 #include "tasmota-config.h"
 
@@ -157,8 +157,8 @@ static void trigger(unsigned int id, int button, int action) {
 
 	if (id == KUECHE && button == 2) {
 		// forcing first boiler to heat up for 10 minutes
-#ifdef FRONIUS
-		fronius_override("boiler1");
+#ifdef SOLAR
+		solar_override("boiler1");
 #endif
 		return;
 	}

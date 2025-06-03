@@ -1,20 +1,14 @@
-/**
- * !!! dead code - move to solar.c
- */
+// hexdump -v -e '6 "%10d ""\n"' /work/solar-counter.bin
+#define COUNTER_FILE			"/work/solar-counter.bin"
 
-#include "tasmota-devices.h"
-
-// hexdump -v -e '6 "%10d ""\n"' /work/fronius-counter.bin
-#define COUNTER_FILE			"/work/fronius-counter.bin"
-
-// hexdump -v -e '17 "%6d ""\n"' /work/fronius-gstate.bin
-#define GSTATE_FILE				"/work/fronius-gstate.bin"
+// hexdump -v -e '17 "%6d ""\n"' /work/solar-gstate.bin
+#define GSTATE_FILE				"/work/solar-gstate.bin"
 #define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
 #define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
 
-// hexdump -v -e '30 "%6d ""\n"' /work/fronius-pstate*.bin
-#define PSTATE_H_FILE			"/work/fronius-pstate-hours.bin"
-#define PSTATE_M_FILE			"/work/fronius-pstate-minutes.bin"
+// hexdump -v -e '30 "%6d ""\n"' /work/solar-pstate*.bin
+#define PSTATE_H_FILE			"/work/solar-pstate-hours.bin"
+#define PSTATE_M_FILE			"/work/solar-pstate-minutes.bin"
 
 #define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
 #define LOADS_CSV				"/run/mcp/loads.csv"
@@ -27,25 +21,27 @@
 #define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 #define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 
+#define MOSMIX3X24				"SOLAR mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
+#define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
+#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
+
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
-#define AKKU_BURNOUT			1
+#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
+#define AKKU_CHARGING			(AKKU->state == Charge)
+
 #define SUSPICIOUS				500
-#define BASELOAD				(WINTER ? 300 : 200)
-#define MINIMUM					(BASELOAD / 2)
 #define RAMP_WINDOW				35
 #define NOISE					10
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
+#define EMERGENCY				1000
 
-#ifdef FRONIUS_MAIN
-#define TEMP_IN					22.0
-#define TEMP_OUT				15.0
-#else
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
-#endif
+#define WAIT_INVALID			3
+#define WAIT_RESPONSE			5
+#define WAIT_AKKU_CHARGE		30
+#define WAIT_BURNOUT			1800
 
 #define ARRAY_SIZE(x) 			(sizeof(x) / sizeof(x[0]))
 
@@ -91,6 +87,28 @@ enum dstate {
 	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
 };
 
+typedef struct _device device_t;
+typedef int (ramp_function_t)(device_t*, int);
+struct _device {
+	const unsigned int id;
+	const unsigned int r;
+	const char *name;
+	const char *addr;
+	const int adj;
+	const int total;
+	enum dstate state;
+	int power;
+	int delta;
+	int load;
+	int p1;
+	int p2;
+	int p3;
+	int noresponse;
+	time_t override;
+	ramp_function_t *ramp;
+};
+
+// counter history every hour over one day and access pointers
 typedef struct _counter counter_t;
 #define COUNTER_SIZE		(sizeof(counter_t) / sizeof(int))
 #define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4"
@@ -102,7 +120,14 @@ struct _counter {
 	int mppt3;
 	int mppt4;
 };
+static counter_t counter_hours[24], counter_current, *counter = &counter_current;
+#define COUNTER_NOW				(&counter_hours[now->tm_hour])
+#define COUNTER_LAST			(&counter_hours[now->tm_hour >  0 ? now->tm_hour - 1 : 23])
+#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 :  0])
+#define COUNTER_HOUR(h)			(&counter_hours[h])
+#define COUNTER_0				(&counter_hours[0])
 
+// 24/7 gstate history slots and access pointers
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
 #define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  surv  heat flags"
@@ -125,6 +150,15 @@ struct _gstate {
 	int heating;
 	int flags;
 };
+static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
+#define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
+#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
+#define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
+#define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
+#define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
+#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
+#define GSTATE_YDAY_HOUR(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
+#define GSTATE_D_H(d, h)		(&gstate_hours[24 * (d) + (h)])
 
 // needed for migration
 typedef struct gstate_old_t {
@@ -146,9 +180,10 @@ typedef struct gstate_old_t {
 	int heating;
 } gstate_old_t;
 
+// pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac10   ac7  load Δload ∑load xload dxlod  dc10   dc7 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -157,15 +192,15 @@ struct _pstate {
 	int dgrid;
 	int sdgrid;
 	int akku;
-	int ac10;
-	int ac7;
+	int ac1;
+	int ac2;
 	int load;
 	int dload;
 	int sdload;
 	int xload;
 	int dxload;
-	int dc10;
-	int dc7;
+	int dc1;
+	int dc2;
 	int mppt1;
 	int mppt2;
 	int mppt3;
@@ -181,102 +216,38 @@ struct _pstate {
 	int soc;
 	int flags;
 };
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
+#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
+#define PSTATE_SEC(s)			(&pstate_seconds[s])
+#define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
+#define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+#define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
+#define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
+#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
+#define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
+#define PSTATE_HOUR(h)			(&pstate_hours[h])
+#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 
-typedef struct _minmax minmax_t;
-struct _minmax {
-	int v1min_ts;
-	int v1min;
-	int v12min;
-	int v13min;
-	int v2min_ts;
-	int v21min;
-	int v2min;
-	int v23min;
-	int v3min_ts;
-	int v31min;
-	int v32min;
-	int v3min;
-	int v1max_ts;
-	int v1max;
-	int v12max;
-	int v13max;
-	int v2max_ts;
-	int v21max;
-	int v2max;
-	int v23max;
-	int v3max_ts;
-	int v31max;
-	int v32max;
-	int v3max;
-	int fmin_ts;
-	int fmin;
-	int fmax_ts;
-	int fmax;
-};
-
-typedef struct _device device_t;
-typedef int (ramp_function_t)(device_t*, int);
-struct _device {
-	const unsigned int id;
-	const unsigned int r;
-	const char *name;
-	const char *addr;
-	const int adj;
-	const int total;
-	enum dstate state;
-	int power;
-	int delta;
-	int load;
-	int p1;
-	int p2;
-	int p3;
-	int noresponse;
-	time_t override;
-	ramp_function_t *ramp;
-};
-
-// program of the day
+// program of the day - choosen by mosmix forecast data
 typedef struct potd_t {
 	const char *name;
 	device_t **devices;
 } potd_t;
+static potd_t *potd = 0;
+
+// average loads over 24/7
+static int loads[24];
+
+static struct tm now_tm, *now = &now_tm;
+static int timelock = 0, sock = 0;
+
+// mutex for updating / calculating pstate
+pthread_mutex_t pstate_lock;
 
 // set device function signatures
 int ramp_heater(device_t *device, int power);
 int ramp_boiler(device_t *device, int power);
 int ramp_akku(device_t *device, int power);
-
-// devices
-static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t h1 = { .id = SWITCHBOX, .r = 1, .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h2 = { .id = SWITCHBOX, .r = 2, .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h3 = { .id = PLUG5, .r = 0, .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0 };
-static device_t h4 = { .id = SWITCHBOX, .r = 3, .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0 };
-
-// all devices, needed for initialization
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-
-// first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 };
-
-// steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 };
-
-// heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
-static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
-
-// force boiler heating first
-static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
-static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
-
-// define POTDs
-static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
-static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
-static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
-static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
-static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };

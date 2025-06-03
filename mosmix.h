@@ -4,8 +4,8 @@
 
 #define MOSMIX_COLUMNS			6
 
-// hexdump -v -e '18 "%6d ""\n"' /work/fronius-mosmix-history.bin
-#define MOSMIX_HISTORY			"/work/fronius-mosmix-history.bin"
+// hexdump -v -e '18 "%6d ""\n"' /work/solar-mosmix-history.bin
+#define MOSMIX_HISTORY			"/work/solar-mosmix-history.bin"
 #define MOSMIX_HISTORY_CSV		"/run/mcp/mosmix-history.csv"
 #define MOSMIX_FACTORS_CSV		"/run/mcp/mosmix-factors.csv"
 #define MOSMIX_TODAY_CSV		"/run/mcp/mosmix-today.csv"

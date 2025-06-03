@@ -16,7 +16,7 @@
 
 #ifdef TRON
 #define TASMOTA
-#define FRONIUS
+#define SOLAR
 #define LCD
 #define I2C				"/dev/i2c-7"
 #define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
@@ -24,6 +24,7 @@
 
 #ifdef ODROID
 #define TASMOTA
+#define SOLAR
 #endif
 
 #ifdef PICAM

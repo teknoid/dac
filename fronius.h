@@ -1,3 +1,7 @@
+/**
+ * !!! dead code - move to solar.h
+ */
+
 int fronius_override(const char *name);
 int fronius_override_seconds(const char *name, int seconds);
 

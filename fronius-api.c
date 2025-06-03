@@ -1,6 +1,7 @@
 /**
- * !!! Warning !!! deprecated unmaintained and untested code, use fronius-modbus.c
+ * !!! dead code - move to solar.c
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

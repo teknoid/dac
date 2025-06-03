@@ -1,7 +1,3 @@
-/**
- * !!! dead code - move to solar.c
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -14,77 +10,21 @@
 #include <arpa/inet.h>
 #include <ansi-color-codes.h>
 
-#include "fronius-config.h"
-#include "fronius.h"
 #include "tasmota.h"
-#include "sunspec.h"
 #include "mosmix.h"
-#include "utils.h"
+#include "solar.h"
 #include "mcp.h"
 
-#define MIN_SOC					(f10 ? SFI(f10->storage->MinRsvPct, f10->storage->MinRsvPct_SF) * 10 : 0)
-#define AKKU_CHARGE_MAX			(f10 ? SFI(f10->nameplate->MaxChaRte, f10->nameplate->MaxChaRte_SF) / 2 : 0)
-#define AKKU_DISCHARGE_MAX		(f10 ? SFI(f10->nameplate->MaxDisChaRte, f10->nameplate->MaxDisChaRte_SF) / 2 : 0)
-#define AKKU_CAPACITY			(f10 ? SFI(f10->nameplate->WHRtg, f10->nameplate->WHRtg_SF) : 0)
-#define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
-#define EMERGENCY				(AKKU_CAPACITY / 10)
-#define AKKU_CHARGING			(AKKU->state == Charge)
+#include "solar-tron25-modbus.h"
+//#include "solar-tron25-api.h"
 
-#define WAIT_SPIKE				3
-#define WAIT_RESPONSE			5
-#define WAIT_AKKU_CHARGE		30
-#define WAIT_BURNOUT			1800
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
 
-#define MOSMIX3X24				"FRONIUS mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
-#define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
-#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
-
-// counter history every hour over one day and access pointers
-static counter_t counter_hours[24], counter_current, *counter = &counter_current;
-#define COUNTER_NOW				(&counter_hours[now->tm_hour])
-#define COUNTER_LAST			(&counter_hours[now->tm_hour >  0 ? now->tm_hour - 1 : 23])
-#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 :  0])
-#define COUNTER_HOUR(h)			(&counter_hours[h])
-#define COUNTER_0				(&counter_hours[0])
-
-// 24/7 gstate history slots and access pointers
-static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
-#define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
-#define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
-#define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
-#define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
-#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
-#define GSTATE_YDAY_HOUR(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
-#define GSTATE_D_H(d, h)		(&gstate_hours[24 * (d) + (h)])
-
-// pstate history every second/minute/hour and access pointers
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
-#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
-#define PSTATE_SEC(s)			(&pstate_seconds[s])
-#define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
-#define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
-#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
-#define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
-#define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
-#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
-#define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
-#define PSTATE_HOUR(h)			(&pstate_hours[h])
-#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
-
-// average loads over 24/7
-static int loads[24];
-
-// program of the day - choosen by mosmix forecast data
-static potd_t *potd = 0;
-
-// SunSpec modbus devices
-static sunspec_t *f10 = 0, *f7 = 0, *meter = 0;
-
-static struct tm *lt, now_tm, *now = &now_tm;
-static int lock = 0, sock = 0;
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
 
 static void create_pstate_json() {
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
@@ -144,204 +84,6 @@ static device_t* get_by_name(const char *name) {
 	return 0;
 }
 
-// sample grid values from meter
-static int grid() {
-	pstate_t pp, *p = &pp;
-	sunspec_t *ss = sunspec_init("fronius10", 200);
-	sunspec_read(ss);
-	ss->common = 0;
-
-	while (1) {
-		msleep(666);
-		sunspec_read(ss);
-
-		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-		p->f = ss->meter->Hz; // without scaling factor
-
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
-	}
-
-	return 0;
-}
-
-// set charge(-) / discharge(+) limits or reset when 0
-static int battery(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int wh = atoi(arg);
-	if (wh > 0)
-		return sunspec_storage_limit_discharge(ss, wh);
-	if (wh < 0)
-		return sunspec_storage_limit_charge(ss, wh * -1);
-	return sunspec_storage_limit_reset(ss);
-}
-
-// set minimum SoC
-static int storage_min(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int min = atoi(arg);
-	return sunspec_storage_minimum_soc(ss, min);
-}
-
-static int akku_standby() {
-	AKKU->state = Standby;
-	AKKU->power = 0;
-#ifndef FRONIUS_MAIN
-	if (!sunspec_storage_limit_both(f10, 0, 0))
-		xdebug("FRONIUS set akku STANDBY");
-#endif
-	return 0; // continue loop
-}
-
-static int akku_charge() {
-	AKKU->state = Charge;
-	AKKU->power = 1;
-#ifndef FRONIUS_MAIN
-	if (!sunspec_storage_limit_discharge(f10, 0)) {
-		xdebug("FRONIUS set akku CHARGE");
-		return WAIT_AKKU_CHARGE; // loop done
-	}
-#endif
-	return 0; // continue loop
-}
-
-static int akku_discharge() {
-	AKKU->state = Discharge;
-	AKKU->power = 0;
-	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
-	if (limit) {
-#ifndef FRONIUS_MAIN
-		if (!sunspec_storage_limit_both(f10, 0, BASELOAD)) {
-			xdebug("FRONIUS set akku DISCHARGE limit BASELOAD");
-			return WAIT_RESPONSE; // loop done
-		}
-#endif
-	} else {
-#ifndef FRONIUS_MAIN
-		if (!sunspec_storage_limit_charge(f10, 0)) {
-			xdebug("FRONIUS set akku DISCHARGE");
-			return WAIT_RESPONSE; // loop done
-		}
-#endif
-	}
-	return 0; // continue loop
-}
-
-static void update_f10(sunspec_t *ss) {
-	pstate->f = ss->inverter->Hz - 5000; // store only the diff
-	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
-	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
-
-	switch (ss->inverter->St) {
-	case I_STATUS_STARTING:
-		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
-		break;
-
-	case I_STATUS_MPPT:
-		// only take over values in MPPT state
-		pstate->ac10 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		pstate->dc10 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
-		if (pstate->mppt1 == 1)
-			pstate->mppt1 = 0; // noise
-		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-		if (pstate->mppt2 == 1)
-			pstate->mppt2 = 0; // noise
-		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
-		ss->sleep = 0;
-		ss->active = 1;
-		// update counter hour 0 when empty
-		if (COUNTER_0->mppt1 == 0)
-			COUNTER_0->mppt1 = counter->mppt1;
-		if (COUNTER_0->mppt2 == 0)
-			COUNTER_0->mppt2 = counter->mppt2;
-		break;
-
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		pstate->ac10 = pstate->dc10 = pstate->mppt1 = pstate->mppt2 = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
-		break;
-
-	default:
-		xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		ss->sleep = SLEEP_TIME_FAULT;
-		ss->active = 0;
-	}
-}
-
-static void update_f7(sunspec_t *ss) {
-	switch (ss->inverter->St) {
-	case I_STATUS_STARTING:
-		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
-		break;
-
-	case I_STATUS_MPPT:
-		// only take over values in MPPT state
-		pstate->ac7 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		pstate->dc7 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
-		if (pstate->mppt3 == 1)
-			pstate->mppt3 = 0; // noise
-		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-		if (pstate->mppt4 == 1)
-			pstate->mppt4 = 0; // noise
-		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
-		ss->sleep = 0;
-		ss->active = 1;
-		// update counter hour 0 when empty
-		if (COUNTER_0->mppt3 == 0)
-			COUNTER_0->mppt3 = counter->mppt3;
-		if (COUNTER_0->mppt4 == 0)
-			COUNTER_0->mppt4 = counter->mppt4;
-		break;
-
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		pstate->ac7 = pstate->dc7 = pstate->mppt3 = pstate->mppt4 = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
-		break;
-
-	default:
-		// xdebug("FRONIUS %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		ss->sleep = SLEEP_TIME_FAULT;
-		ss->active = 0;
-	}
-}
-
-static void update_meter(sunspec_t *ss) {
-	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
-	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
-	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
-	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-//	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-//	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-//	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-//	pstate->f = ss->meter->Hz - 5000; // store only the diff
-	// update counter hour 0 when empty
-	if (COUNTER_0->produced == 0)
-		COUNTER_0->produced = counter->produced;
-	if (COUNTER_0->consumed == 0)
-		COUNTER_0->consumed = counter->consumed;
-}
-
 static void store_meter_power(device_t *d) {
 	d->p1 = pstate->p1;
 	d->p2 = pstate->p2;
@@ -358,7 +100,7 @@ static void collect_loads() {
 			if (load == 0)
 				load = BASELOAD;
 			if (load < NOISE) {
-				xdebug("FRONIUS suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
+				xdebug("SOLAR suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
 				load = BASELOAD;
 			}
 			loads[h] += load;
@@ -366,14 +108,14 @@ static void collect_loads() {
 		loads[h] /= 7;
 	}
 
-	strcpy(line, "FRONIUS average 24/7 loads:");
+	strcpy(line, "SOLAR average 24/7 loads:");
 	for (int h = 0; h < 24; h++) {
 		snprintf(value, 10, " %d", loads[h]);
 		strcat(line, value);
 	}
 	xdebug(line);
 
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	store_array_csv(loads, 24, "  load", LOADS_CSV);
 #endif
 }
@@ -390,11 +132,11 @@ static int check_override(device_t *d, int power) {
 	if (d->override) {
 		time_t t = time(NULL);
 		if (t > d->override) {
-			xdebug("FRONIUS Override expired for %s", d->name);
+			xdebug("SOLAR Override expired for %s", d->name);
 			d->override = 0;
 			power = 0;
 		} else {
-			xdebug("FRONIUS Override active for %lu seconds on %s", d->override - t, d->name);
+			xdebug("SOLAR Override active for %lu seconds on %s", d->override - t, d->name);
 			power = d->adj ? 100 : 1;
 		}
 	}
@@ -403,7 +145,7 @@ static int check_override(device_t *d, int power) {
 
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS");
+	xlogl_start(line, "SOLAR");
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
@@ -426,7 +168,7 @@ static void print_gstate() {
 
 static void print_pstate_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "FRONIUS  ");
+	xlogl_start(line, "SOLAR  ");
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
@@ -465,17 +207,6 @@ static void print_pstate_dstate(device_t *d) {
 		strcat(line, value);
 	}
 
-	strcat(line, "   F");
-	if (f10 && f10->inverter) {
-		snprintf(value, 16, ":%d", f10->inverter->St);
-		strcat(line, value);
-	}
-
-	if (f7 && f7->inverter) {
-		snprintf(value, 16, ":%d", f7->inverter->St);
-		strcat(line, value);
-	}
-
 	xlogl_bits16(line, "  flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
@@ -483,24 +214,39 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, "Load", pstate->load);
-	if (lock)
-		xlogl_int(line, "Lock", lock);
+
+#ifdef SUNSPEC_INVERTER1
+	strcat(line, "   F");
+	if (inverter1 && inverter1->inverter) {
+		snprintf(value, 16, ":%d", inverter1->inverter->St);
+		strcat(line, value);
+	}
+#endif
+#ifdef SUNSPEC_INVERTER2
+	if (inverter2 && inverter2->inverter) {
+		snprintf(value, 16, ":%d", inverter2->inverter->St);
+		strcat(line, value);
+	}
+#endif
+
+	if (timelock)
+		xlogl_int(line, "Lock", timelock);
 	xlogl_end(line, strlen(line), 0);
 }
 
 // call device specific ramp function
 static int ramp(device_t *d, int power) {
 	if (power < 0)
-		xdebug("FRONIUS ramp↓ %d %s", power, d->name);
+		xdebug("SOLAR ramp↓ %d %s", power, d->name);
 	else if (power > 0)
-		xdebug("FRONIUS ramp↑ +%d %s", power, d->name);
+		xdebug("SOLAR ramp↑ +%d %s", power, d->name);
 	else
-		xdebug("FRONIUS ramp 0 %s", d->name);
+		xdebug("SOLAR ramp 0 %s", d->name);
 
 	// set/reset response lock
 	int ret = (d->ramp)(d, power);
-	if (lock < ret)
-		lock = ret;
+	if (timelock < ret)
+		timelock = ret;
 
 	return ret;
 }
@@ -516,9 +262,9 @@ static int select_program(const potd_t *p) {
 	if (AKKU_CHARGING)
 		AKKU->power = -1;
 
-	xlog("FRONIUS selecting %s program of the day", p->name);
+	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
-	lock = WAIT_RESPONSE;
+	timelock = WAIT_RESPONSE;
 
 	return 0;
 }
@@ -564,14 +310,14 @@ static void emergency() {
 	akku_discharge(); // enable discharge
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp(DD, DOWN);
-	xlog("FRONIUS emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
+	xlog("SOLAR emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
 }
 
 static void burnout() {
 	akku_discharge(); // enable discharge
-	fronius_override_seconds("küche", WAIT_BURNOUT);
-	fronius_override_seconds("wozi", WAIT_BURNOUT);
-	xlog("FRONIUS burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
+	solar_override_seconds("küche", WAIT_BURNOUT);
+	solar_override_seconds("wozi", WAIT_BURNOUT);
+	xlog("SOLAR burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), TEMP_IN);
 }
 
 static int ramp_multi(device_t *d) {
@@ -631,8 +377,12 @@ static device_t* steal() {
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		// thief not active or in standby - TODO akku cannot actively steal - only by ramping down victims
-		if (DD == AKKU || DD->state == Disabled || DD->state == Standby)
+		// TODO akku cannot actively steal - only by ramping down victims
+		if (DD == AKKU)
+			continue;
+
+		// thief disabled or in standby
+		if (DD->state == Disabled || DD->state == Standby)
 			continue;
 
 		// thief already (full) on
@@ -657,7 +407,7 @@ static device_t* steal() {
 
 		// ramp up thief - victims gets automatically ramped down in next round
 		if (ramp(DD, p)) {
-			xdebug("FRONIUS %s steal %d (min=%d)", DD->name, p, min);
+			xdebug("SOLAR %s steal %d (min=%d)", DD->name, p, min);
 			return DD;
 		}
 	}
@@ -667,7 +417,7 @@ static device_t* steal() {
 
 static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
-	xdebug("FRONIUS starting standby check on %s with power=%d", d->name, power);
+	xdebug("SOLAR starting standby check on %s with power=%d", d->name, power);
 	d->state = Standby_Check;
 	ramp(d, power);
 	return d;
@@ -701,8 +451,12 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-	// akku or no expected delta load - no response to check
-	if (d == AKKU || !d->delta)
+	// akku - no response to check
+	if (d == AKKU)
+		return 0;
+
+	// no expected delta load - no response to check
+	if (!d->delta)
 		return 0;
 
 	// valid response is at least 2/3 of last ramp
@@ -727,33 +481,33 @@ static device_t* response(device_t *d) {
 	int r = r1 || r2 || r3;
 
 	// load is completely satisfied from secondary inverter
-	int extra = pstate->ac7 > pstate->load * -1;
+	int extra = pstate->ac2 > pstate->load * -1;
 
 	// wait more to give akku time to release power when ramped up
 	int wait = AKKU_CHARGING && delta > 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
 	if (r && (d->state == Active || d->state == Active_Checked)) {
-		xdebug("FRONIUS response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
+		xdebug("SOLAR response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
-		lock = wait;
-		return lock ? d : 0;
+		timelock = wait;
+		return timelock ? d : 0;
 	}
 
 	// standby check was negative - we got a response
 	if (d->state == Standby_Check && r) {
-		xdebug("FRONIUS standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
+		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
 		d->state = Active_Checked; // mark Active with standby check performed
-		lock = wait;
+		timelock = wait;
 		return d; // recalculate in next round
 	}
 
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !r) {
-		xdebug("FRONIUS standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
+		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 		ramp(d, d->total * -1);
-		d->noresponse = d->delta = lock = 0; // no response from switch off expected
+		d->noresponse = d->delta = timelock = 0; // no response from switch off expected
 		d->state = Standby;
 		return d; // recalculate in next round
 	}
@@ -766,7 +520,7 @@ static device_t* response(device_t *d) {
 	if (++d->noresponse >= STANDBY_NORESPONSE)
 		return perform_standby(d);
 
-	xdebug("FRONIUS no response from %s count %d/%d", d->name, d->noresponse, STANDBY_NORESPONSE);
+	xdebug("SOLAR no response from %s count %d/%d", d->name, d->noresponse, STANDBY_NORESPONSE);
 	return 0;
 }
 
@@ -807,7 +561,7 @@ static void calculate_gstate() {
 	gstate->success = success * 100; // store as x100 scaled
 	if (gstate->success > 1000)
 		gstate->success = 1000;
-	xdebug("FRONIUS success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
+	xdebug("SOLAR success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// collect needed power to survive (+50Wh inverter dissipation) and to heat
 	int heating_total = collect_heating_total();
@@ -825,14 +579,14 @@ static void calculate_gstate() {
 	gstate->survive = survive * 100; // store as x100 scaled
 	if (gstate->survive > 1000)
 		gstate->survive = 1000;
-	xdebug("FRONIUS survive eod=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
+	xdebug("SOLAR survive eod=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
 
 	// heating factor
 	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
 	gstate->heating = heating * 100; // store as x100 scaled
 	if (gstate->heating > 1000)
 		gstate->heating = 1000;
-	xdebug("FRONIUS heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
+	xdebug("SOLAR heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
 
 	// heating enabled
 	gstate->flags |= FLAG_HEATING;
@@ -851,7 +605,7 @@ static void calculate_gstate() {
 	else if ((now->tm_mon < 3 || now->tm_mon > 9) && TEMP_IN < 28) // nov-mar always if not too hot
 		gstate->flags |= FLAG_HEATING;
 	if (GSTATE_HEATING)
-		xdebug("FRONIUS heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
+		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
 }
 
 static void calculate_pstate() {
@@ -869,6 +623,14 @@ static void calculate_pstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
 	// total PV produced by both inverters
+	if (pstate->mppt1 == 1)
+		pstate->mppt1 = 0; // noise
+	if (pstate->mppt2 == 1)
+		pstate->mppt2 = 0; // noise
+	if (pstate->mppt3 == 1)
+		pstate->mppt3 = 0; // noise
+	if (pstate->mppt4 == 1)
+		pstate->mppt4 = 0; // noise
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	if (abs(pstate->dpv) < NOISE)
@@ -882,7 +644,7 @@ static void calculate_pstate() {
 	pstate->sdgrid += abs(pstate->dgrid);
 
 	// load, delta load + sum
-	pstate->load = (pstate->ac10 + pstate->ac7 + pstate->grid) * -1;
+	pstate->load = (pstate->ac1 + pstate->ac2 + pstate->grid) * -1;
 	pstate->dload = pstate->load - s1->load;
 	if (abs(pstate->dload) < NOISE)
 		pstate->dload = 0; // shape dload
@@ -891,13 +653,10 @@ static void calculate_pstate() {
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > NOISE)
 		pstate->flags |= FLAG_DELTA;
-	if (abs(pstate->ac10 - s1->ac10) > NOISE)
+	if (abs(pstate->ac1 - s1->ac1) > NOISE)
 		pstate->flags |= FLAG_DELTA;
-	if (abs(pstate->ac7 - s1->ac7) > NOISE)
+	if (abs(pstate->ac2 - s1->ac2) > NOISE)
 		pstate->flags |= FLAG_DELTA;
-
-	// akku power is Fronius10 DC power minus PV
-	pstate->akku = pstate->dc10 - (pstate->mppt1 + pstate->mppt2);
 
 	// offline mode when not enough PV production
 	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
@@ -921,41 +680,46 @@ static void calculate_pstate() {
 	}
 
 	// no further calculations while lock active
-	if (lock)
+	if (timelock)
 		return;
 
 	// first set and then clear VALID flag when values suspicious
 	pstate->flags |= FLAG_VALID;
 	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
 	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
-		xdebug("FRONIUS suspicious values detected: sum=%d", sum);
+		xdebug("SOLAR suspicious values detected: sum=%d", sum);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->load > 0) {
-		xdebug("FRONIUS positive load detected");
+		xdebug("SOLAR positive load detected");
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-		xdebug("FRONIUS wasting power %d akku -> grid", waste);
+		xdebug("SOLAR wasting power %d akku -> grid", waste);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
-		xdebug("FRONIUS grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_VALID;
-		lock = WAIT_SPIKE; // load timer
-	}
-	if (f10 && !f10->active) {
-		xdebug("FRONIUS Fronius10 is not active!");
+		xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (f7 && !f7->active) {
-		xdebug("FRONIUS Fronius7 is not active!");
+#ifdef SUNSPEC_INVERTER1
+	if (inverter1 && !inverter1->active) {
+		xdebug("SOLAR Inverter1 is not active!");
+		pstate->flags &= ~FLAG_VALID;
 	}
+#endif
+#ifdef SUNSPEC_INVERTER2
+	if (inverter2 && !inverter2->active) {
+		xdebug("SOLAR Inverter2 is not active!");
+	}
+#endif
 
 	// no further calculations while invalid
-	if (!PSTATE_VALID)
+	if (!PSTATE_VALID) {
+		timelock = WAIT_INVALID;
 		return;
+	}
 
 	// state is stable when we have 3x no grid changes
 	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
@@ -998,7 +762,7 @@ static void calculate_pstate() {
 	// delay ramp up as long as average PV is below average load
 	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
 	if (pstate->ramp > 0 && m1->pv < m1load) {
-		xdebug("FRONIUS delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
+		xdebug("SOLAR delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
 		pstate->ramp = 0;
 	}
 
@@ -1009,18 +773,18 @@ static void calculate_pstate() {
 	if (d0 || d1 || d2)
 		pstate->flags |= FLAG_DISTORTION;
 	if (PSTATE_DISTORTION)
-		xdebug("FRONIUS set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+		xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 
 	// indicate standby check when actual load is 3x below 50% of calculated load
 	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
 		pstate->flags |= FLAG_CHECK_STANDBY;
 	if (PSTATE_CHECK_STANDBY)
-		xdebug("FRONIUS set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
 }
 
 static void daily() {
 	PROFILING_START
-	xlog("FRONIUS executing daily tasks...");
+	xlog("SOLAR executing daily tasks...");
 
 	// recalculate average 24/7 loads
 	collect_loads();
@@ -1028,15 +792,15 @@ static void daily() {
 	// calculate forecast errors - actual vs. expected
 	int forecast_yesterday = GSTATE_YDAY_HOUR(23)->tomorrow;
 	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
-	xdebug("FRONIUS yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
+	xdebug("SOLAR yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
 	int forecast_today = GSTATE_HOUR(6)->today;
 	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
-	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
+	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 
 	// recalculate mosmix factors
 	mosmix_factors();
 
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
@@ -1047,12 +811,12 @@ static void daily() {
 	calculate_gstate();
 	print_gstate();
 
-	PROFILING_LOG("FRONIUS daily");
+	PROFILING_LOG("SOLAR daily");
 }
 
 static void hourly() {
 	PROFILING_START
-	xlog("FRONIUS executing hourly tasks...");
+	xlog("SOLAR executing hourly tasks...");
 
 	// copy gstate and counters to history
 	memcpy(COUNTER_NOW, (void*) counter, sizeof(counter_t));
@@ -1070,10 +834,6 @@ static void hourly() {
 	if (PSTATE_OFFLINE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp(DD, DOWN);
-
-	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(f10, min);
 
 	// calculate last hour produced PV per mppt
 	counter_t *c = COUNTER_LAST;
@@ -1096,9 +856,15 @@ static void hourly() {
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	// we need the history in mosmix.c main()
 	mosmix_store_history();
+#endif
+
+#ifdef SUNSPEC_INVERTER1
+	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(inverter1, min);
 #endif
 
 	// create/append pstate minutes csv
@@ -1111,14 +877,14 @@ static void hourly() {
 	plot();
 
 	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("FRONIUS saving runtime directory: %s", SAVE_RUN_DIRECORY);
+	xlog("SOLAR saving runtime directory: %s", SAVE_RUN_DIRECORY);
 	system(SAVE_RUN_DIRECORY);
 
-	PROFILING_LOG("FRONIUS hourly");
+	PROFILING_LOG("SOLAR hourly");
 }
 
 static void minly() {
-	// xlog("FRONIUS minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
+	// xlog("SOLAR minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
 
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
@@ -1129,13 +895,13 @@ static void aggregate_mhd() {
 	// aggregate 60 seconds into one minute
 	if (now->tm_sec == 0) {
 		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "FRONIUS pstate_seconds", PSTATE_HEADER);
+		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
 		// dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 		// aggregate 60 minutes into one hour
 		if (now->tm_min == 0) {
 			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "FRONIUS pstate_minutes", PSTATE_HEADER);
+			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
 			// dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 			// aggregate 24 pstate/gstat hours into one day
@@ -1143,14 +909,14 @@ static void aggregate_mhd() {
 				pstate_t pda, pdc;
 				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
 				cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
-				dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "FRONIUS pstate_hours", PSTATE_HEADER);
+				dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
 				dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
 				dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
 
 				gstate_t gda, gdc;
 				aggregate((int*) &gda, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
 				cumulate((int*) &gdc, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
-				dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "FRONIUS gstate_hours", GSTATE_HEADER);
+				dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
 				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
@@ -1158,7 +924,7 @@ static void aggregate_mhd() {
 	}
 }
 
-static void fronius() {
+static void solar() {
 	time_t now_ts;
 	device_t *device = 0;
 
@@ -1167,21 +933,22 @@ static void fronius() {
 		return;
 	}
 
-	// the FRONIUS main loop
+	// the SOLAR main loop
 	while (1) {
 		// PROFILING_START
 
-		// get actual time and make a copy
+		// get actual time
 		now_ts = time(NULL);
-		localtime(&now_ts);
-		memcpy(now, lt, sizeof(*lt));
+		localtime_r(&now_ts, now);
 
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
 
-		// calculate pstate and store to history
+		// calculate pstate and store to history in a mutex
+		pthread_mutex_lock(&pstate_lock);
 		calculate_pstate();
 		memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
+		pthread_mutex_unlock(&pstate_lock);
 
 		// startup and every 10 minutes: calculate gstate and potd
 		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
@@ -1191,8 +958,8 @@ static void fronius() {
 		}
 
 		// no actions until lock is expired
-		if (lock)
-			lock--;
+		if (timelock)
+			timelock--;
 
 		else {
 
@@ -1249,7 +1016,7 @@ static void fronius() {
 		create_gstate_json();
 		create_powerflow_json();
 
-		// PROFILING_LOG("FRONIUS main loop")
+		// PROFILING_LOG("SOLAR main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))
@@ -1260,6 +1027,8 @@ static void fronius() {
 static int init() {
 	// set_debug(1);
 
+	pthread_mutex_init(&pstate_lock, NULL);
+
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock == 0)
@@ -1267,11 +1036,10 @@ static int init() {
 
 	// initialize time structure
 	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
+	localtime_r(&now_ts, now);
 
 	// initialize all devices with start values
-	xlog("FRONIUS initializing devices");
+	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Active;
 		DD->power = -1;
@@ -1298,26 +1066,22 @@ static int init() {
 	collect_loads();
 	plot();
 
-	meter = sunspec_init_poll("fronius10", 200, &update_meter);
-	f10 = sunspec_init_poll("fronius10", 1, &update_f10);
-	f7 = sunspec_init_poll("fronius7", 2, &update_f7);
-
-	// stop if Fronius10 is not available
-	if (!f10)
-		return xerr("No connection to Fronius10");
-
-	// wait for collecting models and producing data
-	sleep(5);
+	// call implementation specific init() function
+	if (solar_init() != 0)
+		return -1;
 
 	// create empty minutes CSV file if not found
 	if (access(PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
 
+	// wait for collecting models and generating first pstate data
+	sleep(5);
+
 	return 0;
 }
 
 static void stop() {
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
@@ -1325,14 +1089,16 @@ static void stop() {
 	mosmix_store_history();
 #endif
 
-	sunspec_stop(meter);
-	sunspec_stop(f10);
-	sunspec_stop(f7);
+	// call implementation specific stop() function
+	solar_stop();
 
 	if (sock)
 		close(sock);
+
+	pthread_mutex_destroy(&pstate_lock);
 }
 
+#ifdef CALIBRATION
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
 // - Nur Nachts
 // - Akku aus
@@ -1504,11 +1270,12 @@ static int calibrate(char *name) {
 	sunspec_stop(ss);
 	return 0;
 }
+#endif
 
 // run the main loop forever
 static int loop() {
 	init();
-	fronius();
+	solar();
 	pause();
 	stop();
 	return 0;
@@ -1576,8 +1343,7 @@ static int fake() {
 static int test() {
 	// initialize hourly & daily & monthly
 	time_t now_ts = time(NULL);
-	lt = localtime(&now_ts);
-	memcpy(now, lt, sizeof(*lt));
+	localtime_r(&now_ts, now);
 
 	for (int i = 0; i < 60; i++)
 		pstate_seconds[i].pv = i + 10;
@@ -1630,7 +1396,7 @@ static int test() {
 static int migrate() {
 	gstate_old_t old[24 * 7];
 	ZERO(old);
-	load_blob("/tmp/fronius-gstate.bin", old, sizeof(old));
+	load_blob("/tmp/solar-gstate.bin", old, sizeof(old));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		gstate_old_t *o = &old[i];
@@ -1654,23 +1420,23 @@ static int migrate() {
 	return 0;
 }
 
-int fronius_boiler1() {
+int solar_boiler1() {
 	return select_program(&BOILER1);
 }
 
-int fronius_boiler3() {
+int solar_boiler3() {
 	return select_program(&BOILER3);
 }
 
-int fronius_override_seconds(const char *name, int seconds) {
+int solar_override_seconds(const char *name, int seconds) {
 	device_t *d = get_by_name(name);
 	if (!d)
 		return 0;
 	if (d->override)
 		return 0;
 
-	xlog("FRONIUS Activating Override on %s", d->name);
-#ifdef FRONIUS_MAIN
+	xlog("SOLAR Activating Override on %s", d->name);
+#ifdef SOLAR_MAIN
 	d->power = -1;
 	if (!d->id)
 		d->addr = resolve_ip(d->name);
@@ -1684,8 +1450,8 @@ int fronius_override_seconds(const char *name, int seconds) {
 	return 0;
 }
 
-int fronius_override(const char *name) {
-	return fronius_override_seconds(name, OVERRIDE);
+int solar_override(const char *name) {
+	return solar_override_seconds(name, OVERRIDE);
 }
 
 int ramp_heater(device_t *heater, int power) {
@@ -1717,11 +1483,11 @@ int ramp_heater(device_t *heater, int power) {
 		return 0;
 
 	if (power)
-		xdebug("FRONIUS switching %s ON", heater->name);
+		xdebug("SOLAR switching %s ON", heater->name);
 	else
-		xdebug("FRONIUS switching %s OFF", heater->name);
+		xdebug("SOLAR switching %s OFF", heater->name);
 
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	int ret = tasmota_power(heater->id, heater->r, power ? 1 : 0);
 	if (ret < 0)
 		return ret;
@@ -1777,11 +1543,11 @@ int ramp_boiler(device_t *boiler, int power) {
 	snprintf(message, 16, "p:%d:%d", power, 0);
 
 	if (step < 0)
-		xdebug("FRONIUS ramp↓ %s step %d UDP %s", boiler->name, step, message);
+		xdebug("SOLAR ramp↓ %s step %d UDP %s", boiler->name, step, message);
 	else
-		xdebug("FRONIUS ramp↑ %s step +%d UDP %s", boiler->name, step, message);
+		xdebug("SOLAR ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 
-#ifndef FRONIUS_MAIN
+#ifndef SOLAR_MAIN
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
 	sock_addr_in.sin_family = AF_INET;
@@ -1803,9 +1569,6 @@ int ramp_boiler(device_t *boiler, int power) {
 }
 
 int ramp_akku(device_t *akku, int power) {
-	if (!f10)
-		return 0;
-
 	// init - set to discharge when offline, otherwise to standby
 	if (akku->power == -1)
 		return PSTATE_OFFLINE ? akku_discharge() : akku_standby();
@@ -1849,7 +1612,7 @@ int ramp_akku(device_t *akku, int power) {
 	return 0;
 }
 
-int fronius_main(int argc, char **argv) {
+int solar_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
@@ -1864,11 +1627,13 @@ int fronius_main(int argc, char **argv) {
 		case 'b':
 			// -X: limit charge, +X: limit dscharge, 0: no limits
 			return battery(optarg);
+#ifdef CALIBRATION
 		case 'c':
-			// execute as: stdbuf -i0 -o0 -e0 ./fronius -c boiler1 > boiler1.txt
+			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
 			return calibrate(optarg);
+#endif
 		case 'o':
-			return fronius_override(optarg);
+			return solar_override(optarg);
 		case 's':
 			return storage_min(optarg);
 		case 'f':
@@ -1889,10 +1654,10 @@ int fronius_main(int argc, char **argv) {
 	return 0;
 }
 
-#ifdef FRONIUS_MAIN
+#ifdef SOLAR_MAIN
 int main(int argc, char **argv) {
-	return fronius_main(argc, argv);
+	return solar_main(argc, argv);
 }
 #else
-MCP_REGISTER(fronius, 7, &init, &stop, &fronius);
+MCP_REGISTER(solar, 7, &init, &stop, &solar);
 #endif

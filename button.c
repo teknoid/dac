@@ -18,7 +18,7 @@
 
 #include "ledstrip.h"
 #include "tasmota.h"
-#include "fronius.h"
+#include "solar.h"
 #include "button.h"
 #include "utils.h"
 #include "dac.h"
@@ -56,12 +56,12 @@ static void handle_button(unsigned char c) {
 	case 16:
 		system("/m/party.sh");
 		break;
-#ifdef FRONIUS
+#ifdef SOLAR
 	case 32:
-		fronius_override_seconds("tisch", 3600);
+		solar_override_seconds("tisch", 3600);
 		break;
 	case 32 + SHIFT:
-		fronius_override_seconds("wozi", 3600);
+		solar_override_seconds("wozi", 3600);
 		break;
 #endif
 	case 64:

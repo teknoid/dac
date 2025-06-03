@@ -575,7 +575,7 @@ static void migrate() {
 
 	mosmix_old_t old[24 * 7];
 	ZERO(old);
-	load_blob("/tmp/fronius-mosmix-history.bin", old, sizeof(old));
+	load_blob("/tmp/solar-mosmix-history.bin", old, sizeof(old));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		mosmix_old_t *o = &old[i];
