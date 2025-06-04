@@ -14,7 +14,8 @@
 #include "mcp.h"
 
 //#include "solar-tron25-modbus.h"
-#include "solar-tron25-api.h"
+//#include "solar-tron25-api.h"
+#include "solar-simulator.h"
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -25,16 +26,16 @@
 #endif
 
 static void create_pstate_json() {
-	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, PSTATE_JSON);
+	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
 }
 
 static void create_gstate_json() {
-	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, GSTATE_JSON);
+	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_JSON);
 }
 
 // feed Fronius powerflow web application
 static void create_powerflow_json() {
-	FILE *fp = fopen(POWERFLOW_JSON, "wt");
+	FILE *fp = fopen(RUN SLASH POWERFLOW_JSON, "wt");
 	if (fp == NULL)
 		return;
 
@@ -45,7 +46,7 @@ static void create_powerflow_json() {
 
 // devices
 static void create_dstate_json() {
-	FILE *fp = fopen(DSTATE_JSON, "wt");
+	FILE *fp = fopen(RUN SLASH DSTATE_JSON, "wt");
 	if (fp == NULL)
 		return;
 
@@ -67,14 +68,16 @@ static void create_dstate_json() {
 
 static void plot() {
 	// create gstate daily/weekly
-	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, GSTATE_TODAY_CSV);
-	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, GSTATE_WEEK_CSV);
+	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
+	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
 
 	// create mosmix history, today, tomorrow csv
 	mosmix_store_csv();
 
 	// plot diagrams
+#ifdef GNUPLOT
 	system(GNUPLOT);
+#endif
 }
 
 static device_t* get_by_name(const char *name) {
@@ -117,7 +120,7 @@ static void collect_loads() {
 	xdebug(line);
 
 #ifndef SOLAR_MAIN
-	store_array_csv(loads, 24, "  load", LOADS_CSV);
+	store_array_csv(loads, 24, "  load", RUN SLASH LOADS_CSV);
 #endif
 }
 
@@ -772,10 +775,10 @@ static void daily() {
 	mosmix_factors();
 
 #ifndef SOLAR_MAIN
-	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 #endif
 
 	// recalculate gstate
@@ -836,13 +839,13 @@ static void hourly() {
 
 	// create/append pstate minutes csv
 	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
-	if (!offset || access(PSTATE_M_CSV, F_OK))
-		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
-	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, PSTATE_M_CSV);
+	if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 
 	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("SOLAR saving runtime directory: %s", SAVE_RUN_DIRECORY);
-	system(SAVE_RUN_DIRECORY);
+	xlog("SOLAR saving runtime directory to %s", TMP);
+	system("cp -r " RUN TMP);
 #endif
 
 	// paint new diagrams
@@ -1023,10 +1026,10 @@ static int init() {
 	ZERO(gstate_hours);
 	ZERO(counter_hours);
 
-	load_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	load_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	load_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	load_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	load_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
 	mosmix_load_history(now);
 	mosmix_factors();
@@ -1035,8 +1038,8 @@ static int init() {
 	plot();
 
 	// create empty minutes CSV file if not found
-	if (access(PSTATE_M_CSV, F_OK))
-		store_csv_header(PSTATE_HEADER, PSTATE_M_CSV);
+	if (access(RUN SLASH PSTATE_M_CSV, F_OK))
+		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
 
 	// call implementation specific init() function
 	if (solar_init() != 0)
@@ -1053,10 +1056,10 @@ static void stop() {
 	solar_stop();
 
 #ifndef SOLAR_MAIN
-	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
 #endif
 
@@ -1126,10 +1129,10 @@ static int fake() {
 	for (int i = 0; i < 60; i++)
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
-	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
 	return 0;
 }
@@ -1332,8 +1335,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power == power)
 		return 0; // continue loop
 
-	// summer: charging boiler3 only between 11 and 15 o'clock
-	if (boiler == B3 && power > 0 && (now->tm_hour < 11 || now->tm_hour >= 15) && SUMMER) {
+	// summer: charging boilers only between 11 and 15 o'clock
+	if (power > 0 && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to) && SUMMER) {
 		boiler->state = Standby;
 		return 0; // continue loop
 	}

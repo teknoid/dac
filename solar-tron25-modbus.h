@@ -19,7 +19,7 @@
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 }, *B3 = &b3;
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15 };
 static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
 static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
 static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
@@ -78,10 +78,13 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		// TODO find sunspec register
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
+
 		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+
 		ss->sleep = 0;
 		ss->active = 1;
+
 		// update counter hour 0 when empty
 		if (COUNTER_0->mppt1 == 0)
 			COUNTER_0->mppt1 = counter->mppt1;
@@ -121,10 +124,13 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
+
 		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+
 		ss->sleep = 0;
 		ss->active = 1;
+
 		// update counter hour 0 when empty
 		if (COUNTER_0->mppt3 == 0)
 			COUNTER_0->mppt3 = counter->mppt3;
@@ -153,8 +159,6 @@ static sunspec_t *meter = 0;
 static void update_meter(sunspec_t *ss) {
 	pthread_mutex_lock(&pstate_lock);
 
-	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
-	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
@@ -163,6 +167,10 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
 //	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
+
+	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
+	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+
 	// update counter hour 0 when empty
 	if (COUNTER_0->produced == 0)
 		COUNTER_0->produced = counter->produced;

@@ -1,29 +1,28 @@
 // hexdump -v -e '6 "%10d ""\n"' /work/solar-counter.bin
-#define COUNTER_FILE			"/work/solar-counter.bin"
+#define COUNTER_FILE			"solar-counter.bin"
 
 // hexdump -v -e '17 "%6d ""\n"' /work/solar-gstate.bin
-#define GSTATE_FILE				"/work/solar-gstate.bin"
-#define GSTATE_TODAY_CSV		"/run/mcp/gstate-today.csv"
-#define GSTATE_WEEK_CSV			"/run/mcp/gstate-week.csv"
+#define GSTATE_FILE				"solar-gstate.bin"
+#define GSTATE_TODAY_CSV		"gstate-today.csv"
+#define GSTATE_WEEK_CSV			"gstate-week.csv"
 
 // hexdump -v -e '30 "%6d ""\n"' /work/solar-pstate*.bin
-#define PSTATE_H_FILE			"/work/solar-pstate-hours.bin"
-#define PSTATE_M_FILE			"/work/solar-pstate-minutes.bin"
+#define PSTATE_H_FILE			"solar-pstate-hours.bin"
+#define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 
-#define PSTATE_M_CSV			"/run/mcp/pstate-minutes.csv"
-#define LOADS_CSV				"/run/mcp/loads.csv"
+#define PSTATE_M_CSV			"pstate-minutes.csv"
+#define LOADS_CSV				"loads.csv"
 
-#define PSTATE_JSON				"/run/mcp/pstate.json"
-#define GSTATE_JSON				"/run/mcp/gstate.json"
-#define DSTATE_JSON				"/run/mcp/dstate.json"
-#define POWERFLOW_JSON			"/run/mcp/powerflow.json"
+#define PSTATE_JSON				"pstate.json"
+#define GSTATE_JSON				"gstate.json"
+#define DSTATE_JSON				"dstate.json"
+#define POWERFLOW_JSON			"powerflow.json"
 
 #define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 #define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 
 #define MOSMIX3X24				"SOLAR mosmix Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d"
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/mosmix.gp"
-#define SAVE_RUN_DIRECORY		"cp -r /run/mcp /tmp"
 
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
@@ -96,6 +95,8 @@ struct _device {
 	const char *addr;
 	const int adj;
 	const int total;
+	const int from;
+	const int to;
 	enum dstate state;
 	int power;
 	int delta;

@@ -21,7 +21,7 @@
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1 }, *B3 = &b3;
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15 };
 static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
 static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
 static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
@@ -206,13 +206,13 @@ static void* update(void *arg) {
 
 		pthread_mutex_lock(&pstate_lock);
 
-		pstate->grid = r->grid;
-		pstate->mppt1 = r->mppt1;
-		pstate->mppt2 = r->mppt2;
-		pstate->soc = r->soc * 10.0; // store x10 scaled
 		pstate->ac1 = r->ac1;
 		pstate->dc1 = r->dc1;
+		pstate->mppt1 = r->mppt1;
+		pstate->mppt2 = r->mppt2;
+		pstate->grid = r->grid;
 		pstate->akku = r->akku;
+		pstate->soc = r->soc * 10.0; // store x10 scaled
 		pstate->p1 = r->p1;
 		pstate->p2 = r->p2;
 		pstate->p3 = r->p3;
@@ -230,7 +230,7 @@ static void* update(void *arg) {
 			// this inverter goes into sleep mode overnight - so read inverter2 only when inverter1 produces PV
 			curl_perform(curl2, &memory, &parse_inverter2);
 			// !!! no regular updates on fields Energy_DC_String_X - so use PowerReal_PAC_Sum for all fields DC/AC values
-			pstate->mppt3 = pstate->ac2 = pstate->dc2 = r->ac2;
+			pstate->ac2 = pstate->dc2 = pstate->mppt3 = r->ac2;
 			pstate->mppt4 = 0;
 			counter->mppt3 = r->mppt3_total;
 			counter->mppt4 = r->mppt4_total;

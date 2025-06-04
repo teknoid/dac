@@ -5,11 +5,11 @@
 #define MOSMIX_COLUMNS			6
 
 // hexdump -v -e '18 "%6d ""\n"' /work/solar-mosmix-history.bin
-#define MOSMIX_HISTORY			"/work/solar-mosmix-history.bin"
-#define MOSMIX_HISTORY_CSV		"/run/mcp/mosmix-history.csv"
-#define MOSMIX_FACTORS_CSV		"/run/mcp/mosmix-factors.csv"
-#define MOSMIX_TODAY_CSV		"/run/mcp/mosmix-today.csv"
-#define MOSMIX_TOMORROW_CSV		"/run/mcp/mosmix-tomorrow.csv"
+#define MOSMIX_HISTORY			"solar-mosmix-history.bin"
+#define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
+#define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
+#define MOSMIX_TODAY_CSV		"mosmix-today.csv"
+#define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))

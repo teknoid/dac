@@ -54,6 +54,20 @@
 
 #define BUFSIZE			256
 
+#ifndef WORK
+#define WORK			"/work"
+#endif
+
+#ifndef RUN
+#define RUN				"/run/mcp"
+#endif
+
+#ifndef TMP
+#define TMP				"/tmp"
+#endif
+
+#define SLASH			"/"
+
 // register a module in the MCP's execution context
 #define MCP_REGISTER(name, prio, init, stop, loop) \
   void __attribute__((constructor(101 + prio))) \
