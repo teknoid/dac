@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <math.h>
 
+#include "tasmota.h"
 #include "sensors.h"
 #include "utils.h"
 #include "mqtt.h"
@@ -15,10 +16,6 @@
 #define SYSFSLIKE	0
 
 static int i2cfd;
-
-#ifdef SENSORS_MAIN
-mcp_sensors_t *sensors = NULL;
-#endif
 
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux

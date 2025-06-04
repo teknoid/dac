@@ -5,8 +5,9 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "utils.h"
+#include "tasmota.h"
 #include "webcam.h"
+#include "utils.h"
 #include "mcp.h"
 
 #define LUMI				sensors->bh1750_raw2

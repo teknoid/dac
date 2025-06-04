@@ -7,8 +7,8 @@
 #include <time.h>
 
 #include "ledstrip.h"
-#include "tasmota.h"
 #include "flamingo.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "xmas.h"
 #include "mcp.h"

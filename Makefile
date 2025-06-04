@@ -58,9 +58,9 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
 
-solar: clean solar.o sunspec.o mosmix.o utils.o frozen.o curl.o
+solar: clean solar.o sunspec.o mosmix.o utils.o frozen.o curl.o mqtt.o tasmota.o
 	$(CC) $(CFLAGS) -DSOLAR_MAIN -c solar.c
-	$(CC) $(CFLAGS) -o solar solar.o sunspec.o mosmix.o utils.o frozen.o curl.o -lmodbus -lm -lpthread -lcurl
+	$(CC) $(CFLAGS) -o solar solar.o sunspec.o mosmix.o utils.o frozen.o curl.o mqtt.o tasmota.o $(LIBS) -lmodbus -lcurl -lmqttc
 
 sensors: sensors.o utils.o i2c.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c

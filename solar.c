@@ -1456,6 +1456,13 @@ int solar_main(int argc, char **argv) {
 }
 
 #ifdef SOLAR_MAIN
+// tasmota+mqtt  needs mcp_register()
+void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
+	printf("call init() + loop() for  %s\n", name);
+	(init)();
+	pthread_t *t = malloc(sizeof(pthread_t));
+	pthread_create(t, NULL, (void* (*)(void*)) loop, NULL);
+}
 int main(int argc, char **argv) {
 	return solar_main(argc, argv);
 }

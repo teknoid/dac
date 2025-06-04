@@ -428,10 +428,9 @@ int display_main(int argc, char **argv) {
 }
 
 #ifdef DISPLAY_MAIN
-void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void *loop) {
+void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	xlog("call init() for  %s", name);
-	init_t xinit = init;
-	(xinit)();
+	(init)();
 }
 // dummy functions for menu items in dac-es9028.h
 void mpdclient_handle(int key) {

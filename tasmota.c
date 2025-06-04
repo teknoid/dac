@@ -21,6 +21,8 @@ static tasmota_state_t *tasmota_state = NULL;
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 
+tasmota_sensors_t sensors_local, *sensors = &sensors_local;
+
 //static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 //	char *t = make_string(topic, tsize);
 //	char *m = make_string(message, msize);
@@ -209,6 +211,7 @@ static void trigger(unsigned int id, int button, int action) {
 
 // decode flamingo message
 static int flamingo(unsigned int code) {
+#ifdef FLAMINGO
 	uint16_t xmitter;
 	uint8_t command, channel, payload, rolling;
 
@@ -229,7 +232,7 @@ static int flamingo(unsigned int code) {
 		break;
 	default:
 	}
-
+#endif
 	return 0;
 }
 

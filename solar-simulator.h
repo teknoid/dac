@@ -15,15 +15,9 @@
 #define BASELOAD				(WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 
-#ifndef SOLAR_MAIN
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
 #define BRIGHTNESS				sensors->bh1750_lux_mean
-#endif
-
-#ifndef BRIGHTNESS
-#define BRIGHTNESS				1234
-#endif
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
@@ -61,7 +55,7 @@ static int mppt(int offset, int peak) {
 	double sinus = sin(rad);
 
 	int pv = sinus * peak * (1 / BRIGHTNESS);
-	xlog("minute=%d sin=%.2f pv=%d", minute, sinus, pv);
+	xlog("minute=%d sin=%.2f pv=%d temp=%.1f", minute, sinus, pv, TEMP_IN);
 	return pv;
 }
 

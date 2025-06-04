@@ -80,25 +80,25 @@ static uint64_t get_mac(const char *topic, size_t size) {
 
 // ledstrip blink red
 static void led() {
-	// TODO mcp->notifications_led
 #ifdef LCD
-	// TODO blockiert?
+	// TODO mcp->notifications_led
 	ledstrip_blink_red();
 #endif
 }
 
 // show on LCD display line 1 and 2
 static void lcd(const char *line1, const char *line2) {
+#ifdef LCD
 	if (!mcp->notifications_lcd)
 		return;
 
-#ifdef LCD
 	lcd_print(line1, line2);
 #endif
 }
 
 // desktop notifications via DBUS
 static void desktop(const char *title, const char *text) {
+#ifdef LCD
 	if (!mcp->notifications_desktop)
 		return;
 
@@ -108,10 +108,12 @@ static void desktop(const char *title, const char *text) {
 	xlog("MQTT system: %s", command);
 	system(command);
 	free(command);
+#endif
 }
 
 // play sound
 static void play(const char *sound) {
+#ifdef MIXER
 	if (!mcp->notifications_sound)
 		return;
 
@@ -122,11 +124,9 @@ static void play(const char *sound) {
 		snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 	xlog("MQTT system: %s", command);
 
-#ifdef MIXER
 	system(command);
-#endif
-
 	free(command);
+#endif
 }
 
 static int dispatch_notification(struct mqtt_response_publish *p) {
@@ -155,20 +155,15 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	free(message);
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
-#ifdef TASMOTA
 	if (mac == MAC_HANDY)
 		if (sensors->bh1750_lux < DARKNESS)
 			tasmota_power(HOFLICHT, 0, 1);
-#endif
 
 	return 0;
 }
 
 static int dispatch_tasmota(struct mqtt_response_publish *p) {
-#ifdef TASMOTA
 	tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
-#endif
-
 	return 0;
 }
 

@@ -4,6 +4,7 @@
 
 #include "utils.h"
 #include "gpio.h"
+#include "mcp.h"
 
 #define GPIO_DAC_POWER		"PG11"
 #define GPIO_DAC_MCLK		"PA6"
@@ -11,7 +12,7 @@
 typedef int (*init_t)();
 
 // gpio-bcm2835.c needs mcp_register()
-void mcp_register(const char *name, const int prio, const void *init, const void *stop, const void* loop) {
+void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	xlog("call init() for  %s", name);
 	init_t xinit = init;
 	(xinit)();

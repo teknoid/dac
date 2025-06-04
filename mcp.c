@@ -106,7 +106,6 @@
 mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_module_t *module = NULL;
-mcp_sensors_t *sensors = NULL;
 
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
@@ -322,9 +321,6 @@ int main(int argc, char **argv) {
 	mcp->notifications_lcd = 1;
 	mcp->notifications_sound = 1;
 	mcp->notifications_desktop = 1;
-
-	sensors = malloc(sizeof(*sensors));
-	ZEROP(sensors);
 
 	// parse command line arguments
 	int c;

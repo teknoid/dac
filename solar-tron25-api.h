@@ -12,10 +12,8 @@
 #define BASELOAD				(WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 
-#ifndef SOLAR_MAIN
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
-#endif
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;

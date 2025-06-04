@@ -1,8 +1,12 @@
 #include <pthread.h>
 #include <mpd/status.h>
 
+// defaults for testing
+#define WORK			"/work/simulator"
+#define RUN				"/work/simulator"
+
 //#define ANUS
-#define TRON
+//#define TRON
 //#define ODROID
 //#define PIWOLF
 //#define PICAM
@@ -15,7 +19,7 @@
 #endif
 
 #ifdef TRON
-#define TASMOTA
+#define FLAMINGO
 #define SOLAR
 #define LCD
 #define I2C				"/dev/i2c-7"
@@ -23,7 +27,7 @@
 #endif
 
 #ifdef ODROID
-#define TASMOTA
+#define FLAMINGO
 #define SOLAR
 #endif
 
@@ -135,42 +139,6 @@ typedef struct mcp_config_t {
 	int interactive;
 } mcp_config_t;
 extern mcp_config_t *cfg;
-
-typedef struct mcp_sensors_t {
-	// BH1750 luminousity
-	uint16_t bh1750_raw;
-	uint16_t bh1750_raw2;
-	uint8_t bh1750_prc;
-	uint16_t bh1750_lux;
-	uint16_t bh1750_lux_mean;
-
-	// BMP085 temperature + barometric pressure
-	float bmp085_temp;
-	uint16_t bmp085_temp_raw;
-	float bmp085_baro;
-	uint32_t bmp085_baro_raw;
-
-	// BMP280 temperature + barometric pressure
-	float bmp280_temp;
-	uint16_t bmp280_temp_raw;
-	float bmp280_baro;
-	uint32_t bmp280_baro_raw;
-
-	// SHT31 temperature + humidity
-	float sht31_humi;
-	float sht31_temp;
-	float sht31_dew;
-
-	// HTU21 temperature + humidity
-	float htu21_humi;
-	float htu21_temp;
-	float htu21_dew;
-
-	// ML8511 UV
-	uint16_t ml8511_uv;
-
-} mcp_sensors_t;
-extern mcp_sensors_t *sensors;
 
 int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
