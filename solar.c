@@ -6,8 +6,6 @@
 #include <time.h>
 #include <math.h>
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <ansi-color-codes.h>
 
 #include "tasmota.h"
@@ -56,7 +54,10 @@ static void create_dstate_json() {
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (i++)
 			fprintf(fp, ",");
-		fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, DD == AKKU ? AKKU_CHARGE_MAX : DD->total, DD == AKKU ? pstate->akku : DD->load);
+		if (DD == AKKU)
+			fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, AKKU_CHARGE_MAX, pstate->akku);
+		else
+			fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, DD->total, DD->load);
 	}
 
 	fprintf(fp, "]");
@@ -214,21 +215,7 @@ static void print_pstate_dstate(device_t *d) {
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, "Load", pstate->load);
-
-#ifdef SUNSPEC_INVERTER1
-	strcat(line, "   F");
-	if (inverter1 && inverter1->inverter) {
-		snprintf(value, 16, ":%d", inverter1->inverter->St);
-		strcat(line, value);
-	}
-#endif
-#ifdef SUNSPEC_INVERTER2
-	if (inverter2 && inverter2->inverter) {
-		snprintf(value, 16, ":%d", inverter2->inverter->St);
-		strcat(line, value);
-	}
-#endif
-
+	inverter_status(line);
 	if (lock)
 		xlogl_int(line, "   Lock", lock);
 	xlogl_end(line, strlen(line), 0);
@@ -614,7 +601,7 @@ static void calculate_pstate() {
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
-	// total PV produced by both inverters
+	// total PV produced by all strings
 	if (pstate->mppt1 == 1)
 		pstate->mppt1 = 0; // noise
 	if (pstate->mppt2 == 1)
@@ -695,17 +682,9 @@ static void calculate_pstate() {
 		xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
 	}
-#ifdef SUNSPEC_INVERTER1
-	if (inverter1 && !inverter1->active) {
-		xdebug("SOLAR Inverter1 is not active!");
-		pstate->flags &= ~FLAG_VALID;
-	}
-#endif
-#ifdef SUNSPEC_INVERTER2
-	if (inverter2 && !inverter2->active) {
-		xdebug("SOLAR Inverter2 is not active!");
-	}
-#endif
+
+	// validate inverter status
+	inverter_valid();
 
 	// no further calculations while invalid
 	if (!PSTATE_VALID) {
@@ -848,11 +827,8 @@ static void hourly() {
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
 	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
 
-#ifdef SUNSPEC_INVERTER1
-	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(inverter1, min);
-#endif
+	// set akku storage strategy
+	akku_strategy();
 
 #ifndef SOLAR_MAIN
 	// we need the history in mosmix.c main()
@@ -1089,180 +1065,6 @@ static void stop() {
 
 	pthread_mutex_destroy(&pstate_lock);
 }
-
-#ifdef CALIBRATION
-// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
-// - Nur Nachts
-// - Akku aus
-// - Külschränke aus
-// - Heizung aus
-// - Rechner aus
-static int calibrate(char *name) {
-	const char *addr = resolve_ip(name);
-	char message[16];
-	int grid, voltage, closest, target;
-	int offset_start = 0, offset_end = 0;
-	int measure[1000], raster[101];
-
-	// create a sunspec handle and remove models not needed
-	sunspec_t *ss = sunspec_init("fronius10", 200);
-	sunspec_read(ss);
-	ss->common = 0;
-	ss->storage = 0;
-
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-	// write IP and port into sockaddr structure
-	struct sockaddr_in sock_addr_in = { 0 };
-	sock_addr_in.sin_family = AF_INET;
-	sock_addr_in.sin_port = htons(1975);
-	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
-	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
-
-	printf("starting calibration on %s (%s)\n", name, addr);
-	snprintf(message, 16, "v:0:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	sleep(5);
-
-	// get maximum power, calculate 1%
-	//	printf("waiting for heat up 100%%...\n");
-	//	snprintf(message, 16, "v:10000:0");
-	//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	//	sleep(5);
-	//	sunspec_read(ss);
-	//	grid = SFI(ss->meter->W, ss->meter->W_SF);
-	//	int max_power = round100(grid - offset_start);
-	// TODO cmdline parameter
-	int max_power = 2000;
-	int onepercent = max_power / 100;
-
-	// average offset power at start
-	printf("calculating offset start");
-	for (int i = 0; i < 10; i++) {
-		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF);
-		printf(" %d", grid);
-		offset_start += grid;
-		sleep(1);
-	}
-	offset_start = offset_start / 10 + (offset_start % 10 < 5 ? 0 : 1);
-	printf(" --> average %d\n", offset_start);
-	sleep(5);
-
-	// do a full drive over SSR characteristic load curve from cold to hot and capture power
-	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
-	for (int i = 0; i < 1000; i++) {
-		voltage = i * 10;
-		snprintf(message, 16, "v:%d:%d", voltage, 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		int ms = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
-		msleep(ms);
-		sunspec_read(ss);
-		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
-		printf("%5d %5d\n", voltage, measure[i]);
-	}
-
-	// switch off
-	snprintf(message, 16, "v:0:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	sleep(5);
-
-	// average offset power at end
-	printf("calculating offset end");
-	for (int i = 0; i < 10; i++) {
-		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF);
-		printf(" %d", grid);
-		offset_end += grid;
-		sleep(1);
-	}
-	offset_end = offset_end / 10 + (offset_end % 10 < 5 ? 0 : 1);
-	printf(" --> average %d\n", offset_end);
-	sleep(1);
-
-	// build raster table
-	raster[0] = 0;
-	raster[100] = 10000;
-	for (int i = 1; i < 100; i++) {
-
-		// calculate next target power for table index (percent)
-		target = onepercent * i;
-
-		// find closest power to target power
-		int min_diff = max_power;
-		for (int j = 0; j < 1000; j++) {
-			int diff = abs(measure[j] - target);
-			if (diff < min_diff) {
-				min_diff = diff;
-				closest = j;
-			}
-		}
-
-		// find all closest voltages that match target power +/- 5 watt
-		int sum = 0, count = 0;
-		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, measure[closest]);
-		for (int j = 0; j < 1000; j++)
-			if (measure[closest] - 5 < measure[j] && measure[j] < measure[closest] + 5) {
-				printf(" %d:%d", measure[j], j * 10);
-				sum += j * 10;
-				count++;
-			}
-
-		// average of all closest voltages
-		if (count) {
-			int z = (sum * 10) / count;
-			raster[i] = z / 10 + (z % 10 < 5 ? 0 : 1);
-		}
-		printf(" --> %dW %dmV\n", target, raster[i]);
-	}
-
-	// validate - values in measure table should grow, not shrink
-	for (int i = 1; i < 1000; i++)
-		if (measure[i - 1] > measure[i]) {
-			int v_x = i * 10;
-			int m_x = measure[i - 1];
-			int v_y = (i - 1) * 10;
-			int m_y = measure[i];
-			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d > %d:%d\n", v_x, m_x, v_y, m_y);
-		}
-	if (offset_start != offset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
-
-	// dump table
-	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[0]);
-	for (int i = 1; i <= 100; i++) {
-		printf("%d, ", raster[i]);
-		if (i % 10 == 0)
-			printf("\\\n   ");
-	}
-
-	// validate
-	printf("\nwaiting 60s for cool down\n");
-	sleep(60);
-	for (int i = 0; i <= 100; i++) {
-		snprintf(message, 16, "v:%d:%d", raster[i], 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		msleep(2000);
-		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
-		int expected = onepercent * i;
-		float error = grid ? 100.0 - expected * 100.0 / (float) grid : 0;
-		printf("%3d%% %5dmV expected %4dW actual %4dW error %.2f\n", i, raster[i], expected, grid, error);
-	}
-
-	// switch off
-	snprintf(message, 16, "v:0:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-
-	// cleanup
-	close(sock);
-	sunspec_stop(ss);
-	return 0;
-}
-#endif
 
 // run the main loop forever
 static int loop() {
@@ -1625,11 +1427,9 @@ int solar_main(int argc, char **argv) {
 		case 'b':
 			// -X: limit charge, +X: limit dscharge, 0: no limits
 			return battery(optarg);
-#ifdef CALIBRATION
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
 			return calibrate(optarg);
-#endif
 		case 'o':
 			return solar_override(optarg);
 		case 's':

@@ -1,3 +1,6 @@
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
 #include "tasmota-devices.h"
 #include "solar-common.h"
 #include "sunspec.h"
@@ -11,8 +14,6 @@
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
 #endif
-
-#define CALIBRATION
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
@@ -50,7 +51,6 @@ static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
 // inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
-#define SUNSPEC_INVERTER1
 static sunspec_t *inverter1 = 0;
 #define MIN_SOC					(inverter1 ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
 #define AKKU_CHARGE_MAX			(inverter1 ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
@@ -106,7 +106,6 @@ static void update_inverter1(sunspec_t *ss) {
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
-#define SUNSPEC_INVERTER2
 static sunspec_t *inverter2 = 0;
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&pstate_lock);
@@ -150,7 +149,6 @@ static void update_inverter2(sunspec_t *ss) {
 }
 
 // meter is Fronius Smart Meter TS 65A-3
-#define SUNSPEC_METER
 static sunspec_t *meter = 0;
 static void update_meter(sunspec_t *ss) {
 	pthread_mutex_lock(&pstate_lock);
@@ -192,53 +190,34 @@ static void solar_stop() {
 	sunspec_stop(meter);
 }
 
-// sample grid values from meter
-static int grid() {
-#ifdef SUNSPEC_METER
-	pstate_t pp, *p = &pp;
-	sunspec_t *ss = sunspec_init("fronius10", 200);
-	sunspec_read(ss);
-	ss->common = 0;
+static void inverter_status(char *line) {
+	char value[16];
 
-	while (1) {
-		msleep(666);
-		sunspec_read(ss);
-
-		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-		p->f = ss->meter->Hz; // without scaling factor
-
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+	strcat(line, "   F");
+	if (inverter1 && inverter1->inverter) {
+		snprintf(value, 16, ":%d", inverter1->inverter->St);
+		strcat(line, value);
 	}
-#endif
-	return 0;
+	if (inverter2 && inverter2->inverter) {
+		snprintf(value, 16, ":%d", inverter2->inverter->St);
+		strcat(line, value);
+	}
 }
 
-// set charge(-) / discharge(+) limits or reset when 0
-static int battery(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int wh = atoi(arg);
-	if (wh > 0)
-		return sunspec_storage_limit_discharge(ss, wh);
-	if (wh < 0)
-		return sunspec_storage_limit_charge(ss, wh * -1);
-	return sunspec_storage_limit_reset(ss);
+static void inverter_valid() {
+	if (inverter1 && !inverter1->active) {
+		xdebug("SOLAR Inverter1 is not active!");
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (inverter2 && !inverter2->active) {
+		xdebug("SOLAR Inverter2 is not active!");
+	}
 }
 
-// set minimum SoC
-static int storage_min(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int min = atoi(arg);
-	return sunspec_storage_minimum_soc(ss, min);
+static void akku_strategy() {
+	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
+	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(inverter1, min);
 }
 
 static int akku_standby() {
@@ -283,4 +262,223 @@ static int akku_discharge() {
 #endif
 	}
 	return 0; // continue loop
+}
+
+// sample grid values from meter
+static int grid() {
+	pstate_t pp, *p = &pp;
+	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_read(ss);
+	ss->common = 0;
+
+	while (1) {
+		msleep(666);
+		sunspec_read(ss);
+
+		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
+		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+		p->f = ss->meter->Hz; // without scaling factor
+
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+	}
+	return 0;
+}
+
+// set charge(-) / discharge(+) limits or reset when 0
+static int battery(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+
+	int wh = atoi(arg);
+	if (wh > 0)
+		return sunspec_storage_limit_discharge(ss, wh);
+	if (wh < 0)
+		return sunspec_storage_limit_charge(ss, wh * -1);
+	return sunspec_storage_limit_reset(ss);
+}
+
+// set minimum SoC
+static int storage_min(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+
+	int min = atoi(arg);
+	return sunspec_storage_minimum_soc(ss, min);
+}
+
+// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
+// - Nur Nachts
+// - Akku aus
+// - Külschränke aus
+// - Heizung aus
+// - Rechner aus
+static int calibrate(char *name) {
+	const char *addr = resolve_ip(name);
+	char message[16];
+	int grid, voltage, closest, target;
+	int offset_start = 0, offset_end = 0;
+	int measure[1000], raster[101];
+
+	// create a sunspec handle and remove models not needed
+	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_read(ss);
+	ss->common = 0;
+	ss->storage = 0;
+
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	printf("starting calibration on %s (%s)\n", name, addr);
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// get maximum power, calculate 1%
+	//	printf("waiting for heat up 100%%...\n");
+	//	snprintf(message, 16, "v:10000:0");
+	//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	//	sleep(5);
+	//	sunspec_read(ss);
+	//	grid = SFI(ss->meter->W, ss->meter->W_SF);
+	//	int max_power = round100(grid - offset_start);
+	// TODO cmdline parameter
+	int max_power = 2000;
+	int onepercent = max_power / 100;
+
+	// average offset power at start
+	printf("calculating offset start");
+	for (int i = 0; i < 10; i++) {
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF);
+		printf(" %d", grid);
+		offset_start += grid;
+		sleep(1);
+	}
+	offset_start = offset_start / 10 + (offset_start % 10 < 5 ? 0 : 1);
+	printf(" --> average %d\n", offset_start);
+	sleep(5);
+
+	// do a full drive over SSR characteristic load curve from cold to hot and capture power
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+	for (int i = 0; i < 1000; i++) {
+		voltage = i * 10;
+		snprintf(message, 16, "v:%d:%d", voltage, 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		int ms = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
+		msleep(ms);
+		sunspec_read(ss);
+		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
+		printf("%5d %5d\n", voltage, measure[i]);
+	}
+
+	// switch off
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// average offset power at end
+	printf("calculating offset end");
+	for (int i = 0; i < 10; i++) {
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF);
+		printf(" %d", grid);
+		offset_end += grid;
+		sleep(1);
+	}
+	offset_end = offset_end / 10 + (offset_end % 10 < 5 ? 0 : 1);
+	printf(" --> average %d\n", offset_end);
+	sleep(1);
+
+	// build raster table
+	raster[0] = 0;
+	raster[100] = 10000;
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power for table index (percent)
+		target = onepercent * i;
+
+		// find closest power to target power
+		int min_diff = max_power;
+		for (int j = 0; j < 1000; j++) {
+			int diff = abs(measure[j] - target);
+			if (diff < min_diff) {
+				min_diff = diff;
+				closest = j;
+			}
+		}
+
+		// find all closest voltages that match target power +/- 5 watt
+		int sum = 0, count = 0;
+		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, measure[closest]);
+		for (int j = 0; j < 1000; j++)
+			if (measure[closest] - 5 < measure[j] && measure[j] < measure[closest] + 5) {
+				printf(" %d:%d", measure[j], j * 10);
+				sum += j * 10;
+				count++;
+			}
+
+		// average of all closest voltages
+		if (count) {
+			int z = (sum * 10) / count;
+			raster[i] = z / 10 + (z % 10 < 5 ? 0 : 1);
+		}
+		printf(" --> %dW %dmV\n", target, raster[i]);
+	}
+
+	// validate - values in measure table should grow, not shrink
+	for (int i = 1; i < 1000; i++)
+		if (measure[i - 1] > measure[i]) {
+			int v_x = i * 10;
+			int m_x = measure[i - 1];
+			int v_y = (i - 1) * 10;
+			int m_y = measure[i];
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d > %d:%d\n", v_x, m_x, v_y, m_y);
+		}
+	if (offset_start != offset_end)
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
+
+	// dump table
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
+	printf("%d, ", raster[0]);
+	for (int i = 1; i <= 100; i++) {
+		printf("%d, ", raster[i]);
+		if (i % 10 == 0)
+			printf("\\\n   ");
+	}
+
+	// validate
+	printf("\nwaiting 60s for cool down\n");
+	sleep(60);
+	for (int i = 0; i <= 100; i++) {
+		snprintf(message, 16, "v:%d:%d", raster[i], 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		msleep(2000);
+		sunspec_read(ss);
+		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
+		int expected = onepercent * i;
+		float error = grid ? 100.0 - expected * 100.0 / (float) grid : 0;
+		printf("%3d%% %5dmV expected %4dW actual %4dW error %.2f\n", i, raster[i], expected, grid, error);
+	}
+
+	// switch off
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+
+	// cleanup
+	close(sock);
+	sunspec_stop(ss);
+	return 0;
 }

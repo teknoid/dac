@@ -1,4 +1,6 @@
 #include <pthread.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include "tasmota-devices.h"
 #include "solar-common.h"
@@ -72,8 +74,8 @@ struct _raw {
 	float ac2;
 	float dc2;
 	float soc;
-	float prod;
 	float cons;
+	float prod;
 	float p1;
 	float p2;
 	float p3;
@@ -288,8 +290,37 @@ static void solar_stop() {
 		xlog("Error joining thread_update");
 }
 
-static int grid() {
-	return 0; // unimplemented
+static void inverter_status(char *line) {
+	// unimplemented
+}
+
+static void inverter_valid() {
+	// unimplemented
+}
+
+static void akku_strategy() {
+	// unimplemented
+}
+
+static int akku_standby() {
+	// dummy implementation
+	AKKU->state = Standby;
+	AKKU->power = 0;
+	return 0; // continue loop
+}
+
+static int akku_charge() {
+	// dummy implementation
+	AKKU->state = Charge;
+	AKKU->power = 1;
+	return 0; // continue loop
+}
+
+static int akku_discharge() {
+	// dummy implementation
+	AKKU->state = Discharge;
+	AKKU->power = 0;
+	return 0; // continue loop
 }
 
 static int battery(char *arg) {
@@ -300,20 +331,173 @@ static int storage_min(char *arg) {
 	return 0; // unimplemented
 }
 
-static int akku_standby() {
-	AKKU->state = Standby;
-	AKKU->power = 0;
-	return 0; // continue loop
+static int grid() {
+	pstate_t pp, *p = &pp;
+
+	CURL *curl = curl_init(URL_READABLE_INVERTER1, &memory);
+	if (curl == NULL)
+		perror("Error initializing libcurl");
+
+	while (1) {
+		msleep(666);
+		curl_perform(curl, &memory, &parse_inverter1);
+
+		p->grid = r->grid;
+		p->p1 = r->p1;
+		p->p2 = r->p2;
+		p->p3 = r->p3;
+		p->v1 = r->v1;
+		p->v2 = r->v2;
+		p->v3 = r->v3;
+		p->f = r->f * 100.0;
+
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+	}
+	return 0;
 }
 
-static int akku_charge() {
-	AKKU->state = Charge;
-	AKKU->power = 1;
-	return 0; // continue loop
-}
+// Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
+// - Nur Nachts
+// - Akku aus
+// - Külschränke aus
+// - Heizung aus
+// - Rechner aus
+static int calibrate(char *name) {
+	const char *addr = resolve_ip(name);
+	char message[16];
+	int voltage, closest, target;
+	float offset_start = 0, offset_end = 0;
+	int measure[1000], raster[101];
 
-static int akku_discharge() {
-	AKKU->state = Discharge;
-	AKKU->power = 0;
-	return 0; // continue loop
+	// create a socket if not yet done
+	if (sock == 0)
+		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	CURL *curl = curl_init(URL_READABLE_INVERTER1, &memory);
+	if (curl == NULL)
+		perror("Error initializing libcurl");
+
+	printf("starting calibration on %s (%s)\n", name, addr);
+	snprintf(message, 16, "v:0:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// average offset power at start
+	printf("calculating offset start");
+	for (int i = 0; i < 10; i++) {
+		curl_perform(curl, &memory, &parse_inverter1);
+		offset_start += r->grid;
+		printf(" %.1f", r->grid);
+		sleep(1);
+	}
+	offset_start /= 10;
+	printf(" --> average %.1f\n", offset_start);
+
+	printf("waiting for heat up 100%%...\n");
+	snprintf(message, 16, "v:10000:0");
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+
+	// get maximum power
+	curl_perform(curl, &memory, &parse_inverter1);
+	int max_power = round100(r->grid - offset_start);
+
+	int onepercent = max_power / 100;
+	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+
+	// do a full drive over SSR characteristic load curve from 10 down to 0 volt and capture power
+	for (int i = 0; i < 1000; i++) {
+		voltage = 10000 - (i * 10);
+
+		snprintf(message, 16, "v:%d:%d", voltage, 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+
+		// give SSR time to set voltage and smart meter to measure
+		if (2000 < voltage && voltage < 8000)
+			usleep(1000 * 1000); // more time between 8 and 2 volts
+		else
+			usleep(1000 * 600);
+
+		curl_perform(curl, &memory, &parse_inverter1);
+		measure[i] = r->grid - offset_start;
+		printf("%5d %5d\n", voltage, measure[i]);
+	}
+
+	// build raster table
+	raster[0] = 10000;
+	raster[100] = 0;
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power -i%
+		target = max_power - (onepercent * i);
+
+		// find closest power to target power
+		int min_diff = max_power;
+		for (int j = 0; j < 1000; j++) {
+			int diff = abs(measure[j] - target);
+			if (diff < min_diff) {
+				min_diff = diff;
+				closest = j;
+			}
+		}
+
+		// find all closest voltages that match target power
+		int sum = 0, count = 0;
+		printf("closest voltages to target power %5d matching %5d: ", target, measure[closest]);
+		for (int j = 0; j < 1000; j++)
+			if (measure[j] == measure[closest]) {
+				printf("%5d", j);
+				sum += 10000 - (j * 10);
+				count++;
+			}
+
+		// average of all closest voltages
+		raster[i] = sum / count;
+
+		printf(" --> average %5d\n", raster[i]);
+	}
+
+	// average offset power at end
+	printf("calculating offset end");
+	for (int i = 0; i < 10; i++) {
+		curl_perform(curl, &memory, &parse_inverter1);
+		offset_end += r->grid;
+		printf(" %.1f", r->grid);
+		sleep(1);
+	}
+	offset_end /= 10;
+	printf(" --> average %.1f\n", offset_end);
+
+	// validate - values in measure table should shrink, not grow
+	for (int i = 1; i < 1000; i++)
+		if (measure[i - 1] < (measure[i] - 5)) { // with 5 watt tolerance
+			int v_x = 10000 - (i * 10);
+			int m_x = measure[i - 1];
+			int v_y = 10000 - ((i - 1) * 10);
+			int m_y = measure[i];
+			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
+		}
+	if (offset_start != offset_end)
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
+
+	// dump raster table in ascending order
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
+	printf("%d, ", raster[100]);
+	for (int i = 99; i >= 0; i--) {
+		printf("%d, ", raster[i]);
+		if (i % 10 == 0)
+			printf("\\\n");
+	}
+
+	// cleanup
+	close(sock);
+	curl_easy_cleanup(curl);
+	return 0;
 }
