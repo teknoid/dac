@@ -288,6 +288,9 @@ static void solar_stop() {
 
 	if (pthread_join(thread_update, NULL))
 		xlog("Error joining thread_update");
+
+	curl_easy_cleanup(curl1);
+	curl_easy_cleanup(curl2);
 }
 
 static void inverter_status(char *line) {
@@ -331,6 +334,7 @@ static int storage_min(char *arg) {
 	return 0; // unimplemented
 }
 
+// sample grid values from meter
 static int grid() {
 	pstate_t pp, *p = &pp;
 
