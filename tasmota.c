@@ -14,14 +14,7 @@
 #include "flamingo.h"
 #include "tasmota-config.h"
 
-#define MEAN	10
-
 static tasmota_state_t *tasmota_state = NULL;
-
-static unsigned int bh1750_lux_mean[MEAN];
-static int mean;
-
-tasmota_sensors_t sensors_local, *sensors = &sensors_local;
 
 //static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 //	char *t = make_string(topic, tsize);
@@ -30,23 +23,6 @@ tasmota_sensors_t sensors_local, *sensors = &sensors_local;
 //	free(t);
 //	free(m);
 //}
-
-static void write_sensors_json() {
-	FILE *fp = fopen(SENSORS_JSON, "wt");
-	if (fp == NULL)
-		return;
-
-	fprintf(fp, "\{");
-	fprintf(fp, "\"temp_in\":%.1f,", sensors->htu21_temp);
-	fprintf(fp, "\"humi_in\":%.1f,", sensors->htu21_humi);
-	fprintf(fp, "\"temp_out\":%.1f,", sensors->sht31_temp);
-	fprintf(fp, "\"humi_out\":%.1f,", sensors->sht31_humi);
-	fprintf(fp, "\"dewpoint\":%.1f,", sensors->sht31_dew);
-	fprintf(fp, "\"lumi\":%d", sensors->bh1750_lux);
-	fprintf(fp, "}");
-	fflush(fp);
-	fclose(fp);
-}
 
 // topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
 //             ^^^^^^
@@ -236,18 +212,6 @@ static int flamingo(unsigned int code) {
 	return 0;
 }
 
-static void bh1750_calc_mean() {
-	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
-	if (mean == MEAN)
-		mean = 0;
-
-	unsigned long sum = 0;
-	for (int i = 0; i < MEAN; i++)
-		sum += bh1750_lux_mean[i];
-
-	sensors->bh1750_lux_mean = sum / MEAN;
-}
-
 static void dispatch_button(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char fmt[32], a[5];
 
@@ -289,7 +253,7 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 
 	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
-		bh1750_calc_mean();
+		sensors_bh1750_calc_mean();
 		// xdebug("TASMOTA BH1750 %d lux, %d lux mean", sensors->bh1750_lux, sensors->bh1750_lux_mean);
 		free(bh1750);
 	}
@@ -563,9 +527,6 @@ static void loop() {
 		return;
 	}
 
-	sleep(1);
-	write_sensors_json();
-
 	while (1) {
 		sleep(1);
 
@@ -587,33 +548,10 @@ static void loop() {
 			}
 			ts = ts->next;
 		}
-
-		time_t now_ts = time(NULL);
-		if (now_ts % 60 == 0)
-			write_sensors_json();
 	}
 }
 
 static int init() {
-	// clear average value buffer
-	ZERO(bh1750_lux_mean);
-	mean = 0;
-
-	// initialize sensor data
-	sensors->bh1750_lux = UINT16_MAX;
-	sensors->bh1750_lux_mean = UINT16_MAX;
-	sensors->bmp085_temp = UINT16_MAX;
-	sensors->bmp085_baro = UINT16_MAX;
-	sensors->bmp280_temp = UINT16_MAX;
-	sensors->bmp280_baro = UINT16_MAX;
-	sensors->sht31_humi = UINT16_MAX;
-	sensors->sht31_temp = UINT16_MAX;
-	sensors->sht31_dew = UINT16_MAX;
-	sensors->htu21_humi = UINT16_MAX;
-	sensors->htu21_temp = UINT16_MAX;
-	sensors->htu21_dew = UINT16_MAX;
-	sensors->ml8511_uv = UINT16_MAX;
-
 	return 0;
 }
 

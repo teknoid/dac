@@ -6,16 +6,25 @@
 #include <fcntl.h>
 #include <math.h>
 
-#include "tasmota.h"
 #include "sensors.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "i2c.h"
 #include "mcp.h"
 
-#define SYSFSLIKE	0
+#ifndef I2C
+#define I2C						"/dev/i2c-0"
+#endif
 
-static int i2cfd;
+#define SYSFSLIKE				0
+#define MEAN					10
+
+static unsigned int bh1750_lux_mean[MEAN];
+static int mean;
+
+static int i2cfd = 0;
+
+sensors_t sensors_local, *sensors = &sensors_local;
 
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux
@@ -25,6 +34,9 @@ static int i2cfd;
 
 // https://forums.raspberrypi.com/viewtopic.php?t=38023
 static void read_bh1750() {
+	if (!i2cfd)
+		return;
+
 	// powerup
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_POWERON);
 
@@ -47,10 +59,13 @@ static void read_bh1750() {
 		sensors->bh1750_lux = sensors->bh1750_raw2 / 2.4;
 
 	sensors->bh1750_prc = (sqrt(sensors->bh1750_raw) * 100) / UINT8_MAX;
+	sensors_bh1750_calc_mean();
 }
 
 // https://forums.raspberrypi.com/viewtopic.php?t=16968
 static void read_bmp085() {
+	if (!i2cfd)
+		return;
 
 	int16_t ac1;
 	int16_t ac2;
@@ -114,6 +129,23 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
+static void write_json() {
+	FILE *fp = fopen(RUN SLASH SENSORS_JSON, "wt");
+	if (fp == NULL)
+		return;
+
+	fprintf(fp, "\{");
+	fprintf(fp, "\"temp_in\":%.1f,", sensors->htu21_temp);
+	fprintf(fp, "\"humi_in\":%.1f,", sensors->htu21_humi);
+	fprintf(fp, "\"temp_out\":%.1f,", sensors->sht31_temp);
+	fprintf(fp, "\"humi_out\":%.1f,", sensors->sht31_humi);
+	fprintf(fp, "\"dewpoint\":%.1f,", sensors->sht31_dew);
+	fprintf(fp, "\"lumi\":%d", sensors->bh1750_lux);
+	fprintf(fp, "}");
+	fflush(fp);
+	fclose(fp);
+}
+
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
 	char subtopic[64];
 	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", "sensor", sensor, name);
@@ -149,22 +181,22 @@ static void write_sysfslike() {
 	char cvalue[8];
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
-	create_sysfslike(DIRECTORY, "lum_raw", cvalue, "%s", BH1750);
+	create_sysfslike(RAM, "lum_raw", cvalue, "%s", BH1750);
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
-	create_sysfslike(DIRECTORY, "lum_raw2", cvalue, "%s", BH1750);
+	create_sysfslike(RAM, "lum_raw2", cvalue, "%s", BH1750);
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
-	create_sysfslike(DIRECTORY, "lum_lux", cvalue, "%s", BH1750);
+	create_sysfslike(RAM, "lum_lux", cvalue, "%s", BH1750);
 
 	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
-	create_sysfslike(DIRECTORY, "lum_percent", cvalue, "%s", BH1750);
+	create_sysfslike(RAM, "lum_percent", cvalue, "%s", BH1750);
 
 	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
-	create_sysfslike(DIRECTORY, "temp", cvalue, "%s", BMP085);
+	create_sysfslike(RAM, "temp", cvalue, "%s", BMP085);
 
 	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
-	create_sysfslike(DIRECTORY, "baro", cvalue, "%s", BMP085);
+	create_sysfslike(RAM, "baro", cvalue, "%s", BMP085);
 }
 
 static void loop() {
@@ -177,20 +209,41 @@ static void loop() {
 		read_bh1750();
 		read_bmp085();
 
+		publish_sensors();
+		write_json();
+
 		if (SYSFSLIKE)
 			write_sysfslike();
-
-		publish_sensors();
 
 		sleep(60);
 	}
 }
 
 static int init() {
-	// TODO config
-	i2cfd = open(I2CBUS, O_RDWR);
+#ifdef PICAM
+	i2cfd = open(I2C, O_RDWR);
 	if (i2cfd < 0)
 		return xerr("I2C BUS error");
+#endif
+
+	// clear average value buffer
+	ZERO(bh1750_lux_mean);
+	mean = 0;
+
+	// initialize sensor data
+	sensors->bh1750_lux = UINT16_MAX;
+	sensors->bh1750_lux_mean = UINT16_MAX;
+	sensors->bmp085_temp = UINT16_MAX;
+	sensors->bmp085_baro = UINT16_MAX;
+	sensors->bmp280_temp = UINT16_MAX;
+	sensors->bmp280_baro = UINT16_MAX;
+	sensors->sht31_humi = UINT16_MAX;
+	sensors->sht31_temp = UINT16_MAX;
+	sensors->sht31_dew = UINT16_MAX;
+	sensors->htu21_humi = UINT16_MAX;
+	sensors->htu21_temp = UINT16_MAX;
+	sensors->htu21_dew = UINT16_MAX;
+	sensors->ml8511_uv = UINT16_MAX;
 
 	return 0;
 }
@@ -198,6 +251,18 @@ static int init() {
 static void stop() {
 	if (i2cfd > 0)
 		close(i2cfd);
+}
+
+void sensors_bh1750_calc_mean() {
+	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
+	if (mean == MEAN)
+		mean = 0;
+
+	unsigned long sum = 0;
+	for (int i = 0; i < MEAN; i++)
+		sum += bh1750_lux_mean[i];
+
+	sensors->bh1750_lux_mean = sum / MEAN;
 }
 
 int sensor_main(int argc, char **argv) {

@@ -14,8 +14,8 @@
 #include "mcp.h"
 
 //#include "solar-tron25-modbus.h"
-//#include "solar-tron25-api.h"
-#include "solar-simulator.h"
+#include "solar-tron25-api.h"
+//#include "solar-simulator.h"
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0

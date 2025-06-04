@@ -2,11 +2,11 @@
 #include <mpd/status.h>
 
 // defaults for testing
-#define WORK			"/work/simulator"
-#define RUN				"/work/simulator"
+//#define WORK			"/work/simulator"
+//#define RUN				"/work/simulator"
 
 //#define ANUS
-//#define TRON
+#define TRON
 //#define ODROID
 //#define PIWOLF
 //#define PICAM
@@ -68,6 +68,10 @@
 
 #ifndef TMP
 #define TMP				"/tmp"
+#endif
+
+#ifndef RAM
+#define RAM				"/ram"
 #endif
 
 #define SLASH			"/"
