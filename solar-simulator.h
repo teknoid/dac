@@ -17,7 +17,7 @@
 
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
-#define BRIGHTNESS				sensors->bh1750_lux_mean
+#define LUMI					sensors->bh1750_lux_mean
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
@@ -54,8 +54,9 @@ static int mppt(int offset, int peak) {
 	double rad = abs(minute) * M_PI / 180.0;
 	double sinus = sin(rad);
 
-	int pv = sinus * peak * (1 / BRIGHTNESS);
-	xlog("minute=%d sin=%.2f pv=%d temp=%.1f", minute, sinus, pv, TEMP_IN);
+	double lumi = LUMI ? (1 - 1 / LUMI) : 0;
+	int pv = sinus * peak * lumi;
+	// xlog("minute=%d sin=%.2f pv=%d lumi=%.1f", minute, sinus, pv, LUMI);
 	return pv;
 }
 
