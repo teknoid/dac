@@ -558,4 +558,4 @@ static int init() {
 static void stop() {
 }
 
-MCP_REGISTER(tasmota, 3, &init, &stop, &loop);
+MCP_REGISTER(tasmota, 8, &init, &stop, &loop);

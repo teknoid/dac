@@ -1052,10 +1052,8 @@ static int init() {
 }
 
 static void stop() {
-	// call implementation specific stop() function
-	solar_stop();
-
 #ifndef SOLAR_MAIN
+	// saving state this is the most important !!!
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
@@ -1065,6 +1063,9 @@ static void stop() {
 
 	if (sock)
 		close(sock);
+
+	// call implementation specific stop() function
+	solar_stop();
 
 	pthread_mutex_destroy(&pstate_lock);
 }
@@ -1467,5 +1468,5 @@ int main(int argc, char **argv) {
 	return solar_main(argc, argv);
 }
 #else
-MCP_REGISTER(solar, 7, &init, &stop, &solar);
+MCP_REGISTER(solar, 9, &init, &stop, &solar);
 #endif

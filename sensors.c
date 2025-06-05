@@ -147,10 +147,9 @@ static void write_json() {
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
+#ifdef PICAM
 	char subtopic[64];
 	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", "sensor", sensor, name);
-
-#ifndef SENSORS_MAIN
 	publish(subtopic, value);
 #endif
 }
@@ -269,9 +268,6 @@ int sensor_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	sensors = malloc(sizeof(*sensors));
-	ZEROP(sensors);
-
 	init();
 	sleep(1);
 
@@ -298,5 +294,5 @@ int main(int argc, char **argv) {
 	return sensor_main(argc, argv);
 }
 #else
-MCP_REGISTER(sensors, 3, &init, &stop, &loop);
+MCP_REGISTER(sensors, 2, &init, &stop, &loop);
 #endif
