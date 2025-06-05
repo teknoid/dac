@@ -2,11 +2,11 @@
 #include <mpd/status.h>
 
 // defaults for testing
-#define WORK			"/work/simulator"
-#define RUN				"/work/simulator"
+//#define WORK			"/work/simulator"
+//#define RUN				"/work/simulator"
 
 //#define ANUS
-//#define TRON
+#define TRON
 //#define ODROID
 //#define PIWOLF
 //#define PICAM
