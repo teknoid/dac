@@ -309,6 +309,7 @@ static void* poll(void *arg) {
 		if (modbus_connect(ss->mb) == -1) {
 			xlog("SUNSPEC connection to %s failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
 			modbus_free(ss->mb);
+			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
 			continue;
 		}

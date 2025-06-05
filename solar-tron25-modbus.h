@@ -191,10 +191,9 @@ static int solar_init() {
 }
 
 static void solar_stop() {
-	sunspec_stop(meter);
 	sunspec_stop(inverter1);
-	// TODO hängt wenn offline ???
-	//	sunspec_stop(inverter2);
+	sunspec_stop(inverter2);
+	sunspec_stop(meter);
 }
 
 static void inverter_status(char *line) {
