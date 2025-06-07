@@ -844,8 +844,8 @@ static void hourly() {
 	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 
 	// workaround /run/mcp get's immediately deleted at stop/kill
-	xlog("SOLAR saving runtime directory to %s", TMP);
-	system("cp -r " RUN TMP);
+	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
+	system("cp -rf " RUN " " TMP);
 #endif
 
 	// paint new diagrams

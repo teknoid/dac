@@ -305,5 +305,5 @@ int main(int argc, char **argv) {
 	return sensor_main(argc, argv);
 }
 #else
-MCP_REGISTER(sensors, 2, &init, &stop, &loop);
+MCP_REGISTER(sensors, 5, &init, &stop, &loop);
 #endif

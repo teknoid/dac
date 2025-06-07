@@ -214,6 +214,9 @@ static void mqtt() {
 		return;
 	}
 
+	// Test
+	notify("Test", "test", "mau4.wav");
+
 	while (1) {
 		mqtt_sync(client_rx);
 		mqtt_sync(client_tx);
@@ -281,8 +284,6 @@ static int init() {
 	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	play("mau4.wav");
-
 	ready = 1;
 	return 0;
 }
@@ -341,4 +342,4 @@ int publish(const char *topic, const char *message) {
 	return 0;
 }
 
-MCP_REGISTER(mqtt, 5, &init, &stop, &mqtt);
+MCP_REGISTER(mqtt, 2, &init, &stop, &mqtt);
