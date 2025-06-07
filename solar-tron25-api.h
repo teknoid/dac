@@ -259,13 +259,13 @@ static void* update(void *arg) {
 		if (COUNTER_0->consumed == 0)
 			COUNTER_0->consumed = counter->consumed;
 
-		// offline /default
-		wait = offline ? 300 : 30;
-
 		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
 		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", counter->mppt1, counter->mppt2, counter->mppt3, counter->mppt4, counter->consumed, counter->produced);
 
 		PROFILING_LOG("SOLAR update")
+
+		// offline / default
+		wait = offline ? 300 : 30;
 	}
 }
 

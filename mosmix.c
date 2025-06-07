@@ -614,7 +614,7 @@ static void fix() {
 
 static void wget(struct tm *now, const char *id) {
 	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
-	chdir("/tmp");
+	chdir(TMP);
 
 	snprintf(ftstamp, 32, "%4d%02d%02d%02d", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, 3);
 	printf("File timestamp %s\n", ftstamp);
@@ -665,11 +665,11 @@ static void compare() {
 	mosmix_load_history(now);
 
 	wget(now, "10577");
-	mosmix_load(now, "/tmp/CHEMNITZ.csv", 1);
+	mosmix_load(now, TMP SLASH "CHEMNITZ.csv", 1);
 	int dc = diffs(now->tm_wday);
 
 	wget(now, "10579");
-	mosmix_load(now, "/tmp/MARIENBERG.csv", 1);
+	mosmix_load(now, TMP SLASH "/MARIENBERG.csv", 1);
 	int dm = diffs(now->tm_wday);
 
 	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);
