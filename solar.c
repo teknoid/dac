@@ -996,8 +996,6 @@ static void solar() {
 }
 
 static int init() {
-//	set_debug(1);
-
 	pthread_mutex_init(&pstate_lock, NULL);
 
 	// create a socket for sending UDP messages

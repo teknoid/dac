@@ -204,6 +204,17 @@ static void loop() {
 		return;
 	}
 
+#ifndef PICAM
+	// wait till mqtt received essential sensor data
+	int retry = 100;
+	while (retry-- && sensors->sht31_temp > 1000 && sensors->htu21_temp > 1000 && sensors->bh1750_lux == UINT16_MAX)
+		msleep(100);
+	if (retry)
+		xdebug("SENSORS ok: retry=%d sht31=%.1f htu21=%.1f bh1750=%d", retry, sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_raw);
+	else
+		xdebug("SENSORS Warning! MQTT sensor data incomplete: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
+#endif
+
 	while (1) {
 		read_bh1750();
 		read_bmp085();

@@ -85,9 +85,6 @@ static void loop() {
 		return;
 	}
 
-	// wait for sensors
-	sleep(3);
-
 	while (1) {
 		time_t now_ts = time(NULL);
 		struct tm *ltstatic = localtime(&now_ts);

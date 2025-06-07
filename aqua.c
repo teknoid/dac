@@ -69,7 +69,7 @@ static int get_rain(int valve, int hour) {
 
 static void process(int hour) {
 	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", TEMP, HUMI, LUMI);
-	if (TEMP == UINT16_MAX || LUMI == UINT16_MAX || HUMI == UINT16_MAX) {
+	if (TEMP > 1000 || HUMI > 1000 || LUMI == UINT16_MAX) {
 		xlog("AQUA Error no sensor data");
 		return;
 	}
@@ -96,14 +96,6 @@ static void loop() {
 		return;
 	}
 
-	// stop pump and close all valves
-	set_pump(0);
-	for (int v = 0; v < VALVES; v++)
-		set_valve(v, 0);
-
-	// wait for sensors
-	sleep(3);
-
 	// the AQUA main loop
 	while (1) {
 
@@ -124,6 +116,12 @@ static void loop() {
 }
 
 static int init() {
+
+	// stop pump and close all valves
+	set_pump(0);
+	for (int v = 0; v < VALVES; v++)
+		set_valve(v, 0);
+
 	return 0;
 }
 

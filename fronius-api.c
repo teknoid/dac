@@ -1058,8 +1058,6 @@ static void fronius() {
 }
 
 static int init() {
-	set_debug(1);
-
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (sock == 0)
