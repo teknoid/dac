@@ -105,8 +105,8 @@ static void* update(void *arg) {
 		counter->mppt2 = 0;
 		counter->mppt3 = 0;
 		counter->mppt4 = 0;
-		counter->produced = 0;
 		counter->consumed = 0;
+		counter->produced = 0;
 
 		pthread_mutex_unlock(&pstate_lock);
 

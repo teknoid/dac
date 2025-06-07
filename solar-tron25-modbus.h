@@ -166,8 +166,8 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
 
-	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 
 	// update counter hour 0 when empty
 	if (COUNTER_0->produced == 0)

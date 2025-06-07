@@ -202,12 +202,29 @@ static void* update(void *arg) {
 		// read inverter1
 		curl_perform(curl1, &memory, &parse_inverter1);
 
+		// inverter2 goes into sleep mode overnight - so read only when inverter1 produces PV
+		int offline = r->mppt1 < NOISE && r->mppt2 < NOISE;
+		if (!offline) {
+			curl_perform(curl2, &memory, &parse_inverter2);
+			// !!! no regular updates on fields Energy_DC_String_X - so use PowerReal_PAC_Sum for all DC/AC values
+			r->mppt3 = r->dc2 = r->ac2;
+			r->mppt4 = 0;
+		} else
+			// reset pstates, keep counters
+			pstate->mppt3 = pstate->mppt4 = pstate->ac2 = pstate->dc2 = 0;
+
 		pthread_mutex_lock(&pstate_lock);
 
 		pstate->ac1 = r->ac1;
 		pstate->dc1 = r->dc1;
 		pstate->mppt1 = r->mppt1;
 		pstate->mppt2 = r->mppt2;
+
+		pstate->ac2 = r->ac2;
+		pstate->dc2 = r->dc2;
+		pstate->mppt3 = r->mppt3;
+		pstate->mppt4 = r->mppt4;
+
 		pstate->grid = r->grid;
 		pstate->akku = r->akku;
 		pstate->soc = r->soc * 10.0; // store x10 scaled
@@ -218,23 +235,13 @@ static void* update(void *arg) {
 		pstate->v2 = r->v2;
 		pstate->v3 = r->v3;
 		pstate->f = r->f * 100.0 - 5000; // store only the diff
+
 		counter->mppt1 = r->mppt1_total / 3600; // Watt-seconds
 		counter->mppt2 = r->mppt2_total / 3600; // Watt-seconds
-		counter->produced = r->prod;
+		counter->mppt3 = r->mppt3_total;
+		counter->mppt4 = r->mppt4_total;
 		counter->consumed = r->cons;
-
-		int offline = pstate->mppt1 < NOISE && pstate->mppt2 < NOISE;
-		if (!offline) {
-			// this inverter goes into sleep mode overnight - so read inverter2 only when inverter1 produces PV
-			curl_perform(curl2, &memory, &parse_inverter2);
-			// !!! no regular updates on fields Energy_DC_String_X - so use PowerReal_PAC_Sum for all fields DC/AC values
-			pstate->ac2 = pstate->dc2 = pstate->mppt3 = r->ac2;
-			pstate->mppt4 = 0;
-			counter->mppt3 = r->mppt3_total;
-			counter->mppt4 = r->mppt4_total;
-		} else
-			// reset pstates, keep counters
-			pstate->mppt3 = pstate->mppt4 = pstate->ac2 = pstate->dc2 = 0;
+		counter->produced = r->prod;
 
 		pthread_mutex_unlock(&pstate_lock);
 
