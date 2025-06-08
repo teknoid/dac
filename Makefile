@@ -126,6 +126,14 @@ install-local:
 	install -m 0755 mcp ~hje/bin
 	~hje/bin/mcp
 
+install-www:
+	@echo "[Installing www pages]"
+	cp -rv www/pv /server/www/
+	cp -rv www/webcam /server/www/
+	chown -R hje:hje /server/www/pv /server/www/webcam
+	chown www-data:www-data /server/www/pv /server/www/webcam 
+	chmod g+w /server/www/pv /server/www/webcam
+
 keytable:
 	@if [ ! -f /usr/include/linux/input-event-codes.h ]; then \
 	  echo "Error you must set KERNEL_DIR to point to an extracted kernel source dir"; \
