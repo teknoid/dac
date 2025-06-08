@@ -147,9 +147,10 @@ static void write_json() {
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
+	char hostname[64], subtopic[64];
+	gethostname(hostname, 64);
+	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", hostname, sensor, name);
 #ifdef PICAM
-	char subtopic[64];
-	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", "sensor", sensor, name);
 	publish(subtopic, value);
 #endif
 }
@@ -176,7 +177,28 @@ static void publish_sensors() {
 	publish_sensor(BMP085, "baro", cvalue);
 }
 
-static void write_sysfslike() {
+static void publish_sensors_tasmotalike() {
+	char hostname[64], subtopic[64], value[BUFSIZE], v[64];
+	gethostname(hostname, 64);
+
+	snprintf(subtopic, 64, "tele/%s/SENSOR", hostname);
+	snprintf(value, 64, "{");
+
+	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}:", sensors->bh1750_raw);
+	strncat(value, v, 64);
+
+	snprintf(v, 64, "\", BMP280\":{\"Temperature\":%f, \"Pressure\":%f}", sensors->bmp085_temp, sensors->bmp085_baro);
+	strncat(value, v, 64);
+
+	snprintf(v, 64, "}:");
+	strncat(value, v, 64);
+
+#ifdef PICAM
+	publish(subtopic, value);
+#endif
+}
+
+static void write_sensors_sysfslike() {
 	char cvalue[8];
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
@@ -207,7 +229,7 @@ static void loop() {
 #ifndef PICAM
 	// wait till mqtt received essential sensor data
 	int retry = 100;
-	while (retry-- && sensors->sht31_temp > 1000 && sensors->htu21_temp > 1000 && sensors->bh1750_lux == UINT16_MAX)
+	while (--retry && sensors->sht31_temp > 1000 && sensors->htu21_temp > 1000 && sensors->bh1750_lux == UINT16_MAX)
 		msleep(100);
 	if (retry)
 		xdebug("SENSORS ok: retry=%d sht31=%.1f htu21=%.1f bh1750=%d", retry, sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_raw);
@@ -219,11 +241,12 @@ static void loop() {
 		read_bh1750();
 		read_bmp085();
 
+		publish_sensors_tasmotalike();
 		publish_sensors();
 		write_json();
 
 		if (SYSFSLIKE)
-			write_sysfslike();
+			write_sensors_sysfslike();
 
 		sleep(60);
 	}
