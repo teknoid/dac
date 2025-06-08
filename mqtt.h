@@ -23,4 +23,4 @@
 int notify(const char *title, const char *text, const char *sound);
 int notify_red(const char *title, const char *text, const char *sound);
 
-int publish(const char*, const char*);
+int publish(const char *topic, const char *message, int retain);

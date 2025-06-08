@@ -319,7 +319,7 @@ int notify_red(const char *title, const char *text, const char *sound) {
 	return 0;
 }
 
-int publish(const char *topic, const char *message) {
+int publish(const char *topic, const char *message, int retain) {
 	int rc = 0;
 
 	if (!ready)
@@ -331,10 +331,14 @@ int publish(const char *topic, const char *message) {
 	if (client_tx->error != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
+	uint8_t flags = MQTT_PUBLISH_QOS_0;
+	if (retain)
+		flags |= MQTT_PUBLISH_RETAIN;
+
 	if (message)
-		rc = mqtt_publish(client_tx, topic, message, strlen(message), MQTT_PUBLISH_QOS_0);
+		rc = mqtt_publish(client_tx, topic, message, strlen(message), flags);
 	else
-		rc = mqtt_publish(client_tx, topic, "", 0, MQTT_PUBLISH_QOS_0);
+		rc = mqtt_publish(client_tx, topic, "", 0, flags);
 
 	if (rc != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
