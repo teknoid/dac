@@ -64,7 +64,6 @@ static void read_bh1750() {
 	else
 		sensors->bh1750_lux = sensors->bh1750_raw2 / 2.4;
 
-	sensors->bh1750_prc = (sqrt(sensors->bh1750_raw) * 100) / UINT8_MAX;
 	sensors_bh1750_calc_mean();
 }
 
@@ -179,9 +178,6 @@ static void publish_sensors() {
 	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
 	publish_sensor(BH1750, "lum_lux", cvalue);
 
-	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
-	publish_sensor(BH1750, "lum_percent", cvalue);
-
 	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
 	publish_sensor(BMP085, "temp", cvalue);
 
@@ -206,9 +202,6 @@ static void write_sensors_sysfslike() {
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
 	create_sysfslike(RAM, "lum_lux", cvalue, "%s", BH1750);
-
-	snprintf(cvalue, 4, "%u", sensors->bh1750_prc);
-	create_sysfslike(RAM, "lum_percent", cvalue, "%s", BH1750);
 
 	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
 	create_sysfslike(RAM, "temp", cvalue, "%s", BMP085);
@@ -336,7 +329,6 @@ int sensor_main(int argc, char **argv) {
 		xlog(BH1750" raw  %d", sensors->bh1750_raw);
 		xlog(BH1750" raw2 %d", sensors->bh1750_raw2);
 		xlog(BH1750" lux  %d lx", sensors->bh1750_lux);
-		xlog(BH1750" prc  %d %%", sensors->bh1750_prc);
 
 		xlog(BMP085" temp %d (raw)", sensors->bmp085_temp_raw);
 		xlog(BMP085" baro %d (raw)", sensors->bmp085_baro_raw);

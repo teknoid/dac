@@ -26,7 +26,6 @@ typedef struct sensors_t {
 	// BH1750 luminousity
 	uint16_t bh1750_raw;
 	uint16_t bh1750_raw2;
-	uint8_t bh1750_prc;
 	uint16_t bh1750_lux;
 	uint16_t bh1750_lux_mean;
 
