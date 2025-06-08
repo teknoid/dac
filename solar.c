@@ -1232,13 +1232,12 @@ int solar_override_seconds(const char *name, int seconds) {
 		return 0;
 
 	xlog("SOLAR Activating Override on %s", d->name);
-#ifdef SOLAR_MAIN
 	d->power = -1;
 	if (!d->id)
 		d->addr = resolve_ip(d->name);
 	if (d->adj && d->addr == 0)
 		d->state = Disabled; // disable when we don't have an ip address to send UDP messages
-#endif
+
 	d->state = Active;
 	d->override = time(NULL) + seconds;
 	ramp(d, d->total);
