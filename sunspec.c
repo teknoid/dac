@@ -28,10 +28,13 @@ static int collect_models(sunspec_t *ss) {
 	uint16_t index[2] = { 0, 0 };
 	uint16_t *id = &index[0];
 	uint16_t *size = &index[1];
+	int rc;
 
 	uint32_t sunspec_id = 0;
 	int address = SUNSPEC_BASE_ADDRESS;
-	modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
+	rc = modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
+	if (rc == -1)
+		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
 	// 0x53756e53 == 'SunS'
 	SWAP32(sunspec_id);
@@ -44,7 +47,9 @@ static int collect_models(sunspec_t *ss) {
 	pthread_mutex_lock(&ss->lock);
 
 	while (1) {
-		modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
+		rc = modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
+		if (rc == -1)
+			return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
 		if (*id == 0xffff && *size == 0)
 			break;
