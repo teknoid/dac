@@ -16,6 +16,12 @@
 #define BMP085_ADDR			0x77
 #define BMP085_OVERSAMPLE	3
 
+#define BMP280				"BMP280"
+
+#define HTU21				"HTU21"
+
+#define SHT31				"SHT31"
+
 typedef struct sensors_t {
 	// BH1750 luminousity
 	uint16_t bh1750_raw;

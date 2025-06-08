@@ -16,9 +16,14 @@
 #define I2C						"/dev/i2c-0"
 #endif
 
-#define SYSFSLIKE				0
-#define MEAN					10
+#define WRITE_JSON				1
+#define WRITE_SYSFSLIKE			0
 
+#define JSON_INT(x)				"\"" x "\":%d"
+#define JSON_FLOAT(x)			"\"" x "\":%.1f"
+#define COMMA					", "
+
+#define MEAN					10
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 
@@ -129,21 +134,26 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
-static void write_json() {
-	FILE *fp = fopen(RUN SLASH SENSORS_JSON, "wt");
-	if (fp == NULL)
-		return;
+static void publish_sensors_tasmotalike() {
+	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
+	gethostname(hostname, 32);
 
-	fprintf(fp, "\{");
-	fprintf(fp, "\"temp_in\":%.1f,", sensors->htu21_temp);
-	fprintf(fp, "\"humi_in\":%.1f,", sensors->htu21_humi);
-	fprintf(fp, "\"temp_out\":%.1f,", sensors->sht31_temp);
-	fprintf(fp, "\"humi_out\":%.1f,", sensors->sht31_humi);
-	fprintf(fp, "\"dewpoint\":%.1f,", sensors->sht31_dew);
-	fprintf(fp, "\"lumi\":%d", sensors->bh1750_lux);
-	fprintf(fp, "}");
-	fflush(fp);
-	fclose(fp);
+	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
+	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
+	snprintf(value, 64, "{");
+
+	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}", sensors->bh1750_raw);
+	strncat(value, v, 64);
+
+	snprintf(v, 64, "\", \"BMP280\":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
+	strncat(value, v, 64);
+
+	snprintf(v, 64, "}");
+	strncat(value, v, 64);
+
+#ifdef PICAM
+	publish(subtopic, value, 1);
+#endif
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
@@ -175,28 +185,12 @@ static void publish_sensors() {
 
 	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
 	publish_sensor(BMP085, "baro", cvalue);
-}
 
-static void publish_sensors_tasmotalike() {
-	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
-	gethostname(hostname, 32);
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp280_temp);
+	publish_sensor(BMP280, "temp", cvalue);
 
-	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
-	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
-	snprintf(value, 64, "{");
-
-	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}", sensors->bh1750_raw);
-	strncat(value, v, 64);
-
-	snprintf(v, 64, "\", \"BMP280\":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
-	strncat(value, v, 64);
-
-	snprintf(v, 64, "}");
-	strncat(value, v, 64);
-
-#ifdef PICAM
-	publish(subtopic, value, 1);
-#endif
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp280_baro);
+	publish_sensor(BMP280, "baro", cvalue);
 }
 
 static void write_sensors_sysfslike() {
@@ -219,6 +213,33 @@ static void write_sensors_sysfslike() {
 
 	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
 	create_sysfslike(RAM, "baro", cvalue, "%s", BMP085);
+
+	snprintf(cvalue, 5, "%0.1f", sensors->bmp280_temp);
+	create_sysfslike(RAM, "temp", cvalue, "%s", BMP280);
+
+	snprintf(cvalue, 8, "%0.1f", sensors->bmp280_baro);
+	create_sysfslike(RAM, "baro", cvalue, "%s", BMP280);
+}
+
+static void write_sensors_json() {
+	FILE *fp = fopen(RUN SLASH SENSORS_JSON, "wt");
+	if (fp == NULL)
+		return;
+
+	fprintf(fp, "\{");
+	fprintf(fp, JSON_FLOAT(BMP085 "_TEMP") COMMA, sensors->bmp085_temp);
+	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensors->bmp085_baro);
+	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensors->bmp280_temp);
+	fprintf(fp, JSON_FLOAT(BMP280 "_BARO") COMMA, sensors->bmp280_baro);
+	fprintf(fp, JSON_FLOAT(HTU21 "_TEMP") COMMA, sensors->htu21_temp);
+	fprintf(fp, JSON_FLOAT(HTU21 "_HUMI") COMMA, sensors->htu21_humi);
+	fprintf(fp, JSON_FLOAT(SHT31 "_TEMP") COMMA, sensors->sht31_temp);
+	fprintf(fp, JSON_FLOAT(SHT31 "_HUMI") COMMA, sensors->sht31_humi);
+	fprintf(fp, JSON_FLOAT(SHT31 "_DEW") COMMA, sensors->sht31_dew);
+	fprintf(fp, JSON_INT(BH1750 "_LUX"), sensors->bh1750_lux);
+	fprintf(fp, "}");
+	fflush(fp);
+	fclose(fp);
 }
 
 static void loop() {
@@ -244,9 +265,11 @@ static void loop() {
 
 		publish_sensors_tasmotalike();
 		publish_sensors();
-		write_json();
 
-		if (SYSFSLIKE)
+		if (WRITE_JSON)
+			write_sensors_json();
+
+		if (WRITE_SYSFSLIKE)
 			write_sensors_sysfslike();
 
 		sleep(60);
@@ -317,6 +340,9 @@ int sensor_main(int argc, char **argv) {
 
 		xlog("BMP085 temp %0.1f °C", sensors->bmp085_temp);
 		xlog("BMP085 baro %0.1f hPa", sensors->bmp085_baro);
+
+		xlog("BMP280 temp %0.1f °C", sensors->bmp280_temp);
+		xlog("BMP280 baro %0.1f hPa", sensors->bmp280_baro);
 
 		sleep(10);
 	}

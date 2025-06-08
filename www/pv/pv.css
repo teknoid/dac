@@ -108,7 +108,6 @@ body, html {
 .surv-p, .heat-p, .succ-p	{ background-color:palegreen }
 .surv-m, .heat-m, .succ-m	{ background-color:orangered }
 
-.temp_in					{ background-color:lightgrey }
-.temp_out					{ background-color
-:lightgrey }
+.temp						{ background-color:lightgrey }
+.temp						{ background-color:lightgrey }
 
