@@ -67,7 +67,7 @@ typedef struct {
 	int data;
 } gpio_status_t;
 
-static volatile void *mem;
+static volatile void *mem = 0;
 
 static void test_blink() {
 	const char *pio = "PA3";
@@ -133,6 +133,9 @@ static void test_timers() {
 }
 
 static void mem_read(gpio_status_t *pio) {
+	if (!mem)
+		return;
+
 	uint32_t val;
 	uint32_t port_num_func, port_num_pull;
 	uint32_t offset_func, offset_pull;
@@ -161,6 +164,9 @@ static void mem_read(gpio_status_t *pio) {
 }
 
 static void mem_write(gpio_status_t *pio) {
+	if (!mem)
+		return;
+
 	uint32_t *addr, val;
 	uint32_t port_num_func, port_num_pull;
 	uint32_t offset_func, offset_pull;
@@ -248,6 +254,9 @@ int gpio_configure(const char *name, int function, int trigger, int initial) {
 }
 
 int gpio_get(const char *name) {
+	if (!mem)
+		return -1;
+
 	if (*name == 'P')
 		name++;
 
@@ -259,6 +268,9 @@ int gpio_get(const char *name) {
 }
 
 void gpio_set(const char *name, int value) {
+	if (!mem)
+		return;
+
 	if (*name == 'P')
 		name++;
 
@@ -275,6 +287,9 @@ void gpio_set(const char *name, int value) {
 }
 
 int gpio_toggle(const char *name) {
+	if (!mem)
+		return -1;
+
 	if (*name == 'P')
 		name++;
 

@@ -376,9 +376,6 @@ static void stop() {
 }
 
 int display_main(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
 	cfg = malloc(sizeof(*cfg));
 	ZEROP(cfg);
 
@@ -420,6 +417,7 @@ int display_main(int argc, char **argv) {
 			display_menu_mode();
 			menu_open(&m_main);
 			break;
+		default:
 		}
 	}
 
@@ -429,7 +427,9 @@ int display_main(int argc, char **argv) {
 
 #ifdef DISPLAY_MAIN
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	xlog("call init() for  %s", name);
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+	xlog("call init() + loop() for  %s", name);
 	(init)();
 }
 // dummy functions for menu items in dac-es9028.h

@@ -267,9 +267,6 @@ static void stop() {
 }
 
 int flamingo_main(int argc, char *argv[]) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
 	if (argc < 1)
 		return usage();
 
@@ -343,7 +340,9 @@ int flamingo_main(int argc, char *argv[]) {
 #ifdef FLAMINGO_MAIN
 // gpio-bcm2835.c needs mcp_register()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	xlog("call init() for %s", name);
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+	xlog("call init() + loop() for  %s", name);
 	(init)();
 }
 int main(int argc, char **argv) {
