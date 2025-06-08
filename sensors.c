@@ -147,11 +147,11 @@ static void write_json() {
 }
 
 static void publish_sensor(const char *sensor, const char *name, const char *value) {
-	char hostname[64], subtopic[64];
-	gethostname(hostname, 64);
+	char hostname[32], subtopic[64];
+	gethostname(hostname, 32);
 	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", hostname, sensor, name);
 #ifdef PICAM
-	publish(subtopic, value);
+	publish(subtopic, value, 0);
 #endif
 }
 
@@ -178,23 +178,24 @@ static void publish_sensors() {
 }
 
 static void publish_sensors_tasmotalike() {
-	char hostname[64], subtopic[64], value[BUFSIZE], v[64];
-	gethostname(hostname, 64);
+	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
+	gethostname(hostname, 32);
 
-	snprintf(subtopic, 64, "tele/%s/SENSOR", hostname);
+	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
+	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
 	snprintf(value, 64, "{");
 
-	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}:", sensors->bh1750_raw);
+	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}", sensors->bh1750_raw);
 	strncat(value, v, 64);
 
-	snprintf(v, 64, "\", BMP280\":{\"Temperature\":%f, \"Pressure\":%f}", sensors->bmp085_temp, sensors->bmp085_baro);
+	snprintf(v, 64, "\", \"BMP280\":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
 	strncat(value, v, 64);
 
-	snprintf(v, 64, "}:");
+	snprintf(v, 64, "}");
 	strncat(value, v, 64);
 
 #ifdef PICAM
-	publish(subtopic, value);
+	publish(subtopic, value, 1);
 #endif
 }
 

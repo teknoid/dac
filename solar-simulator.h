@@ -17,7 +17,7 @@
 
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
-#define LUMI					sensors->bh1750_lux_mean
+#define LUMI					sensors->bh1750_lux
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
@@ -43,7 +43,7 @@ static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES };
 
 static pthread_t thread_update;
 
-static int mppt(int offset, int peak) {
+static int mpptx(int offset, int peak) {
 	// minutes around 12 high noon
 	int minute = (12 + offset) * 60 - now->tm_hour * 60;
 	if (minute < -180)
@@ -56,8 +56,12 @@ static int mppt(int offset, int peak) {
 
 	double lumi = LUMI ? (1 - 1 / LUMI) : 0;
 	int pv = sinus * peak * lumi;
-	// xlog("minute=%d sin=%.2f pv=%d lumi=%.1f", minute, sinus, pv, LUMI);
+	xlog("minute=%d sin=%.2f pv=%d LUMI=%d lumi=%.1f", minute, sinus, pv, LUMI, lumi);
 	return pv;
+}
+
+static int mppt(int offset, int peak) {
+	return LUMI / 10;
 }
 
 static void* update(void *arg) {

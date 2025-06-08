@@ -13,9 +13,9 @@
 #include "solar.h"
 #include "mcp.h"
 
-#include "solar-tron25-modbus.h"
+//#include "solar-tron25-modbus.h"
 //#include "solar-tron25-api.h"
-//#include "solar-simulator.h"
+#include "solar-simulator.h"
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -1415,9 +1415,6 @@ int ramp_akku(device_t *akku, int power) {
 }
 
 int solar_main(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
 	// no arguments - run one single roundtrip
 	if (argc == 1)
 		return single();
@@ -1457,7 +1454,9 @@ int solar_main(int argc, char **argv) {
 #ifdef SOLAR_MAIN
 // tasmota+mqtt  needs mcp_register()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	printf("call init() + loop() for  %s\n", name);
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+	xlog("call init() + loop() for  %s", name);
 	(init)();
 	pthread_t *t = malloc(sizeof(pthread_t));
 	pthread_create(t, NULL, (void* (*)(void*)) loop, NULL);
