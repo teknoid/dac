@@ -19,8 +19,9 @@
 #define WRITE_JSON				1
 #define WRITE_SYSFSLIKE			0
 
-#define JSON_INT(x)				"\"" x "\":%d"
-#define JSON_FLOAT(x)			"\"" x "\":%.1f"
+#define JSON_KEY(k)				"\"" k "\""
+#define JSON_INT(k)				"\"" k "\":%d"
+#define JSON_FLOAT(k)			"\"" k "\":%.1f"
 #define COMMA					", "
 
 #define MEAN					10
@@ -139,13 +140,14 @@ static void publish_sensors_tasmotalike() {
 	gethostname(hostname, 32);
 
 	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
+	// TODO generate id from name or mac address
 	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
 	snprintf(value, 64, "{");
 
-	snprintf(v, 64, "\"BH1750\":{\"Illuminance\":%d}", sensors->bh1750_raw);
+	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d},", sensors->bh1750_raw);
 	strncat(value, v, 64);
 
-	snprintf(v, 64, "\", \"BMP280\":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
+	snprintf(v, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
 	strncat(value, v, 64);
 
 	snprintf(v, 64, "}");
