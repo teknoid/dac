@@ -9,8 +9,6 @@
 #include "curl.h"
 #include "utils.h"
 
-#undef GNUPLOT
-
 #define AKKU_BURNOUT			1
 #define BASELOAD				(WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
