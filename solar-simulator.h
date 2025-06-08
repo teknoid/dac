@@ -65,6 +65,7 @@ static int mppt(int offset, int peak) {
 }
 
 static void* update(void *arg) {
+	int load = 0, grid = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -80,7 +81,14 @@ static void* update(void *arg) {
 
 		int mppt1 = mppt(-3, 6000);
 		int mppt2 = mppt(0, 3000);
-		int mppt3 = mppt(3, 3000);
+		int mppt3 = mppt(3, 3000) / 2;
+		int mppt4 = mppt(6, 3000) / 2;
+
+		// simulate load change between 100 and 200 watts every 100 seconds
+		if (load == 0 || now_ts % 100 == 0) {
+			load = 100 + rand() % 100 + 1;
+			grid = (mppt1 + mppt2 + mppt3 + mppt4 - load) * -1;
+		}
 
 		pthread_mutex_lock(&pstate_lock);
 
@@ -89,12 +97,12 @@ static void* update(void *arg) {
 		pstate->mppt1 = mppt1;
 		pstate->mppt2 = mppt2;
 
-		pstate->ac2 = mppt3;
-		pstate->dc2 = mppt3;
+		pstate->ac2 = mppt3 + mppt4;
+		pstate->dc2 = mppt3 + mppt4;
 		pstate->mppt3 = mppt3;
-		pstate->mppt4 = 0;
+		pstate->mppt4 = mppt4;
 
-		pstate->grid = 0;
+		pstate->grid = grid;
 		pstate->akku = 0;
 		pstate->soc = 0;
 		pstate->p1 = 0;
@@ -135,6 +143,9 @@ static int solar_init() {
 	// start updater thread
 	if (pthread_create(&thread_update, NULL, &update, NULL))
 		return xerr("Error creating thread_update");
+
+	// initialize random number generator
+	srand(time(NULL));
 
 	return 0;
 }

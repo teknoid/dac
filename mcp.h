@@ -6,7 +6,7 @@
 //#define RUN				"/work/simulator"
 
 //#define ANUS
-#define TRON
+//#define TRON
 //#define ODROID
 //#define PIWOLF
 //#define PICAM
