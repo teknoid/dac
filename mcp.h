@@ -54,9 +54,8 @@
 #define I2C				"/dev/i2c-0"
 #endif
 
-#define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
-
 #define BUFSIZE			256
+#define SLASH			"/"
 
 #ifndef WORK
 #define WORK			"/work"
@@ -74,7 +73,6 @@
 #define RAM				"/ram"
 #endif
 
-#define SLASH			"/"
 
 // register a module in the MCP's execution context
 #define MCP_REGISTER(name, prio, init, stop, loop) \

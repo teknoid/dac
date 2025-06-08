@@ -23,6 +23,8 @@
 #include "mcp.h"
 #include "mpd.h"
 
+#define EXTERNAL 		"/usr/local/bin/mcp-external.sh"
+
 static int current_song = -1;
 static int playlist_mode = 1;
 
