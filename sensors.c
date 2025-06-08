@@ -250,6 +250,7 @@ static void loop() {
 
 #ifndef PICAM
 	// wait till mqtt received essential sensor data
+	// TODO funktioniert nicht
 	int retry = 100;
 	while (--retry && sensors->sht31_temp > 1000 && sensors->htu21_temp > 1000 && sensors->bh1750_lux == UINT16_MAX)
 		msleep(100);

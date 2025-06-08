@@ -309,7 +309,7 @@ static void module_loop(mcp_module_t *m) {
 }
 
 int main(int argc, char **argv) {
-	set_debug(1);
+	// set_debug(1);
 	xlog("MCP startup");
 
 	// allocate global data exchange structures
