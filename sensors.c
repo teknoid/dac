@@ -144,7 +144,7 @@ static void publish_sensors_tasmotalike() {
 	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
 	snprintf(value, 64, "{");
 
-	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d},", sensors->bh1750_raw);
+	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d}" COMMA, sensors->bh1750_raw);
 	strncat(value, v, 64);
 
 	snprintf(v, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);

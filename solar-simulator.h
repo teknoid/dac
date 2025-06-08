@@ -104,7 +104,7 @@ static void* update(void *arg) {
 
 		pstate->grid = grid;
 		pstate->akku = 0;
-		pstate->soc = 0;
+		pstate->soc = 500;
 		pstate->p1 = 0;
 		pstate->p2 = 0;
 		pstate->p3 = 0;

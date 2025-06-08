@@ -119,9 +119,7 @@ static void collect_loads() {
 	}
 	xdebug(line);
 
-#ifndef SOLAR_MAIN
 	store_array_csv(loads, 24, "  load", RUN SLASH LOADS_CSV);
-#endif
 }
 
 static int collect_heating_total() {
@@ -774,12 +772,10 @@ static void daily() {
 	// recalculate mosmix factors
 	mosmix_factors();
 
-#ifndef SOLAR_MAIN
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-#endif
 
 	// recalculate gstate
 	calculate_gstate();
@@ -833,7 +829,6 @@ static void hourly() {
 	// set akku storage strategy
 	akku_strategy();
 
-#ifndef SOLAR_MAIN
 	// we need the history in mosmix.c main()
 	mosmix_store_history();
 
@@ -846,7 +841,6 @@ static void hourly() {
 	// workaround /run/mcp get's immediately deleted at stop/kill
 	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
 	system("cp -rf " RUN " " TMP);
-#endif
 
 	// paint new diagrams
 	plot();
@@ -1050,14 +1044,12 @@ static int init() {
 }
 
 static void stop() {
-#ifndef SOLAR_MAIN
 	// saving state this is the most important !!!
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
-#endif
 
 	if (sock)
 		close(sock);
