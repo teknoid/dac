@@ -73,7 +73,6 @@
 #define RAM				"/ram"
 #endif
 
-
 // register a module in the MCP's execution context
 #define MCP_REGISTER(name, prio, init, stop, loop) \
   void __attribute__((constructor(101 + prio))) \
@@ -142,8 +141,9 @@ typedef struct mcp_config_t {
 } mcp_config_t;
 extern mcp_config_t *cfg;
 
+void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
 int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);
 void mcp_system_reboot(void);
-void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
+void mcp_save_run();

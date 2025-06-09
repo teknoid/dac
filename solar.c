@@ -66,20 +66,6 @@ static void create_dstate_json() {
 	fclose(fp);
 }
 
-static void plot() {
-	// create gstate daily/weekly
-	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
-	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
-
-	// create mosmix history, today, tomorrow csv
-	mosmix_store_csv();
-
-	// plot diagrams
-#ifdef GNUPLOT
-	system(GNUPLOT);
-#endif
-}
-
 static device_t* get_by_name(const char *name) {
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (!strcmp(DD->name, name))
@@ -813,7 +799,7 @@ static void hourly() {
 	CS_HOUR->mppt4 = CS_NOW->mppt4 - CS_LAST->mppt4 / 3600;
 	CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
 	memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
-	xlog("FRONIUS self  counter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt3, CS_HOUR->consumed, CS_HOUR->produced);
+	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt3, CS_HOUR->consumed, CS_HOUR->produced);
 
 	// meter counter for last hour
 	CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
@@ -824,7 +810,7 @@ static void hourly() {
 	CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
 	CM_HOUR->pv = CM_HOUR->mppt1 + CM_HOUR->mppt2 + CM_HOUR->mppt3 + CM_HOUR->mppt4;
 	memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
-	xlog("FRONIUS meter counter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt3, CM_HOUR->consumed, CM_HOUR->produced);
+	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt3, CM_HOUR->consumed, CM_HOUR->produced);
 
 	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -859,12 +845,20 @@ static void hourly() {
 		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
 	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 
-	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
-	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
-	system("cp -rf " RUN " " TMP);
+	// create gstate daily/weekly
+	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
+	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
+
+	// create mosmix history, today, tomorrow csv
+	mosmix_store_csv();
 
 	// paint new diagrams
-	plot();
+#ifdef GNUPLOT
+	system(GNUPLOT);
+#endif
+
+	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
+	mcp_save_run();
 
 	PROFILING_LOG("SOLAR hourly");
 }
@@ -1066,11 +1060,15 @@ static int init() {
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG, 0);
 	collect_loads();
-	plot();
 
 	// create empty minutes CSV file if not found
 	if (access(RUN SLASH PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+
+	// paint new diagrams
+#ifdef GNUPLOT
+	system(GNUPLOT);
+#endif
 
 	// call implementation specific init() function
 	if (solar_init() != 0)

@@ -7,7 +7,6 @@ Type=simple
 User=hje
 RuntimeDirectory=mcp
 ExecStart=/usr/local/bin/mcp
-ExecStartPre=-cp /tmp/mcp/pstate-minutes.csv /run/mcp
 #ExecStartPre=/usr/bin/ir-keytable -c -w /etc/rc_keymaps/universum
 
 [Install]

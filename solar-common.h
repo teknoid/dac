@@ -109,10 +109,10 @@ struct _device {
 	ramp_function_t *ramp;
 };
 
-// counter history every hour over one day and access pointers
+// self and meter counter with access pointers
 typedef struct _counter counter_t;
 #define COUNTER_SIZE		(sizeof(counter_t) / sizeof(int))
-#define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4"
+#define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4    pv"
 struct _counter {
 	int produced;
 	int consumed;
