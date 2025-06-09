@@ -856,7 +856,7 @@ static void hourly() {
 #endif
 
 	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
-	xlog("MCP saving runtime directory %s to %s", RUN, TMP);
+	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
 	system("cp -rf " RUN " " TMP);
 
 	PROFILING_LOG("SOLAR hourly");
@@ -1430,6 +1430,10 @@ int ramp_akku(device_t *akku, int power) {
 }
 
 int solar_main(int argc, char **argv) {
+	// restore runtime directory
+	xlog("SOLAR restoring runtime directory %s from %s", RUN, TMP);
+	system("cp -rf " TMP "/mcp/* " RUN);
+
 	// no arguments - run one single roundtrip
 	if (argc == 1)
 		return single();
