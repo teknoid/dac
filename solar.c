@@ -514,22 +514,15 @@ static void calculate_gstate() {
 	// store average load in gstate history
 	gstate->load = PSTATE_HOUR_LAST1->load;
 
-	// day total: pv / consumed / produced
+	// day total: consumed / produced / pv
 #ifdef COUNTER_METER
-	// use meter counter
-	counter_t *c0 = COUNTER_0;
-	gstate->pv = 0;
-	gstate->pv += cm->mppt1 && c0->mppt1 ? cm->mppt1 - c0->mppt1 : 0;
-	gstate->pv += cm->mppt2 && c0->mppt2 ? cm->mppt2 - c0->mppt2 : 0;
-	gstate->pv += cm->mppt3 && c0->mppt3 ? cm->mppt3 - c0->mppt3 : 0;
-	gstate->pv += cm->mppt4 && c0->mppt4 ? cm->mppt4 - c0->mppt4 : 0;
-	gstate->consumed = cm->consumed && c0->consumed ? cm->consumed - c0->consumed : 0;
-	gstate->produced = cm->produced && c0->produced ? cm->produced - c0->produced : 0;
+	gstate->consumed = CM_DAY->consumed;
+	gstate->produced = CM_DAY->produced;
+	gstate->pv = CM_DAY->pv;
 #else
-	// use self counter (Watt-seconds)
-	gstate->pv = (cs->mppt1 + cs->mppt2 + cs->mppt3 + cs->mppt4) / 3600;
-	gstate->consumed = cs->consumed / 3600;
-	gstate->produced = cs->produced / 3600;
+	gstate->consumed = CS_DAY->consumed;
+	gstate->produced = CS_DAY->produced;
+	gstate->pv = CS_DAY->pv;
 #endif
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +50Wh inverter dissipation
@@ -605,14 +598,14 @@ static void calculate_pstate() {
 		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
 
 	// update self counter before shaping
-	cs->mppt1 += pstate->mppt1;
-	cs->mppt2 += pstate->mppt2;
-	cs->mppt3 += pstate->mppt3;
-	cs->mppt4 += pstate->mppt4;
-	if (pstate->grid < 0)
-		cs->produced += pstate->grid * -1;
 	if (pstate->grid > 0)
-		cs->consumed += pstate->grid;
+		CS_NOW->consumed += pstate->grid;
+	if (pstate->grid < 0)
+		CS_NOW->produced += pstate->grid * -1;
+	CS_NOW->mppt1 += pstate->mppt1;
+	CS_NOW->mppt2 += pstate->mppt2;
+	CS_NOW->mppt3 += pstate->mppt3;
+	CS_NOW->mppt4 += pstate->mppt4;
 
 	// get history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
@@ -790,13 +783,15 @@ static void daily() {
 	// recalculate mosmix factors
 	mosmix_factors();
 
+	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
-	// clear self counter
-	ZERO(counter_self);
+	// clear self counter, copy self and meter counter to NULL entry
+	ZEROP(CS_NOW);
+	memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
+	memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 
 	// recalculate gstate
 	calculate_gstate();
@@ -808,6 +803,28 @@ static void daily() {
 static void hourly() {
 	PROFILING_START
 	xlog("SOLAR executing hourly tasks...");
+
+	// self counter for last hour
+	CS_HOUR->consumed = CS_NOW->consumed - CS_LAST->consumed / 3600;
+	CS_HOUR->produced = CS_NOW->produced - CS_LAST->produced / 3600;
+	CS_HOUR->mppt1 = CS_NOW->mppt1 - CS_LAST->mppt1 / 3600;
+	CS_HOUR->mppt2 = CS_NOW->mppt2 - CS_LAST->mppt2 / 3600;
+	CS_HOUR->mppt3 = CS_NOW->mppt3 - CS_LAST->mppt3 / 3600;
+	CS_HOUR->mppt4 = CS_NOW->mppt4 - CS_LAST->mppt4 / 3600;
+	CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
+	memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
+	xlog("FRONIUS self  counter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt3, CS_HOUR->consumed, CS_HOUR->produced);
+
+	// meter counter for last hour
+	CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
+	CM_HOUR->produced = CM_NOW->produced && CM_LAST->produced ? CM_NOW->produced - CM_LAST->produced : 0;
+	CM_HOUR->mppt1 = CM_NOW->mppt1 && CM_LAST->mppt1 ? CM_NOW->mppt1 - CM_LAST->mppt1 : 0;
+	CM_HOUR->mppt2 = CM_NOW->mppt2 && CM_LAST->mppt2 ? CM_NOW->mppt2 - CM_LAST->mppt2 : 0;
+	CM_HOUR->mppt3 = CM_NOW->mppt3 && CM_LAST->mppt3 ? CM_NOW->mppt3 - CM_LAST->mppt3 : 0;
+	CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
+	CM_HOUR->pv = CM_HOUR->mppt1 + CM_HOUR->mppt2 + CM_HOUR->mppt3 + CM_HOUR->mppt4;
+	memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
+	xlog("FRONIUS meter counter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt3, CM_HOUR->consumed, CM_HOUR->produced);
 
 	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -822,52 +839,13 @@ static void hourly() {
 	// copy gstate to history
 	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 
-	// copy counter to history
-#ifdef COUNTER_METER
-	memcpy(COUNTER_NOW, (void*) cm, sizeof(counter_t));
-#else
-	memcpy(COUNTER_NOW, (void*) cs, sizeof(counter_t));
-	// convert Watt-seconds to Watt-hours
-	COUNTER_NOW->mppt1 /= 3600;
-	COUNTER_NOW->mppt2 /= 3600;
-	COUNTER_NOW->mppt3 /= 3600;
-	COUNTER_NOW->mppt4 /= 3600;
-	COUNTER_NOW->consumed /= 3600;
-	COUNTER_NOW->produced /= 3600;
-#endif
-
-	// calculate delta counters for last hour
-	counter_t c, *cl = COUNTER_LAST, *cn = COUNTER_NOW;
-	c.mppt1 = cn->mppt1 && cl->mppt1 ? cn->mppt1 - cl->mppt1 : 0;
-	c.mppt2 = cn->mppt2 && cl->mppt2 ? cn->mppt2 - cl->mppt2 : 0;
-	c.mppt3 = cn->mppt3 && cl->mppt3 ? cn->mppt3 - cl->mppt3 : 0;
-	c.mppt4 = cn->mppt4 && cl->mppt4 ? cn->mppt4 - cl->mppt4 : 0;
-	c.consumed = cn->consumed && cl->consumed ? cn->consumed - cl->consumed : 0;
-	c.produced = cn->produced && cl->produced ? cn->produced - cl->produced : 0;
-	xlog("FRONIUS last hour counter mppt1=%d mppt2=%d mppt3=%d mppt4=%d consumed=%d produced=%d", c.mppt1, c.mppt2, c.mppt3, c.mppt3, c.consumed, c.produced);
-
-#ifdef COUNTER_METER
-	// compare daily self counter and daily meter counter
-	counter_t s, m, *c0 = COUNTER_0;
-	s.mppt1 = cs->mppt1 / 3600;
-	s.mppt2 = cs->mppt2 / 3600;
-	s.mppt3 = cs->mppt3 / 3600;
-	s.mppt4 = cs->mppt4 / 3600;
-	s.consumed = cs->consumed / 3600;
-	s.produced = cs->produced / 3600;
-	m.mppt1 = cm->mppt1 && c0->mppt1 ? cm->mppt1 - c0->mppt1 : 0;
-	m.mppt2 = cm->mppt2 && c0->mppt2 ? cm->mppt2 - c0->mppt2 : 0;
-	m.mppt3 = cm->mppt3 && c0->mppt3 ? cm->mppt3 - c0->mppt3 : 0;
-	m.mppt4 = cm->mppt4 && c0->mppt4 ? cm->mppt4 - c0->mppt4 : 0;
-	m.consumed = cm->consumed && c0->consumed ? cm->consumed - c0->consumed : 0;
-	m.produced = cm->produced && c0->produced ? cm->produced - c0->produced : 0;
-	xlog("FRONIUS self/meter counter mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d mppt4 %d/%d", s.mppt1, m.mppt1, s.mppt2, m.mppt2, s.mppt3, m.mppt3, s.mppt4, m.mppt4);
-	xlog("FRONIUS self/meter counter consumed %d/%d produced %d/%d", s.consumed, m.consumed, s.produced, m.produced);
-#endif
-
 	// reload and update mosmix history, clear at midnight
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
-	mosmix_mppt(now, c.mppt1, c.mppt2, c.mppt3, c.mppt4);
+#ifdef COUNTER_METER
+	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+#else
+	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+#endif
 
 	// set akku storage strategy
 	akku_strategy();
@@ -893,6 +871,24 @@ static void hourly() {
 
 static void minly() {
 	// xlog("SOLAR minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
+
+	// self counter daily - convert Watt-secons to Watt-hours
+	CS_DAY->consumed = CS_NOW->consumed / 3600;
+	CS_DAY->produced = CS_NOW->produced / 3600;
+	CS_DAY->mppt1 = CS_NOW->mppt1 / 3600;
+	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
+	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
+	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
+	CS_DAY->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
+
+	// meter counter daily - calculate delta to NULL entry
+	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
+	CM_DAY->produced = CM_NOW->produced && CM_NULL->produced ? CM_NOW->produced - CM_NULL->produced : 0;
+	CM_DAY->mppt1 = CM_NOW->mppt1 && CM_NULL->mppt1 ? CM_NOW->mppt1 - CM_NULL->mppt1 : 0;
+	CM_DAY->mppt2 = CM_NOW->mppt2 && CM_NULL->mppt2 ? CM_NOW->mppt2 - CM_NULL->mppt2 : 0;
+	CM_DAY->mppt3 = CM_NOW->mppt3 && CM_NULL->mppt3 ? CM_NOW->mppt3 - CM_NULL->mppt3 : 0;
+	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
+	CM_DAY->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
 
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
@@ -1059,14 +1055,12 @@ static int init() {
 	ZERO(pstate_minutes);
 	ZERO(pstate_hours);
 	ZERO(gstate_hours);
-	ZERO(counter_hours);
-	ZERO(counter_self);
+	ZERO(counter);
 
 	load_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	load_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
-	load_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	load_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
 
 	mosmix_load_history(now);
 	mosmix_factors();
@@ -1090,9 +1084,8 @@ static int init() {
 
 static void stop() {
 	// saving state this is the most important !!!
+	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
@@ -1139,15 +1132,12 @@ static int single() {
 
 // fake state and counter records from actual values and copy to history records
 static int fake() {
-	counter_t c;
 	gstate_t g;
 	pstate_t p;
 
-	cm = &c;
 	gstate = &g;
 	pstate = &p;
 
-	ZEROP(cs);
 	ZEROP(gstate);
 	ZEROP(pstate);
 
@@ -1157,8 +1147,6 @@ static int fake() {
 	calculate_pstate();
 	calculate_gstate();
 
-	for (int i = 0; i < 24; i++)
-		memcpy(&counter_hours[i], (void*) cm, sizeof(counter_t));
 	for (int i = 0; i < 24 * 7; i++)
 		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
@@ -1167,8 +1155,6 @@ static int fake() {
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	store_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 

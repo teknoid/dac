@@ -1,8 +1,5 @@
-// hexdump -v -e '6 "%10d ""\n"' /work/solar-counter.bin
+// hexdump -v -e '7 "%10d ""\n"' /work/solar-counter.bin
 #define COUNTER_FILE			"solar-counter.bin"
-
-// hexdump -v -e '6 "%10d ""\n"' /work/solar-counter-self.bin
-#define COUNTER_SELF_FILE		"solar-counter-self.bin"
 
 // hexdump -v -e '17 "%6d ""\n"' /work/solar-gstate.bin
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -123,13 +120,21 @@ struct _counter {
 	int mppt2;
 	int mppt3;
 	int mppt4;
+	int pv;
 };
-static counter_t counter_hours[24], counter_meter, *cm = &counter_meter, counter_self, *cs = &counter_self;
-#define COUNTER_NOW				(&counter_hours[now->tm_hour])
-#define COUNTER_LAST			(&counter_hours[now->tm_hour >  0 ? now->tm_hour - 1 : 23])
-#define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 :  0])
-#define COUNTER_HOUR(h)			(&counter_hours[h])
-#define COUNTER_0				(&counter_hours[0])
+static counter_t counter[10];
+// self counter 1-5
+#define CS_NOW					(&counter[0])
+#define CS_LAST					(&counter[1])
+#define CS_NULL					(&counter[2])
+#define CS_HOUR					(&counter[3])
+#define CS_DAY					(&counter[4])
+// meter counter 6-10
+#define CM_NOW					(&counter[5])
+#define CM_LAST					(&counter[6])
+#define CM_NULL					(&counter[7])
+#define CM_HOUR					(&counter[8])
+#define CM_DAY					(&counter[9])
 
 // 24/7 gstate history slots and access pointers
 typedef struct _gstate gstate_t;

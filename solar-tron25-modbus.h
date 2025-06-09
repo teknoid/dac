@@ -79,17 +79,17 @@ static void update_inverter1(sunspec_t *ss) {
 		// TODO find sunspec register
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 
-		cm->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		cm->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		ss->sleep = 0;
 		ss->active = 1;
 
-		// update counter hour 0 when empty
-		if (COUNTER_0->mppt1 == 0)
-			COUNTER_0->mppt1 = cm->mppt1;
-		if (COUNTER_0->mppt2 == 0)
-			COUNTER_0->mppt2 = cm->mppt2;
+		// update NULL counter if empty
+		if (CM_NULL->mppt1 == 0)
+			CM_NULL->mppt1 = CM_NOW->mppt1;
+		if (CM_NULL->mppt2 == 0)
+			CM_NULL->mppt2 = CM_NOW->mppt2;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -125,17 +125,17 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
-		cm->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		cm->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		ss->sleep = 0;
 		ss->active = 1;
 
-		// update counter hour 0 when empty
-		if (COUNTER_0->mppt3 == 0)
-			COUNTER_0->mppt3 = cm->mppt3;
-		if (COUNTER_0->mppt4 == 0)
-			COUNTER_0->mppt4 = cm->mppt4;
+		// update NULL counter if empty
+		if (CM_NULL->mppt3 == 0)
+			CM_NULL->mppt3 = CM_NOW->mppt3;
+		if (CM_NULL->mppt4 == 0)
+			CM_NULL->mppt4 = CM_NOW->mppt4;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -168,14 +168,14 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
 
-	cm->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
-	cm->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
+	CM_NOW->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+	CM_NOW->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 
-	// update counter hour 0 when empty
-	if (COUNTER_0->produced == 0)
-		COUNTER_0->produced = cm->produced;
-	if (COUNTER_0->consumed == 0)
-		COUNTER_0->consumed = cm->consumed;
+	// update NULL counter if empty
+	if (CM_NULL->produced == 0)
+		CM_NULL->produced = CM_NOW->produced;
+	if (CM_NULL->consumed == 0)
+		CM_NULL->consumed = CM_NOW->consumed;
 
 	pthread_mutex_unlock(&pstate_lock);
 }
