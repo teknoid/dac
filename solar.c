@@ -856,7 +856,8 @@ static void hourly() {
 #endif
 
 	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
-	mcp_save_run();
+	xlog("MCP saving runtime directory %s to %s", RUN, TMP);
+	system("cp -rf " RUN " " TMP);
 
 	PROFILING_LOG("SOLAR hourly");
 }
