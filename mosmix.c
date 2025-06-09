@@ -244,10 +244,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *m = TODAY(now->tm_hour);
 
 	// update actual pv
-	m->mppt1 = mppt1;
-	m->mppt2 = mppt2;
-	m->mppt3 = mppt3;
-	m->mppt4 = mppt4;
+	m->mppt1 = mppt1 > NOISE ? mppt1 : 0;
+	m->mppt2 = mppt2 > NOISE ? mppt2 : 0;
+	m->mppt3 = mppt3 > NOISE ? mppt3 : 0;
+	m->mppt4 = mppt4 > NOISE ? mppt4 : 0;
 
 	// calculate errors as actual - expected
 	m->diff1 = m->mppt1 - m->exp1;
@@ -311,7 +311,7 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 
 // night: collect hours where pv cannot satisfy load
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
-	char line[LINEBUF], value[48];
+	char line[LINEBUF * 2], value[48];
 	int h = now->tm_hour, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:l:x");
@@ -328,8 +328,10 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			needed += load + extra;
 			hours++;
 		}
-		if (h == 12 && (now->tm_hour < 6 || midnight))
-			break; // reached high noon this day or next day
+		if (h == 12 && now->tm_hour <= 6)
+			break; // reached high noon this day
+		if (h == 12 && midnight)
+			break; // reached high noon next day
 	}
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);

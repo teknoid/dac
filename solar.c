@@ -515,14 +515,22 @@ static void calculate_gstate() {
 	gstate->load = PSTATE_HOUR_LAST1->load;
 
 	// day total: pv / consumed / produced
-	counter_t *c = COUNTER_0;
+#ifdef COUNTER_METER
+	// use meter counter
+	counter_t *c0 = COUNTER_0;
 	gstate->pv = 0;
-	gstate->pv += counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
-	gstate->pv += counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
-	gstate->pv += counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
-	gstate->pv += counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
-	gstate->produced = counter->produced && c->produced ? counter->produced - c->produced : 0;
-	gstate->consumed = counter->consumed && c->consumed ? counter->consumed - c->consumed : 0;
+	gstate->pv += cm->mppt1 && c0->mppt1 ? cm->mppt1 - c0->mppt1 : 0;
+	gstate->pv += cm->mppt2 && c0->mppt2 ? cm->mppt2 - c0->mppt2 : 0;
+	gstate->pv += cm->mppt3 && c0->mppt3 ? cm->mppt3 - c0->mppt3 : 0;
+	gstate->pv += cm->mppt4 && c0->mppt4 ? cm->mppt4 - c0->mppt4 : 0;
+	gstate->consumed = cm->consumed && c0->consumed ? cm->consumed - c0->consumed : 0;
+	gstate->produced = cm->produced && c0->produced ? cm->produced - c0->produced : 0;
+#else
+	// use self counter (Watt-seconds)
+	gstate->pv = (cs->mppt1 + cs->mppt2 + cs->mppt3 + cs->mppt4) / 3600;
+	gstate->consumed = cs->consumed / 3600;
+	gstate->produced = cs->produced / 3600;
+#endif
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +50Wh inverter dissipation
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
@@ -595,6 +603,16 @@ static void calculate_pstate() {
 	// clear delta sum counters every minute
 	if (now->tm_sec == 0)
 		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+
+	// update self counter before shaping
+	cs->mppt1 += pstate->mppt1;
+	cs->mppt2 += pstate->mppt2;
+	cs->mppt3 += pstate->mppt3;
+	cs->mppt4 += pstate->mppt4;
+	if (pstate->grid < 0)
+		cs->produced += pstate->grid * -1;
+	if (pstate->grid > 0)
+		cs->consumed += pstate->grid;
 
 	// get history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
@@ -777,6 +795,9 @@ static void daily() {
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
+	// clear self counter
+	ZERO(counter_self);
+
 	// recalculate gstate
 	calculate_gstate();
 	print_gstate();
@@ -788,43 +809,65 @@ static void hourly() {
 	PROFILING_START
 	xlog("SOLAR executing hourly tasks...");
 
-	// copy gstate and counters to history
-	memcpy(COUNTER_NOW, (void*) counter, sizeof(counter_t));
-	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
-
-	// resetting noresponse counters and set all devices back to active
+	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
 		if (DD->state == Standby || DD->state == Active_Checked)
 			if (DD != AKKU)
 				DD->state = Active;
+		if (PSTATE_OFFLINE)
+			ramp(DD, DOWN);
 	}
 
-	// force all devices off when offline
-	if (PSTATE_OFFLINE)
-		for (device_t **dd = DEVICES; *dd; dd++)
-			ramp(DD, DOWN);
+	// copy gstate to history
+	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 
-	// calculate last hour produced PV per mppt
-	counter_t *c = COUNTER_LAST;
-	int mppt1 = counter->mppt1 && c->mppt1 ? counter->mppt1 - c->mppt1 : 0;
-	int mppt2 = counter->mppt2 && c->mppt2 ? counter->mppt2 - c->mppt2 : 0;
-	int mppt3 = counter->mppt3 && c->mppt3 ? counter->mppt3 - c->mppt3 : 0;
-	int mppt4 = counter->mppt4 && c->mppt4 ? counter->mppt4 - c->mppt4 : 0;
+	// copy counter to history
+#ifdef COUNTER_METER
+	memcpy(COUNTER_NOW, (void*) cm, sizeof(counter_t));
+#else
+	memcpy(COUNTER_NOW, (void*) cs, sizeof(counter_t));
+	// convert Watt-seconds to Watt-hours
+	COUNTER_NOW->mppt1 /= 3600;
+	COUNTER_NOW->mppt2 /= 3600;
+	COUNTER_NOW->mppt3 /= 3600;
+	COUNTER_NOW->mppt4 /= 3600;
+	COUNTER_NOW->consumed /= 3600;
+	COUNTER_NOW->produced /= 3600;
+#endif
 
-	// noise
-	if (mppt1 < NOISE)
-		mppt1 = 0;
-	if (mppt2 < NOISE)
-		mppt2 = 0;
-	if (mppt3 < NOISE)
-		mppt3 = 0;
-	if (mppt4 < NOISE)
-		mppt4 = 0;
+	// calculate delta counters for last hour
+	counter_t c, *cl = COUNTER_LAST, *cn = COUNTER_NOW;
+	c.mppt1 = cn->mppt1 && cl->mppt1 ? cn->mppt1 - cl->mppt1 : 0;
+	c.mppt2 = cn->mppt2 && cl->mppt2 ? cn->mppt2 - cl->mppt2 : 0;
+	c.mppt3 = cn->mppt3 && cl->mppt3 ? cn->mppt3 - cl->mppt3 : 0;
+	c.mppt4 = cn->mppt4 && cl->mppt4 ? cn->mppt4 - cl->mppt4 : 0;
+	c.consumed = cn->consumed && cl->consumed ? cn->consumed - cl->consumed : 0;
+	c.produced = cn->produced && cl->produced ? cn->produced - cl->produced : 0;
+	xlog("FRONIUS last hour counter mppt1=%d mppt2=%d mppt3=%d mppt4=%d consumed=%d produced=%d", c.mppt1, c.mppt2, c.mppt3, c.mppt3, c.consumed, c.produced);
+
+#ifdef COUNTER_METER
+	// compare daily self counter and daily meter counter
+	counter_t s, m, *c0 = COUNTER_0;
+	s.mppt1 = cs->mppt1 / 3600;
+	s.mppt2 = cs->mppt2 / 3600;
+	s.mppt3 = cs->mppt3 / 3600;
+	s.mppt4 = cs->mppt4 / 3600;
+	s.consumed = cs->consumed / 3600;
+	s.produced = cs->produced / 3600;
+	m.mppt1 = cm->mppt1 && c0->mppt1 ? cm->mppt1 - c0->mppt1 : 0;
+	m.mppt2 = cm->mppt2 && c0->mppt2 ? cm->mppt2 - c0->mppt2 : 0;
+	m.mppt3 = cm->mppt3 && c0->mppt3 ? cm->mppt3 - c0->mppt3 : 0;
+	m.mppt4 = cm->mppt4 && c0->mppt4 ? cm->mppt4 - c0->mppt4 : 0;
+	m.consumed = cm->consumed && c0->consumed ? cm->consumed - c0->consumed : 0;
+	m.produced = cm->produced && c0->produced ? cm->produced - c0->produced : 0;
+	xlog("FRONIUS self/meter counter mppt1 %d/%d mppt2 %d/%d mppt3 %d/%d mppt4 %d/%d", s.mppt1, m.mppt1, s.mppt2, m.mppt2, s.mppt3, m.mppt3, s.mppt4, m.mppt4);
+	xlog("FRONIUS self/meter counter consumed %d/%d produced %d/%d", s.consumed, m.consumed, s.produced, m.produced);
+#endif
 
 	// reload and update mosmix history, clear at midnight
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
-	mosmix_mppt(now, mppt1, mppt2, mppt3, mppt4);
+	mosmix_mppt(now, c.mppt1, c.mppt2, c.mppt3, c.mppt4);
 
 	// set akku storage strategy
 	akku_strategy();
@@ -838,7 +881,7 @@ static void hourly() {
 		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
 	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 
-	// workaround /run/mcp get's immediately deleted at stop/kill
+	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
 	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
 	system("cp -rf " RUN " " TMP);
 
@@ -1017,9 +1060,11 @@ static int init() {
 	ZERO(pstate_hours);
 	ZERO(gstate_hours);
 	ZERO(counter_hours);
+	ZERO(counter_self);
 
 	load_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
 	load_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
@@ -1047,6 +1092,7 @@ static void stop() {
 	// saving state this is the most important !!!
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
@@ -1097,11 +1143,11 @@ static int fake() {
 	gstate_t g;
 	pstate_t p;
 
-	counter = &c;
+	cm = &c;
 	gstate = &g;
 	pstate = &p;
 
-	ZEROP(counter);
+	ZEROP(cs);
 	ZEROP(gstate);
 	ZEROP(pstate);
 
@@ -1112,7 +1158,7 @@ static int fake() {
 	calculate_gstate();
 
 	for (int i = 0; i < 24; i++)
-		memcpy(&counter_hours[i], (void*) counter, sizeof(counter_t));
+		memcpy(&counter_hours[i], (void*) cm, sizeof(counter_t));
 	for (int i = 0; i < 24 * 7; i++)
 		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
@@ -1122,6 +1168,7 @@ static int fake() {
 
 	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(WORK SLASH COUNTER_FILE, counter_hours, sizeof(counter_hours));
+	store_blob(WORK SLASH COUNTER_SELF_FILE, &counter_self, sizeof(counter_self));
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
@@ -1353,12 +1400,15 @@ int ramp_boiler(device_t *boiler, int power) {
 		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
 #endif
 
+	// electronic thermostat takes more time to react on startup
+	int wait = boiler->power == 0 ? WAIT_RESPONSE * 2 : WAIT_RESPONSE;
+
 	// update power values
 	boiler->delta = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
 	store_meter_power(boiler);
-	return WAIT_RESPONSE; // loop done
+	return wait; // loop done
 }
 
 int ramp_akku(device_t *akku, int power) {

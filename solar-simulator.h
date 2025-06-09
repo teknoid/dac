@@ -111,29 +111,7 @@ static void* update(void *arg) {
 		pstate->v3 = 0;
 		pstate->f = 0;
 
-		counter->mppt1 = 0;
-		counter->mppt2 = 0;
-		counter->mppt3 = 0;
-		counter->mppt4 = 0;
-		counter->consumed = 0;
-		counter->produced = 0;
-
 		pthread_mutex_unlock(&pstate_lock);
-
-		// update counter hour 0 when empty
-		if (COUNTER_0->mppt1 == 0)
-			COUNTER_0->mppt1 = counter->mppt1;
-		if (COUNTER_0->mppt2 == 0)
-			COUNTER_0->mppt2 = counter->mppt2;
-		if (COUNTER_0->mppt3 == 0)
-			COUNTER_0->mppt3 = counter->mppt3;
-		if (COUNTER_0->mppt4 == 0)
-			COUNTER_0->mppt4 = counter->mppt4;
-		if (COUNTER_0->produced == 0)
-			COUNTER_0->produced = counter->produced;
-		if (COUNTER_0->consumed == 0)
-			COUNTER_0->consumed = counter->consumed;
-
 	}
 }
 

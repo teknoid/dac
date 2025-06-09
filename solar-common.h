@@ -1,6 +1,9 @@
 // hexdump -v -e '6 "%10d ""\n"' /work/solar-counter.bin
 #define COUNTER_FILE			"solar-counter.bin"
 
+// hexdump -v -e '6 "%10d ""\n"' /work/solar-counter-self.bin
+#define COUNTER_SELF_FILE		"solar-counter-self.bin"
+
 // hexdump -v -e '17 "%6d ""\n"' /work/solar-gstate.bin
 #define GSTATE_FILE				"solar-gstate.bin"
 #define GSTATE_TODAY_CSV		"gstate-today.csv"
@@ -121,7 +124,7 @@ struct _counter {
 	int mppt3;
 	int mppt4;
 };
-static counter_t counter_hours[24], counter_current, *counter = &counter_current;
+static counter_t counter_hours[24], counter_meter, *cm = &counter_meter, counter_self, *cs = &counter_self;
 #define COUNTER_NOW				(&counter_hours[now->tm_hour])
 #define COUNTER_LAST			(&counter_hours[now->tm_hour >  0 ? now->tm_hour - 1 : 23])
 #define COUNTER_NEXT			(&counter_hours[now->tm_hour < 23 ? now->tm_hour + 1 :  0])
@@ -219,7 +222,6 @@ struct _pstate {
 };
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
 #define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
-#define PSTATE_SEC(s)			(&pstate_seconds[s])
 #define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
@@ -229,8 +231,8 @@ static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate
 #define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
 #define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60))
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
-#define PSTATE_HOUR(h)			(&pstate_hours[h])
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
+#define PSTATE_HOUR(h)			(&pstate_hours[h])
 
 // program of the day - choosen by mosmix forecast data
 typedef struct potd_t {

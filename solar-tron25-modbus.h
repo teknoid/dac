@@ -13,6 +13,8 @@
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
 
+#define COUNTER_METER
+
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
@@ -77,17 +79,17 @@ static void update_inverter1(sunspec_t *ss) {
 		// TODO find sunspec register
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 
-		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		cm->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		cm->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		ss->sleep = 0;
 		ss->active = 1;
 
 		// update counter hour 0 when empty
 		if (COUNTER_0->mppt1 == 0)
-			COUNTER_0->mppt1 = counter->mppt1;
+			COUNTER_0->mppt1 = cm->mppt1;
 		if (COUNTER_0->mppt2 == 0)
-			COUNTER_0->mppt2 = counter->mppt2;
+			COUNTER_0->mppt2 = cm->mppt2;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -123,17 +125,17 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
-		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		cm->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		cm->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		ss->sleep = 0;
 		ss->active = 1;
 
 		// update counter hour 0 when empty
 		if (COUNTER_0->mppt3 == 0)
-			COUNTER_0->mppt3 = counter->mppt3;
+			COUNTER_0->mppt3 = cm->mppt3;
 		if (COUNTER_0->mppt4 == 0)
-			COUNTER_0->mppt4 = counter->mppt4;
+			COUNTER_0->mppt4 = cm->mppt4;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -166,14 +168,14 @@ static void update_meter(sunspec_t *ss) {
 //	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 //	pstate->f = ss->meter->Hz - 5000; // store only the diff
 
-	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
-	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
+	cm->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+	cm->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 
 	// update counter hour 0 when empty
 	if (COUNTER_0->produced == 0)
-		COUNTER_0->produced = counter->produced;
+		COUNTER_0->produced = cm->produced;
 	if (COUNTER_0->consumed == 0)
-		COUNTER_0->consumed = counter->consumed;
+		COUNTER_0->consumed = cm->consumed;
 
 	pthread_mutex_unlock(&pstate_lock);
 }

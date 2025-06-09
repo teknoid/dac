@@ -15,6 +15,8 @@
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
 
+#define COUNTER_METER
+
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
@@ -236,31 +238,31 @@ static void* update(void *arg) {
 		pstate->v3 = r->v3;
 		pstate->f = r->f * 100.0 - 5000; // store only the diff
 
-		counter->mppt1 = r->mppt1_total / 3600; // Watt-seconds
-		counter->mppt2 = r->mppt2_total / 3600; // Watt-seconds
-		counter->mppt3 = r->mppt3_total;
-		counter->mppt4 = r->mppt4_total;
-		counter->consumed = r->cons;
-		counter->produced = r->prod;
+		cm->mppt1 = r->mppt1_total / 3600; // Watt-seconds
+		cm->mppt2 = r->mppt2_total / 3600; // Watt-seconds
+		cm->mppt3 = r->mppt3_total;
+		cm->mppt4 = r->mppt4_total;
+		cm->consumed = r->cons;
+		cm->produced = r->prod;
 
 		pthread_mutex_unlock(&pstate_lock);
 
 		// update counter hour 0 when empty
 		if (COUNTER_0->mppt1 == 0)
-			COUNTER_0->mppt1 = counter->mppt1;
+			COUNTER_0->mppt1 = cm->mppt1;
 		if (COUNTER_0->mppt2 == 0)
-			COUNTER_0->mppt2 = counter->mppt2;
+			COUNTER_0->mppt2 = cm->mppt2;
 		if (COUNTER_0->mppt3 == 0)
-			COUNTER_0->mppt3 = counter->mppt3;
+			COUNTER_0->mppt3 = cm->mppt3;
 		if (COUNTER_0->mppt4 == 0)
-			COUNTER_0->mppt4 = counter->mppt4;
+			COUNTER_0->mppt4 = cm->mppt4;
 		if (COUNTER_0->produced == 0)
-			COUNTER_0->produced = counter->produced;
+			COUNTER_0->produced = cm->produced;
 		if (COUNTER_0->consumed == 0)
-			COUNTER_0->consumed = counter->consumed;
+			COUNTER_0->consumed = cm->consumed;
 
 		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
-		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", counter->mppt1, counter->mppt2, counter->mppt3, counter->mppt4, counter->consumed, counter->produced);
+		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", cm->mppt1, cm->mppt2, cm->mppt3, cm->mppt4, cm->consumed, cm->produced);
 
 		PROFILING_LOG("SOLAR update")
 
