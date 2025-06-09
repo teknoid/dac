@@ -791,12 +791,12 @@ static void hourly() {
 	xlog("SOLAR executing hourly tasks...");
 
 	// self counter for last hour
-	CS_HOUR->consumed = CS_NOW->consumed - CS_LAST->consumed / 3600;
-	CS_HOUR->produced = CS_NOW->produced - CS_LAST->produced / 3600;
-	CS_HOUR->mppt1 = CS_NOW->mppt1 - CS_LAST->mppt1 / 3600;
-	CS_HOUR->mppt2 = CS_NOW->mppt2 - CS_LAST->mppt2 / 3600;
-	CS_HOUR->mppt3 = CS_NOW->mppt3 - CS_LAST->mppt3 / 3600;
-	CS_HOUR->mppt4 = CS_NOW->mppt4 - CS_LAST->mppt4 / 3600;
+	CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
+	CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
+	CS_HOUR->mppt1 = (CS_NOW->mppt1 - CS_LAST->mppt1) / 3600;
+	CS_HOUR->mppt2 = (CS_NOW->mppt2 - CS_LAST->mppt2) / 3600;
+	CS_HOUR->mppt3 = (CS_NOW->mppt3 - CS_LAST->mppt3) / 3600;
+	CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 	CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
 	memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
 	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt3, CS_HOUR->consumed, CS_HOUR->produced);
