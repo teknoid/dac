@@ -812,6 +812,9 @@ static void hourly() {
 	memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
 	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt3, CM_HOUR->consumed, CM_HOUR->produced);
 
+	// copy gstate to history
+	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
+
 	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
@@ -822,8 +825,8 @@ static void hourly() {
 			ramp(DD, DOWN);
 	}
 
-	// copy gstate to history
-	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
+	// set akku storage strategy
+	akku_strategy();
 
 	// reload and update mosmix history, clear at midnight
 	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
@@ -833,11 +836,9 @@ static void hourly() {
 	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
 
-	// set akku storage strategy
-	akku_strategy();
-
-	// we need the history in mosmix.c main()
+	// create mosmix history, today, tomorrow csv
 	mosmix_store_history();
+	mosmix_store_csv();
 
 	// create/append pstate minutes csv
 	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
@@ -848,9 +849,6 @@ static void hourly() {
 	// create gstate daily/weekly
 	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
 	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
-
-	// create mosmix history, today, tomorrow csv
-	mosmix_store_csv();
 
 	// paint new diagrams
 #ifdef GNUPLOT
@@ -1060,15 +1058,6 @@ static int init() {
 	mosmix_factors();
 	mosmix_load(now, MARIENBERG, 0);
 	collect_loads();
-
-	// create empty minutes CSV file if not found
-	if (access(RUN SLASH PSTATE_M_CSV, F_OK))
-		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
-
-	// paint new diagrams
-#ifdef GNUPLOT
-	system(GNUPLOT);
-#endif
 
 	// call implementation specific init() function
 	if (solar_init() != 0)
