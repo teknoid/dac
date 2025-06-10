@@ -41,27 +41,6 @@ static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES };
 
 static pthread_t thread_update;
 
-static int mpptx(int offset, int peak) {
-	// minutes around 12 high noon
-	int minute = (12 + offset) * 60 - now->tm_hour * 60;
-	if (minute < -180)
-		minute = -180;
-	if (minute > 180)
-		minute = 180;
-
-	double rad = abs(minute) * M_PI / 180.0;
-	double sinus = sin(rad);
-
-	double lumi = LUMI ? (1 - 1 / LUMI) : 0;
-	int pv = sinus * peak * lumi;
-	xlog("minute=%d sin=%.2f pv=%d LUMI=%d lumi=%.1f", minute, sinus, pv, LUMI, lumi);
-	return pv;
-}
-
-static int mppt(int offset, int peak) {
-	return LUMI / 10;
-}
-
 static void* update(void *arg) {
 	int load = 0, grid = 0;
 
@@ -77,15 +56,17 @@ static void* update(void *arg) {
 		while (now_ts == time(NULL))
 			msleep(100);
 
-		int mppt1 = mppt(-3, 6000);
-		int mppt2 = mppt(0, 3000);
-		int mppt3 = mppt(3, 3000) / 2;
-		int mppt4 = mppt(6, 3000) / 2;
+		int mppt = LUMI / 10;
+		int mppt1 = mppt;
+		int mppt2 = mppt;
+		int mppt3 = mppt / 2;
+		int mppt4 = mppt / 2;
 
 		// simulate load change between 100 and 200 watts every 100 seconds
 		if (load == 0 || now_ts % 100 == 0) {
-			load = 100 + rand() % 100 + 1;
-			grid = (mppt1 + mppt2 + mppt3 + mppt4 - load) * -1;
+			load = (100 + rand() % 100 + 1) * -1;
+			grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
+			xlog("SOLAR simulator load=%d grid=%d", load, grid);
 		}
 
 		pthread_mutex_lock(&pstate_lock);
