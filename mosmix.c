@@ -419,12 +419,12 @@ void mosmix_load_history(struct tm *now) {
 	ZERO(history);
 	ZERO(today);
 	ZERO(tomorrow);
-	load_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	update_today_tomorrow_from_history(now);
 }
 
 void mosmix_store_history() {
-	store_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 }
 void mosmix_store_csv() {
 	store_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, RUN SLASH MOSMIX_HISTORY_CSV);
@@ -540,7 +540,7 @@ static void recalc() {
 	return;
 
 	ZERO(history);
-	load_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	mosmix_factors();
 
 	// recalc expected with new factors
@@ -590,14 +590,14 @@ static void migrate() {
 		n->mppt4 = o->mppt4;
 	}
 
-	store_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 }
 
 static void fix() {
 	return;
 
 	mosmix_t *m;
-	load_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
 	m = &history[152];
 	m->mppt3 = m->diff3 = 0;
@@ -611,7 +611,7 @@ static void fix() {
 //	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
 //	m->err1 = m->err2 = m->err3 = m->err4 = 100;
 
-	store_blob(WORK SLASH MOSMIX_HISTORY, history, sizeof(history));
+	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 }
 
 static void wget(struct tm *now, const char *id) {

@@ -57,8 +57,8 @@
 #define BUFSIZE			256
 #define SLASH			"/"
 
-#ifndef WORK
-#define WORK			"/work"
+#ifndef STATE
+#define STATE			"/var/lib/mcp"
 #endif
 
 #ifndef RUN

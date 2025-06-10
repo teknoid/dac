@@ -5,7 +5,9 @@ After=mpd.service network-online.target
 [Service]
 Type=simple
 User=hje
+StateDirectory=mcp
 RuntimeDirectory=mcp
+RuntimeDirectoryPreserve=yes
 ExecStart=/usr/local/bin/mcp
 #ExecStartPre=/usr/bin/ir-keytable -c -w /etc/rc_keymaps/universum
 

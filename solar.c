@@ -770,10 +770,10 @@ static void daily() {
 	// recalculate mosmix factors
 	mosmix_factors();
 
-	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
 	// compare counters, clear self counter, copy self and meter counter to NULL entry
 	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4, CS_DAY->consumed, CS_DAY->produced);
@@ -1049,10 +1049,10 @@ static int init() {
 	ZERO(gstate_hours);
 	ZERO(counter);
 
-	load_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	load_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	load_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	load_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
+	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
 
 	mosmix_load_history(now);
 	mosmix_factors();
@@ -1068,10 +1068,10 @@ static int init() {
 
 static void stop() {
 	// saving state this is the most important !!!
-	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	mosmix_store_history();
 
 	if (sock)
@@ -1138,9 +1138,9 @@ static int fake() {
 	for (int i = 0; i < 60; i++)
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
 
-	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
 	return 0;
 }

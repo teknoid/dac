@@ -306,17 +306,11 @@ static void module_loop(mcp_module_t *m) {
 
 static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
-	xlog("MCP saving runtime directory %s to %s", RUN, TMP);
-	system("cp -arf " RUN " " TMP);
 }
 
 int main(int argc, char **argv) {
 	// set_debug(1);
 	xlog("MCP startup");
-
-	// restore runtime directory
-	xlog("MCP restoring runtime directory %s from %s", RUN, TMP);
-	system("cp -arf " TMP "/mcp/* " RUN);
 
 	// allocate global data exchange structures
 	cfg = malloc(sizeof(*cfg));
