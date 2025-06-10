@@ -1,12 +1,12 @@
-// hexdump -v -e '7 "%10d ""\n"' /work/solar-counter.bin
+// hexdump -v -e '7 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '17 "%6d ""\n"' /work/solar-gstate.bin
+// hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
 #define GSTATE_FILE				"solar-gstate.bin"
 #define GSTATE_TODAY_CSV		"gstate-today.csv"
 #define GSTATE_WEEK_CSV			"gstate-week.csv"
 
-// hexdump -v -e '30 "%6d ""\n"' /work/solar-pstate*.bin
+// hexdump -v -e '30 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"

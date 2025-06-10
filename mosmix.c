@@ -472,7 +472,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static void test() {
-//	return;
+	return;
 
 	int x = 3333;
 	int f = 222;
@@ -488,7 +488,7 @@ static void test() {
 	// load state and update forecasts
 	mosmix_load_history(now);
 	mosmix_factors();
-	mosmix_load(now, MARIENBERG, 1);
+	mosmix_load(now, WORK SLASH MARIENBERG, 1);
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;
@@ -657,7 +657,7 @@ static int diffs(int d) {
 }
 
 static void compare() {
-	return;
+	// return;
 
 	// define local time object
 	struct tm now_tm, *now = &now_tm;
@@ -667,11 +667,11 @@ static void compare() {
 	mosmix_load_history(now);
 
 	wget(now, "10577");
-	mosmix_load(now, TMP SLASH "CHEMNITZ.csv", 1);
+	mosmix_load(now, TMP SLASH CHEMNITZ, 1);
 	int dc = diffs(now->tm_wday);
 
 	wget(now, "10579");
-	mosmix_load(now, TMP SLASH "/MARIENBERG.csv", 1);
+	mosmix_load(now, TMP SLASH MARIENBERG, 1);
 	int dm = diffs(now->tm_wday);
 
 	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);

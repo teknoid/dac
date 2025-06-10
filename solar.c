@@ -835,7 +835,7 @@ static void hourly() {
 	akku_strategy();
 
 	// reload and update mosmix history, clear at midnight
-	mosmix_load(now, MARIENBERG, now->tm_hour == 0);
+	mosmix_load(now, WORK SLASH MARIENBERG, now->tm_hour == 0);
 #ifdef COUNTER_METER
 	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 #else
@@ -1061,7 +1061,7 @@ static int init() {
 
 	mosmix_load_history(now);
 	mosmix_factors();
-	mosmix_load(now, MARIENBERG, 0);
+	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	collect_loads();
 
 	// call implementation specific init() function

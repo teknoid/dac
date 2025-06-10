@@ -2,7 +2,7 @@
 #include <mpd/status.h>
 
 // defaults for testing
-//#define WORK			"/work/simulator"
+//#define STATE				"/work/simulator"
 //#define RUN				"/work/simulator"
 
 //#define ANUS
@@ -71,6 +71,10 @@
 
 #ifndef RAM
 #define RAM				"/ram"
+#endif
+
+#ifndef WORK
+#define WORK			"/work"
 #endif
 
 // register a module in the MCP's execution context

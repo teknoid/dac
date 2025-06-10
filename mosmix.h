@@ -1,10 +1,10 @@
-#define CHEMNITZ				"/work/CHEMNITZ.csv"
-#define MARIENBERG				"/work/MARIENBERG.csv"
-#define BRAUNSDORF				"/work/BRAUNSDORF.csv"
+#define CHEMNITZ				"CHEMNITZ.csv"
+#define MARIENBERG				"MARIENBERG.csv"
+#define BRAUNSDORF				"BRAUNSDORF.csv"
 
 #define MOSMIX_COLUMNS			6
 
-// hexdump -v -e '18 "%6d ""\n"' /work/solar-mosmix-history.bin
+// hexdump -v -e '18 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
 #define MOSMIX_HISTORY			"solar-mosmix-history.bin"
 #define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
 #define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
