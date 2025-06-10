@@ -44,10 +44,11 @@ static int collect_models(sunspec_t *ss) {
 	xlog("SUNSPEC %s found 'SunS' at address %d", ss->name, address);
 	address += 2;
 
-	pthread_mutex_lock(&ss->lock);
-
 	while (1) {
+		pthread_mutex_lock(&ss->lock);
 		rc = modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
+		pthread_mutex_unlock(&ss->lock);
+
 		if (rc == -1)
 			return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
@@ -174,7 +175,6 @@ static int collect_models(sunspec_t *ss) {
 		address += *size + 2;
 	}
 
-	pthread_mutex_unlock(&ss->lock);
 	return 0;
 }
 
@@ -319,7 +319,13 @@ static void* poll(void *arg) {
 			continue;
 		}
 
-		collect_models(ss);
+		if (collect_models(ss) == -1) {
+			xlog("SUNSPEC collect_models() error: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+			modbus_free(ss->mb);
+			ss->mb = 0;
+			sleep(CONNECT_RETRY_TIME);
+			continue;
+		}
 
 		// read static models once
 		errors_all += read_common(ss);
