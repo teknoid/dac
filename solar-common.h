@@ -114,13 +114,13 @@ typedef struct _counter counter_t;
 #define COUNTER_SIZE		(sizeof(counter_t) / sizeof(int))
 #define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4    pv"
 struct _counter {
-	int produced;
-	int consumed;
-	int mppt1;
-	int mppt2;
-	int mppt3;
-	int mppt4;
-	int pv;
+	unsigned int produced;
+	unsigned int consumed;
+	unsigned int mppt1;
+	unsigned int mppt2;
+	unsigned int mppt3;
+	unsigned int mppt4;
+	unsigned int pv;
 };
 static counter_t counter[10];
 // self counter 1-5
