@@ -774,7 +774,9 @@ static void daily() {
 	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
-	// clear self counter, copy self and meter counter to NULL entry
+	// compare counters, clear self counter, copy self and meter counter to NULL entry
+	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4, CS_DAY->consumed, CS_DAY->produced);
+	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4, CM_DAY->consumed, CM_DAY->produced);
 	ZEROP(CS_NOW);
 	memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 	memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
