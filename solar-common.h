@@ -9,6 +9,8 @@
 // hexdump -v -e '30 "%6d ""\n"' /work/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
+#define PSTATE_S_FILE			"solar-pstate-seconds.bin"
+#define PSTATE_FILE				"solar-pstate.bin"
 
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define LOADS_CSV				"loads.csv"

@@ -775,6 +775,8 @@ static void daily() {
 	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
 	// compare counters, clear self counter, copy self and meter counter to NULL entry
 	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4, CS_DAY->consumed, CS_DAY->produced);
@@ -1054,6 +1056,8 @@ static int init() {
 	load_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	load_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
 	mosmix_load_history(now);
 	mosmix_factors();
@@ -1073,6 +1077,8 @@ static void stop() {
 	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 	mosmix_store_history();
 
 	if (sock)
@@ -1136,12 +1142,16 @@ static int fake() {
 		memcpy(&gstate_hours[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
 		memcpy(&pstate_hours[i], (void*) pstate, sizeof(pstate_t));
-	for (int i = 0; i < 60; i++)
+	for (int i = 0; i < 60; i++) {
 		memcpy(&pstate_minutes[i], (void*) pstate, sizeof(pstate_t));
+		memcpy(&pstate_seconds[i], (void*) pstate, sizeof(pstate_t));
+	}
 
 	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
 	return 0;
 }
