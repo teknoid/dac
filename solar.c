@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <signal.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
@@ -13,9 +14,9 @@
 #include "solar.h"
 #include "mcp.h"
 
-#include "solar-tron25-modbus.h"
+//#include "solar-tron25-modbus.h"
 //#include "solar-tron25-api.h"
-//#include "solar-simulator.h"
+#include "solar-simulator.h"
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -888,15 +889,6 @@ static void minly() {
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
 		akku_discharge();
-
-#ifdef SOLAR_MAIN
-	// workaround stop() is not called when hitting CTRL-C
-	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_history();
-#endif
 }
 
 static void aggregate_mhd() {
@@ -1437,10 +1429,31 @@ int ramp_akku(device_t *akku, int power) {
 	return 0;
 }
 
+static void sig_handler(int signo) {
+	xlog("SOLAR received signal %d", signo);
+	stop();
+	xlog("SOLAR done");
+	exit(0);
+}
+
 int solar_main(int argc, char **argv) {
 	// restore runtime directory
 	xlog("SOLAR restoring runtime directory %s from %s", RUN, TMP);
 	system("cp -rf " TMP "/mcp/* " RUN);
+
+	// install signal handler
+	if (signal(SIGINT, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGINT");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGTERM, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGTERM");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGHUP");
+		exit(EXIT_FAILURE);
+	}
 
 	// no arguments - run one single roundtrip
 	if (argc == 1)
