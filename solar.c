@@ -858,10 +858,6 @@ static void hourly() {
 	system(GNUPLOT);
 #endif
 
-	// workaround to keep pstate-minutes.csv due to /run/mcp get's immediately deleted at stop/kill
-	xlog("SOLAR saving runtime directory %s to %s", RUN, TMP);
-	system("cp -rf " RUN " " TMP);
-
 	PROFILING_LOG("SOLAR hourly");
 }
 
@@ -1437,10 +1433,6 @@ static void sig_handler(int signo) {
 }
 
 int solar_main(int argc, char **argv) {
-	// restore runtime directory
-	xlog("SOLAR restoring runtime directory %s from %s", RUN, TMP);
-	system("cp -rf " TMP "/mcp/* " RUN);
-
 	// install signal handler
 	if (signal(SIGINT, sig_handler) == SIG_ERR) {
 		xlog("can't catch SIGINT");

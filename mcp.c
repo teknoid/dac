@@ -180,15 +180,6 @@ void mcp_system_reboot() {
 	system("shutdown -r now");
 }
 
-void mcp_save_run() {
-	xlog("MCP saving runtime directory %s to %s", RUN, TMP);
-	system("cp -rf " RUN " " TMP);
-}
-
-static void sig_handler(int signo) {
-	xlog("MCP received signal %d", signo);
-}
-
 static void interactive() {
 	struct termios new_io;
 	struct termios old_io;
@@ -313,9 +304,19 @@ static void module_loop(mcp_module_t *m) {
 		module_loop(m->next);
 }
 
+static void sig_handler(int signo) {
+	xlog("MCP received signal %d", signo);
+	xlog("MCP saving runtime directory %s to %s", RUN, TMP);
+	system("cp -arf " RUN " " TMP);
+}
+
 int main(int argc, char **argv) {
 	// set_debug(1);
 	xlog("MCP startup");
+
+	// restore runtime directory
+	xlog("MCP restoring runtime directory %s from %s", RUN, TMP);
+	system("cp -arf " TMP "/mcp/* " RUN);
 
 	// allocate global data exchange structures
 	cfg = malloc(sizeof(*cfg));
@@ -360,10 +361,6 @@ int main(int argc, char **argv) {
 		xlog("can't catch SIGHUP");
 		exit(EXIT_FAILURE);
 	}
-
-	// restore runtime directory
-	xlog("MCP restoring runtime directory %s from %s", RUN, TMP);
-	system("cp -rf " TMP "/mcp/* " RUN);
 
 	// initialize all modules
 	module_init(module);
