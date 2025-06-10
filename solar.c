@@ -1075,9 +1075,6 @@ static int init() {
 	if (solar_init() != 0)
 		return -1;
 
-	// wait for collecting models and generating first pstate data
-	sleep(5);
-
 	return 0;
 }
 

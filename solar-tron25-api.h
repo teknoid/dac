@@ -272,6 +272,8 @@ static void* update(void *arg) {
 }
 
 static int solar_init() {
+	ZERO(raw);
+
 	// libcurl handle for inverter1 API
 	curl1 = curl_init(URL_READABLE_INVERTER1, &memory);
 	if (curl1 == NULL)
@@ -285,6 +287,16 @@ static int solar_init() {
 	// start updater thread
 	if (pthread_create(&thread_update, NULL, &update, NULL))
 		return xerr("Error creating thread_update");
+
+	// do not continue before we have SoC value from Fronius10
+	int retry = 10;
+	while (--retry) {
+		if (r->soc > 1.0)
+			break;
+		sleep(1);
+	}
+	if (!retry)
+		return xerr("No SoC from Fronius10");
 
 	return 0;
 }

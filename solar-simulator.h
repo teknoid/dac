@@ -97,13 +97,14 @@ static void* update(void *arg) {
 }
 
 static int solar_init() {
+	// initialize random number generator
+	srand(time(NULL));
+
 	// start updater thread
 	if (pthread_create(&thread_update, NULL, &update, NULL))
 		return xerr("Error creating thread_update");
 
-	// initialize random number generator
-	srand(time(NULL));
-
+	sleep(1);
 	return 0;
 }
 
