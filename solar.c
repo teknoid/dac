@@ -770,6 +770,7 @@ static void daily() {
 	// recalculate mosmix factors
 	mosmix_factors();
 
+	// store state at least once per day
 	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
 	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
@@ -1049,10 +1050,10 @@ static int init() {
 	ZERO(gstate_hours);
 	ZERO(counter);
 
-	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	load_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	load_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 
 	mosmix_load_history(now);
 	mosmix_factors();
