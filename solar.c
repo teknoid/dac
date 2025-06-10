@@ -886,6 +886,15 @@ static void minly() {
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
 		akku_discharge();
+
+#ifdef SOLAR_MAIN
+	// workaround stop() is not called when hitting CTRL-C
+	store_blob(WORK SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(WORK SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(WORK SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(WORK SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	mosmix_store_history();
+#endif
 }
 
 static void aggregate_mhd() {
