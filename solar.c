@@ -799,7 +799,7 @@ static void hourly() {
 	CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 	CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
 	memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
-	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt3, CS_HOUR->consumed, CS_HOUR->produced);
+	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4, CS_HOUR->consumed, CS_HOUR->produced);
 
 	// meter counter for last hour
 	CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
@@ -810,7 +810,7 @@ static void hourly() {
 	CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
 	CM_HOUR->pv = CM_HOUR->mppt1 + CM_HOUR->mppt2 + CM_HOUR->mppt3 + CM_HOUR->mppt4;
 	memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
-	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt3, CM_HOUR->consumed, CM_HOUR->produced);
+	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4, CM_HOUR->consumed, CM_HOUR->produced);
 
 	// copy gstate to history
 	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
