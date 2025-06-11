@@ -63,11 +63,9 @@ static void* update(void *arg) {
 		int mppt4 = mppt / 2;
 
 		// simulate load change between 100 and 200 watts every 100 seconds
-		if (load == 0 || now_ts % 100 == 0) {
+		if (load == 0 || now_ts % 100 == 0)
 			load = (100 + rand() % 100 + 1) * -1;
-			grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
-			xlog("SOLAR simulator load=%d grid=%d", load, grid);
-		}
+		grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
 
 		pthread_mutex_lock(&pstate_lock);
 
