@@ -687,7 +687,7 @@ static void calculate_pstate() {
 
 	// no further calculations while invalid
 	if (!PSTATE_VALID) {
-		lock = WAIT_INVALID;
+		lock = WAIT_INVALID; // load timer
 		return;
 	}
 
@@ -924,7 +924,7 @@ static void aggregate_mhd() {
 }
 
 static void solar() {
-	time_t ts_now;
+	time_t now_ts;
 	device_t *device = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -934,11 +934,11 @@ static void solar() {
 
 	// the SOLAR main loop
 	while (1) {
-		PROFILING_START
+		// PROFILING_START
 
 		// get actual time and store global
-		ts_now = time(NULL);
-		localtime_r(&ts_now, &now_tm);
+		now_ts = time(NULL);
+		localtime_r(&now_ts, &now_tm);
 
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
@@ -1015,10 +1015,10 @@ static void solar() {
 		create_gstate_json();
 		create_powerflow_json();
 
-		PROFILING_LOG("SOLAR main loop")
+		// PROFILING_LOG("SOLAR main loop")
 
 		// wait for next second
-		while (ts_now == time(NULL))
+		while (now_ts == time(NULL))
 			msleep(100);
 	}
 }
@@ -1032,8 +1032,8 @@ static int init() {
 		return xerr("Error creating socket");
 
 	// initialize global time structure
-	time_t ts_now = time(NULL);
-	localtime_r(&ts_now, now);
+	time_t now_ts = time(NULL);
+	localtime_r(&now_ts, &now_tm);
 
 	// initialize all devices with start values
 	xlog("SOLAR initializing devices");

@@ -364,8 +364,9 @@ int mosmix_heating(struct tm *now, int power) {
 
 // sum up 24 mosmix slots for one day (with offset)
 void mosmix_24h(int day, mosmix_csv_t *sum) {
-	// calculate today 0:00:00 as start and +24h as end time frame
 	LOCALTIME
+
+	// calculate today 0:00:00 as start and +24h as end time frame
 	now->tm_hour = now->tm_min = now->tm_sec = 0;
 	time_t ts_from = mktime(now) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
@@ -471,16 +472,13 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 static void test() {
 	return;
 
+	LOCALTIME
+
 	int x = 3333;
 	int f = 222;
 	printf("io  %d\n", x * f / 100);
 	printf("io  %d\n", (x * f) / 100);
 	printf("nio %d\n", x * (f / 100));
-
-	// define local time object
-	struct tm now_tm, *now = &now_tm;
-	time_t now_ts = time(NULL);
-	localtime_r(&now_ts, now);
 
 	// load state and update forecasts
 	mosmix_load_history(now);
@@ -656,11 +654,9 @@ static int diffs(int d) {
 static void compare() {
 	// return;
 
-	// define local time object
-	struct tm now_tm, *now = &now_tm;
-	time_t now_ts = time(NULL);
-	localtime_r(&now_ts, now);
+	LOCALTIME
 
+	// load state
 	mosmix_load_history(now);
 
 	wget(now, "10577");
