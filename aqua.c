@@ -98,16 +98,14 @@ static void loop() {
 
 	// the AQUA main loop
 	while (1) {
-
-		time_t now_ts = time(NULL);
-		struct tm *ltstatic = localtime(&now_ts);
+		LOCALTIME
 
 		// first run on next full hour
 		if (hour == -1)
-			hour = ltstatic->tm_hour;
+			hour = now->tm_hour;
 
-		if (hour != ltstatic->tm_hour) {
-			hour = ltstatic->tm_hour;
+		if (hour != now->tm_hour) {
+			hour = now->tm_hour;
 			process(hour);
 		}
 

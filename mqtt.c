@@ -24,6 +24,8 @@
 #include "lcd.h"
 #include "mcp.h"
 
+#define LUMI				sensors->bh1750_lux
+
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
 //
@@ -156,7 +158,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
 	if (mac == MAC_HANDY)
-		if (sensors->bh1750_lux < DARKNESS)
+		if (LUMI < DARKNESS)
 			tasmota_power(HOFLICHT, 0, 1);
 
 	return 0;

@@ -54,9 +54,9 @@ static void webcam() {
 		webcam_stop();
 
 	while (1) {
-		time_t now_ts = time(NULL);
-		struct tm *ltstatic = localtime(&now_ts);
-		int afternoon = ltstatic->tm_hour < 12 ? 0 : 1;
+		LOCALTIME
+
+		int afternoon = now->tm_hour < 12 ? 0 : 1;
 
 		if (afternoon && webcam_on) {
 			// evening and on --> check if need to switch off

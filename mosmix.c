@@ -364,13 +364,10 @@ int mosmix_heating(struct tm *now, int power) {
 
 // sum up 24 mosmix slots for one day (with offset)
 void mosmix_24h(int day, mosmix_csv_t *sum) {
-	struct tm tm;
-
 	// calculate today 0:00:00 as start and +24h as end time frame
-	time_t now_ts = time(NULL);
-	localtime_r(&now_ts, &tm);
-	tm.tm_hour = tm.tm_min = tm.tm_sec = 0;
-	time_t ts_from = mktime(&tm) + 60 * 60 * 24 * day;
+	LOCALTIME
+	now->tm_hour = now->tm_min = now->tm_sec = 0;
+	time_t ts_from = mktime(now) + 60 * 60 * 24 * day;
 	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
 
 	ZEROP(sum);

@@ -52,6 +52,16 @@
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
 
+#define LOCALTIME \
+		time_t ts_now = time(NULL); \
+		struct tm tm_now, *now = &tm_now; \
+		localtime_r(&ts_now, &tm_now);
+
+#define WAIT_NEXT_SECOND	\
+		time_t ts_now = time(NULL); \
+		while (ts_now == time(NULL)) \
+			msleep(100);
+
 #define PROFILING_START \
 		struct timespec ts_profiling; \
 		int64_t ts_profiling_start, ts_profiling_end, ts_profiling_ns, ts_profiling_us, ts_profiling_ms; \

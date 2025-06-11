@@ -50,11 +50,7 @@ static void* update(void *arg) {
 	}
 
 	while (1) {
-
-		// wait for next second
-		time_t now_ts = time(NULL);
-		while (now_ts == time(NULL))
-			msleep(100);
+		WAIT_NEXT_SECOND
 
 		int mppt = LUMI / 10;
 		int mppt1 = mppt;
@@ -63,7 +59,7 @@ static void* update(void *arg) {
 		int mppt4 = mppt / 2;
 
 		// simulate load change between 100 and 200 watts every 100 seconds
-		if (load == 0 || now_ts % 100 == 0)
+		if (load == 0 || ts_now % 100 == 0)
 			load = (100 + rand() % 100 + 1) * -1;
 		grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
 

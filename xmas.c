@@ -151,9 +151,7 @@ static void xmas() {
 	}
 
 	while (1) {
-		time_t now_ts = time(NULL);
-		struct tm *ltstatic = localtime(&now_ts);
-		int h = ltstatic->tm_hour, m = ltstatic->tm_min, wday = ltstatic->tm_wday;
+		LOCALTIME
 
 		for (int i = 0; i < ARRAY_SIZE(timings); i++) {
 			const xmas_timing_t *timing = &timings[i];
@@ -161,11 +159,11 @@ static void xmas() {
 			if (!timing->active)
 				continue;
 
-			if (wday != timing->wday)
+			if (now->tm_wday != timing->wday)
 				continue;
 
 			// xlog("processing timing[%i]", i);
-			process(h, m, timing);
+			process(now->tm_hour, now->tm_min, timing);
 		}
 
 		sleep(60);

@@ -86,13 +86,12 @@ static void loop() {
 	}
 
 	while (1) {
-		time_t now_ts = time(NULL);
-		struct tm *ltstatic = localtime(&now_ts);
+		LOCALTIME
 
-		if (SUMMER.months[ltstatic->tm_mon])
-			summer(ltstatic, &SUMMER);
-		else if (WINTER.months[ltstatic->tm_mon])
-			winter(ltstatic, &WINTER);
+		if (SUMMER.months[now->tm_mon])
+			summer(now, &SUMMER);
+		else if (WINTER.months[now->tm_mon])
+			winter(now, &WINTER);
 
 		sleep(60);
 	}

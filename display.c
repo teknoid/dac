@@ -264,10 +264,9 @@ static void clear_clocktick() {
 }
 
 static void get_system_status() {
-	time_t now_ts = time(NULL);
-	struct tm *ltstatic = localtime(&now_ts);
-	mcp->clock_h = ltstatic->tm_hour;
-	mcp->clock_m = ltstatic->tm_min;
+	LOCALTIME
+	mcp->clock_h = now->tm_hour;
+	mcp->clock_m = now->tm_min;
 
 	if (mcp->clock_h >= 8 && mcp->clock_h < 22)
 		mcp->nightmode = 0;

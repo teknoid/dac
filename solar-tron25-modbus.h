@@ -190,14 +190,15 @@ static int solar_init() {
 		return xerr("No connection to Fronius10");
 
 	// do not continue before we have SoC value from Fronius10
-	int retry = 10;
+	int retry = 100;
 	while (--retry) {
+		msleep(100);
 		if (inverter1->storage != 0 && inverter1->storage->ChaState != 0)
 			break;
-		sleep(1);
 	}
 	if (!retry)
 		return xerr("No SoC from Fronius10");
+	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
 
 	return 0;
 }

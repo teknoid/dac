@@ -185,15 +185,11 @@ static void* update(void *arg) {
 	}
 
 	while (1) {
+		WAIT_NEXT_SECOND
 
 		// skip wait to get fresh pstate data
 		if (lock || pstate->grid > NOISE)
 			wait = 0;
-
-		// wait for next second
-		time_t now_ts = time(NULL);
-		while (now_ts == time(NULL))
-			msleep(100);
 
 		// wait
 		if (wait--)
@@ -264,10 +260,10 @@ static void* update(void *arg) {
 		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
 		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", cm->mppt1, cm->mppt2, cm->mppt3, cm->mppt4, cm->consumed, cm->produced);
 
-		PROFILING_LOG("SOLAR update")
-
 		// offline / default
 		wait = offline ? 300 : 30;
+
+		PROFILING_LOG("SOLAR update")
 	}
 }
 
@@ -289,14 +285,15 @@ static int solar_init() {
 		return xerr("Error creating thread_update");
 
 	// do not continue before we have SoC value from Fronius10
-	int retry = 10;
+	int retry = 100;
 	while (--retry) {
+		msleep(100);
 		if (r->soc > 1.0)
 			break;
-		sleep(1);
 	}
 	if (!retry)
 		return xerr("No SoC from Fronius10");
+	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
 
 	return 0;
 }
