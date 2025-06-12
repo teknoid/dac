@@ -80,8 +80,8 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 
 		// dissipation
-		int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
-		xlog("SOLAR Inverter1 dissipation=%d", dissipation);
+		// int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
+		// xlog("SOLAR Inverter1 dissipation=%d", dissipation);
 
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
@@ -130,8 +130,8 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
 		// dissipation
-		int dissipation = pstate->dc1 - pstate->ac1;
-		xlog("SOLAR Inverter2 dissipation=%d", dissipation);
+		// int dissipation = pstate->dc1 - pstate->ac1;
+		// xlog("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
