@@ -342,7 +342,8 @@ static void* poll(void *arg) {
 			errors_now = 0;
 			errors_now += read_inverter(ss);
 			errors_now += read_mppt(ss);
-			errors_now += read_storage(ss);
+			if (ss->ts % 60 == 0)
+				errors_now += read_storage(ss); // storage once per minute
 			errors_now += read_meter(ss);
 			errors_all += errors_now;
 
