@@ -115,7 +115,7 @@ typedef struct sunspec_settings_t {
 	int16_t MaxRmpRte_SF;
 	int16_t ECPNomHz_SF;
 } sunspec_settings_t;
-#define SUNSPEC_settings_SIZE				(sizeof(sunspec_settings_t))
+#define SUNSPEC_SETTINGS_SIZE				(sizeof(sunspec_settings_t))
 
 typedef struct sunspec_status_t {
 	uint16_t ID;
@@ -171,7 +171,7 @@ typedef struct sunspec_controls_t {
 	int16_t OutPFSet_SF;
 	int16_t VArPct_SF;
 } sunspec_controls_t;
-#define SUNSPEC_controls_SIZE			(sizeof(sunspec_controls_t))
+#define SUNSPEC_CONTROLS_SIZE			(sizeof(sunspec_controls_t))
 
 typedef struct sunspec_inverter_t {
 	uint16_t ID;

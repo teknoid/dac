@@ -114,11 +114,11 @@ static int collect_models(sunspec_t *ss) {
 			ss->settings_size = *size;
 			ss->settings_id = *id;
 			if (!ss->settings)
-				ss->settings = malloc(SUNSPEC_settings_SIZE);
+				ss->settings = malloc(SUNSPEC_SETTINGS_SIZE);
 			ZEROP(ss->settings);
 			xlog("SUNSPEC %s found Settings(%03d) model size %d at address %d", ss->name, *id, *size, address);
-			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_settings_SIZE)
-				xlog("SUNSPEC %s WARNING! Settings(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_settings_SIZE);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_SETTINGS_SIZE)
+				xlog("SUNSPEC %s WARNING! Settings(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_SETTINGS_SIZE);
 			break;
 
 		case 122:
@@ -138,11 +138,11 @@ static int collect_models(sunspec_t *ss) {
 			ss->controls_size = *size;
 			ss->controls_id = *id;
 			if (!ss->controls)
-				ss->controls = malloc(SUNSPEC_controls_SIZE);
+				ss->controls = malloc(SUNSPEC_CONTROLS_SIZE);
 			ZEROP(ss->controls);
 			xlog("SUNSPEC %s found Controls(%03d) model size %d at address %d", ss->name, *id, *size, address);
-			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_controls_SIZE)
-				xlog("SUNSPEC %s WARNING! Controls(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_controls_SIZE);
+			if (*size * sizeof(uint16_t) + 4 != SUNSPEC_CONTROLS_SIZE)
+				xlog("SUNSPEC %s WARNING! Controls(%03d) size mismatch detected: model size %d storage size %d", ss->name, *id, *size, SUNSPEC_CONTROLS_SIZE);
 			break;
 
 		case 124:
