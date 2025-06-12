@@ -778,10 +778,15 @@ static void daily() {
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
 	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
-	// compare counters, clear self counter, copy self and meter counter to NULL entry
-	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4, CS_DAY->consumed, CS_DAY->produced);
-	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4, CM_DAY->consumed, CM_DAY->produced);
+	// compare daily self and meter counter
+	xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+	xlog("FRONIUS counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+
+	// reset self counter
 	ZEROP(CS_NOW);
+	ZEROP(CS_LAST);
+
+	// copy self and meter counter to NULL entry
 	memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 	memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 
@@ -796,6 +801,10 @@ static void hourly() {
 	PROFILING_START
 	xlog("SOLAR executing hourly tasks...");
 
+	// TODO differenz manchmal negativ - sind aber unsigned int !!!
+	xlog("FRONIUS counter self now  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_NOW->consumed, CS_NOW->produced, CS_NOW->mppt1, CS_NOW->mppt2, CS_NOW->mppt3, CS_NOW->mppt4);
+	xlog("FRONIUS counter self last cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_LAST->consumed, CS_LAST->produced, CS_LAST->mppt1, CS_LAST->mppt2, CS_LAST->mppt3, CS_LAST->mppt4);
+
 	// self counter for last hour
 	CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
 	CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
@@ -805,7 +814,6 @@ static void hourly() {
 	CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 	CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
 	memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
-	xlog("FRONIUS counter self  1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4, CS_HOUR->consumed, CS_HOUR->produced);
 
 	// meter counter for last hour
 	CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
@@ -816,7 +824,10 @@ static void hourly() {
 	CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
 	CM_HOUR->pv = CM_HOUR->mppt1 + CM_HOUR->mppt2 + CM_HOUR->mppt3 + CM_HOUR->mppt4;
 	memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
-	xlog("FRONIUS counter meter 1=%d 2=%d 3=%d 4=%d cons=%d prod=%d", CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4, CM_HOUR->consumed, CM_HOUR->produced);
+
+	// compare hourly self and meter counter
+	xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+	xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 
 	// copy gstate to history
 	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
@@ -1113,7 +1124,9 @@ static int single() {
 	rampdown();
 	rampup();
 	steal();
-
+	minly();
+	hourly();
+	daily();
 	print_gstate();
 	print_pstate_dstate(NULL);
 
