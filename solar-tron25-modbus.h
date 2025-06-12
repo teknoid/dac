@@ -79,6 +79,10 @@ static void update_inverter1(sunspec_t *ss) {
 		// TODO find sunspec register
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 
+		// dissipation
+		int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
+		xlog("SOLAR Inverter1 dissipation=%d", dissipation);
+
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
@@ -124,6 +128,10 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
+
+		// dissipation
+		int dissipation = pstate->dc1 - pstate->ac1;
+		xlog("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
@@ -184,6 +192,9 @@ static int solar_init() {
 	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
 	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
+
+	// use the same lock as both run against same IP address
+	meter->lock = inverter1->lock;
 
 	// stop if Fronius10 is not available
 	if (!inverter1)
