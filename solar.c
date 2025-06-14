@@ -807,10 +807,6 @@ static void hourly() {
 	PROFILING_START
 	xlog("SOLAR executing hourly tasks...");
 
-	// TODO differenz manchmal negativ - sind aber unsigned int !!!
-	xlog("FRONIUS counter self now  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_NOW->consumed, CS_NOW->produced, CS_NOW->mppt1, CS_NOW->mppt2, CS_NOW->mppt3, CS_NOW->mppt4);
-	xlog("FRONIUS counter self last cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_LAST->consumed, CS_LAST->produced, CS_LAST->mppt1, CS_LAST->mppt2, CS_LAST->mppt3, CS_LAST->mppt4);
-
 	// self counter for last hour
 	CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
 	CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
