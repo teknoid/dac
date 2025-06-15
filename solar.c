@@ -795,8 +795,8 @@ static void daily() {
 	print_gstate();
 
 	// save pstate SVG
-	char command[64];
-	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, '0' + now->tm_wday);
+	char command[64], c = '0' + now->tm_wday > 0 ? now->tm_wday - 1 : 6;
+	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
 	system(command);
 	xdebug("SOLAR saved pstate SVG: %s", command);
 

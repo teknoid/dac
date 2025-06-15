@@ -292,10 +292,31 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		mosmix_t *m1 = TOMORROW(h);
 		sum(&sum_today, m0);
 		sum(&sum_tomorrow, m1);
-		if (h <= now->tm_hour)
+		int hnext = now->tm_hour < 23 ? now->tm_hour + 1 : 0;
+		if (h < hnext)
+			// full elapsed hours into sod
 			sum(&msod, m0);
-		else
+		else if (h > hnext)
+			// full remaining hours into eod
 			sum(&meod, m0);
+		else {
+			// current hour - split at current minute
+			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
+			int xs2 = m0->exp2 * now->tm_min / 60, xe2 = m0->exp2 - xs2;
+			int xs3 = m0->exp3 * now->tm_min / 60, xe3 = m0->exp3 - xs3;
+			int xs4 = m0->exp4 * now->tm_min / 60, xe4 = m0->exp4 - xs4;
+			// elapsed minutes into sod
+			msod.exp1 += xs1;
+			msod.exp2 += xs2;
+			msod.exp3 += xs3;
+			msod.exp4 += xs4;
+			// remaining minutes into eod
+			meod.exp1 += xe1;
+			meod.exp2 += xe2;
+			meod.exp3 += xe3;
+			meod.exp4 += xe4;
+			xlog("MOSMIX mosmix_collect() hnext=%d m=%d exp1=%d, xs1=%d xe1=%d", hnext, now->tm_min, m0->exp1, xs1, xe1);
+		}
 	}
 
 	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
