@@ -21,6 +21,7 @@ set style line 3 linecolor "orange-red" lw 1			# Grid download
 set style line 4 linecolor "orchid" lw 1				# Grid upload
 set style line 5 linecolor "navy" lw 1					# Load
 set style line 6 linecolor "olive" lw 1					# SoC
+set style line 7 linecolor "magenta" lw 1				# Success
 set style line 8 linecolor "orange-red" lw 6			# Rad1h over SunD1
 set style line 9 linecolor "black" lw 1
 
@@ -132,6 +133,7 @@ p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
       '' u 1:(0):"grid" w filledc above ls 4,\
       '' u 1:"load" t "load" w lines ls 5,\
       '' u 1:"soc"  t "soc"  w lines ls 6 axes x1y2,\
+      '' u 1:"succ" t "succ" w lines ls 7 axes x1y2,\
       50 w lines lt rgb "#f08080" axes x1y2
       
 set ylabel "Grid - Power"

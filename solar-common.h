@@ -194,7 +194,7 @@ typedef struct gstate_old_t {
 // pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc  succ flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -225,6 +225,7 @@ struct _pstate {
 	int f;
 	int ramp;
 	int soc;
+	int success;
 	int flags;
 };
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;

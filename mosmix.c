@@ -279,32 +279,53 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	}
 }
 
-// collect total expected today, tomorrow and till end of day / start of day
+// backward compatibility
 void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *eod) {
-	mosmix_t sum_today, sum_tomorrow, msod, meod;
+	mosmix_today_tomorrow(itoday, itomorrow);
+	mosmix_sod_eod(now, sod, eod);
+}
+
+// collect total expected today and tomorrow
+void mosmix_today_tomorrow(int *itoday, int *itomorrow) {
+	mosmix_t sum_today, sum_tomorrow;
 	ZERO(sum_today);
 	ZERO(sum_tomorrow);
-	ZERO(msod);
-	ZERO(meod);
 
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m0 = TODAY(h);
 		mosmix_t *m1 = TOMORROW(h);
 		sum(&sum_today, m0);
 		sum(&sum_tomorrow, m1);
+	}
+
+	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
+	*itomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
+	xdebug("MOSMIX today=%d tomorrow=%d", *itoday, *itomorrow);
+}
+
+// collect expected till now (sod - start of day) and till end of day (eod)
+void mosmix_sod_eod(struct tm *now, int *sod, int *eod) {
+	mosmix_t sum_today, msod, meod;
+	ZERO(sum_today);
+	ZERO(msod);
+	ZERO(meod);
+
+	for (int h = 0; h < 24; h++) {
+		mosmix_t *m = TODAY(h);
+		sum(&sum_today, m);
 		int hnext = now->tm_hour < 23 ? now->tm_hour + 1 : 0;
 		if (h < hnext)
 			// full elapsed hours into sod
-			sum(&msod, m0);
+			sum(&msod, m);
 		else if (h > hnext)
 			// full remaining hours into eod
-			sum(&meod, m0);
+			sum(&meod, m);
 		else {
 			// current hour - split at current minute
-			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
-			int xs2 = m0->exp2 * now->tm_min / 60, xe2 = m0->exp2 - xs2;
-			int xs3 = m0->exp3 * now->tm_min / 60, xe3 = m0->exp3 - xs3;
-			int xs4 = m0->exp4 * now->tm_min / 60, xe4 = m0->exp4 - xs4;
+			int xs1 = m->exp1 * now->tm_min / 60, xe1 = m->exp1 - xs1;
+			int xs2 = m->exp2 * now->tm_min / 60, xe2 = m->exp2 - xs2;
+			int xs3 = m->exp3 * now->tm_min / 60, xe3 = m->exp3 - xs3;
+			int xs4 = m->exp4 * now->tm_min / 60, xe4 = m->exp4 - xs4;
 			// elapsed minutes into sod
 			msod.exp1 += xs1;
 			msod.exp2 += xs2;
@@ -318,15 +339,14 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		}
 	}
 
-	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
-	*itomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
 	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
 	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
-	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
+	xdebug("MOSMIX sod=%d eod=%d", *sod, *eod);
 
 	// validate
-	if (*itoday != *sod + *eod)
-		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
+	int itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
+	if (itoday != *sod + *eod)
+		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", itoday, *sod, *eod);
 }
 
 // night: collect hours where pv cannot satisfy load
@@ -513,31 +533,32 @@ static void test() {
 	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
 	int itoday, itomorrow, sod, eod;
+	mosmix_today_tomorrow(&itoday, &itomorrow);
 
 	// calculate expected today and tomorrow
 	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_sod_eod(now, &sod, &eod);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
 	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_sod_eod(now, &sod, &eod);
 
 	now->tm_hour = 9;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_sod_eod(now, &sod, &eod);
 
 	now->tm_hour = 12;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_sod_eod(now, &sod, &eod);
 
 	now->tm_hour = 15;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_sod_eod(now, &sod, &eod);
 
 	mosmix_dump_history_full(now);
 	mosmix_dump_history_hours(9);

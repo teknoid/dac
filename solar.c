@@ -147,9 +147,9 @@ static void print_gstate() {
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 	xlogl_bits16(line, "  flags", gstate->flags);
 	strcat(line, " ");
-	xlogl_float_noise(line, 0.1, 0, "Success", FLOAT100(gstate->success));
-	xlogl_float_noise(line, 0.0, 0, "Survive", FLOAT100(gstate->survive));
-	xlogl_float_noise(line, 0.0, 0, "Heating", FLOAT100(gstate->heating));
+	xlogl_float_noise(line, 0.0, 0, "Success", FLOAT10(gstate->success));
+	xlogl_float_noise(line, 0.0, 0, "Survive", FLOAT10(gstate->survive));
+	xlogl_float_noise(line, 0.0, 0, "Heating", FLOAT10(gstate->heating));
 	strcat(line, "  potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
@@ -258,7 +258,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < 0)
+	if (gstate->survive < 1000)
 		return select_program(&MODEST);
 
 	// survive but tomorrow not enough PV - charging akku has priority
@@ -266,7 +266,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// quota not yet reached and akku not yet enough to survive
-	if (gstate->success < 0 && gstate->akku < gstate->need_survive)
+	if (gstate->success < 1000 && gstate->akku < gstate->need_survive)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -274,7 +274,7 @@ static int choose_program() {
 		return select_program(&GREEDY);
 
 	// survive but not enough for heating --> load boilers
-	if (gstate->heating <= 0)
+	if (gstate->heating < 1000)
 		return select_program(&BOILERS);
 
 	// enough PV available to survive + heating
@@ -495,8 +495,9 @@ static void calculate_gstate() {
 	// clear state flags and values
 	gstate->flags = 0;
 
-	// take over SoC
+	// take over pstate values
 	gstate->soc = pstate->soc;
+	gstate->success = pstate->success;
 
 	// store average load in gstate history
 	gstate->load = PSTATE_HOUR_LAST1->load;
@@ -518,18 +519,12 @@ static void calculate_gstate() {
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	mosmix_today_tomorrow(&today, &tomorrow);
+	mosmix_sod_eod(now, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
 	gstate->sod = sod;
 	gstate->eod = eod;
-
-	// success factor
-	float success = gstate->sod ? (float) gstate->pv / (float) gstate->sod - 1.0 : 0;
-	gstate->success = success * 100; // store as x100 scaled
-	if (gstate->success > 1000)
-		gstate->success = 1000;
-	xdebug("SOLAR success sod=%d pv=%d --> %.2f", gstate->sod, gstate->pv, success);
 
 	// collect needed power to survive (+50Wh inverter dissipation) and to heat
 	int heating_total = collect_heating_total();
@@ -543,18 +538,12 @@ static void calculate_gstate() {
 	int available = gstate->eod - tocharge;
 	if (available < 0)
 		available = 0;
-	float survive = gstate->need_survive ? (float) (gstate->akku + available) / (float) gstate->need_survive - 1.0 : 0;
-	gstate->survive = survive * 100; // store as x100 scaled
-	if (gstate->survive > 1000)
-		gstate->survive = 1000;
-	xdebug("SOLAR survive eod=%d tocharge=%d available=%d akku=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, survive);
+	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// heating factor
-	float heating = gstate->need_heating ? (float) available / (float) gstate->need_heating - 1.0 : 0;
-	gstate->heating = heating * 100; // store as x100 scaled
-	if (gstate->heating > 1000)
-		gstate->heating = 1000;
-	xdebug("SOLAR heating eod=%d tocharge=%d available=%d needed=%d --> %.2f", gstate->eod, tocharge, available, gstate->need_heating, heating);
+	gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
+	xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
 
 	// heating enabled
 	gstate->flags |= FLAG_HEATING;
@@ -761,11 +750,11 @@ static void daily() {
 
 	// calculate forecast errors - actual vs. expected
 	int forecast_yesterday = GSTATE_YDAY_HOUR(23)->tomorrow;
-	float eyesterday = forecast_yesterday ? (float) gstate->pv / (float) forecast_yesterday : 0;
-	xdebug("SOLAR yesterdays forecast for today %d, actual %d, error %.2f", forecast_yesterday, gstate->pv, eyesterday);
+	int eyesterday = forecast_yesterday ? gstate->pv * 1000 / forecast_yesterday : 0;
+	xdebug("SOLAR yesterdays forecast for today %d, actual %d, strike %.1f%%", forecast_yesterday, gstate->pv, FLOAT10(eyesterday));
 	int forecast_today = GSTATE_HOUR(6)->today;
-	float etoday = forecast_today ? (float) gstate->pv / (float) forecast_today : 0;
-	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
+	int etoday = forecast_today ? gstate->pv * 1000 / forecast_today : 0;
+	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, strike %.1f%%", forecast_today, gstate->pv, FLOAT10(etoday));
 
 	// recalculate mosmix factors
 	mosmix_factors();
@@ -880,6 +869,10 @@ static void hourly() {
 static void minly() {
 	// xlog("SOLAR minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
 
+	// enable discharge if we have grid download
+	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
+		akku_discharge();
+
 	// self counter daily - convert Watt-secons to Watt-hours
 	CS_DAY->consumed = CS_NOW->consumed / 3600;
 	CS_DAY->produced = CS_NOW->produced / 3600;
@@ -898,20 +891,16 @@ static void minly() {
 	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
 	CM_DAY->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
 
-	// success factor
-	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+	// collect expected pv till now and till end of day and calculate success factor
+	int sod, eod;
+	mosmix_sod_eod(now, &sod, &eod);
 #ifdef COUNTER_METER
-	int success = sod ? CM_DAY->pv * 100 / sod : 0;
-	xlog("MOSMIX today=%d tomorrow=%d sod=%d pv=%d eod=%d success=%d%%", today, tomorrow, sod, CM_DAY->pv, eod, success);
+	pstate->success = sod ? CM_DAY->pv * 1000 / sod : 0;
+	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", CM_DAY->pv, sod, eod, FLOAT10(pstate->success));
 #else
-	int success = sod ? CS_DAY->pv * 100 / sod : 0;
-	xlog("MOSMIX today=%d tomorrow=%d sod=%d pv=%d eod=%d success=%d%%", today, tomorrow, sod, CS_DAY->pv, eod, success);
+	pstate->success = sod ? CS_DAY->pv * 1000 / sod : 0;
+	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", CS_DAY->pv, sod, eod, FLOAT10(pstate->success));
 #endif
-
-	// enable discharge if we have grid download
-	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
-		akku_discharge();
 }
 
 static void aggregate_mhd() {
@@ -1249,6 +1238,7 @@ static int migrate() {
 		n->consumed = o->consumed;
 		n->today = o->today;
 		n->tomorrow = o->tomorrow;
+		n->sod = o->sod;
 		n->eod = o->eod;
 		n->load = o->load;
 		n->soc = o->soc;

@@ -254,7 +254,7 @@ void xlogl_bits16(char *line, const char *name, int bits) {
 
 void xlogl_float(char *line, const char *name, float value) {
 	char pair[32];
-	snprintf(pair, 32, " %s:%.2f", name, value);
+	snprintf(pair, 32, " %s:%.1f", name, value);
 	strncat(line, pair, 32);
 }
 
@@ -270,35 +270,35 @@ void xlogl_float_noise(char *line, float noise, int invers, const char *name, fl
 		// compare against noise
 		if (invers) {
 			if (value <= noise * -1.0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
 			else if (value >= noise)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
 			else
 				snprintf(pair, 32, " "BOLD"%s:%.2f"RESET, name, value);
 		} else {
 			if (value >= noise)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
 			else if (value <= noise * -1.0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
 			else
-				snprintf(pair, 32, " "BOLD"%s:%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
 		}
 	} else {
 		// compare against zero
 		if (invers) {
 			if (value < 0.0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
 			else if (value > 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
 			else
-				snprintf(pair, 32, " "BOLD"%s:%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
 		} else {
 			if (value > 0.0)
-				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, value);
 			else if (value < 0)
-				snprintf(pair, 32, " "BOLD"%s:"BRED"%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, value);
 			else
-				snprintf(pair, 32, " "BOLD"%s:%.2f"RESET, name, value);
+				snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, value);
 		}
 	}
 	strncat(line, pair, 32);

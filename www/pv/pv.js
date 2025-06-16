@@ -53,11 +53,21 @@ function update_gstate() {
 			Object.entries(data).forEach(([k, v]) => {
 				var item = document.querySelector('.gstate .' + k);
 				if (item) { 
-					if (v < -10) {
+					var threshold_down = -10;
+					var threshold_up = 10;
+					if (item.classList.contains('percent')) {
+						threshold_down = 900;
+						threshold_up = 1100;
+					}
+					if (v == 0) {
+						item.classList.remove(k + '-p');
+						item.classList.remove(k + '-m');
+						item.classList.add('noise');
+					} else if (v < threshold_down) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-p');
 						item.classList.add(k + '-m');
-					} else if (v > 10) {
+					} else if (v > threshold_up) {
 						item.classList.remove('noise');
 						item.classList.remove(k + '-m');
 						item.classList.add(k + '-p');
@@ -69,10 +79,8 @@ function update_gstate() {
 					var n = Number(v);
 					if (k == 'ttl')
 						n = Number(v/60).toFixed(1);
-					if (k == 'soc')
+					if (item.classList.contains('percent'))
 						n = Number(v/10).toFixed(1);
-					if (k == 'surv' || k == 'heat' || k == 'succ')
-						n = Number(v/100).toFixed(2);
 					var value = item.querySelector('.v');
 					value.innerHTML = Number(n).toLocaleString('de-DE');
 				}
