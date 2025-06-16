@@ -539,10 +539,14 @@ static void calculate_gstate() {
 	if (available < 0)
 		available = 0;
 	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
+	if (gstate->survive > 10000)
+		gstate->survive = 10000; // cut off
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// heating factor
 	gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
+	if (gstate->heating > 10000)
+		gstate->heating = 10000; // cut off
 	xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
 
 	// heating enabled
