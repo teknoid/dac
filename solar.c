@@ -539,12 +539,12 @@ static void calculate_gstate() {
 	if (available < 0)
 		available = 0;
 	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
-	CUT(gstate->survive, 10000);
+	CUT(gstate->survive, 2000);
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// heating factor
 	gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
-	CUT(gstate->heating, 10000);
+	CUT(gstate->heating, 2000);
 	xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
 
 	// heating enabled
@@ -903,6 +903,7 @@ static void minly() {
 	pstate->success = sod ? CS_DAY->pv * 1000 / sod : 0;
 	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", CS_DAY->pv, sod, eod, FLOAT10(pstate->success));
 #endif
+	CUT(pstate->success, 2000);
 }
 
 static void aggregate_mhd() {
