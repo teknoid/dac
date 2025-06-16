@@ -204,12 +204,14 @@ static void* update(void *arg) {
 		int offline = r->mppt1 < NOISE && r->mppt2 < NOISE;
 		if (!offline) {
 			curl_perform(curl2, &memory, &parse_inverter2);
+			// TODO prüfen - geht scheinbar wieder
 			// !!! no regular updates on fields Energy_DC_String_X - so use PowerReal_PAC_Sum for all DC/AC values
-			r->mppt3 = r->dc2 = r->ac2;
-			r->mppt4 = 0;
+			// r->mppt3 = r->dc2 = r->ac2;
+			// r->mppt4 = 0;
+			r->dc2 = r->mppt3 + r->mppt4;
 		} else
 			// reset pstates, keep counters
-			pstate->mppt3 = pstate->mppt4 = pstate->ac2 = pstate->dc2 = 0;
+			r->mppt3 = r->mppt4 = r->ac2 = r->dc2 = 0;
 
 		pthread_mutex_lock(&pstate_lock);
 

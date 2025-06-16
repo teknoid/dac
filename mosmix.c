@@ -315,7 +315,6 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 			meod.exp2 += xe2;
 			meod.exp3 += xe3;
 			meod.exp4 += xe4;
-			xlog("MOSMIX mosmix_collect() hnext=%d m=%d exp1=%d, xs1=%d xe1=%d", hnext, now->tm_min, m0->exp1, xs1, xe1);
 		}
 	}
 
@@ -323,7 +322,7 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 	*itomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
 	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
 	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
-	xlog("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
+	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
 
 	// validate
 	if (*itoday != *sod + *eod)

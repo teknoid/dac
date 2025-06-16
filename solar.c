@@ -898,6 +898,17 @@ static void minly() {
 	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
 	CM_DAY->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
 
+	// success factor
+	int today, tomorrow, sod, eod;
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
+#ifdef COUNTER_METER
+	int success = sod ? CM_DAY->pv * 100 / sod : 0;
+	xlog("MOSMIX today=%d tomorrow=%d sod=%d pv=%d eod=%d success=%d%%", today, tomorrow, sod, CM_DAY->pv, eod, success);
+#else
+	int success = sod ? CS_DAY->pv * 100 / sod : 0;
+	xlog("MOSMIX today=%d tomorrow=%d sod=%d pv=%d eod=%d success=%d%%", today, tomorrow, sod, CS_DAY->pv, eod, success);
+#endif
+
 	// enable discharge if we have grid download
 	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
 		akku_discharge();
