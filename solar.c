@@ -497,7 +497,6 @@ static void calculate_gstate() {
 
 	// take over pstate values
 	gstate->soc = pstate->soc;
-	gstate->success = pstate->success;
 
 	// store average load in gstate history
 	gstate->load = PSTATE_HOUR_LAST1->load;
@@ -517,21 +516,21 @@ static void calculate_gstate() {
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
 	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 50) * -1 : 0;
 
-	// collect mosmix forecasts
-	int today, tomorrow, sod, eod;
+	// collect mosmix forecasts for today and tomorrow
+	int today, tomorrow;
 	mosmix_today_tomorrow(&today, &tomorrow);
-	mosmix_sod_eod(now, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
-	gstate->sod = sod;
-	gstate->eod = eod;
 
-	// collect needed power to survive (+50Wh inverter dissipation) and to heat
-	int heating_total = collect_heating_total();
-	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 50);
-	gstate->need_heating = mosmix_heating(now, heating_total);
+	// collect expected pv till now and till end of day and calculate success factor
+	int sod, eod;
+	mosmix_sod_eod(now, &sod, &eod);
+	gstate->success = sod ? gstate->pv * 1000 / sod : 0;
+	CUT(gstate->success, 2000);
+	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
+	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 50); // +50Wh inverter dissipation
 	int tocharge = gstate->need_survive - gstate->akku;
 	if (tocharge < 0)
 		tocharge = 0;
@@ -543,6 +542,8 @@ static void calculate_gstate() {
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// heating factor
+	int heating_total = collect_heating_total();
+	gstate->need_heating = mosmix_heating(now, heating_total);
 	gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
 	CUT(gstate->heating, 2000);
 	xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
@@ -565,6 +566,9 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_HEATING;
 	if (GSTATE_HEATING)
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
+
+	// copy to history
+	memcpy(GSTATE_MIN_NOW, gstate, GSTATE_SIZE);
 }
 
 static void calculate_pstate() {
@@ -781,12 +785,8 @@ static void daily() {
 	memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 	memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 
-	// recalculate gstate
-	calculate_gstate();
-	print_gstate();
-
 	// save pstate SVG
-	char command[64], c = '0' + now->tm_wday > 0 ? now->tm_wday - 1 : 6;
+	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
 	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
 	system(command);
 	xdebug("SOLAR saved pstate SVG: %s", command);
@@ -850,8 +850,11 @@ static void hourly() {
 	mosmix_store_history();
 	mosmix_store_csv();
 
-	// create/append pstate minutes csv
+	// create/append gstate and pstate minutes csv
 	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+	if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+		store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+	append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
 	if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
 		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
 	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
@@ -893,17 +896,10 @@ static void minly() {
 	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
 	CM_DAY->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
 
-	// collect expected pv till now and till end of day and calculate success factor
-	int sod, eod;
-	mosmix_sod_eod(now, &sod, &eod);
-#ifdef COUNTER_METER
-	pstate->success = sod ? CM_DAY->pv * 1000 / sod : 0;
-	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", CM_DAY->pv, sod, eod, FLOAT10(pstate->success));
-#else
-	pstate->success = sod ? CS_DAY->pv * 1000 / sod : 0;
-	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", CS_DAY->pv, sod, eod, FLOAT10(pstate->success));
-#endif
-	CUT(pstate->success, 2000);
+	// recalculate gstate and potd
+	calculate_gstate();
+	choose_program();
+	print_gstate();
 }
 
 static void aggregate_mhd() {
@@ -959,18 +955,11 @@ static void solar() {
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
 
-		// calculate pstate and store to history in a mutex
+		// calculate pstate and store to history inside a mutex
 		pthread_mutex_lock(&pstate_lock);
 		calculate_pstate();
 		memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
 		pthread_mutex_unlock(&pstate_lock);
-
-		// startup and every 10 minutes: calculate gstate and potd
-		if (!potd || (now->tm_sec == 0 && now->tm_min % 10 == 0)) {
-			calculate_gstate();
-			choose_program();
-			print_gstate();
-		}
 
 		// no actions until lock is expired
 		if (lock)
@@ -1062,14 +1051,12 @@ static int init() {
 			DD->state = Disabled; // disable when we don't have an ip address to send UDP messages
 	}
 
-	ZERO(pstate_seconds);
-	ZERO(pstate_minutes);
-	ZERO(pstate_hours);
-	ZERO(gstate_hours);
-	ZERO(counter);
-
 	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
-	load_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+
+	load_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
+	load_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	load_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstate_current));
+
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
@@ -1079,6 +1066,7 @@ static int init() {
 	mosmix_factors();
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	collect_loads();
+	choose_program();
 
 	// call implementation specific init() function
 	if (solar_init() != 0)
@@ -1088,13 +1076,18 @@ static int init() {
 }
 
 static void stop() {
-	// saving state this is the most important !!!
+	// saving state - this is the most important !!!
 	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	store_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstate_current));
+
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
 	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
+
 	mosmix_store_history();
 
 	if (sock)

@@ -2,9 +2,9 @@
 #define COUNTER_FILE			"solar-counter.bin"
 
 // hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+#define GSTATE_H_FILE			"solar-gstate-hours.bin"
+#define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
-#define GSTATE_TODAY_CSV		"gstate-today.csv"
-#define GSTATE_WEEK_CSV			"gstate-week.csv"
 
 // hexdump -v -e '30 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
@@ -12,6 +12,9 @@
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
 #define PSTATE_FILE				"solar-pstate.bin"
 
+#define GSTATE_TODAY_CSV		"gstate-today.csv"
+#define GSTATE_WEEK_CSV			"gstate-week.csv"
+#define GSTATE_M_CSV			"gstate-minutes.csv"
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define LOADS_CSV				"loads.csv"
 
@@ -161,7 +164,7 @@ struct _gstate {
 	int heating;
 	int flags;
 };
-static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
+static gstate_t gstate_hours[24 * 7], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
 #define GSTATE_NOW				(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_LAST				(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
 #define GSTATE_NEXT				(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
@@ -170,6 +173,8 @@ static gstate_t gstate_hours[24 * 7], gstate_current, *gstate = &gstate_current;
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
 #define GSTATE_YDAY_HOUR(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
 #define GSTATE_D_H(d, h)		(&gstate_hours[24 * (d) + (h)])
+#define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
+#define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 
 // needed for migration
 typedef struct gstate_old_t {
@@ -194,7 +199,7 @@ typedef struct gstate_old_t {
 // pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc  succ flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -225,7 +230,6 @@ struct _pstate {
 	int f;
 	int ramp;
 	int soc;
-	int success;
 	int flags;
 };
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current, *pstate = &pstate_current;
