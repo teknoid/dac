@@ -1,7 +1,8 @@
-# gnuplot -p misc/mosmix.gp
+# /usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar.gp
 
 pstate="/run/mcp/pstate-minutes.csv"
-gstate="/run/mcp/gstate-today.csv"
+gstate="/run/mcp/gstate-minutes.csv"
+gstated="/run/mcp/gstate-today.csv"
 gstatew="/run/mcp/gstate-week.csv"
 history="/run/mcp/mosmix-history.csv"
 factors="/run/mcp/mosmix-factors.csv"
@@ -70,18 +71,6 @@ p gstatew u 1:"load"  t "load"     w lines,\
        '' u 1:"heat"  t "heating"  w lines
 
 
-# gstate daily
-set ylabel "GState today"
-set xrange [0:23]
-set xtics 1
-set output "/run/mcp/gstate.svg"
-p gstate  u 1:"load"  t "load"     w lines,\
-       '' u 1:"soc"   t "soc"      w lines,\
-       '' u 1:"ttl"   t "ttl"      w lines,\
-       '' u 1:"surv"  t "survive"  w lines,\
-       '' u 1:"heat"  t "heating"  w lines
-
-
 # factors
 set ylabel "Factors"
 set xrange [5:22]
@@ -93,12 +82,9 @@ p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"s2" t "s2" w lines linecolor rgb "green",\
        '' u 1:"s3" t "s3" w lines linecolor rgb "blue"
 
-
-# forecasts
-set xrange [5:22]
-set yrange [0:10000]
-
+# forecast today
 set ylabel "Today"
+set yrange [0:10000]
 set output "/run/mcp/mosmix-today.svg" 
 p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
@@ -107,6 +93,7 @@ p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
 	    '' u 1:($4+$5+$6) w lines ls 1 lw 2 t "sum"
 
+# forecast tomorrow
 set ylabel "Tomorrow"
 set output "/run/mcp/mosmix-tomorrow.svg" 
 p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
@@ -121,22 +108,34 @@ p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
 set ylabel "PState"
 set xrange [0:1440]
 set yrange [*:*] 
-set y2range [0:1000]
 set xtics time 60 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate.svg"
-p pstate u 1:(0):"pv"   w filledc below ls 1 t "pv",\
-      '' u 1:(0):"pv"   w filledc above ls 1,\
-      '' u 1:(0):"akku" w filledc below ls 2 t "akku",\
-      '' u 1:(0):"akku" w filledc above ls 2,\
-      '' u 1:(0):"grid" w filledc below ls 3 t "grid",\
-      '' u 1:(0):"grid" w filledc above ls 4,\
-      '' u 1:"load" t "load" w lines ls 5,\
-      '' u 1:"soc"  t "soc"  w lines ls 6 axes x1y2,\
-      '' u 1:"succ" t "succ" w lines ls 7 axes x1y2,\
-      50 w lines lt rgb "#f08080" axes x1y2
+p pstate u 1:(0):"pv"        w filledc below ls 1 t "pv",\
+      '' u 1:(0):"pv"        w filledc above ls 1,\
+      '' u 1:(0):"akku"      w filledc below ls 2 t "akku",\
+      '' u 1:(0):"akku"      w filledc above ls 2,\
+      '' u 1:(0):"grid"      w filledc below ls 3 t "grid",\
+      '' u 1:(0):"grid"      w filledc above ls 4,\
+      '' u 1:"load" t "load" w lines ls 5
+
+# gstate
+set ylabel "GState"
+set xrange [0:1440]
+set yrange [0:2050] 
+set y2range [0:*]
+set xtics time 60 format "%tM"
+set output "/run/mcp/gstate.svg"
+p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
+  gstate u 1:"soc"    t "soc"  w lines,\
+      '' u 1:"ttl"    t "ttl"  w lines,\
+      '' u 1:"succ"   t "succ" w lines,\
+      '' u 1:"surv"   t "surv" w lines,\
+      '' u 1:"heat"   t "heat" w lines,\
+      1000            t "100%" w lines   ls 9
       
 set ylabel "Grid - Power"
+set yrange [*:*]
 unset y2range
 set terminal svg size 1920,400
 set output "/run/mcp/pstate-power.svg"

@@ -368,7 +368,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			needed += load + extra;
 			hours++;
 		}
-		if (h == 12 && now->tm_hour <= 6)
+		if (h == 12 && now->tm_hour < 6)
 			break; // reached high noon this day
 		if (h == 12 && midnight)
 			break; // reached high noon next day

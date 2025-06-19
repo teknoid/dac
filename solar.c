@@ -568,7 +568,7 @@ static void calculate_gstate() {
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
 
 	// copy to history
-	memcpy(GSTATE_MIN_NOW, gstate, GSTATE_SIZE);
+	memcpy(GSTATE_MIN_LAST1, (void*) gstate, sizeof(gstate_t));
 }
 
 static void calculate_pstate() {
