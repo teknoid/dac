@@ -527,16 +527,14 @@ static void calculate_gstate() {
 	mosmix_sod_eod(now, &sod, &eod);
 	gstate->success = sod ? gstate->pv * 1000 / sod : 0;
 	CUT(gstate->success, 2000);
-	xlog("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
+	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
 	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 50); // +50Wh inverter dissipation
 	int tocharge = gstate->need_survive - gstate->akku;
-	if (tocharge < 0)
-		tocharge = 0;
+	CUT_LOW(tocharge, 0);
 	int available = gstate->eod - tocharge;
-	if (available < 0)
-		available = 0;
+	CUT_LOW(available, 0);
 	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
 	CUT(gstate->survive, 2000);
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
@@ -1353,10 +1351,8 @@ int ramp_boiler(device_t *boiler, int power) {
 
 	// transform power into 0..100%
 	power = boiler->power + step;
-	if (power < 0)
-		power = 0;
-	if (power > 100)
-		power = 100;
+	CUT(power, 100);
+	CUT_LOW(power, 0);
 
 	// check if override is active
 	power = check_override(boiler, power);

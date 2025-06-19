@@ -56,6 +56,10 @@
 		if (x > y) \
 			x = y;
 
+#define CUT_LOW(x, y) \
+		if (x < y) \
+			x = y;
+
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
 		struct tm tm_now, *now = &tm_now; \

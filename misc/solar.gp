@@ -74,6 +74,7 @@ p gstatew u 1:"load"  t "load"     w lines,\
 # factors
 set ylabel "Factors"
 set xrange [5:22]
+set xtics 1
 set output "/run/mcp/mosmix-factors.svg" 
 p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"r2" t "r2" w lines,\
