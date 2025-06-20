@@ -516,15 +516,13 @@ static void calculate_gstate() {
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
 	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 50) * -1 : 0;
 
-	// collect mosmix forecasts for today and tomorrow
-	int today, tomorrow;
-	mosmix_today_tomorrow(&today, &tomorrow);
+	// collect mosmix forecasts
+	int today, tomorrow, sod, eod;
+	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
 	gstate->today = today;
 	gstate->tomorrow = tomorrow;
-
-	// collect expected pv till now and till end of day and calculate success factor
-	int sod, eod;
-	mosmix_sod_eod(now, &sod, &eod);
+	gstate->sod = sod;
+	gstate->eod = eod;
 	gstate->success = sod ? gstate->pv * 1000 / sod : 0;
 	CUT(gstate->success, 2000);
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
