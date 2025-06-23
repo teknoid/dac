@@ -371,9 +371,9 @@ int mosmix_heating(struct tm *now, int power) {
 	strcpy(line, "MOSMIX heating h:x:p");
 	for (int h = now->tm_hour + 1; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
-		if (SUM_EXP > power) {
-			// current hour -> partly, remaining hours -> full
-			int p = h == (now->tm_hour + 1) ? power * (60 - now->tm_min) / 60 : power;
+		// current hour -> partly, remaining hours -> full
+		int p = h == (now->tm_hour + 1) ? power * (60 - now->tm_min) / 60 : power;
+		if (SUM_EXP > p) {
 			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, p);
 			strcat(line, value);
 			needed += p;
