@@ -330,12 +330,12 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
 }
 
-// night: collect hours where pv cannot satisfy load
+// night: collect load power where pv cannot satisfy this
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
 	int h = now->tm_hour, midnight = 0, hours = 0, needed = 0;
 
-	strcpy(line, "MOSMIX survive h:l:x");
+	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
 		if (++h == 24) {
 			midnight = 1;
@@ -343,10 +343,12 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 		}
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
+		load += extra; // add extra
 		if (load > SUM_EXP) {
-			snprintf(value, 48, " %d:%d:%d", h, load, SUM_EXP);
+			int l = h == now->tm_hour ? load * (60 - now->tm_min) / 60 : load;
+			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, l);
 			strcat(line, value);
-			needed += load + extra;
+			needed += l;
 			hours++;
 		}
 		if (h == 12 && now->tm_hour < 6)
@@ -361,23 +363,24 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	return needed;
 }
 
-// day: collect hours where we can heat with pv
+// day: collect heating power where we can use pv for
 int mosmix_heating(struct tm *now, int power) {
 	char line[LINEBUF], value[48];
 	int hours = 0, needed = 0;
 
-	strcpy(line, "MOSMIX heating h:x");
+	strcpy(line, "MOSMIX heating h:x:p");
 	for (int h = now->tm_hour; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
 		if (SUM_EXP > power) {
-			snprintf(value, 48, " %d:%d", h, SUM_EXP);
+			int p = h == now->tm_hour ? power * (60 - now->tm_min) / 60 : power;
+			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, p);
 			strcat(line, value);
-			needed += power;
+			needed += p;
 			hours++;
 		}
 	}
 
-	snprintf(value, 48, " --> %d hours x %d = %d", hours, power, needed);
+	snprintf(value, 48, " --> %d hours = %d", hours, needed);
 	strcat(line, value);
 	xlog(line);
 	return needed;
