@@ -333,7 +333,7 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 // night: collect load power where pv cannot satisfy this
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
-	int ch = now->tm_hour + 1, h = ch, midnight = 0, hours = 0, needed = 0;
+	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
@@ -349,7 +349,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			needed += l;
 			hours++;
 		}
-		if (h == 12 && now->tm_hour < 6)
+		if (h == 12 && ch < 6)
 			break; // reached high noon this day
 		if (h == 12 && midnight)
 			break; // reached high noon next day
@@ -369,7 +369,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 // day: collect heating power where we can use pv for
 int mosmix_heating(struct tm *now, int power) {
 	char line[LINEBUF], value[48];
-	int ch = now->tm_hour + 1, hours = 0, needed = 0;
+	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX heating h:x:p");
 	for (int h = ch; h < 24; h++) {
