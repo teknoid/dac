@@ -333,20 +333,18 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 // night: collect load power where pv cannot satisfy this
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
-	int h = now->tm_hour + 1, midnight = 0, hours = 0, needed = 0;
+	int ch = now->tm_hour + 1, h = ch, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
-		if (++h == 24) {
-			midnight = 1;
-			h = 0;
-		}
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
 		load += extra; // add extra
-		int l = h == (now->tm_hour + 1) ? load * (60 - now->tm_min) / 60 : load;
-		if (l > SUM_EXP) {
-			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, l);
+		// current hour -> partly, remaining hours -> full
+		int l = h == ch ? load * (60 - now->tm_min) / 60 : load;
+		int x = h == ch ? SUM_EXP * (60 - now->tm_min) / 60 : SUM_EXP;
+		if (l > x) {
+			snprintf(value, 48, " %d:%d:%d", h, x, l);
 			strcat(line, value);
 			needed += l;
 			hours++;
@@ -355,6 +353,11 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			break; // reached high noon this day
 		if (h == 12 && midnight)
 			break; // reached high noon next day
+		if (++h == 24) {
+			// reached midnight
+			midnight = 1;
+			h = 0;
+		}
 	}
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);
@@ -366,15 +369,16 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 // day: collect heating power where we can use pv for
 int mosmix_heating(struct tm *now, int power) {
 	char line[LINEBUF], value[48];
-	int hours = 0, needed = 0;
+	int ch = now->tm_hour + 1, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX heating h:x:p");
-	for (int h = now->tm_hour + 1; h < 24; h++) {
+	for (int h = ch; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
 		// current hour -> partly, remaining hours -> full
-		int p = h == (now->tm_hour + 1) ? power * (60 - now->tm_min) / 60 : power;
-		if (SUM_EXP > p) {
-			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, p);
+		int p = h == ch ? power * (60 - now->tm_min) / 60 : power;
+		int x = h == ch ? SUM_EXP * (60 - now->tm_min) / 60 : SUM_EXP;
+		if (x > p) {
+			snprintf(value, 48, " %d:%d:%d", h, x, p);
 			strcat(line, value);
 			needed += p;
 			hours++;
