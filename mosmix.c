@@ -333,7 +333,7 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 // night: collect load power where pv cannot satisfy this
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
-	int h = now->tm_hour, midnight = 0, hours = 0, needed = 0;
+	int h = now->tm_hour + 1, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
@@ -344,8 +344,8 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
 		load += extra; // add extra
-		if (load > SUM_EXP) {
-			int l = h == now->tm_hour ? load * (60 - now->tm_min) / 60 : load;
+		int l = h == (now->tm_hour + 1) ? load * (60 - now->tm_min) / 60 : load;
+		if (l > SUM_EXP) {
 			snprintf(value, 48, " %d:%d:%d", h, SUM_EXP, l);
 			strcat(line, value);
 			needed += l;
