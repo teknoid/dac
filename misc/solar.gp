@@ -128,12 +128,12 @@ set y2range [0:*]
 set xtics time 60 format "%tM"
 set output "/run/mcp/gstate.svg"
 p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
-  gstate u 1:"soc"    t "soc"  w lines,\
+  gstate u 1:"soc"    t "soc"  w lines ls 6,\
       '' u 1:"ttl"    t "ttl"  w lines,\
-      '' u 1:"succ"   t "succ" w lines,\
+      '' u 1:"succ"   t "succ" w lines ls 7,\
       '' u 1:"surv"   t "surv" w lines,\
       '' u 1:"heat"   t "heat" w lines,\
-      1000            t "100%" w lines   ls 9
+      1000            t "100%" w lines ls 9
       
 set ylabel "Grid - Power"
 set yrange [*:*]

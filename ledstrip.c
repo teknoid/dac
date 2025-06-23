@@ -89,9 +89,9 @@ static void blink_loop() {
 	}
 
 	// restore state and colors
+	mode = old_mode == Blink ? None : old_mode;
 	if (!old_power)
 		ledstrip_off();
-	mode = old_mode;
 	r = rr;
 	g = gg;
 	b = bb;

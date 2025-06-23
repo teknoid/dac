@@ -523,7 +523,7 @@ static void calculate_gstate() {
 	gstate->tomorrow = tomorrow;
 	gstate->sod = sod;
 	gstate->eod = eod;
-	gstate->success = sod ? gstate->pv * 1000 / sod : 0;
+	gstate->success = (sod && !PSTATE_OFFLINE) ? gstate->pv * 1000 / sod : 0;
 	CUT(gstate->success, 2000);
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
