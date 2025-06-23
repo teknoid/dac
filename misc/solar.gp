@@ -160,8 +160,8 @@ p pstate u 1:"f"   w lines t "f"
 
 # loads
 set ylabel "Average Loads 24/7"
-set xrange [0:23]
+set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"
 set output "/run/mcp/loads.svg"
-p loads   u 1:"load"  t "load"     w lines 
+p loads   u 1:"load"  t "load"     w steps ls 5
