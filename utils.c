@@ -833,7 +833,7 @@ void store_csv_header(const char *header, const char *filename) {
 	xlog("UTILS stored header %s", filename);
 }
 
-void store_array_csv(int array[], int size, const char *header, const char *filename) {
+void store_array_csv(int array[], int size, int duplicate, const char *header, const char *filename) {
 	char c[8 + 16], v[16];
 
 	FILE *fp = fopen(filename, "wt");
@@ -849,6 +849,15 @@ void store_array_csv(int array[], int size, const char *header, const char *file
 		snprintf(v, 16, "%02d ", y);
 		strcpy(c, v);
 		snprintf(v, 8, "%5d ", array[y]);
+		strcat(c, v);
+		fprintf(fp, "%s\n", c);
+	}
+
+	// gnuplot workaround - duplicate index 0 at the end
+	if (duplicate) {
+		snprintf(v, 16, "%02d ", size);
+		strcpy(c, v);
+		snprintf(v, 8, "%5d ", array[0]);
 		strcat(c, v);
 		fprintf(fp, "%s\n", c);
 	}

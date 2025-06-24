@@ -233,7 +233,7 @@ static void collect_loads() {
 	xdebug(line);
 
 #ifndef FRONIUS_MAIN
-	store_array_csv(loads, 24, "  load", LOADS_CSV);
+	store_array_csv(loads, 24, 1, "  load", LOADS_CSV);
 #endif
 }
 

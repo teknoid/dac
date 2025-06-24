@@ -164,4 +164,4 @@ set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"
 set output "/run/mcp/loads.svg"
-p loads   u 1:"load"  t "load"     w steps ls 5
+p loads   u 1:"load"  t "load"     w fsteps ls 5

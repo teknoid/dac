@@ -18,6 +18,8 @@
 //#include "solar-tron25-api.h"
 //#include "solar-simulator.h"
 
+// gcc -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lm -lmodbus
+
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
 #endif
@@ -106,7 +108,7 @@ static void collect_loads() {
 	}
 	xdebug(line);
 
-	store_array_csv(loads, 24, "  load", RUN SLASH LOADS_CSV);
+	store_array_csv(loads, 24, 1, "  load", RUN SLASH LOADS_CSV);
 }
 
 static int collect_heating_total() {
@@ -763,11 +765,10 @@ static void daily() {
 
 	// store state at least once per day
 	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
-	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
 	// compare daily self and meter counter
 	xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
@@ -1154,7 +1155,10 @@ static int fake() {
 		memcpy(&pstate_seconds[i], (void*) pstate, sizeof(pstate_t));
 	}
 
-	store_blob(STATE SLASH GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	store_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstate_current));
+
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
@@ -1219,7 +1223,7 @@ static int test() {
 static int migrate() {
 	gstate_old_t old[24 * 7];
 	ZERO(old);
-	load_blob("/tmp/solar-gstate.bin", old, sizeof(old));
+	load_blob("/tmp/solar-gstate-hours.bin", old, sizeof(gstate_old_t));
 
 	for (int i = 0; i < 24 * 7; i++) {
 		gstate_old_t *o = &old[i];
@@ -1240,7 +1244,7 @@ static int migrate() {
 		n->heating = o->heating;
 		n->success = o->success;
 	}
-	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
 	return 0;
 }
 
