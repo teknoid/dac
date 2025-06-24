@@ -6,6 +6,8 @@
 
 // hexdump -v -e '18 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
 #define MOSMIX_HISTORY			"solar-mosmix-history.bin"
+
+// csvfilter.sh /run/mcp/mosmix-history.csv 12
 #define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
 #define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
 #define MOSMIX_TODAY_CSV		"mosmix-today.csv"
