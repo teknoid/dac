@@ -1,3 +1,7 @@
+function imgClick() {
+	document.location.href = this.src;
+}
+
 function update_sensors() {
 	var request = new XMLHttpRequest();
 	request.open("GET", "/pv/data/sensors.json");
@@ -44,37 +48,44 @@ function update_dstate() {
 	request.send();
 }
 
-function update_gstate() {
+function update_state(file, selector) {
 	var request = new XMLHttpRequest();
-	request.open("GET", "/pv/data/gstate.json");
+	request.open("GET", file);
 	request.addEventListener('load', function(event) {
 		if (this.status == 200) {
 			var data = JSON.parse(this.responseText);
 			Object.entries(data).forEach(([k, v]) => {
-				var item = document.querySelector('.gstate .' + k);
-				if (item) { 
-					var threshold_down = -10;
-					var threshold_up = 10;
+				var item = document.querySelector(selector + ' .' + k);
+				if (item) {
 					if (item.classList.contains('percent')) {
-						threshold_down = 900;
-						threshold_up = 1100;
-					}
-					if (v == 0) {
-						item.classList.remove(k + '-p');
-						item.classList.remove(k + '-m');
-						item.classList.add('noise');
-					} else if (v < threshold_down) {
-						item.classList.remove('noise');
-						item.classList.remove(k + '-p');
-						item.classList.add(k + '-m');
-					} else if (v > threshold_up) {
-						item.classList.remove('noise');
-						item.classList.remove(k + '-m');
-						item.classList.add(k + '-p');
+						if (v == 0)
+							item.style.backgroundColor = "lightgrey";
+						else if (v < 250)
+							item.style.backgroundColor = "red";
+						else if (v < 500)
+							item.style.backgroundColor = "orangered";
+						else if (v < 750)
+							item.style.backgroundColor = "coral";
+						else if (v < 900)
+							item.style.backgroundColor = "orange";
+						else if (v < 1000)
+							item.style.backgroundColor = "greenyellow";
+						else 
+							item.style.backgroundColor = "palegreen";
 					} else {
-						item.classList.remove(k + '-p');
-						item.classList.remove(k + '-m');
-						item.classList.add('noise');
+						if (v < -10) {
+							item.classList.remove('noise');
+							item.classList.remove(k + '-p');
+							item.classList.add(k + '-m');
+						} else if (v > 10) {
+							item.classList.remove('noise');
+							item.classList.remove(k + '-m');
+							item.classList.add(k + '-p');
+						} else {
+							item.classList.remove(k + '-p');
+							item.classList.remove(k + '-m');
+							item.classList.add('noise');
+						}
 					}
 					var n = Number(v);
 					if (k == 'ttl')
@@ -90,39 +101,12 @@ function update_gstate() {
 	request.send();
 }
 
-function update_pstate() {
-	var request = new XMLHttpRequest();
-	request.open("GET", "/pv/data/pstate.json");
-	request.addEventListener('load', function(event) {
-		if (this.status == 200) {
-			var data = JSON.parse(this.responseText);
-			Object.entries(data).forEach(([k, v]) => {
-				var item = document.querySelector('.pstate .' + k);
-				if (item) { 
-					if (v < -10) {
-						item.classList.remove('noise');
-						item.classList.remove(k + '-p');
-						item.classList.add(k + '-m');
-					} else if (v > 10) {
-						item.classList.remove('noise');
-						item.classList.remove(k + '-m');
-						item.classList.add(k + '-p');
-					} else {
-						item.classList.remove(k + '-p');
-						item.classList.remove(k + '-m');
-						item.classList.add('noise');
-					}
-					var value = item.querySelector('.v');
-					value.innerHTML = Number(v).toLocaleString('de-DE');
-				}
-			});
-		}
-	});
-	request.send();
+function update_gstate() {
+	update_state("/pv/data/gstate.json", ".gstate");
 }
 
-function imgClick() {
-	document.location.href = this.src;
+function update_pstate() {
+	update_state("/pv/data/pstate.json", ".pstate");
 }
 
 window.onload = function() {
