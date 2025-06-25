@@ -1286,7 +1286,7 @@ int solar_override(const char *name) {
 
 int ramp_heater(device_t *heater, int power) {
 	if (!power || heater->state == Disabled || heater->state == Standby)
-		return 0; // continue loop
+		return 0; // 0 - continue loop
 
 	// heating disabled except override
 	if (power > 0 && !GSTATE_HEATING && !heater->override) {
@@ -1296,11 +1296,11 @@ int ramp_heater(device_t *heater, int power) {
 
 	// keep on when already on
 	if (power > 0 && heater->power)
-		return 0; // continue loop
+		return 0;
 
 	// not enough power available to switch on
 	if (power > 0 && power < heater->total)
-		return 0; // continue loop
+		return 0;
 
 	// transform power into on/off
 	power = power > 0 ? 1 : 0;
@@ -1335,7 +1335,7 @@ int ramp_heater(device_t *heater, int power) {
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 int ramp_boiler(device_t *boiler, int power) {
 	if (!power || boiler->state == Disabled || boiler->state == Standby)
-		return 0; // continue loop
+		return 0; // 0 - continue loop
 
 	// cannot send UDP if we don't have an IP
 	if (boiler->addr == NULL)
@@ -1348,6 +1348,16 @@ int ramp_boiler(device_t *boiler, int power) {
 	// already full down
 	if (boiler->power == 0 && power < 0)
 		return 0;
+
+	// not enough to start up - electronic thermostat struggles with too less power
+	if (boiler->power == 0 && power < MINIMUM)
+		return 0;
+
+	// summer: charging boilers only between configured FROM / TO
+	if (boiler->power == 0 && power > 0 && SUMMER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
+		boiler->state = Standby;
+		return 0;
+	}
 
 	// power steps
 	int step = power * 100 / boiler->total;
@@ -1364,13 +1374,7 @@ int ramp_boiler(device_t *boiler, int power) {
 
 	// check if update is necessary
 	if (boiler->power == power)
-		return 0; // continue loop
-
-	// summer: charging boilers only between 11 and 15 o'clock
-	if (power > 0 && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to) && SUMMER) {
-		boiler->state = Standby;
-		return 0; // continue loop
-	}
+		return 0;
 
 	// send UDP message to device
 	char message[16];
