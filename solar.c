@@ -322,6 +322,9 @@ static device_t* rampup() {
 		if (PSTATE_MIN_LAST1->ramp < 1000)
 			return 0;
 
+	if (PSTATE_MIN_LAST1->akku > NOISE && PSTATE_MIN_LAST1->ramp < 100)
+		return 0;
+
 	device_t *d = 0, **dd = potd->devices;
 	while (*dd && pstate->ramp > 0) {
 		if (ramp_multi(DD))
@@ -525,7 +528,7 @@ static void calculate_gstate() {
 	gstate->tomorrow = tomorrow;
 	gstate->sod = sod;
 	gstate->eod = eod;
-	gstate->success = (sod && !PSTATE_OFFLINE) ? gstate->pv * 1000 / sod : 0;
+	gstate->success = sod && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
 	CUT(gstate->success, 2000);
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
