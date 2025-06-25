@@ -106,6 +106,7 @@ struct _device {
 	int power;
 	int delta;
 	int load;
+	int min;
 	int p1;
 	int p2;
 	int p3;

@@ -451,6 +451,8 @@ static device_t* response(device_t *d) {
 	int r2 = delta > 0 ? d2 > delta : d2 < delta;
 	int r3 = delta > 0 ? d3 > delta : d3 < delta;
 	int r = r1 || r2 || r3;
+	if (r)
+		xlog("SOLAR response detected at phase %s %s %s", r1 ? "1" : "", r2 ? "2" : "", r3 ? "3" : "");
 
 	// load is completely satisfied from secondary inverter
 	int extra = pstate->ac2 > pstate->load * -1;
@@ -1349,8 +1351,8 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power == 0 && power < 0)
 		return 0;
 
-	// not enough to start up - electronic thermostat struggles with too less power
-	if (boiler->power == 0 && power < MINIMUM)
+	// not enough to start up - electronic thermostat struggles at too less power
+	if (boiler->power == 0 && boiler->min && power < boiler->min)
 		return 0;
 
 	// summer: charging boilers only between configured FROM / TO

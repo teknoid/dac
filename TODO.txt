@@ -6,6 +6,8 @@ BUGS
 TODO
 --------------------------------------------------------------------------------------------
 
+* solar: device und potd config in json ablegen und WebUI dafür bauen
+
 * Sprachausgabe e.g. confirm("Strahler Bad an")
 
 * sensors: BMP085 neu schreiben
