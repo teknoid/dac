@@ -174,7 +174,7 @@ static void print_pstate_dstate(device_t *d) {
 			break;
 		case Active_Checked:
 			if (DD->adj)
-				snprintf(value, 5, " %3d", DD->power);
+				snprintf(value, 6, " %3d!", DD->power);
 			else
 				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
 			break;
