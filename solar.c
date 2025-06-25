@@ -322,7 +322,7 @@ static device_t* rampup() {
 		if (PSTATE_MIN_LAST1->ramp < 1000)
 			return 0;
 
-	if (PSTATE_MIN_LAST1->akku > NOISE && PSTATE_MIN_LAST1->ramp < 100)
+	if (PSTATE_MIN_LAST1->akku > NOISE && PSTATE_MIN_LAST1->ramp < MINIMUM)
 		return 0;
 
 	device_t *d = 0, **dd = potd->devices;
