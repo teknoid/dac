@@ -167,6 +167,11 @@ static void print_pstate_dstate(device_t *d) {
 			snprintf(value, 5, " .");
 			break;
 		case Active:
+			if (DD->adj)
+				snprintf(value, 5, " %3d", DD->power);
+			else
+				snprintf(value, 5, " %c", DD->power ? 'x' : '_');
+			break;
 		case Active_Checked:
 			if (DD->adj)
 				snprintf(value, 5, " %3d", DD->power);
@@ -452,7 +457,7 @@ static device_t* response(device_t *d) {
 	int r3 = delta > 0 ? d3 > delta : d3 < delta;
 	int r = r1 || r2 || r3;
 	if (r)
-		xlog("SOLAR response detected at phase %s %s %s", r1 ? "1" : "", r2 ? "2" : "", r3 ? "3" : "");
+		xdebug("SOLAR response detected at phase %s %s %s", r1 ? "1" : "", r2 ? "2" : "", r3 ? "3" : "");
 
 	// load is completely satisfied from secondary inverter
 	int extra = pstate->ac2 > pstate->load * -1;
