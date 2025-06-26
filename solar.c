@@ -752,8 +752,8 @@ static void calculate_pstate() {
 		int akku = m1->akku > NOISE || m2->akku > NOISE || m3->akku > NOISE;
 		int grid = m1->grid > NOISE || m2->grid > NOISE || m3->grid > NOISE;
 		if (akku || grid) {
-			xlog("SOLAR last123 akkus %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
-			xlog("SOLAR last123 grids %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
+			xlog("SOLAR last123 akku %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
+			xlog("SOLAR last123 grid %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
 			xlog("SOLAR delay ramp up %d < %d due to %s %s in last 3 minutes", pstate->ramp, MINIMUM, akku ? "akku discharge" : "", grid ? "grid download" : "");
 			pstate->ramp = 0;
 		}
