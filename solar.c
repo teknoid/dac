@@ -744,24 +744,24 @@ static void calculate_pstate() {
 	// delay ramp up as long as average PV is below average load
 	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
 	if (0 < pstate->ramp && m1->pv < m1load) {
-		xlog("SOLAR delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
+		xlog("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
 		pstate->ramp = 0;
 	}
 	// delay small ramp ups when we just had akku discharge or grid download
-	if (0 < pstate->ramp && m1->ramp < MINIMUM) {
+	if (0 < pstate->ramp && pstate->ramp < MINIMUM) {
 		int last_akkus = m1->akku + m2->akku + m3->akku;
 		int last_grids = m1->grid + m2->grid + m3->grid;
 		xlog("SOLAR last123 akkus %4d %4d %4d sum %4d", m1->akku, m2->akku, m3->akku, last_akkus);
 		xlog("SOLAR last123 grids %4d %4d %4d sum %4d", m1->grid, m2->grid, m3->grid, last_grids);
 		if (last_akkus > NOISE || last_grids > NOISE) {
-			xlog("SOLAR delay ramp up due to akku discharge %d or grid download %d in last 3 minutes", last_akkus, last_grids);
+			xlog("SOLAR delay ramp up %d < %d due to akku discharge %d or grid download %d in last 3 minutes", pstate->ramp, MINIMUM, last_akkus, last_grids);
 			pstate->ramp = 0;
 		}
 	}
-	// delay ramp ups when unstable or distortion unless we have lot of average power
-	if (0 < pstate->ramp && m1->ramp < 1000)
+	// delay ramp ups when unstable or distortion unless we have enough power
+	if (0 < pstate->ramp && pstate->ramp < ENOUGH)
 		if (!PSTATE_STABLE || PSTATE_DISTORTION) {
-			xlog("SOLAR delay ramp up due to unstable or distortion");
+			xlog("SOLAR delay ramp up %d < %d due to unstable or distortion", pstate->ramp, ENOUGH);
 			pstate->ramp = 0;
 		}
 }

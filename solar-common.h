@@ -35,12 +35,15 @@
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
 #define AKKU_CHARGING			(AKKU->state == Charge)
 
-#define SUSPICIOUS				500
-#define RAMP_WINDOW				35
 #define NOISE					10
-#define OVERRIDE				600
-#define STANDBY_NORESPONSE		5
+#define RAMP_WINDOW				35
+#define SUSPICIOUS				500
 #define EMERGENCY				1000
+#define ENOUGH					2000
+
+#define OVERRIDE				600
+
+#define STANDBY_NORESPONSE		5
 
 #define WAIT_INVALID			3
 #define WAIT_RESPONSE			5
