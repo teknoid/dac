@@ -21,7 +21,7 @@
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 100 };
+static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 5 };
 static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
 static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
 static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };

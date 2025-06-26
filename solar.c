@@ -761,7 +761,7 @@ static void calculate_pstate() {
 	// delay ramp ups when unstable or distortion unless we have enough power
 	if (0 < pstate->ramp && pstate->ramp < ENOUGH)
 		if (!PSTATE_STABLE || PSTATE_DISTORTION) {
-			xlog("SOLAR delay ramp up %d < %d due to unstable or distortion", pstate->ramp, ENOUGH);
+			xdebug("SOLAR delay ramp up %d < %d due to unstable or distortion", pstate->ramp, ENOUGH);
 			pstate->ramp = 0;
 		}
 }
@@ -1367,10 +1367,6 @@ int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power == 0 && power < 0)
 		return 0;
 
-	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->power == 0 && boiler->min && power < boiler->min)
-		return 0;
-
 	// summer: charging boilers only between configured FROM / TO
 	if (boiler->power == 0 && power > 0 && SUMMER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
 		boiler->state = Standby;
@@ -1390,6 +1386,10 @@ int ramp_boiler(device_t *boiler, int power) {
 	power = boiler->power + step;
 	CUT(power, 100);
 	CUT_LOW(power, 0);
+
+	// not enough to start up - electronic thermostat struggles at too less power
+	if (boiler->power == 0 && boiler->min && power < boiler->min)
+		return 0;
 
 	// check if override is active
 	power = check_override(boiler, power);
