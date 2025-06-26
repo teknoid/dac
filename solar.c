@@ -18,7 +18,7 @@
 //#include "solar-tron25-api.h"
 //#include "solar-simulator.h"
 
-// gcc -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lm -lmodbus
+// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lm -lmodbus
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -323,13 +323,6 @@ static device_t* rampup() {
 	if (PSTATE_ALL_UP || PSTATE_ALL_STANDBY)
 		return 0;
 
-	if (!PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
-		if (PSTATE_MIN_LAST1->ramp < 1000)
-			return 0;
-
-	if (PSTATE_MIN_LAST1->akku > NOISE && PSTATE_MIN_LAST1->ramp < MINIMUM)
-		return 0;
-
 	device_t *d = 0, **dd = potd->devices;
 	while (*dd && pstate->ramp > 0) {
 		if (ramp_multi(DD))
@@ -602,6 +595,7 @@ static void calculate_pstate() {
 	pstate_t *s2 = PSTATE_SEC_LAST2;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
+	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// total PV produced by all strings
 	if (pstate->mppt1 == 1)
@@ -640,7 +634,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_DELTA;
 
 	// offline mode when not enough PV production
-	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM;
+	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM || m3->pv > MINIMUM;
 	if (!online) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -716,7 +710,22 @@ static void calculate_pstate() {
 	int p_load = -1 * pstate->load; // - BASELOAD;
 	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
 
-	// ramp up/down power
+	// indicate standby check when actual load is 3x below 50% of calculated load
+	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50) {
+		pstate->flags |= FLAG_CHECK_STANDBY;
+		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+	}
+
+	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+	int d0 = pstate->sdpv > m1->pv;
+	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+	if (d0 || d1 || d2) {
+		pstate->flags |= FLAG_DISTORTION;
+		xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+	}
+
+	// calculate ramp up / ramp down power
 	pstate->ramp = pstate->grid * -1;
 	if (pstate->akku > NOISE)
 		pstate->ramp -= pstate->akku;
@@ -734,25 +743,27 @@ static void calculate_pstate() {
 		pstate->ramp += pstate->ramp / 2;
 	// delay ramp up as long as average PV is below average load
 	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
-	if (pstate->ramp > 0 && m1->pv < m1load) {
-		xdebug("SOLAR delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
+	if (0 < pstate->ramp && m1->pv < m1load) {
+		xlog("SOLAR delay ramp up as long as average pv %d is below average load %d", m1->pv, m1load);
 		pstate->ramp = 0;
 	}
-
-	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	int d0 = pstate->sdpv > m1->pv;
-	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-	if (d0 || d1 || d2)
-		pstate->flags |= FLAG_DISTORTION;
-	if (PSTATE_DISTORTION)
-		xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-
-	// indicate standby check when actual load is 3x below 50% of calculated load
-	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50)
-		pstate->flags |= FLAG_CHECK_STANDBY;
-	if (PSTATE_CHECK_STANDBY)
-		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+	// delay small ramp ups when we just had akku discharge or grid download
+	if (0 < pstate->ramp && m1->ramp < MINIMUM) {
+		int last_akkus = m1->akku + m2->akku + m3->akku;
+		int last_grids = m1->grid + m2->grid + m3->grid;
+		xlog("SOLAR last123 akkus %4d %4d %4d sum %4d", m1->akku, m2->akku, m3->akku, last_akkus);
+		xlog("SOLAR last123 grids %4d %4d %4d sum %4d", m1->grid, m2->grid, m3->grid, last_grids);
+		if (last_akkus > NOISE || last_grids > NOISE) {
+			xlog("SOLAR delay ramp up due to akku discharge %d or grid download %d in last 3 minutes", last_akkus, last_grids);
+			pstate->ramp = 0;
+		}
+	}
+	// delay ramp ups when unstable or distortion unless we have lot of average power
+	if (0 < pstate->ramp && m1->ramp < 1000)
+		if (!PSTATE_STABLE || PSTATE_DISTORTION) {
+			xlog("SOLAR delay ramp up due to unstable or distortion");
+			pstate->ramp = 0;
+		}
 }
 
 static void daily() {
@@ -1370,6 +1381,10 @@ int ramp_boiler(device_t *boiler, int power) {
 	int step = power * 100 / boiler->total;
 	if (!step)
 		return 0;
+
+	// do single steps at warm up due to much smaller cold resistance
+	if (boiler->power < 5 && 1 < step && step < 5)
+		step = 1;
 
 	// transform power into 0..100%
 	power = boiler->power + step;
