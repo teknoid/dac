@@ -171,6 +171,9 @@ struct _gstate {
 static gstate_t gstate_hours[24 * 7], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
 #define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
+#define GSTATE_HOUR_LAST		(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
+#define GSTATE_HOUR_NEXT		(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
 #define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])

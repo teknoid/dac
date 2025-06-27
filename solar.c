@@ -497,6 +497,11 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate() {
+	// copy to minute and hour history
+	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
+	if (now->tm_min == 0)
+		memcpy(GSTATE_HOUR_NOW, (void*) gstate, sizeof(gstate_t));
+
 	// clear state flags and values
 	gstate->flags = 0;
 
@@ -567,9 +572,6 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_HEATING;
 	if (GSTATE_HEATING)
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
-
-	// copy to history
-	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
 }
 
 static void calculate_pstate() {
