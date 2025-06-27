@@ -569,7 +569,7 @@ static void calculate_gstate() {
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
 
 	// copy to history
-	memcpy(GSTATE_MIN_LAST1, (void*) gstate, sizeof(gstate_t));
+	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 }
 
 static void calculate_pstate() {
@@ -839,9 +839,6 @@ static void hourly() {
 	// compare hourly self and meter counter
 	xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 	xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-
-	// copy gstate to history
-	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
 
 	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
