@@ -89,7 +89,7 @@ static void collect_loads() {
 	ZERO(loads);
 	for (int h = 0; h < 24; h++) {
 		for (int d = 0; d < 7; d++) {
-			int load = GSTATE_D_H(d, h)->load * -1;
+			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
 			if (load == 0)
 				load = BASELOAD;
 			if (load < NOISE) {
@@ -569,7 +569,7 @@ static void calculate_gstate() {
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
 
 	// copy to history
-	memcpy(GSTATE_NOW, (void*) gstate, sizeof(gstate_t));
+	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
 }
 
 static void calculate_pstate() {
