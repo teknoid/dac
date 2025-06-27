@@ -293,11 +293,10 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 		sum(&sum_today, m0);
 		sum(&sum_tomorrow, m1);
 
-		int hnext = now->tm_hour < 23 ? now->tm_hour + 1 : 0;
-		if (h < hnext)
+		if (h < now->tm_hour + 1)
 			// full elapsed hours into sod
 			sum(&msod, m0);
-		else if (h > hnext)
+		else if (h > now->tm_hour + 1)
 			// full remaining hours into eod
 			sum(&meod, m0);
 		else {
