@@ -497,11 +497,6 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_gstate() {
-	// copy to minute and hour history
-	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
-	if (now->tm_min == 0)
-		memcpy(GSTATE_HOUR_NOW, (void*) gstate, sizeof(gstate_t));
-
 	// clear state flags and values
 	gstate->flags = 0;
 
@@ -572,6 +567,11 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_HEATING;
 	if (GSTATE_HEATING)
 		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
+
+	// copy to history
+	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
+	if (now->tm_min == 0)
+		memcpy(GSTATE_HOUR_NOW, (void*) gstate, sizeof(gstate_t));
 }
 
 static void calculate_pstate() {
@@ -867,15 +867,6 @@ static void hourly() {
 	mosmix_store_history();
 	mosmix_store_csv();
 
-	// create/append gstate and pstate minutes csv
-	int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
-	if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
-		store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
-	append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
-	if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
-		store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
-	append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
-
 	// create gstate daily/weekly
 	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
 	store_table_csv((int*) gstate_hours, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
@@ -948,6 +939,15 @@ static void aggregate_mhd() {
 				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
+
+			// create/append gstate and pstate minutes csv before recalc
+			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+			if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+				store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+			append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
+			append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 		}
 	}
 }
