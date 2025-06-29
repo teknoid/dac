@@ -351,7 +351,7 @@ static device_t* rampdown() {
 }
 
 static device_t* steal() {
-	if (PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION)
+	if (PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -398,7 +398,7 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static device_t* standby() {
-	if (PSTATE_ALL_STANDBY || !PSTATE_CHECK_STANDBY || !PSTATE_STABLE || !PSTATE_VALID || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
+	if (PSTATE_ALL_STANDBY || !PSTATE_CHECK_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
 		return 0;
 
 	// try first active powered adjustable device with noresponse counter > 0
