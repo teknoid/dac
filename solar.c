@@ -1538,7 +1538,7 @@ int solar_main(int argc, char **argv) {
 // tasmota+mqtt  needs mcp_register()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	set_xlog(XLOG_STDOUT);
-	set_debug(1);
+	// set_debug(1);
 	xlog("call init() + loop() for  %s", name);
 	(init)();
 	pthread_t *t = malloc(sizeof(pthread_t));
