@@ -304,6 +304,17 @@ void xlogl_float_noise(char *line, float noise, int invers, const char *name, fl
 	strncat(line, pair, 32);
 }
 
+void xlogl_percent10(char *line, const char *name, int value) {
+	char pair[32];
+	if (value < 900)
+		snprintf(pair, 32, " "BOLD"%s:"BRED"%.1f"RESET, name, FLOAT10(value));
+	else if (value > 1000)
+		snprintf(pair, 32, " "BOLD"%s:"BGRN"%.1f"RESET, name, FLOAT10(value));
+	else
+		snprintf(pair, 32, " "BOLD"%s:%.1f"RESET, name, FLOAT10(value));
+	strncat(line, pair, 32);
+}
+
 void xlogl_int(char *line, const char *name, int value) {
 	char pair[32];
 	snprintf(pair, 32, " %s:%d", name, value);

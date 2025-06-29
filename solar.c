@@ -149,9 +149,9 @@ static void print_gstate() {
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 	xlogl_bits16(line, "  flags", gstate->flags);
 	strcat(line, " ");
-	xlogl_float_noise(line, 0.0, 0, "Success", FLOAT10(gstate->success));
-	xlogl_float_noise(line, 0.0, 0, "Survive", FLOAT10(gstate->survive));
-	xlogl_float_noise(line, 0.0, 0, "Heating", FLOAT10(gstate->heating));
+	xlogl_percent10(line, "Success", gstate->success);
+	xlogl_percent10(line, "Survive", gstate->survive);
+	xlogl_percent10(line, "Heating", gstate->heating);
 	strcat(line, "  potd:");
 	strcat(line, potd ? potd->name : "NULL");
 	xlogl_end(line, strlen(line), 0);
