@@ -538,6 +538,8 @@ static void calculate_gstate() {
 	CUT_LOW(tocharge, 0);
 	int available = gstate->eod - tocharge;
 	CUT_LOW(available, 0);
+	if (gstate->sod == 0)
+		available = 0; // pv not yet started - we only have akku
 	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
 	CUT(gstate->survive, 2000);
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
@@ -940,7 +942,7 @@ static void aggregate_mhd() {
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
 
-			// create/append gstate and pstate minutes csv before recalc
+			// create/append gstate and pstate minutes csv before recalculating
 			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
 			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
 				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
@@ -1463,8 +1465,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
 			return 0; // continue loop
 
-		// summer: charging starts at high noon when below 25%
-		if ((gstate->soc > 250 || now->tm_hour < 12) && SUMMER)
+		// summer: charging starts at high noon when below 20%
+		if ((gstate->soc > 200 || now->tm_hour < 12) && SUMMER)
 			return 0; // continue loop
 
 		// enable charging
