@@ -361,7 +361,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);
 	strcat(line, value);
-	xlog(line);
+	xdebug(line);
 	return needed;
 }
 
@@ -386,7 +386,7 @@ int mosmix_heating(struct tm *now, int power) {
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);
 	strcat(line, value);
-	xlog(line);
+	xdebug(line);
 	return needed;
 }
 

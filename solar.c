@@ -517,9 +517,9 @@ static void calculate_gstate() {
 	gstate->pv = CS_DAY->pv;
 #endif
 
-	// akku usable energy and estimated time to live based on last hour's average load +5% extra +50Wh inverter dissipation
+	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
 	gstate->akku = gstate->soc > MIN_SOC ? AKKU_CAPACITY_SOC(gstate->soc - MIN_SOC) : 0;
-	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 50) * -1 : 0;
+	gstate->ttl = gstate->soc > MIN_SOC ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 25) * -1 : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -533,7 +533,7 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
-	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 50); // +50Wh inverter dissipation
+	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 25); // +25Wh inverter dissipation
 	int tocharge = gstate->need_survive - gstate->akku;
 	CUT_LOW(tocharge, 0);
 	int available = gstate->eod - tocharge;
@@ -544,31 +544,34 @@ static void calculate_gstate() {
 	CUT(gstate->survive, 2000);
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
-	// heating factor
-	int heating_total = collect_heating_total();
-	gstate->need_heating = mosmix_heating(now, heating_total);
-	gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
-	CUT(gstate->heating, 2000);
-	xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
-
-	// heating enabled
-	gstate->flags |= FLAG_HEATING;
-	// no need to heat
-	if (TEMP_IN > 25)
-		gstate->flags &= !FLAG_HEATING;
-	if (TEMP_IN > 18 && SUMMER)
-		gstate->flags &= !FLAG_HEATING;
-	if (TEMP_IN > 20 && TEMP_OUT > 15 && !SUMMER)
-		gstate->flags &= !FLAG_HEATING;
-	// force heating independently from temperature
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
+	// heating needed / possible
+	if (gstate->sod == 0)
+		gstate->heating = 0; // pv not yet started - we cannot heat
+	else {
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
-		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon < 3 || now->tm_mon > 9) && TEMP_IN < 28) // nov-mar always if not too hot
-		gstate->flags |= FLAG_HEATING;
-	if (GSTATE_HEATING)
-		xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
+		// no need to heat
+		if (TEMP_IN > 25)
+			gstate->flags &= !FLAG_HEATING;
+		if (TEMP_IN > 18 && SUMMER)
+			gstate->flags &= !FLAG_HEATING;
+		if (TEMP_IN > 20 && TEMP_OUT > 15 && !SUMMER)
+			gstate->flags &= !FLAG_HEATING;
+		// force heating independently from temperature
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon < 3 || now->tm_mon > 9) && TEMP_IN < 28) // nov-mar always if not too hot
+			gstate->flags |= FLAG_HEATING;
+		if (GSTATE_HEATING) {
+			xdebug("SOLAR heating enabled month=%d temp_in=%d temp_ou=%d", now->tm_mon, TEMP_IN, TEMP_OUT);
+			int heating_total = collect_heating_total();
+			gstate->need_heating = mosmix_heating(now, heating_total);
+			gstate->heating = gstate->need_heating ? available * 1000 / gstate->need_heating : 0;
+			CUT(gstate->heating, 2000);
+			xdebug("SOLAR heating eod=%d tocharge=%d avail=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->need_heating, FLOAT10(gstate->heating));
+		}
+	}
 
 	// copy to history
 	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
