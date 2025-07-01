@@ -1034,7 +1034,7 @@ static void daily() {
 	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 
 	// recalculate mosmix factors
-	mosmix_factors();
+	mosmix_factors(0);
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -1098,7 +1098,7 @@ static void hourly() {
 
 #ifndef FRONIUS_MAIN
 	// we need the history in mosmix.c main()
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 
 	// create/append pstate minutes csv
@@ -1292,8 +1292,7 @@ static int init() {
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
-	mosmix_load_history(now);
-	mosmix_factors();
+	mosmix_load_state(now);
 	mosmix_load(now, MARIENBERG, 0);
 	collect_loads();
 	plot();
@@ -1322,7 +1321,7 @@ static void stop() {
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	store_blob(PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 
 	sunspec_stop(meter);

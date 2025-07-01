@@ -878,7 +878,7 @@ static void daily() {
 	xdebug("FRONIUS today's 04:00 forecast for today %d, actual %d, error %.2f", forecast_today, gstate->pv, etoday);
 
 	// recalculate mosmix factors
-	mosmix_factors();
+	mosmix_factors(0);
 
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
@@ -939,7 +939,7 @@ static void hourly() {
 
 #ifndef FRONIUS_MAIN
 	// we need the history in mosmix.c main()
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 
 	PROFILING_LOG("FRONIUS hourly");
@@ -1087,8 +1087,7 @@ static int init() {
 	load_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
 	load_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 
-	mosmix_load_history(now);
-	mosmix_factors();
+	mosmix_load_state(now);
 	mosmix_load(now, MARIENBERG, 0);
 
 	curl10 = curl_init(URL_READABLE_F10, &memory);
@@ -1106,7 +1105,7 @@ static void stop() {
 #ifndef FRONIUS_MAIN
 	store_blob(GSTATE_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(COUNTER_FILE, counter_hours, sizeof(counter_hours));
-	mosmix_store_history();
+	mosmix_store_state();
 #endif
 
 	if (sock)

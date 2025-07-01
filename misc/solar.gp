@@ -23,7 +23,7 @@ set style line 4 linecolor "orchid" lw 1				# Grid upload
 set style line 5 linecolor "navy" lw 1					# Load
 set style line 6 linecolor "olive" lw 1					# SoC
 set style line 7 linecolor "magenta" lw 1				# Success
-set style line 8 linecolor "orange-red" lw 6			# Rad1h over SunD1
+set style line 8 linecolor "orange-red" lw 12			# Rad1h over SunD1
 set style line 9 linecolor "black" lw 1
 
 set style fill solid 1.0
@@ -81,28 +81,32 @@ p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"r3" t "r3" w lines,\
        '' u 1:"s1" t "s1" w lines linecolor rgb "red",\
        '' u 1:"s2" t "s2" w lines linecolor rgb "green",\
-       '' u 1:"s3" t "s3" w lines linecolor rgb "blue"
+       '' u 1:"s3" t "s3" w lines linecolor rgb "blue",\
+       '' u 1:"t1" t "t1" w lines,\
+       '' u 1:"t2" t "t2" w lines,\
+       '' u 1:"t3" t "t3" w lines
 
 # forecast today
 set ylabel "Today"
 set yrange [0:10000]
+set y2range [0:100]
 set output "/run/mcp/mosmix-today.svg" 
-p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
+p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($4+$5+$6) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($5+$6+$7) w lines ls 1 lw 2 t "sum"
 
 # forecast tomorrow
 set ylabel "Tomorrow"
 set output "/run/mcp/mosmix-tomorrow.svg" 
-p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "#ff8c00",\
+p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($4+$5+$6) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($5+$6+$7) w lines ls 1 lw 2 t "sum"
 
 
 # pstate

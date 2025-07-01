@@ -789,7 +789,7 @@ static void daily() {
 	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, strike %.1f%%", forecast_today, gstate->pv, FLOAT10(etoday));
 
 	// recalculate mosmix factors
-	mosmix_factors();
+	mosmix_factors(0);
 
 	// store state at least once per day
 	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
@@ -869,7 +869,7 @@ static void hourly() {
 #endif
 
 	// create mosmix history, today, tomorrow csv
-	mosmix_store_history();
+	mosmix_store_state();
 	mosmix_store_csv();
 
 	// create gstate daily/weekly
@@ -1084,8 +1084,7 @@ static int init() {
 	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
 	load_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
-	mosmix_load_history(now);
-	mosmix_factors();
+	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	collect_loads();
 	choose_program();
@@ -1110,7 +1109,7 @@ static void stop() {
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
 	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 
-	mosmix_store_history();
+	mosmix_store_state();
 
 	if (sock)
 		close(sock);
