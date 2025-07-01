@@ -12,18 +12,18 @@
 
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
+#define FRMAX					2222
+#define FSMAX					100
+#define FTMAX					100
+
+#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s / 100 + (20 - m->TTT) * t / 100)
+
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
 
 #define BASELOAD				80
 #define EXTRA					55
 #define NOISE					10
-
-#define FRMAX					2000
-#define FSMAX					100
-#define FTMAX					100
-
-#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) *s / 100 + (20 - m->TTT) * t / 100)
 
 // all values
 static mosmix_csv_t mosmix_csv[256];
@@ -188,9 +188,8 @@ static void* calculate_factors(void *arg) {
 					for (int d = 0; d < 7; d++) {
 						mosmix_t *m = HISTORY(d, h);
 
-						// calculate expected
+						// calculate expected and absolute errors
 						int exp = EXPECTED(r, s, t);
-
 						e1 += m->mppt1 > exp ? (m->mppt1 - exp) : (exp - m->mppt1);
 						e2 += m->mppt2 > exp ? (m->mppt2 - exp) : (exp - m->mppt2);
 						e3 += m->mppt3 > exp ? (m->mppt3 - exp) : (exp - m->mppt3);
@@ -368,7 +367,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 
 	snprintf(value, 48, " --> %d hours = %d", hours, needed);
 	strcat(line, value);
-	xdebug(line);
+	xlog(line);
 	return needed;
 }
 
@@ -449,12 +448,11 @@ void mosmix_dump_history_hours(int h) {
 }
 
 void mosmix_load_state(struct tm *now) {
-	ZERO(history);
-	ZERO(today);
-	ZERO(tomorrow);
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
 	// initially fill today and tomorrow from history
+	ZERO(today);
+	ZERO(tomorrow);
 	int day_today = now->tm_wday;
 	int day_tomorrow = day_today < 6 ? day_today + 1 : 0;
 	for (int h = 0; h < 24; h++) {
@@ -463,7 +461,6 @@ void mosmix_load_state(struct tm *now) {
 	}
 
 	// load or calculate factors
-	ZERO(factors);
 	if (access(STATE SLASH MOSMIX_FACTORS, F_OK))
 		mosmix_factors(0);
 	else
@@ -471,7 +468,7 @@ void mosmix_load_state(struct tm *now) {
 }
 
 void mosmix_store_state() {
-	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
+	// store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 }
 void mosmix_store_csv() {
@@ -583,7 +580,6 @@ static void test() {
 static void recalc() {
 	// return;
 
-	ZERO(history);
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	mosmix_factors(1);
 
@@ -623,9 +619,9 @@ static void recalc() {
 static void migrate() {
 	return;
 
-	mosmix_old_t old[24 * 7];
-	ZERO(old);
 	ZERO(history);
+
+	mosmix_old_t old[24 * 7];
 	load_blob(STATE SLASH MOSMIX_HISTORY, old, sizeof(old));
 
 	for (int i = 0; i < 24 * 7; i++) {
