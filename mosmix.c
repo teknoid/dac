@@ -13,10 +13,10 @@
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
 #define FRMAX					2222
-#define FSMAX					100
-#define FTMAX					100
+#define FSMAX					222
+#define FTMAX					222
 
-#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s / 100 + (20 - m->TTT) * t / 100)
+#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s + (20 - m->TTT) * t)
 
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
@@ -24,6 +24,11 @@
 #define BASELOAD				80
 #define EXTRA					55
 #define NOISE					10
+
+typedef struct thread_control_t {
+	int from;
+	int to;
+} thread_control_t;
 
 // all values
 static mosmix_csv_t mosmix_csv[256];
@@ -172,14 +177,22 @@ static void update_today_tomorrow(struct tm *now) {
 }
 
 static void* calculate_factors(void *arg) {
-	ZERO(factors);
+	thread_control_t *tc = (thread_control_t*) arg;
 
-	for (int h = 0; h < 24; h++) {
+	xdebug("MOSMIX started factors thread from %2d to %2d", tc->from, tc->to);
+	for (int h = tc->from; h < tc->to; h++) {
+
+		// before going into loops: check if we have Rad1h for this hour
+		int rad1h = 0;
+		for (int d = 0; d < 7; d++)
+			rad1h += HISTORY(d, h)->Rad1h;
+		if (!rad1h)
+			continue;
+
 		factor_t *f = FACTORS(h);
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
-		// model error: r must not be 0 when s is set
-		for (int r = 1; r < FRMAX; r++) {
+		for (int r = 0; r < FRMAX; r++) {
 			for (int s = 0; s < FSMAX; s++) {
 				for (int t = 0; t < FTMAX; t++) {
 
@@ -228,22 +241,34 @@ static void* calculate_factors(void *arg) {
 		// fix disconnected MPPT4 noise
 		f->r4 = f->s4 = f->t4 = f->e4 = 0;
 	}
-	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
-	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
-	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 	return (void*) 0;
 }
 
 // brute force coefficients determination per MPPT and hour in separate thread
 void mosmix_factors(int wait) {
-	pthread_t thread = 0;
+	thread_control_t c1 = { 0, 12 }, c2 = { 12, 24 };
+	pthread_t t1 = 0, t2 = 0;
 
-	if (pthread_create(&thread, NULL, &calculate_factors, NULL))
-		xerr("MOSMIX Error creating calculate_factors thread");
+	ZERO(factors);
 
-	if (wait && thread != 0)
-		if (pthread_join(thread, NULL) != 0)
-			xerr("MOSMIX Error joining factors_thread thread");
+	if (pthread_create(&t1, NULL, &calculate_factors, &c1))
+		xerr("MOSMIX Error creating calculate_factors thread1");
+	if (pthread_create(&t2, NULL, &calculate_factors, &c2))
+		xerr("MOSMIX Error creating calculate_factors thread2");
+
+	if (!wait)
+		return;
+
+	if (t1 != 0)
+		if (pthread_join(t1, NULL) != 0)
+			xerr("MOSMIX Error joining factors_thread thread1");
+	if (t2 != 0)
+		if (pthread_join(t2, NULL) != 0)
+			xerr("MOSMIX Error joining factors_thread thread2");
+
+	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
+	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
+	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -468,10 +493,11 @@ void mosmix_load_state(struct tm *now) {
 }
 
 void mosmix_store_state() {
-	// store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
+	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 }
 void mosmix_store_csv() {
+	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	store_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, RUN SLASH MOSMIX_HISTORY_CSV);
 	store_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 	store_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TOMORROW_CSV);
