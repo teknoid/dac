@@ -173,18 +173,18 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
-static void* calculate_factors(void *arg) {
-	int *hour = (int*) arg;
+static void* calculate_factors_hour(void *arg) {
+	int *h = (int*) arg;
 
-	xdebug("MOSMIX started factors thread for hour=%d", *hour);
+	xdebug("MOSMIX started factors thread for hour=%d", *h);
 
 	// before going into loops: check if we have Rad1h for this hour
 	int rad1h = 0;
 	for (int d = 0; d < 7; d++)
-		rad1h += HISTORY(d, *hour)->Rad1h;
+		rad1h += HISTORY(d, *h)->Rad1h;
 	if (rad1h) {
 
-		factor_t *f = FACTORS(*hour);
+		factor_t *f = FACTORS(*h);
 		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
 		for (int r = 0; r < FRMAX; r++) {
@@ -194,7 +194,7 @@ static void* calculate_factors(void *arg) {
 					// sum up errors over one week
 					int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
 					for (int d = 0; d < 7; d++) {
-						mosmix_t *m = HISTORY(d, *hour);
+						mosmix_t *m = HISTORY(d, *h);
 
 						// calculate expected and absolute errors
 						int exp = EXPECTED(r, s, t);
@@ -238,7 +238,7 @@ static void* calculate_factors(void *arg) {
 	}
 
 	// indicate finish
-	*hour = -1;
+	*h = -1;
 	return (void*) 0;
 }
 
@@ -280,7 +280,7 @@ static void* calculate_factors_master(void *arg) {
 				// start thread if we have a free processor
 				completed = 0;
 				if (!threads[h] && nprocs > 0)
-					if (!pthread_create(&threads[h], NULL, &calculate_factors, &control[h]))
+					if (!pthread_create(&threads[h], NULL, &calculate_factors_hour, &control[h]))
 						nprocs--;
 			}
 		}
