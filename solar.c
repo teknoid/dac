@@ -788,16 +788,6 @@ static void daily() {
 	int etoday = forecast_today ? gstate->pv * 1000 / forecast_today : 0;
 	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, strike %.1f%%", forecast_today, gstate->pv, FLOAT10(etoday));
 
-	// recalculate mosmix factors
-	mosmix_factors(0);
-
-	// store state at least once per day
-	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
-	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
-	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
-	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
-	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
-
 	// compare daily self and meter counter
 	xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
 	xlog("FRONIUS counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
@@ -810,11 +800,21 @@ static void daily() {
 	memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 	memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 
+	// store state at least once per day
+	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
+	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+
 	// save pstate SVG
 	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
 	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
 	system(command);
 	xdebug("SOLAR saved pstate SVG: %s", command);
+
+	// recalculate mosmix factors
+	mosmix_factors(0);
 
 	PROFILING_LOG("SOLAR daily");
 }
