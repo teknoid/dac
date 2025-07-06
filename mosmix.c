@@ -173,10 +173,10 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
-static void* calculate_factors_hour(void *arg) {
+static void* calculate_factors_slave(void *arg) {
 	int *h = (int*) arg;
 
-	xdebug("MOSMIX started factors thread for hour=%d", *h);
+	xdebug("MOSMIX factors thread started hour=%d", *h);
 
 	// before going into loops: check if we have Rad1h for this hour
 	int rad1h = 0;
@@ -262,11 +262,11 @@ static void* calculate_factors_master(void *arg) {
 	int nprocs = get_nprocs();
 
 	while (1) {
-		strcpy(line, "MOSMIX calculate_factors_master ");
+		strcpy(line, "MOSMIX factors thread control ");
 		int completed = 1;
 		for (int h = 0; h < 24; h++) {
 			if (control[h] == -1) {
-				// thread finished - join
+				// finished - join thread and free processor
 				if (threads[h])
 					if (!pthread_join(threads[h], NULL)) {
 						threads[h] = 0;
@@ -276,7 +276,7 @@ static void* calculate_factors_master(void *arg) {
 				// start thread if we have a free processor
 				completed = 0;
 				if (!threads[h] && nprocs > 0)
-					if (!pthread_create(&threads[h], NULL, &calculate_factors_hour, &control[h]))
+					if (!pthread_create(&threads[h], NULL, &calculate_factors_slave, &control[h]))
 						nprocs--;
 			}
 			snprintf(value, 10, " %2d", control[h]);

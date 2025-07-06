@@ -79,12 +79,9 @@ set output "/run/mcp/mosmix-factors.svg"
 p factors u 1:"r1" t "r1" w lines,\
        '' u 1:"r2" t "r2" w lines,\
        '' u 1:"r3" t "r3" w lines,\
-       '' u 1:"s1" t "s1" w lines linecolor rgb "red",\
-       '' u 1:"s2" t "s2" w lines linecolor rgb "green",\
-       '' u 1:"s3" t "s3" w lines linecolor rgb "blue",\
-       '' u 1:"t1" t "t1" w lines,\
-       '' u 1:"t2" t "t2" w lines,\
-       '' u 1:"t3" t "t3" w lines
+       '' u 1:"e1" t "e1" w lines linecolor rgb "red",\
+       '' u 1:"e2" t "e2" w lines linecolor rgb "green",\
+       '' u 1:"e3" t "e3" w lines linecolor rgb "blue"
 
 # forecast today
 set ylabel "Today"
