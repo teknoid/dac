@@ -182,60 +182,62 @@ static void* calculate_factors_hour(void *arg) {
 	int rad1h = 0;
 	for (int d = 0; d < 7; d++)
 		rad1h += HISTORY(d, *h)->Rad1h;
-	if (rad1h) {
+	if (!rad1h) {
+		*h = -1;
+		return (void*) 0;
+	}
 
-		factor_t *f = FACTORS(*h);
-		f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
+	factor_t *f = FACTORS(*h);
+	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
-		for (int r = 0; r < FRMAX; r++) {
-			for (int s = 0; s < FSMAX; s++) {
-				for (int t = 0; t < FTMAX; t++) {
+	for (int r = 0; r < FRMAX; r++) {
+		for (int s = 0; s < FSMAX; s++) {
+			for (int t = 0; t < FTMAX; t++) {
 
-					// sum up errors over one week
-					int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-					for (int d = 0; d < 7; d++) {
-						mosmix_t *m = HISTORY(d, *h);
+				// sum up errors over one week
+				int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+				for (int d = 0; d < 7; d++) {
+					mosmix_t *m = HISTORY(d, *h);
 
-						// calculate expected and absolute errors
-						int exp = EXPECTED(r, s, t);
-						e1 += m->mppt1 > exp ? (m->mppt1 - exp) : (exp - m->mppt1);
-						e2 += m->mppt2 > exp ? (m->mppt2 - exp) : (exp - m->mppt2);
-						e3 += m->mppt3 > exp ? (m->mppt3 - exp) : (exp - m->mppt3);
-						e4 += m->mppt4 > exp ? (m->mppt4 - exp) : (exp - m->mppt4);
-					}
+					// calculate expected and absolute errors
+					int exp = EXPECTED(r, s, t);
+					e1 += m->mppt1 > exp ? (m->mppt1 - exp) : (exp - m->mppt1);
+					e2 += m->mppt2 > exp ? (m->mppt2 - exp) : (exp - m->mppt2);
+					e3 += m->mppt3 > exp ? (m->mppt3 - exp) : (exp - m->mppt3);
+					e4 += m->mppt4 > exp ? (m->mppt4 - exp) : (exp - m->mppt4);
+				}
 
-					// take over coefficients from the smallest error
-					if (e1 < f->e1) {
-						f->r1 = r;
-						f->s1 = s;
-						f->t1 = t;
-						f->e1 = e1;
-					}
-					if (e2 < f->e2) {
-						f->r2 = r;
-						f->s2 = s;
-						f->t2 = t;
-						f->e2 = e2;
-					}
-					if (e3 < f->e3) {
-						f->r3 = r;
-						f->s3 = s;
-						f->t3 = t;
-						f->e3 = e3;
-					}
-					if (e4 < f->e4) {
-						f->r4 = r;
-						f->s4 = s;
-						f->t4 = t;
-						f->e4 = e4;
-					}
+				// take over coefficients from the smallest error
+				if (e1 < f->e1) {
+					f->r1 = r;
+					f->s1 = s;
+					f->t1 = t;
+					f->e1 = e1;
+				}
+				if (e2 < f->e2) {
+					f->r2 = r;
+					f->s2 = s;
+					f->t2 = t;
+					f->e2 = e2;
+				}
+				if (e3 < f->e3) {
+					f->r3 = r;
+					f->s3 = s;
+					f->t3 = t;
+					f->e3 = e3;
+				}
+				if (e4 < f->e4) {
+					f->r4 = r;
+					f->s4 = s;
+					f->t4 = t;
+					f->e4 = e4;
 				}
 			}
 		}
-
-		// fix disconnected MPPT4 noise
-		f->r4 = f->s4 = f->t4 = f->e4 = 0;
 	}
+
+	// fix disconnected MPPT4 noise
+	f->r4 = f->s4 = f->t4 = f->e4 = 0;
 
 	// indicate finish
 	*h = -1;
@@ -243,6 +245,8 @@ static void* calculate_factors_hour(void *arg) {
 }
 
 static void* calculate_factors_master(void *arg) {
+	char line[LINEBUF], value[10];
+
 	// 24 thread and control slots
 	pthread_t threads[24];
 	int control[24];
@@ -254,19 +258,11 @@ static void* calculate_factors_master(void *arg) {
 	ZERO(factors);
 	ZERO(threads);
 
-	// how many processor can we use
+	// how many processors can we use
 	int nprocs = get_nprocs();
 
 	while (1) {
-
-		char line[LINEBUF], value[48];
 		strcpy(line, "MOSMIX calculate_factors_master ");
-		for (int h = 0; h < 24; h++) {
-			snprintf(value, 10, " %2d", control[h]);
-			strcat(line, value);
-		}
-		xdebug(line);
-
 		int completed = 1;
 		for (int h = 0; h < 24; h++) {
 			if (control[h] == -1) {
@@ -283,7 +279,11 @@ static void* calculate_factors_master(void *arg) {
 					if (!pthread_create(&threads[h], NULL, &calculate_factors_hour, &control[h]))
 						nprocs--;
 			}
+			snprintf(value, 10, " %2d", control[h]);
+			strcat(line, value);
 		}
+		xdebug(line);
+
 		if (completed)
 			break;
 
