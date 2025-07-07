@@ -14,11 +14,15 @@
 #include "solar.h"
 #include "mcp.h"
 
-#include "solar-tron25-modbus.h"
-//#include "solar-tron25-api.h"
+//#include "solar-tron25-modbus.h"
+#include "solar-tron25-api.h"
 //#include "solar-simulator.h"
 
+// MODBUS
 // gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lm -lmodbus
+
+// API
+// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c curl.c frozen.c -lm -lmodbus -lcurl
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -1540,7 +1544,7 @@ int solar_main(int argc, char **argv) {
 // tasmota+mqtt  needs mcp_register()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	set_xlog(XLOG_STDOUT);
-	// set_debug(1);
+	set_debug(1);
 	xlog("call init() + loop() for  %s", name);
 	(init)();
 	pthread_t *t = malloc(sizeof(pthread_t));

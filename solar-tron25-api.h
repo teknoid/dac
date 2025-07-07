@@ -70,7 +70,6 @@ struct _raw {
 	float mppt3_total;
 	float mppt4_total;
 	float ac1;
-	float dc1;
 	float ac2;
 	float dc2;
 	float soc;
@@ -99,12 +98,9 @@ static pthread_t thread_update;
 #define JF10MPPT2				" PV_POWERACTIVE_MEAN_02_F32:%f "
 #define JF10MPPT1SUM			" PV_ENERGYACTIVE_ACTIVE_SUM_01_U64:%f "
 #define JF10MPPT2SUM			" PV_ENERGYACTIVE_ACTIVE_SUM_02_U64:%f "
-#define JF10F					" ACBRIDGE_FREQUENCY_MEAN_F32:%f "
-
-// 262144
 #define JF10AC					" ACBRIDGE_POWERACTIVE_SUM_MEAN_F32:%f "
-#define JF10DC					" PV_POWERACTIVE_SUM_F64:%f "
-#define JF10BAT					" BAT_POWERACTIVE_F64:%f "
+#define JF10F					" ACBRIDGE_FREQUENCY_MEAN_F32:%f "
+#define JF10BAT					" BAT_POWERACTIVE_MEAN_F32:%f "
 
 // 16580608
 #define JBSOC					" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
@@ -134,17 +130,12 @@ static int parse_inverter1(response_t *resp) {
 	int ret;
 	char *p;
 
-	// workaround for accessing inverter number as key: "393216" : {
-	p = strstr(resp->buffer, "\"393216\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10MPPT1SUM JF10MPPT2SUM JF10F END, &r->mppt1, &r->mppt2, &r->mppt1_total, &r->mppt2_total, &r->f);
-	if (ret != 5)
-		return xerr("SOLAR parse_inverter1() warning! parsing 393216: expected 5 values but got %d", ret);
-
-	// workaround for accessing inverter number as key: "262144" : {
-	p = strstr(resp->buffer, "\"262144\"") + 8 + 2;
-	ret = json_scanf(p, strlen(p), CHA JF10AC JF10DC JF10BAT END, &r->ac1, &r->dc1, &r->akku);
-	if (ret != 3)
-		return xerr("SOLAR parse_inverter1() warning! parsing 262144: expected 3 values but got %d", ret);
+	// workaround for accessing inverter number as key: "0" : {
+	p = strstr(resp->buffer, "\"0\"") + 8 + 2;
+	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10MPPT1SUM JF10MPPT2SUM JF10AC JF10F JF10BAT END, &r->mppt1, &r->mppt2, &r->mppt1_total, &r->mppt2_total, &r->ac1,
+			&r->f, &r->akku);
+	if (ret != 7)
+		return xerr("SOLAR parse_inverter1() warning! parsing 0: expected 7 values but got %d", ret);
 
 	// workaround for accessing akku number as key: "16580608" : {
 	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
@@ -216,7 +207,7 @@ static void* update(void *arg) {
 		pthread_mutex_lock(&pstate_lock);
 
 		pstate->ac1 = r->ac1;
-		pstate->dc1 = r->dc1;
+		pstate->dc1 = r->mppt1 + r->mppt2 + r->akku;
 		pstate->mppt1 = r->mppt1;
 		pstate->mppt2 = r->mppt2;
 
