@@ -1467,8 +1467,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
 			return 0; // continue loop
 
-		// summer: charging starts at high noon when below 20%
-		if ((gstate->soc > 200 || now->tm_hour < 12) && SUMMER)
+		// summer: charging starts at high noon when below 25%
+		if ((gstate->soc > 250 || now->tm_hour < 12) && SUMMER)
 			return 0; // continue loop
 
 		// enable charging
@@ -1509,7 +1509,7 @@ int solar_main(int argc, char **argv) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'b':
-			// -X: limit charge, +X: limit dscharge, 0: no limits
+			// -X: limit charge, +X: limit discharge, 0: no limits
 			return battery(optarg);
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt

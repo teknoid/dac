@@ -402,7 +402,7 @@ void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *
 // night: collect load power where pv cannot satisfy this
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
-	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, midnight = 0, hours = 0, needed = 0;
+	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
 	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
@@ -416,14 +416,16 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			snprintf(value, 48, " %d:%d:%d", h, x, l);
 			strcat(line, value);
 			needed += l;
+			night = 1;
 			hours++;
 		}
-		if (h == 12 && ch < 6)
-			break; // reached high noon this day
-		if (h == 12 && midnight)
-			break; // reached high noon next day
+
+		// reached end of night or high noon next day
+		if ((night && x > l) || (midnight && h == 12))
+			break;
+
+		// reached midnight
 		if (++h == 24) {
-			// reached midnight
 			midnight = 1;
 			h = 0;
 		}
@@ -581,7 +583,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static void test() {
-	return;
+	// return;
 
 	LOCALTIME
 
@@ -593,7 +595,6 @@ static void test() {
 
 	// load state and update forecasts
 	mosmix_load_state(now);
-	mosmix_factors(1);
 	mosmix_load(now, WORK SLASH MARIENBERG, 1);
 
 	// calculate total daily values
@@ -643,7 +644,7 @@ static void test() {
 }
 
 static void recalc() {
-	// return;
+	return;
 
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	mosmix_factors(1);
