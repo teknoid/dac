@@ -91,8 +91,6 @@ aqua: aqua.o utils.o
 	$(CC) $(CFLAGS) -o aqua aqua.o utils.o
 
 valgrind:
-	sudo cp -rv /work/mcp /run
-	sudo chown hje:hje /run/mcp -R
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp
 	
 .PHONY: clean install install-local install-service keytable

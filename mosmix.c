@@ -14,11 +14,11 @@
 
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
-#define FRMAX					2222
-#define FSMAX					222
-#define FTMAX					222
+#define FRMAX					3333
+#define FSMAX					111
+#define FTMAX					444
 
-#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s + (20 - m->TTT) * t)
+#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s + (10 - m->TTT) * t)
 
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
@@ -190,9 +190,9 @@ static void* calculate_factors_slave(void *arg) {
 	factor_t *f = FACTORS(*h);
 	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
-	for (int r = 0; r < FRMAX; r++) {
-		for (int s = 0; s < FSMAX; s++) {
-			for (int t = 0; t < FTMAX; t++) {
+	for (int r = 0; r <= FRMAX; r++) {
+		for (int s = 0; s <= FSMAX; s++) {
+			for (int t = 0; t <= FTMAX; t++) {
 
 				// sum up errors over one week
 				int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
@@ -341,12 +341,13 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	xdebug("MOSMIX forecast err  %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
 	// collect sod errors and scale all remaining eod values
-	if (m->Rad1h) {
-		scale1(now, m);
-		scale2(now, m);
-		scale3(now, m);
-		scale4(now, m);
-	}
+// TODO das ändert den original errechneten expected und verfälscht damit die factors calc
+//	if (m->Rad1h) {
+//		scale1(now, m);
+//		scale2(now, m);
+//		scale3(now, m);
+//		scale4(now, m);
+//	}
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
@@ -534,8 +535,8 @@ void mosmix_load_state(struct tm *now) {
 }
 
 void mosmix_store_state() {
-	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 }
 void mosmix_store_csv() {
 	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
@@ -583,7 +584,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static void test() {
-	// return;
+	return;
 
 	LOCALTIME
 
@@ -644,9 +645,11 @@ static void test() {
 }
 
 static void recalc() {
-	return;
+	// return;
 
-	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	LOCALTIME
+
+	mosmix_load_state(now);
 	mosmix_factors(1);
 
 	// recalc expected with new factors

@@ -14,15 +14,15 @@
 #include "solar.h"
 #include "mcp.h"
 
-//#include "solar-tron25-modbus.h"
-#include "solar-tron25-api.h"
+#include "solar-tron25-modbus.h"
+//#include "solar-tron25-api.h"
 //#include "solar-simulator.h"
 
 // MODBUS
-// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lm -lmodbus
+// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sensors.c i2c.c sunspec.c -lm -lmodbus
 
 // API
-// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sunspec.c sensors.c i2c.c curl.c frozen.c -lm -lmodbus -lcurl
+// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sensors.c i2c.c curl.c frozen.c -lm -lcurl
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
@@ -743,7 +743,7 @@ static void calculate_pstate() {
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		pstate->ramp = 0;
-	// ramp down as soon as grid goes above NOISE
+	// ramp down between NOISE and RAMP_WINDOW
 	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = -RAMP_WINDOW;
 	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
@@ -892,7 +892,7 @@ static void minly() {
 	// xlog("SOLAR minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
 
 	// enable discharge if we have grid download
-	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > NOISE)
+	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > RAMP_WINDOW)
 		akku_discharge();
 
 	// self counter daily - convert Watt-secons to Watt-hours
@@ -1471,8 +1471,8 @@ int ramp_akku(device_t *akku, int power) {
 		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
 			return 0; // continue loop
 
-		// summer: charging starts at high noon when below 25%
-		if ((gstate->soc > 250 || now->tm_hour < 12) && SUMMER)
+		// summer: start charging around high noon when below 20%
+		if (SUMMER && (gstate->soc > 200 || now->tm_hour < 10 || now->tm_hour > 14))
 			return 0; // continue loop
 
 		// enable charging
@@ -1544,7 +1544,7 @@ int solar_main(int argc, char **argv) {
 // tasmota+mqtt  needs mcp_register()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
 	set_xlog(XLOG_STDOUT);
-	set_debug(1);
+	// set_debug(1);
 	xlog("call init() + loop() for  %s", name);
 	(init)();
 	pthread_t *t = malloc(sizeof(pthread_t));

@@ -13,8 +13,8 @@
 #define BASELOAD				(WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
+#define TEMP_IN					sensors->bmp085_temp
+#define TEMP_OUT				sensors->bmp085_temp
 #define LUMI					sensors->bh1750_lux
 
 // devices

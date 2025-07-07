@@ -264,9 +264,17 @@ static int akku_charge() {
 	AKKU->state = Charge;
 	AKKU->power = 1;
 #ifndef SOLAR_MAIN
-	if (!sunspec_storage_limit_discharge(inverter1, 0)) {
-		xdebug("SOLAR set akku CHARGE");
-		return WAIT_AKKU_CHARGE; // loop done
+	int limit = SUMMER && PSTATE_HOUR_LAST1->pv > 2000;
+	if (limit) {
+		if (!sunspec_storage_limit_both(inverter1, 2000, 0)) {
+			xdebug("SOLAR set akku CHARGE limit 2000");
+			return WAIT_AKKU_CHARGE; // loop done
+		}
+	} else {
+		if (!sunspec_storage_limit_discharge(inverter1, 0)) {
+			xdebug("SOLAR set akku CHARGE");
+			return WAIT_AKKU_CHARGE; // loop done
+		}
 	}
 #endif
 	return 0; // continue loop
@@ -275,22 +283,20 @@ static int akku_charge() {
 static int akku_discharge() {
 	AKKU->state = Discharge;
 	AKKU->power = 0;
+#ifndef SOLAR_MAIN
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
-#ifndef SOLAR_MAIN
 		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {
 			xdebug("SOLAR set akku DISCHARGE limit BASELOAD");
 			return WAIT_RESPONSE; // loop done
 		}
-#endif
 	} else {
-#ifndef SOLAR_MAIN
 		if (!sunspec_storage_limit_charge(inverter1, 0)) {
 			xdebug("SOLAR set akku DISCHARGE");
 			return WAIT_RESPONSE; // loop done
 		}
-#endif
 	}
+#endif
 	return 0; // continue loop
 }
 
