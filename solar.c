@@ -14,15 +14,17 @@
 #include "solar.h"
 #include "mcp.h"
 
+#ifdef SOLAR_SIMULATOR
+#include "solar-simulator.h"
+#endif
+
+#ifdef SOLAR_MODBUS
 #include "solar-tron25-modbus.h"
-//#include "solar-tron25-api.h"
-//#include "solar-simulator.h"
+#endif
 
-// MODBUS
-// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sensors.c i2c.c sunspec.c -lm -lmodbus
-
-// API
-// gcc -Wall -DSOLAR_MAIN -I./include -o solar solar.c utils.c mosmix.c sensors.c i2c.c curl.c frozen.c -lm -lcurl
+#ifdef SOLAR_API
+#include "solar-tron25-api.h"
+#endif
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
