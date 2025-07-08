@@ -58,13 +58,13 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
 
-solar: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o curl.o frozen.o
+solar: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o
 	$(CC) $(CFLAGS) -DSOLAR_MAIN -c solar.c mosmix.c
-	$(CC) $(CFLAGS) -o solar solar.o utils.o mosmix.o sensors.o i2c.o sunspec.o curl.o frozen.o $(LIBS) -lmodbus -lcurl -lmqttc
+	$(CC) $(CFLAGS) -o solar solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o $(LIBS) -lmodbus -lcurl -lmqttc
 
-simulator: sunspec.o mosmix.o utils.o frozen.o curl.o mqtt.o tasmota.o sensors.o i2c.o
-	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSOLAR_SIMULATOR -c solar.c
-	$(CC) $(CFLAGS) -o simulator solar.o sunspec.o mosmix.o utils.o frozen.o curl.o mqtt.o tasmota.o sensors.o i2c.o $(LIBS) -lmodbus -lcurl -lmqttc
+simulator: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSOLAR_SIMULATOR -c solar.c mosmix.c
+	$(CC) $(CFLAGS) -o simulator solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o $(LIBS) -lmodbus -lcurl -lmqttc
 
 sensors: sensors.o utils.o i2c.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
