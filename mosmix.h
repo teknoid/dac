@@ -18,22 +18,23 @@
 
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
-#define MOSMIX_HEADER	" Rad1h SunD1   TTT  exp1  exp2  exp3  exp4 mppt1 mppt2 mppt3 mppt4 diff1 diff2 diff3 diff4  err1  err2  err3  err4"
+// CSV					1     2     3     4     5     6     7     8     9    10    11    12    13    14    15    16    17    18    19    20
+#define MOSMIX_HEADER	" Rad1h SunD1   TTT mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4 diff1 diff2 diff3 diff4  err1  err2  err3  err4"
 struct _mosmix {
 	// mosmix raw values
 	int Rad1h;
 	int SunD1;
 	int TTT;
-	// expected pv calculated from mosmix forecast
-	int exp1;
-	int exp2;
-	int exp3;
-	int exp4;
 	// actual pv
 	int mppt1;
 	int mppt2;
 	int mppt3;
 	int mppt4;
+	// expected pv calculated from mosmix forecast
+	int exp1;
+	int exp2;
+	int exp3;
+	int exp4;
 	// error calculated actual - expected
 	int diff1;
 	int diff2;
@@ -52,16 +53,16 @@ typedef struct mosmix_old_t {
 	int Rad1h;
 	int SunD1;
 	int TTT;
-	// expected pv calculated from mosmix forecast
-	int exp1;
-	int exp2;
-	int exp3;
-	int exp4;
 	// actual pv
 	int mppt1;
 	int mppt2;
 	int mppt3;
 	int mppt4;
+	// expected pv calculated from mosmix forecast
+	int exp1;
+	int exp2;
+	int exp3;
+	int exp4;
 	// error calculated actual - expected
 	int diff1;
 	int diff2;

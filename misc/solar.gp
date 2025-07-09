@@ -93,7 +93,7 @@ p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($5+$6+$7) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($9+$10+$11) w lines ls 1 lw 2 t "sum"
 
 # forecast tomorrow
 set ylabel "Tomorrow"
@@ -103,7 +103,7 @@ p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
-	    '' u 1:($5+$6+$7) w lines ls 1 lw 2 t "sum"
+	    '' u 1:($9+$10+$11) w lines ls 1 lw 2 t "sum"
 
 
 # pstate
@@ -132,7 +132,7 @@ p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
   gstate u 1:"soc"    t "soc"  w lines ls 6,\
       '' u 1:"ttl"    t "ttl"  w lines,\
       '' u 1:"succ"   t "succ" w lines ls 7,\
-      '' u 1:"surv"   t "surv" w lines,\
+      '' u 1:"surv"   t "surv" w lines ls 3,\
       '' u 1:"heat"   t "heat" w lines,\
       1000            t "100%" w lines ls 9
       
