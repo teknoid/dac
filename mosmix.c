@@ -14,11 +14,12 @@
 
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
-#define FRMAX					3333
-#define FSMAX					111
-#define FTMAX					444
+#define FRMAX					9999
+//#define FSMAX					999
+#define FTMAX					3333
 
-#define EXPECTED(r, s, t)		(m->Rad1h * r / 1000 - (100 - m->SunD1) * s + (10 - m->TTT) * t)
+// #define EXPECTED(r, s, t)		(m->Rad1h * r / 100 - (100 - m->SunD1) * s - m->TTT * t)
+#define EXPECTED(r, s, t)		(m->Rad1h * r / 100 - m->TTT * t)
 
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
@@ -122,6 +123,20 @@ static void expected(mosmix_t *m, factor_t *f) {
 		m->exp4 = 0;
 }
 
+static void errors(mosmix_t *m) {
+	// calculate errors as actual - expected
+	m->diff1 = m->mppt1 - m->exp1;
+	m->diff2 = m->mppt2 - m->exp2;
+	m->diff3 = m->mppt3 - m->exp3;
+	m->diff4 = m->mppt4 - m->exp4;
+
+	// calculate errors as actual / expected
+	m->err1 = m->exp1 && m->mppt1 ? m->mppt1 * 100 / m->exp1 : 100;
+	m->err2 = m->exp2 && m->mppt2 ? m->mppt2 * 100 / m->exp2 : 100;
+	m->err3 = m->exp3 && m->mppt3 ? m->mppt3 * 100 / m->exp3 : 100;
+	m->err4 = m->exp4 && m->mppt4 ? m->mppt4 * 100 / m->exp4 : 100;
+}
+
 static void sum(mosmix_t *to, mosmix_t *from) {
 	int *t = (int*) to;
 	int *f = (int*) from;
@@ -191,8 +206,8 @@ static void* calculate_factors_slave(void *arg) {
 	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
 	for (int r = 0; r <= FRMAX; r++) {
-		for (int s = 0; s <= FSMAX; s++) {
-			for (int t = 0; t <= FTMAX; t++) {
+		int s = 0; // for (int s = FSMAX / -10; s <= FSMAX; s++) {
+			for (int t = FTMAX / -10; t <= FTMAX; t++) {
 
 				// sum up errors over one week
 				int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
@@ -233,7 +248,7 @@ static void* calculate_factors_slave(void *arg) {
 					f->e4 = e4;
 				}
 			}
-		}
+//		}
 	}
 
 	// fix disconnected MPPT4 noise
@@ -318,18 +333,7 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m->mppt2 = mppt2 > NOISE ? mppt2 : 0;
 	m->mppt3 = mppt3 > NOISE ? mppt3 : 0;
 	m->mppt4 = mppt4 > NOISE ? mppt4 : 0;
-
-	// calculate errors as actual - expected
-	m->diff1 = m->mppt1 - m->exp1;
-	m->diff2 = m->mppt2 - m->exp2;
-	m->diff3 = m->mppt3 - m->exp3;
-	m->diff4 = m->mppt4 - m->exp4;
-
-	// calculate errors as actual / expected
-	m->err1 = m->exp1 && m->mppt1 ? m->mppt1 * 100 / m->exp1 : 100;
-	m->err2 = m->exp2 && m->mppt2 ? m->mppt2 * 100 / m->exp2 : 100;
-	m->err3 = m->exp3 && m->mppt3 ? m->mppt3 * 100 / m->exp3 : 100;
-	m->err4 = m->exp4 && m->mppt4 ? m->mppt4 * 100 / m->exp4 : 100;
+	errors(m);
 
 	// save to history
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
@@ -649,10 +653,11 @@ static void recalc() {
 
 	LOCALTIME
 
+	// recalc factors
 	mosmix_load_state(now);
 	mosmix_factors(1);
 
-	// recalc expected with new factors
+	// recalc expected and errors
 	for (int d = 0; d < 7; d++) {
 		for (int h = 0; h < 24; h++) {
 			factor_t *f = FACTORS(h);
@@ -662,22 +667,8 @@ static void recalc() {
 			expected(m, f);
 			expected(m0, f);
 			expected(m1, f);
+			errors(m);
 		}
-	}
-
-	// recalc errors
-	for (int i = 0; i < 24 * 7; i++) {
-		mosmix_t *m = &history[i];
-
-		m->diff1 = m->mppt1 - m->exp1;
-		m->diff2 = m->mppt2 - m->exp2;
-		m->diff3 = m->mppt3 - m->exp3;
-		m->diff4 = m->mppt4 - m->exp4;
-
-		m->err1 = m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
-		m->err2 = m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
-		m->err3 = m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
-		m->err4 = m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
 	}
 
 	// mosmix_store_state();
@@ -763,19 +754,17 @@ static void wget(struct tm *now, const char *id) {
 static int diffs(int d) {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
-		mosmix_t *mh = HISTORY(d, h);
-		mosmix_t *m = TODAY(h);
-		int pv = mh->mppt1 + mh->mppt2 + mh->mppt3 + mh->mppt4;
-		int diff = pv - m->Rad1h - m->SunD1;
+		mosmix_t *m = HISTORY(d, h);
+		int diff = SUM_MPPT - m->Rad1h - m->SunD1;
 		diff_sum += abs(diff);
 		if (diff)
-			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d --> err %4d\n", h, pv, m->Rad1h, m->SunD1, diff);
+			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d --> err %4d\n", h, SUM_MPPT, m->Rad1h, m->SunD1, diff);
 	}
 	return diff_sum;
 }
 
 static void compare() {
-	// return;
+	return;
 
 	LOCALTIME
 
