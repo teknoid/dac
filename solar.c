@@ -28,6 +28,22 @@
 #define TEMP_OUT				15.0
 #endif
 
+#ifndef MIN_SOC
+#define MIN_SOC					50
+#endif
+
+#ifndef AKKU_CHARGE_MAX
+#define AKKU_CHARGE_MAX			4500
+#endif
+
+#ifndef AKKU_DISCHARGE_MAX
+#define AKKU_DISCHARGE_MAX		4500
+#endif
+
+#ifndef AKKU_CAPACITY
+#define AKKU_CAPACITY			11000
+#endif
+
 static void create_pstate_json() {
 	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
 }

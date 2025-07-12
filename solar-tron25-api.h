@@ -49,11 +49,6 @@ static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
 static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
-#define MIN_SOC					50
-#define AKKU_CHARGE_MAX			4500
-#define AKKU_DISCHARGE_MAX		4500
-#define AKKU_CAPACITY			11000
-
 typedef struct _raw raw_t;
 struct _raw {
 	float akku;

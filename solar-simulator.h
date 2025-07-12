@@ -10,10 +10,6 @@
 #include "curl.h"
 #include "utils.h"
 
-#define AKKU_BURNOUT			1
-#define BASELOAD				(WINTER ? 300 : 200)
-#define MINIMUM					(BASELOAD / 2)
-
 #define TEMP_IN					sensors->bmp085_temp
 #define TEMP_OUT				sensors->bmp085_temp
 #define LUMI					sensors->bh1750_lux
@@ -34,11 +30,6 @@ static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES };
 static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES };
 static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES };
-
-#define MIN_SOC					50
-#define AKKU_CHARGE_MAX			4500
-#define AKKU_DISCHARGE_MAX		4500
-#define AKKU_CAPACITY			11000
 
 static pthread_t thread_update;
 
