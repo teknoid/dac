@@ -1452,12 +1452,8 @@ int ramp_akku(device_t *akku, int power) {
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
-		// do not interrupt charging - forward to next device
-		if (AKKU_CHARGING)
-			return 0; // continue loop
-
-		// enable discharging
-		return akku_discharge();
+		// akku ramps down itself when charging or forward to next device
+		return AKKU_CHARGING ? 1 : 0;
 	}
 
 	// ramp up request
