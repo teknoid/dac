@@ -1453,7 +1453,7 @@ int ramp_akku(device_t *akku, int power) {
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
 		// skip ramp downs as long as we don't have grid download (akku ramps down itself / forward to next device)
-		if (PSTATE_MIN_LAST1->grid < NOISE)
+		if (PSTATE_MIN_LAST1->grid < RAMP_WINDOW)
 			return AKKU_CHARGING ? 1 : 0;
 
 		// enable discharging
@@ -1471,7 +1471,7 @@ int ramp_akku(device_t *akku, int power) {
 			return akku_standby();
 
 		// forward to next device if we have grid upload in despite of charging
-		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
+		if (PSTATE_MIN_LAST1->grid < -RAMP_WINDOW && AKKU_CHARGING)
 			return 0; // continue loop
 
 		// summer: start charging around high noon when below 20%
