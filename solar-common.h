@@ -32,6 +32,10 @@
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
+#define AKKU_BURNOUT			1
+#define BASELOAD				(WINTER ? 300 : 200)
+#define MINIMUM					(BASELOAD / 2)
+
 #define AKKU_CAPACITY_SOC(soc)	(AKKU_CAPACITY * (soc) / 1000)
 #define AKKU_CHARGING			(AKKU->state == Charge)
 

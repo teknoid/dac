@@ -1,4 +1,5 @@
 #include <pthread.h>
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
@@ -7,10 +8,6 @@
 #include "frozen.h"
 #include "curl.h"
 #include "utils.h"
-
-#define AKKU_BURNOUT			1
-#define BASELOAD				(WINTER ? 300 : 200)
-#define MINIMUM					(BASELOAD / 2)
 
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp

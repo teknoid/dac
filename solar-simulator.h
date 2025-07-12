@@ -1,7 +1,8 @@
+#include <math.h>
 #include <pthread.h>
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <math.h>
 
 #include "tasmota-devices.h"
 #include "solar-common.h"
