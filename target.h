@@ -23,7 +23,6 @@
 
 #ifdef ODROID
 #define FLAMINGO
-#define SOLAR
 #define SOLAR			"solar-tron25-modbus.h"
 //#define SOLAR			"solar-tron25-api.h"
 #endif

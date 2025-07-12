@@ -17,7 +17,6 @@
 #ifndef SOLAR
 #define SOLAR	"solar-tron25-modbus.h"
 #endif
-
 #include SOLAR
 
 #ifndef TEMP_IN
@@ -1286,14 +1285,6 @@ static int migrate() {
 	}
 	store_blob(GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
 	return 0;
-}
-
-int solar_boiler1() {
-	return select_program(&BOILER1);
-}
-
-int solar_boiler3() {
-	return select_program(&BOILER3);
 }
 
 int solar_override_seconds(const char *name, int seconds) {
