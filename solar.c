@@ -14,17 +14,11 @@
 #include "solar.h"
 #include "mcp.h"
 
-#ifdef SOLAR_SIMULATOR
-#include "solar-simulator.h"
+#ifndef SOLAR
+#define SOLAR	"solar-tron25-modbus.h"
 #endif
 
-#ifdef SOLAR_MODBUS
-#include "solar-tron25-modbus.h"
-#endif
-
-#ifdef SOLAR_API
-#include "solar-tron25-api.h"
-#endif
+#include SOLAR
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0

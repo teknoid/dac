@@ -32,7 +32,7 @@
 #define EXTRA					55
 #define NOISE					10
 
-// all values
+// all raw values from kml file
 static mosmix_csv_t mosmix_csv[256];
 
 // 24h slots over one week and access pointers

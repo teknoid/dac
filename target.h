@@ -1,8 +1,9 @@
+// --> set as compiler directive in Makefile
 //#define ANUS
-#define TRON
+//#define TRON
 //#define ODROID
-//#define PIWOLF
 //#define PICAM
+//#define PIWOLF
 //#define SABRE18
 //#define SABRE28
 
@@ -13,15 +14,18 @@
 
 #ifdef TRON
 #define FLAMINGO
-#define SOLAR
 #define LCD
 #define I2C				"/dev/i2c-7"
 #define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
+#define SOLAR			"solar-tron25-modbus.h"
+//#define SOLAR			"solar-tron25-api.h"
 #endif
 
 #ifdef ODROID
 #define FLAMINGO
 #define SOLAR
+#define SOLAR			"solar-tron25-modbus.h"
+//#define SOLAR			"solar-tron25-api.h"
 #endif
 
 #ifdef PICAM
@@ -47,8 +51,7 @@
 #define I2C				"/dev/i2c-0"
 #endif
 
-#ifdef SOLAR
-//#define SOLAR_SIMULATOR
-#define SOLAR_MODBUS
-//#define SOLAR_API
+#ifdef SIMULATOR
+#define SOLAR			"solar-simulator.h"
 #endif
+

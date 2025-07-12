@@ -12,15 +12,12 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o sensors.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o curl.o button.o lcd.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o
-COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o
+COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o button.o lcd.o
+COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
 COBJS-PICAM		= $(COBJS-COMMON) webcam.o xmas.o mqtt.o tasmota.o flamingo.o gpio-bcm2835.o
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@ 
 
 all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
@@ -30,25 +27,32 @@ all: $(OBJS)
 # mcp main programs  
 #
 
-anus: $(COBJS-ANUS) 
+anus: CFLAGS += -DANUS
+anus: clean $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
 
-tron: $(COBJS-TRON) 
+tron: CFLAGS += -DTRON
+tron: clean $(COBJS-TRON)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lmodbus -lcurl
 
-odroid: $(COBJS-ODROID) 
+odroid: CFLAGS += -DODROID
+odroid: clean $(COBJS-ODROID) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ODROID) $(LIBS) -lmqttc -lmodbus -lcurl
 
-picam: $(COBJS-PICAM)
+picam: CFLAGS += -DPICAM
+picam: clean $(COBJS-PICAM)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
 
-piwolf: $(COBJS-PIWOLF)
+piwolf: CFLAGS += -DPIWOLF
+piwolf: clean $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
 
-sabre18: $(COBJS-SABRE18)
+sabre18: CFLAGS += -DSABRE18
+sabre18: clean $(COBJS-SABRE18)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS)
 
-sabre28: $(COBJS-SABRE28)
+sabre28: CFLAGS += -DSABRE28
+sabre28: clean $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
 
 #
@@ -62,8 +66,8 @@ solar: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o
 	$(CC) $(CFLAGS) -DSOLAR_MAIN -c solar.c mosmix.c
 	$(CC) $(CFLAGS) -o solar solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o $(LIBS) -lmodbus -lcurl -lmqttc
 
-simulator: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSOLAR_SIMULATOR -c solar.c mosmix.c
+simulator: clean utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSIMULATOR -c solar.c mosmix.c
 	$(CC) $(CFLAGS) -o simulator solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o $(LIBS) -lmodbus -lcurl -lmqttc
 
 sensors: sensors.o utils.o i2c.o
