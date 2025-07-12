@@ -428,8 +428,8 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 			hours++;
 		}
 
-		// reached end of night or high noon next day
-		if ((night && x > l) || (midnight && h == 12))
+		// reached end of night or high noon this/next day
+		if ((night && x > l) || (night && h == 12) || (midnight && h == 12))
 			break;
 
 		// reached midnight
@@ -591,7 +591,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static void test() {
-	return;
+	// return;
 
 	LOCALTIME
 
@@ -652,7 +652,7 @@ static void test() {
 }
 
 static void recalc() {
-	// return;
+	return;
 
 	LOCALTIME
 
