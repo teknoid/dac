@@ -14,12 +14,16 @@
 
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
-#define FRMAX					9999
-//#define FSMAX					999
-#define FTMAX					3333
+// temperature coefficient per mppt, scaled as x100
+#define TCOPMAX1				-34
+#define TCOPMAX2				-30
+#define TCOPMAX3				-34
+#define TCOPMAX4				0
 
-// #define EXPECTED(r, s, t)		(m->Rad1h * r / 100 - (100 - m->SunD1) * s - m->TTT * t)
-#define EXPECTED(r, s, t)		(m->Rad1h * r / 100 - m->TTT * t)
+#define FRMAX					9999
+#define FSMAX					999
+
+#define EXPECTED(r, s, tco)		(m->Rad1h * r / 1000 + m->SunD1 * s) * (10000 + (m->TTT - 25) * tco) / 10000
 
 #define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
 #define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
@@ -108,10 +112,10 @@ static void parse(char **strings, size_t size) {
 
 // calculate expected pv as combination of raw mosmix values with mppt specific coefficients
 static void expected(mosmix_t *m, factor_t *f) {
-	m->exp1 = EXPECTED(f->r1, f->s1, f->t1);
-	m->exp2 = EXPECTED(f->r2, f->s2, f->t2);
-	m->exp3 = EXPECTED(f->r3, f->s3, f->t3);
-	m->exp4 = EXPECTED(f->r4, f->s4, f->t4);
+	m->exp1 = EXPECTED(f->r1, f->s1, TCOPMAX1);
+	m->exp2 = EXPECTED(f->r2, f->s2, TCOPMAX2);
+	m->exp3 = EXPECTED(f->r3, f->s3, TCOPMAX3);
+	m->exp4 = EXPECTED(f->r4, f->s4, TCOPMAX4);
 
 	if (m->exp1 < NOISE)
 		m->exp1 = 0;
@@ -206,53 +210,52 @@ static void* calculate_factors_slave(void *arg) {
 	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
 	for (int r = 0; r <= FRMAX; r++) {
-		int s = 0; // for (int s = FSMAX / -10; s <= FSMAX; s++) {
-			for (int t = FTMAX / -10; t <= FTMAX; t++) {
+		for (int s = -FSMAX; s <= FSMAX; s++) {
 
-				// sum up errors over one week
-				int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-				for (int d = 0; d < 7; d++) {
-					mosmix_t *m = HISTORY(d, *h);
+			// sum up errors over one week
+			int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+			for (int d = 0; d < 7; d++) {
+				mosmix_t *m = HISTORY(d, *h);
 
-					// calculate expected and absolute errors
-					int exp = EXPECTED(r, s, t);
-					e1 += m->mppt1 > exp ? (m->mppt1 - exp) : (exp - m->mppt1);
-					e2 += m->mppt2 > exp ? (m->mppt2 - exp) : (exp - m->mppt2);
-					e3 += m->mppt3 > exp ? (m->mppt3 - exp) : (exp - m->mppt3);
-					e4 += m->mppt4 > exp ? (m->mppt4 - exp) : (exp - m->mppt4);
-				}
+				// calculate expected
+				int exp1 = EXPECTED(r, s, TCOPMAX1);
+				int exp2 = EXPECTED(r, s, TCOPMAX2);
+				int exp3 = EXPECTED(r, s, TCOPMAX3);
+				int exp4 = EXPECTED(r, s, TCOPMAX4);
 
-				// take over coefficients from the smallest error
-				if (e1 < f->e1) {
-					f->r1 = r;
-					f->s1 = s;
-					f->t1 = t;
-					f->e1 = e1;
-				}
-				if (e2 < f->e2) {
-					f->r2 = r;
-					f->s2 = s;
-					f->t2 = t;
-					f->e2 = e2;
-				}
-				if (e3 < f->e3) {
-					f->r3 = r;
-					f->s3 = s;
-					f->t3 = t;
-					f->e3 = e3;
-				}
-				if (e4 < f->e4) {
-					f->r4 = r;
-					f->s4 = s;
-					f->t4 = t;
-					f->e4 = e4;
-				}
+				// calculate absolute error
+				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
 			}
-//		}
+
+			// take over coefficients from the smallest error
+			if (e1 < f->e1 && r > 10 * s) {
+				f->r1 = r;
+				f->s1 = s;
+				f->e1 = e1;
+			}
+			if (e2 < f->e2 && r > 10 * s) {
+				f->r2 = r;
+				f->s2 = s;
+				f->e2 = e2;
+			}
+			if (e3 < f->e3 && r > 10 * s) {
+				f->r3 = r;
+				f->s3 = s;
+				f->e3 = e3;
+			}
+			if (e4 < f->e4 && r > 10 * s) {
+				f->r4 = r;
+				f->s4 = s;
+				f->e4 = e4;
+			}
+		}
 	}
 
 	// fix disconnected MPPT4 noise
-	f->r4 = f->s4 = f->t4 = f->e4 = 0;
+	f->r4 = f->s4 = f->e4 = 0;
 
 	// indicate finish
 	*h = -1;
@@ -655,18 +658,27 @@ static void recalc() {
 
 	// recalc factors
 	mosmix_load_state(now);
+	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	mosmix_factors(1);
 
 	// recalc expected and errors
 	for (int d = 0; d < 7; d++) {
 		for (int h = 0; h < 24; h++) {
 			factor_t *f = FACTORS(h);
-			mosmix_t *m = HISTORY(d, h);
+
+			// today
 			mosmix_t *m0 = TODAY(h);
-			mosmix_t *m1 = TOMORROW(h);
-			expected(m, f);
 			expected(m0, f);
+			errors(m0);
+
+			// tomorrow
+			mosmix_t *m1 = TOMORROW(h);
 			expected(m1, f);
+			errors(m1);
+
+			// history
+			mosmix_t *m = HISTORY(d, h);
+			expected(m, f);
 			errors(m);
 		}
 	}
