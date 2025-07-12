@@ -415,11 +415,15 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	strcpy(line, "MOSMIX survive h:x:l");
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
+
 		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
 		load += extra; // add extra
+
 		// current hour -> partly, remaining hours -> full
 		int l = h == ch ? load * (60 - now->tm_min) / 60 : load;
 		int x = h == ch ? SUM_EXP * (60 - now->tm_min) / 60 : SUM_EXP;
+
+		// night
 		if (l > x) {
 			snprintf(value, 48, " %d:%d:%d", h, x, l);
 			strcat(line, value);
