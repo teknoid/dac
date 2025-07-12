@@ -765,7 +765,7 @@ static void calculate_pstate() {
 		pstate->ramp += pstate->ramp / 2;
 	// delay ramp up as long as average PV is below average load
 	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
-	if (0 < pstate->ramp && m1->pv < m1load) {
+	if (pstate->ramp > 0 && m1->pv < m1load) {
 		xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
 		pstate->ramp = 0;
 	}
@@ -1451,6 +1451,10 @@ int ramp_akku(device_t *akku, int power) {
 
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
+
+		// skip ramp downs as long as we have more pv than load
+		if (PSTATE_MIN_LAST1->pv > PSTATE_MIN_LAST1->load && AKKU_CHARGING)
+			return 1; // loop done
 
 		// skip ramp downs as long as we don't have grid download (akku ramps down itself / forward to next device)
 		if (PSTATE_MIN_LAST1->grid < RAMP_WINDOW)
