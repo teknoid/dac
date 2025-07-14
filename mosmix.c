@@ -345,8 +345,8 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 
-	xdebug("MOSMIX forecast exp  Wh %5d %5d %5d %5d sum %d", m->exp1, m->exp2, m->exp3, m->exp4, m->exp1 + m->exp2 + m->exp3 + m->exp4);
 	xdebug("MOSMIX forecast mppt Wh %5d %5d %5d %5d sum %d", m->mppt1, m->mppt2, m->mppt3, m->mppt4, m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4);
+	xdebug("MOSMIX forecast exp  Wh %5d %5d %5d %5d sum %d", m->exp1, m->exp2, m->exp3, m->exp4, m->exp1 + m->exp2 + m->exp3 + m->exp4);
 	xdebug("MOSMIX forecast err  Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
 	xdebug("MOSMIX forecast err  %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
@@ -597,9 +597,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 	return 0;
 }
 
-static void test() {
-	return;
-
+static int test() {
 	LOCALTIME
 
 	int x = 3333;
@@ -656,11 +654,10 @@ static void test() {
 	mosmix_dump_tomorrow(now);
 	mosmix_survive(now, fake_loads, BASELOAD, EXTRA);
 	mosmix_heating(now, 1500);
+	return 0;
 }
 
-static void recalc() {
-	// return;
-
+static int recalc() {
 	LOCALTIME
 
 	// recalc factors
@@ -693,11 +690,10 @@ static void recalc() {
 	// mosmix_store_state();
 	mosmix_store_csv();
 	mosmix_dump_history_hours(12);
+	return 0;
 }
 
-static void migrate() {
-	return;
-
+static int migrate() {
 	ZERO(history);
 
 	mosmix_old_t old[24 * 7];
@@ -719,11 +715,10 @@ static void migrate() {
 	// store_blob("/tmp/solar-mosmix-history.bin", history, sizeof(history));
 	// live
 	// store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	return 0;
 }
 
-static void fix() {
-	return;
-
+static int fix() {
 	mosmix_t *m;
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
@@ -740,6 +735,7 @@ static void fix() {
 //	m->err1 = m->err2 = m->err3 = m->err4 = 100;
 
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	return 0;
 }
 
 static void wget(struct tm *now, const char *id) {
@@ -782,9 +778,7 @@ static int diffs(int d) {
 	return diff_sum;
 }
 
-static void compare() {
-	return;
-
+static int compare() {
 	LOCALTIME
 
 	// load state
@@ -799,17 +793,35 @@ static void compare() {
 	int dm = diffs(now->tm_wday);
 
 	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);
+	return 0;
 }
 
 int mosmix_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	compare();
-	migrate();
-	recalc();
-	fix();
-	test();
+	// no arguments - test
+	if (argc == 1)
+		return test();
+
+	int c;
+	while ((c = getopt(argc, argv, "cfmrt")) != -1) {
+		// printf("getopt %c\n", c);
+		switch (c) {
+		case 'c':
+			return compare();
+		case 'f':
+			return fix();
+		case 'm':
+			return migrate();
+		case 'r':
+			return recalc();
+		case 't':
+			return test();
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
 
 	return 0;
 }

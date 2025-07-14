@@ -1,4 +1,5 @@
 // hexdump -v -e '7 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
+#define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
 // hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
@@ -31,6 +32,10 @@
 
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
+#define MINLY					(now->tm_sec == 0)
+#define HOURLY					(now->tm_min == 0)
+#define DAILY					(now->tm_hour == 0)
+
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				(WINTER ? 300 : 200)
@@ -94,6 +99,8 @@
 #define UP						(*dd)->total
 #define DOWN					(*dd)->total * -1
 
+#define HISTORY					(24 * 7)
+
 enum dstate {
 	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
 };
@@ -135,7 +142,7 @@ struct _counter {
 	unsigned int mppt4;
 	unsigned int pv;
 };
-static counter_t counter[10];
+static counter_t counter_history[HISTORY], counter[10];
 // self counter 1-5
 #define CS_NOW					(&counter[0])
 #define CS_LAST					(&counter[1])
@@ -148,6 +155,8 @@ static counter_t counter[10];
 #define CM_NULL					(&counter[7])
 #define CM_HOUR					(&counter[8])
 #define CM_DAY					(&counter[9])
+// history
+#define COUNTER_HOUR_NOW		(&counter_history[24 * now->tm_wday + now->tm_hour])
 
 // 24/7 gstate history slots and access pointers
 typedef struct _gstate gstate_t;
@@ -172,17 +181,17 @@ struct _gstate {
 	int heating;
 	int flags;
 };
-static gstate_t gstate_hours[24 * 7], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
+static gstate_t gstate_history[HISTORY], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
 #define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_HOUR_LAST		(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
-#define GSTATE_HOUR_NEXT		(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
-#define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
-#define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
-#define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
-#define GSTATE_YDAY_HOUR(h)		(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
-#define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * (d) + (h)])
+#define GSTATE_HOUR_NOW			(&gstate_history[24 * now->tm_wday + now->tm_hour])
+#define GSTATE_HOUR_LAST		(&gstate_history[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
+#define GSTATE_HOUR_NEXT		(&gstate_history[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
+#define GSTATE_TODAY			(&gstate_history[24 * now->tm_wday])
+#define GSTATE_YDAY				(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
+#define GSTATE_HOUR(h)			(&gstate_history[24 * now->tm_wday + (h)])
+#define GSTATE_YDAY_HOUR(h)		(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
+#define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
 
 // needed for migration
 typedef struct gstate_old_t {
