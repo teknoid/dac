@@ -540,15 +540,6 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_counter() {
-	// self counter daily - convert Watt-secons to Watt-hours
-	CS_DAY->consumed = CS_NOW->consumed / 3600;
-	CS_DAY->produced = CS_NOW->produced / 3600;
-	CS_DAY->mppt1 = CS_NOW->mppt1 / 3600;
-	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
-	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
-	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
-	CS_DAY->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
-
 	// meter counter daily - calculate delta to NULL entry
 	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
 	CM_DAY->produced = CM_NOW->produced && CM_NULL->produced ? CM_NOW->produced - CM_NULL->produced : 0;
@@ -556,18 +547,16 @@ static void calculate_counter() {
 	CM_DAY->mppt2 = CM_NOW->mppt2 && CM_NULL->mppt2 ? CM_NOW->mppt2 - CM_NULL->mppt2 : 0;
 	CM_DAY->mppt3 = CM_NOW->mppt3 && CM_NULL->mppt3 ? CM_NOW->mppt3 - CM_NULL->mppt3 : 0;
 	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
-	CM_DAY->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
+
+	// self counter daily - convert Watt-secons to Watt-hours
+	CS_DAY->consumed = CS_NOW->consumed / 3600;
+	CS_DAY->produced = CS_NOW->produced / 3600;
+	CS_DAY->mppt1 = CS_NOW->mppt1 / 3600;
+	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
+	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
+	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
 
 	if (HOURLY) {
-		// self counter for last hour
-		CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
-		CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
-		CS_HOUR->mppt1 = (CS_NOW->mppt1 - CS_LAST->mppt1) / 3600;
-		CS_HOUR->mppt2 = (CS_NOW->mppt2 - CS_LAST->mppt2) / 3600;
-		CS_HOUR->mppt3 = (CS_NOW->mppt3 - CS_LAST->mppt3) / 3600;
-		CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
-		CS_HOUR->pv = CS_HOUR->mppt1 + CS_HOUR->mppt2 + CS_HOUR->mppt3 + CS_HOUR->mppt4;
-
 		// meter counter for last hour
 		CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
 		CM_HOUR->produced = CM_NOW->produced && CM_LAST->produced ? CM_NOW->produced - CM_LAST->produced : 0;
@@ -575,24 +564,38 @@ static void calculate_counter() {
 		CM_HOUR->mppt2 = CM_NOW->mppt2 && CM_LAST->mppt2 ? CM_NOW->mppt2 - CM_LAST->mppt2 : 0;
 		CM_HOUR->mppt3 = CM_NOW->mppt3 && CM_LAST->mppt3 ? CM_NOW->mppt3 - CM_LAST->mppt3 : 0;
 		CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
-		CM_HOUR->pv = CM_HOUR->mppt1 + CM_HOUR->mppt2 + CM_HOUR->mppt3 + CM_HOUR->mppt4;
 
-		// copy to history
-		memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
-		memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
+		// self counter for last hour
+		CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
+		CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
+		CS_HOUR->mppt1 = (CS_NOW->mppt1 - CS_LAST->mppt1) / 3600;
+		CS_HOUR->mppt2 = (CS_NOW->mppt2 - CS_LAST->mppt2) / 3600;
+		CS_HOUR->mppt3 = (CS_NOW->mppt3 - CS_LAST->mppt3) / 3600;
+		CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 
+		// compare hourly self and meter counter
+		xlog("FRONIUS hour meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+		xlog("FRONIUS hour self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+
+		// copy to history / LAST entry
 #ifdef COUNTER_METER
 		memcpy(COUNTER_HOUR_NOW, (void*) CM_NOW, sizeof(counter_t));
 #else
 		memcpy(COUNTER_HOUR_NOW, (void*) CS_NOW, sizeof(counter_t));
 #endif
+		memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
+		memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
 
-		// reset self counter and copy self/meter counter to NULL entry
 		if (DAILY) {
+			// compare daily self and meter counter
+			xlog("FRONIUS day meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+			xlog("FRONIUS day self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+
+			// reset self counter and copy self/meter counter to NULL entry
+			memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 			ZEROP(CS_NOW);
 			ZEROP(CS_LAST);
 			memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
-			memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
 		}
 	}
 }
@@ -611,11 +614,11 @@ static void calculate_gstate() {
 #ifdef COUNTER_METER
 	gstate->consumed = CM_DAY->consumed;
 	gstate->produced = CM_DAY->produced;
-	gstate->pv = CM_DAY->pv;
+	gstate->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
 #else
 	gstate->consumed = CS_DAY->consumed;
 	gstate->produced = CS_DAY->produced;
-	gstate->pv = CS_DAY->pv;
+	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
@@ -889,10 +892,6 @@ static void daily() {
 	int etoday = forecast_today ? gstate->pv * 1000 / forecast_today : 0;
 	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, strike %.1f%%", forecast_today, gstate->pv, FLOAT10(etoday));
 
-	// compare daily self and meter counter
-	xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
-	xlog("FRONIUS counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
-
 	// store state at least once per day
 	store_state();
 	mosmix_store_state();
@@ -913,10 +912,6 @@ static void hourly() {
 	PROFILING_START
 	xlog("SOLAR executing hourly tasks...");
 
-	// compare hourly self and meter counter
-	xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
-	xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-
 	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->noresponse = 0;
@@ -930,13 +925,18 @@ static void hourly() {
 	// set akku storage strategy
 	akku_strategy();
 
-	// reload and update mosmix history, clear at midnight
+	// update forecasts and clear at midnight
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
+
+	// update history
 #ifdef COUNTER_METER
 	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 #else
 	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
+
+	// collect sod errors and scale all remaining eod values
+	mosmix_scale(now);
 
 #ifdef GNUPLOT
 	// create fresh csv files and paint new diagrams

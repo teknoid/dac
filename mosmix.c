@@ -50,54 +50,6 @@ static factor_t factors[24];
 // fake dummy average loads over 24/7
 static int fake_loads[24] = { 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173 };
 
-static void scale1(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	for (int h = 0; h <= now->tm_hour; h++)
-		f += TODAY(h)->err1;
-	f = f / (now->tm_hour + 1);
-	if (90 < f && f < 120)
-		return;
-	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp1 = TODAY(h)->exp1 * f / 100;
-	xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
-}
-
-static void scale2(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	for (int h = 0; h <= now->tm_hour; h++)
-		f += TODAY(h)->err2;
-	f = f / (now->tm_hour + 1);
-	if (90 < f && f < 120)
-		return;
-	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp2 = TODAY(h)->exp2 * f / 100;
-	xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
-}
-
-static void scale3(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	for (int h = 0; h <= now->tm_hour; h++)
-		f += TODAY(h)->err3;
-	f = f / (now->tm_hour + 1);
-	if (90 < f && f < 120)
-		return;
-	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp3 = TODAY(h)->exp3 * f / 100;
-	xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
-}
-
-static void scale4(struct tm *now, mosmix_t *m) {
-	int f = 0;
-	for (int h = 0; h <= now->tm_hour; h++)
-		f += TODAY(h)->err4;
-	f = f / (now->tm_hour + 1);
-	if (90 < f && f < 120)
-		return;
-	for (int h = now->tm_hour + 1; h < 24; h++)
-		TODAY(h)->exp4 = TODAY(h)->exp4 * f / 100;
-	xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f", now->tm_hour + 1, FLOAT100(f));
-}
-
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_csv_t *m = &mosmix_csv[idx];
@@ -151,6 +103,31 @@ static void sum(mosmix_t *to, mosmix_t *from) {
 	}
 }
 
+// recalc expected and errors
+static void recalc_expected() {
+	for (int h = 0; h < 24; h++) {
+		factor_t *f = FACTORS(h);
+
+		// today
+		mosmix_t *m0 = TODAY(h);
+		expected(m0, f);
+		errors(m0);
+
+		// tomorrow
+		mosmix_t *m1 = TOMORROW(h);
+		expected(m1, f);
+		errors(m1);
+
+		// history
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, h);
+			expected(m, f);
+			errors(m);
+		}
+	}
+
+}
+
 // update today and tomorrow with actual data from mosmix kml download
 static void update_today_tomorrow(struct tm *now) {
 	struct tm tm;
@@ -180,15 +157,6 @@ static void update_today_tomorrow(struct tm *now) {
 		else
 			// SunD1 without Rad1h is not possible
 			m->SunD1 = 0;
-	}
-
-	// calculate each mppt's forecast today and tomorrow
-	for (int h = 0; h < 24; h++) {
-		factor_t *f = FACTORS(h);
-		mosmix_t *m0 = TODAY(h);
-		mosmix_t *m1 = TOMORROW(h);
-		expected(m0, f);
-		expected(m1, f);
 	}
 }
 
@@ -349,15 +317,52 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	xdebug("MOSMIX forecast exp  Wh %5d %5d %5d %5d sum %d", m->exp1, m->exp2, m->exp3, m->exp4, m->exp1 + m->exp2 + m->exp3 + m->exp4);
 	xdebug("MOSMIX forecast err  Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
 	xdebug("MOSMIX forecast err  %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+}
 
-	// collect sod errors and scale all remaining eod values
-// TODO das ändert den original errechneten expected und verfälscht damit die factors calc
-//	if (m->Rad1h) {
-//		scale1(now, m);
-//		scale2(now, m);
-//		scale3(now, m);
-//		scale4(now, m);
-//	}
+void mosmix_scale(struct tm *now) {
+	mosmix_t *m = TODAY(now->tm_hour);
+	int ch = now->tm_hour + 1;
+	int f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+
+	if (!m->Rad1h)
+		return; // nothing more to scale
+
+	for (int h = 0; h <= now->tm_hour; h++) {
+		f1 += TODAY(h)->err1;
+		f2 += TODAY(h)->err2;
+		f3 += TODAY(h)->err3;
+		f4 += TODAY(h)->err4;
+	}
+
+	f1 /= ch;
+	f2 /= ch;
+	f3 /= ch;
+	f4 /= ch;
+
+	int s1 = f1 < 90 || f1 > 120;
+	int s2 = f2 < 90 || f2 > 120;
+	int s3 = f3 < 90 || f3 > 120;
+	int s4 = f4 < 90 || f4 > 120;
+
+	if (s1)
+		xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f", ch, FLOAT100(f1));
+	if (s2)
+		xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f", ch, FLOAT100(f2));
+	if (s3)
+		xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f", ch, FLOAT100(f3));
+	if (s4)
+		xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f", ch, FLOAT100(f4));
+
+	for (int h = ch; h < 24; h++) {
+		if (s1)
+			TODAY(h)->exp1 *= f1 / 100;
+		if (s2)
+			TODAY(h)->exp2 *= f2 / 100;
+		if (s3)
+			TODAY(h)->exp3 *= f3 / 100;
+		if (s4)
+			TODAY(h)->exp4 *= f4 / 100;
+	}
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
@@ -594,6 +599,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 		ZERO(tomorrow);
 	}
 	update_today_tomorrow(now);
+	recalc_expected();
 	return 0;
 }
 
@@ -627,21 +633,25 @@ static int test() {
 
 	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+	mosmix_scale(now);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
 
 	now->tm_hour = 9;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+	mosmix_scale(now);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
 
 	now->tm_hour = 12;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+	mosmix_scale(now);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
 
 	now->tm_hour = 15;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+	mosmix_scale(now);
 	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
 
 	mosmix_dump_history_full(now);
@@ -660,33 +670,10 @@ static int test() {
 static int recalc() {
 	LOCALTIME
 
-	// recalc factors
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	mosmix_factors(1);
-
-	// recalc expected and errors
-	for (int h = 0; h < 24; h++) {
-		factor_t *f = FACTORS(h);
-
-		// today
-		mosmix_t *m0 = TODAY(h);
-		expected(m0, f);
-		errors(m0);
-
-		// tomorrow
-		mosmix_t *m1 = TOMORROW(h);
-		expected(m1, f);
-		errors(m1);
-
-		// history
-		for (int d = 0; d < 7; d++) {
-			mosmix_t *m = HISTORY(d, h);
-			expected(m, f);
-			errors(m);
-		}
-	}
-
+	recalc_expected();
 	// mosmix_store_state();
 	mosmix_store_csv();
 	mosmix_dump_history_hours(12);

@@ -1,4 +1,4 @@
-// hexdump -v -e '7 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
+// hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
@@ -13,12 +13,14 @@
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
 #define PSTATE_FILE				"solar-pstate.bin"
 
+// CSV files for gnuplot
 #define GSTATE_TODAY_CSV		"gstate-today.csv"
 #define GSTATE_WEEK_CSV			"gstate-week.csv"
 #define GSTATE_M_CSV			"gstate-minutes.csv"
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define LOADS_CSV				"loads.csv"
 
+// JSON files for webui
 #define PSTATE_JSON				"pstate.json"
 #define GSTATE_JSON				"gstate.json"
 #define DSTATE_JSON				"dstate.json"
@@ -35,7 +37,6 @@
 #define MINLY					(now->tm_sec == 0)
 #define HOURLY					(now->tm_min == 0)
 #define DAILY					(now->tm_hour == 0)
-
 
 #define AKKU_BURNOUT			1
 #define BASELOAD				(WINTER ? 300 : 200)
@@ -132,7 +133,7 @@ struct _device {
 // self and meter counter with access pointers
 typedef struct _counter counter_t;
 #define COUNTER_SIZE		(sizeof(counter_t) / sizeof(int))
-#define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4    pv"
+#define COUNTER_HEADER	" ↑grid ↓grid mppt1 mppt2 mppt3 mppt4"
 struct _counter {
 	unsigned int produced;
 	unsigned int consumed;
@@ -140,7 +141,6 @@ struct _counter {
 	unsigned int mppt2;
 	unsigned int mppt3;
 	unsigned int mppt4;
-	unsigned int pv;
 };
 static counter_t counter_history[HISTORY], counter[10];
 // self counter 1-5

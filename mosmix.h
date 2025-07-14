@@ -113,6 +113,7 @@ void mosmix_dump_history_full(struct tm *now);
 void mosmix_dump_history_hours(int hour);
 void mosmix_store_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
+void mosmix_scale(struct tm *now);
 void mosmix_collect(struct tm *now, int *today, int *tomorrow, int *sod, int *eod);
 int mosmix_survive(struct tm *now, int loads[], int baseload, int extra);
 int mosmix_heating(struct tm *now, int power);
