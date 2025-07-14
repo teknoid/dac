@@ -125,7 +125,6 @@ static void recalc_expected() {
 			errors(m);
 		}
 	}
-
 }
 
 // update today and tomorrow with actual data from mosmix kml download
@@ -753,10 +752,10 @@ static void wget(struct tm *now, const char *id) {
 	system(cmd);
 }
 
-static int diffs(int d) {
+static int diffs() {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
-		mosmix_t *m = HISTORY(d, h);
+		mosmix_t *m = TODAY(h);
 		int diff = SUM_MPPT - m->Rad1h - m->SunD1;
 		diff_sum += abs(diff);
 		if (diff)
@@ -773,13 +772,13 @@ static int compare() {
 
 	wget(now, "10577");
 	mosmix_load(now, TMP SLASH CHEMNITZ, 1);
-	int dc = diffs(now->tm_wday);
+	int dc = diffs();
 
 	wget(now, "10579");
 	mosmix_load(now, TMP SLASH MARIENBERG, 1);
-	int dm = diffs(now->tm_wday);
+	int dm = diffs();
 
-	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm);
+	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d q=%.5f\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm, (float) dm / (float) dc);
 	return 0;
 }
 
