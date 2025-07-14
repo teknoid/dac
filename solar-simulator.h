@@ -31,9 +31,9 @@ static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES };
 static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES };
 
-static pthread_t thread_update;
+static pthread_t thread_simulate;
 
-static void* update(void *arg) {
+static void* simulate(void *arg) {
 	int load = 0, grid = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -87,7 +87,7 @@ static int solar_init() {
 	srand(time(NULL));
 
 	// start updater thread
-	if (pthread_create(&thread_update, NULL, &update, NULL))
+	if (pthread_create(&thread_simulate, NULL, &simulate, NULL))
 		return xerr("Error creating thread_update");
 
 	sleep(1);
@@ -95,10 +95,10 @@ static int solar_init() {
 }
 
 static void solar_stop() {
-	if (pthread_cancel(thread_update))
+	if (pthread_cancel(thread_simulate))
 		xlog("Error canceling thread_update");
 
-	if (pthread_join(thread_update, NULL))
+	if (pthread_join(thread_simulate, NULL))
 		xlog("Error joining thread_update");
 }
 

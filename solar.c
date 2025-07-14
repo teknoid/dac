@@ -1071,7 +1071,7 @@ static void solar() {
 		}
 
 		// print pstate once per minute / when delta / on device action / on grid load
-		if (PSTATE_DELTA || device || MINLY || pstate->grid > NOISE)
+		if (PSTATE_DELTA || MINLY || device || pstate->grid > NOISE)
 			print_pstate_dstate(device);
 
 		// minutely tasks
