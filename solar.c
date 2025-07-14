@@ -895,6 +895,7 @@ static void daily() {
 
 	// store state at least once per day
 	store_state();
+	mosmix_store_state();
 
 	// save pstate SVG
 	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
@@ -937,16 +938,11 @@ static void hourly() {
 	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
 
-	// create mosmix history, today, tomorrow csv
-	mosmix_store_state();
-	mosmix_store_csv();
-
-	// create gstate daily/weekly
+#ifdef GNUPLOT
+	// create fresh csv files and paint new diagrams
 	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
 	store_table_csv((int*) gstate_history, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
-
-	// paint new diagrams
-#ifdef GNUPLOT
+	mosmix_store_csv();
 	system(GNUPLOT);
 #endif
 
