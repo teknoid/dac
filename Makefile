@@ -29,11 +29,11 @@ all: $(OBJS)
 
 anus: CFLAGS += -DANUS
 anus: clean $(COBJS-ANUS)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lncurses -lmqttc
+	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lmqttc
 
 tron: CFLAGS += -DTRON
 tron: clean $(COBJS-TRON)
-	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lncurses -lmqttc -lmodbus -lcurl
+	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lmqttc -lmodbus -lcurl
 
 odroid: CFLAGS += -DODROID
 odroid: clean $(COBJS-ODROID) 
@@ -76,7 +76,7 @@ sensors: sensors.o utils.o i2c.o
 
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
-	$(CC) $(CFLAGS) $(LIBS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
+	$(CC) $(CFLAGS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o $(LIBS) -lncurses -lmenu -lm
 
 gpio-sunxi: gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c

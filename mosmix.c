@@ -190,8 +190,8 @@ static void* calculate_factors_slave(void *arg) {
 				int exp3 = EXPECTED(r, s, TCOPMAX3);
 				int exp4 = EXPECTED(r, s, TCOPMAX4);
 
-				if (r == 100 && s == 100)
-					xdebug("MOSMIX Rad1h=%d SunD1=%d TTT=%d r=s=100 exp1=%d exp2=%d exp3=%d exp4=%d", m->Rad1h, m->SunD1, m->TTT, exp1, exp2, exp3, exp4);
+//				if (r == 100 && s == 100)
+//					xdebug("MOSMIX Rad1h=%d SunD1=%d TTT=%d r=s=100 exp1=%d exp2=%d exp3=%d exp4=%d", m->Rad1h, m->SunD1, m->TTT, exp1, exp2, exp3, exp4);
 
 				// calculate absolute error
 				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
@@ -306,6 +306,8 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	m->mppt2 = mppt2 > NOISE ? mppt2 : 0;
 	m->mppt3 = mppt3 > NOISE ? mppt3 : 0;
 	m->mppt4 = mppt4 > NOISE ? mppt4 : 0;
+
+	// recalc errors
 	errors(m);
 
 	// save to history
@@ -319,10 +321,10 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 }
 
 void mosmix_scale(struct tm *now) {
-	mosmix_t *m = TODAY(now->tm_hour);
 	int ch = now->tm_hour + 1;
 	int f1 = 0, f2 = 0, f3 = 0, f4 = 0;
 
+	mosmix_t *m = TODAY(now->tm_hour);
 	if (!m->Rad1h)
 		return; // nothing more to scale
 
@@ -673,9 +675,8 @@ static int recalc() {
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	mosmix_factors(1);
 	recalc_expected();
-	// mosmix_store_state();
-	mosmix_store_csv();
 	mosmix_dump_history_hours(12);
+	mosmix_store_csv();
 	return 0;
 }
 
@@ -756,10 +757,10 @@ static int diffs() {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
-		int diff = SUM_MPPT - m->Rad1h - m->SunD1;
+		int diff = SUM_MPPT - m->Rad1h;
 		diff_sum += abs(diff);
 		if (diff)
-			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d --> err %4d\n", h, SUM_MPPT, m->Rad1h, m->SunD1, diff);
+			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d   --> err %4d\n", h, SUM_MPPT, m->Rad1h, m->SunD1, diff);
 	}
 	return diff_sum;
 }
@@ -767,18 +768,19 @@ static int diffs() {
 static int compare() {
 	LOCALTIME
 
-	// load state
-	mosmix_load_state(now);
+	wget(now, "10579");
+	mosmix_load(now, TMP SLASH MARIENBERG, 1);
+	int dm = diffs();
 
 	wget(now, "10577");
 	mosmix_load(now, TMP SLASH CHEMNITZ, 1);
 	int dc = diffs();
 
-	wget(now, "10579");
-	mosmix_load(now, TMP SLASH MARIENBERG, 1);
-	int dm = diffs();
+	wget(now, "N4464");
+	mosmix_load(now, TMP SLASH BRAUNSDORF, 1);
+	int db = diffs();
 
-	printf("%4d-%02d-%02d Diffs:   Chemnitz %d   Marienberg %d q=%.5f\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dc, dm, (float) dm / (float) dc);
+	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dm, dc, db);
 	return 0;
 }
 
