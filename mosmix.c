@@ -321,48 +321,54 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 }
 
 void mosmix_scale(struct tm *now) {
+	// nothing to scale
+	if (TODAY(now->tm_hour)->Rad1h == 0)
+		return;
+
 	int ch = now->tm_hour + 1;
-	int f1 = 0, f2 = 0, f3 = 0, f4 = 0;
+	mosmix_t m;
+	ZERO(m);
 
-	mosmix_t *m = TODAY(now->tm_hour);
-	if (!m->Rad1h)
-		return; // nothing more to scale
+	// sum up mppt and expected till now
+	for (int h = 0; h < ch; h++) {
+		m.mppt1 += TODAY(h)->mppt1;
+		m.mppt2 += TODAY(h)->mppt2;
+		m.mppt3 += TODAY(h)->mppt3;
+		m.mppt4 += TODAY(h)->mppt4;
 
-	for (int h = 0; h <= now->tm_hour; h++) {
-		f1 += TODAY(h)->err1;
-		f2 += TODAY(h)->err2;
-		f3 += TODAY(h)->err3;
-		f4 += TODAY(h)->err4;
+		m.exp1 += TODAY(h)->exp1;
+		m.exp2 += TODAY(h)->exp2;
+		m.exp3 += TODAY(h)->exp3;
+		m.exp4 += TODAY(h)->exp4;
 	}
 
-	f1 /= ch;
-	f2 /= ch;
-	f3 /= ch;
-	f4 /= ch;
+	// calculate diff and error
+	errors(&m);
 
-	int s1 = f1 < 90 || f1 > 120;
-	int s2 = f2 < 90 || f2 > 120;
-	int s3 = f3 < 90 || f3 > 120;
-	int s4 = f4 < 90 || f4 > 120;
+	int s1 = m.err1 < 90 || m.err1 > 120;
+	int s2 = m.err2 < 90 || m.err2 > 120;
+	int s3 = m.err3 < 90 || m.err3 > 120;
+	int s4 = m.err4 < 90 || m.err4 > 120;
 
 	if (s1)
-		xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f", ch, FLOAT100(f1));
+		xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err1), m.diff1 > 0 ? "+" : "", m.diff1);
 	if (s2)
-		xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f", ch, FLOAT100(f2));
+		xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err2), m.diff2 > 0 ? "+" : "", m.diff2);
 	if (s3)
-		xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f", ch, FLOAT100(f3));
+		xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err3), m.diff3 > 0 ? "+" : "", m.diff3);
 	if (s4)
-		xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f", ch, FLOAT100(f4));
+		xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err4), m.diff4 > 0 ? "+" : "", m.diff4);
 
+	// scale from now on
 	for (int h = ch; h < 24; h++) {
 		if (s1)
-			TODAY(h)->exp1 *= f1 / 100;
+			TODAY(h)->exp1 = TODAY(h)->exp1 * m.err1 / 100;
 		if (s2)
-			TODAY(h)->exp2 *= f2 / 100;
+			TODAY(h)->exp2 = TODAY(h)->exp2 * m.err2 / 100;
 		if (s3)
-			TODAY(h)->exp3 *= f3 / 100;
+			TODAY(h)->exp3 = TODAY(h)->exp3 * m.err3 / 100;
 		if (s4)
-			TODAY(h)->exp4 *= f4 / 100;
+			TODAY(h)->exp4 = TODAY(h)->exp4 * m.err4 / 100;
 	}
 }
 
