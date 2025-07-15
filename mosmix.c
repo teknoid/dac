@@ -14,6 +14,14 @@
 
 // gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
+// !!! never calculate average from errors/percents
+// !!! always sum up values and then calculate
+// 33	44				75%
+// 333	555				60%
+// 3333	6666			50%
+// --------------------------
+// 3699	7265	50,9%	61,6%
+
 // temperature coefficient per mppt, scaled as x100
 #define TCOPMAX1				-34
 #define TCOPMAX2				-30
