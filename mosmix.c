@@ -33,8 +33,8 @@
 
 #define EXPECTED(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
 
-#define SUM_EXP					(m->exp1 + m->exp2 + m->exp3 + m->exp4)
-#define SUM_MPPT				(m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4)
+#define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
+#define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
 #define BASELOAD				80
 #define EXTRA					55
@@ -58,6 +58,15 @@ static factor_t factors[24];
 // fake dummy average loads over 24/7
 static int fake_loads[24] = { 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173 };
 
+static void sum(mosmix_t *to, mosmix_t *from) {
+	int *t = (int*) to;
+	int *f = (int*) from;
+	for (int i = 0; i < MOSMIX_SIZE; i++) {
+		*t = *t + *f;
+		t++;
+		f++;
+	}
+}
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_csv_t *m = &mosmix_csv[idx];
@@ -101,13 +110,42 @@ static void errors(mosmix_t *m) {
 	m->err4 = m->exp4 && m->mppt4 ? m->mppt4 * 100 / m->exp4 : 100;
 }
 
-static void sum(mosmix_t *to, mosmix_t *from) {
-	int *t = (int*) to;
-	int *f = (int*) from;
-	for (int i = 0; i < MOSMIX_SIZE; i++) {
-		*t = *t + *f;
-		t++;
-		f++;
+static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod) {
+	ZEROP(mtomorrow);
+	ZEROP(mtoday);
+	ZEROP(msod);
+	ZEROP(meod);
+
+	for (int h = 0; h < 24; h++) {
+		mosmix_t *m1 = TOMORROW(h);
+		mosmix_t *m0 = TODAY(h);
+
+		sum(mtomorrow, m1);
+		sum(mtoday, m0);
+
+		if (h < now->tm_hour + 1)
+			// full elapsed hours into sod
+			sum(msod, m0);
+		else if (h > now->tm_hour + 1)
+			// full remaining hours into eod
+			sum(meod, m0);
+		else {
+			// current hour - split at current minute
+			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
+			int xs2 = m0->exp2 * now->tm_min / 60, xe2 = m0->exp2 - xs2;
+			int xs3 = m0->exp3 * now->tm_min / 60, xe3 = m0->exp3 - xs3;
+			int xs4 = m0->exp4 * now->tm_min / 60, xe4 = m0->exp4 - xs4;
+			// elapsed minutes into sod
+			msod->exp1 += xs1;
+			msod->exp2 += xs2;
+			msod->exp3 += xs3;
+			msod->exp4 += xs4;
+			// remaining minutes into eod
+			meod->exp1 += xe1;
+			meod->exp2 += xe2;
+			meod->exp3 += xe3;
+			meod->exp4 += xe4;
+		}
 	}
 }
 
@@ -317,18 +355,35 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 
 	// recalc errors
 	errors(m);
-
-	// save to history
-	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
-	memcpy(mh, m, sizeof(mosmix_t));
-
 	xdebug("MOSMIX forecast mppt Wh %5d %5d %5d %5d sum %d", m->mppt1, m->mppt2, m->mppt3, m->mppt4, m->mppt1 + m->mppt2 + m->mppt3 + m->mppt4);
 	xdebug("MOSMIX forecast exp  Wh %5d %5d %5d %5d sum %d", m->exp1, m->exp2, m->exp3, m->exp4, m->exp1 + m->exp2 + m->exp3 + m->exp4);
 	xdebug("MOSMIX forecast err  Wh %5d %5d %5d %5d sum %d", m->diff1, m->diff2, m->diff3, m->diff4, m->diff1 + m->diff2 + m->diff3 + m->diff4);
 	xdebug("MOSMIX forecast err  %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
+
+	// save to history
+	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
+	memcpy(mh, m, sizeof(mosmix_t));
+}
+
+// collect total expected today, tomorrow and till end of day / start of day
+void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
+	mosmix_t mtoday, mtomorrow, msod, meod;
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+
+	*itomorrow = SUM_EXP(&mtomorrow);
+	*itoday = SUM_EXP(&mtoday);
+	*isod = SUM_EXP(&msod);
+	*ieod = SUM_EXP(&meod);
+	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
+
+	// validate
+	if (*itoday != *isod + *ieod)
+		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *isod, *ieod);
 }
 
 void mosmix_scale(struct tm *now) {
+	mosmix_t mtoday, mtomorrow, msod, meod;
+
 	// nothing to scale
 	if (TODAY(now->tm_hour)->Rad1h == 0)
 		return;
@@ -338,37 +393,39 @@ void mosmix_scale(struct tm *now) {
 	ZERO(m);
 
 	// sum up mppt and expected till now
-	for (int h = 0; h < ch; h++) {
-		m.mppt1 += TODAY(h)->mppt1;
-		m.mppt2 += TODAY(h)->mppt2;
-		m.mppt3 += TODAY(h)->mppt3;
-		m.mppt4 += TODAY(h)->mppt4;
-
-		m.exp1 += TODAY(h)->exp1;
-		m.exp2 += TODAY(h)->exp2;
-		m.exp3 += TODAY(h)->exp3;
-		m.exp4 += TODAY(h)->exp4;
-	}
+	for (int h = 0; h < ch; h++)
+		sum(&m, TODAY(h));
 
 	// calculate diff and error
 	errors(&m);
 
-	int s1 = m.err1 < 90 || m.err1 > 120;
-	int s2 = m.err2 < 90 || m.err2 > 120;
-	int s3 = m.err3 < 90 || m.err3 > 120;
-	int s4 = m.err4 < 90 || m.err4 > 120;
+	// thresholds for scaling
+	int s1 = (m.diff1 < -100 || m.diff1 > 100) && (m.err1 < 90 || m.err1 > 120);
+	int s2 = (m.diff2 < -100 || m.diff2 > 100) && (m.err2 < 90 || m.err2 > 120);
+	int s3 = (m.diff3 < -100 || m.diff3 > 100) && (m.err3 < 90 || m.err3 > 120);
+	int s4 = (m.diff4 < -100 || m.diff4 > 100) && (m.err4 < 90 || m.err4 > 120);
 
 	if (s1)
-		xlog("MOSMIX scaling %dh+ MPPT1 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err1), m.diff1 > 0 ? "+" : "", m.diff1);
+		xlog("MOSMIX scaling MPPT1 by %5.2f (%s%d)", FLOAT100(m.err1), m.diff1 > 0 ? "+" : "", m.diff1);
 	if (s2)
-		xlog("MOSMIX scaling %dh+ MPPT2 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err2), m.diff2 > 0 ? "+" : "", m.diff2);
+		xlog("MOSMIX scaling MPPT2 by %5.2f (%s%d)", FLOAT100(m.err2), m.diff2 > 0 ? "+" : "", m.diff2);
 	if (s3)
-		xlog("MOSMIX scaling %dh+ MPPT3 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err3), m.diff3 > 0 ? "+" : "", m.diff3);
+		xlog("MOSMIX scaling MPPT3 by %5.2f (%s%d)", FLOAT100(m.err3), m.diff3 > 0 ? "+" : "", m.diff3);
 	if (s4)
-		xlog("MOSMIX scaling %dh+ MPPT4 forecasts by %5.2f (%s%d)", ch, FLOAT100(m.err4), m.diff4 > 0 ? "+" : "", m.diff4);
+		xlog("MOSMIX scaling MPPT4 by %5.2f (%s%d)", FLOAT100(m.err4), m.diff4 > 0 ? "+" : "", m.diff4);
 
-	// scale from now on
-	for (int h = ch; h < 24; h++) {
+	// nothing to scale
+	if (!s1 && !s2 && !s3 && !s4)
+		return;
+
+	// before scale
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+	int exp1 = SUM_EXP(&mtoday);
+	int sodx1 = SUM_EXP(&msod);
+	int sodm1 = SUM_MPPT(&msod);
+
+	// scale all sod and eod - this corrects the success factor to ~100%
+	for (int h = 0; h < 24; h++) {
 		if (s1)
 			TODAY(h)->exp1 = TODAY(h)->exp1 * m.err1 / 100;
 		if (s2)
@@ -378,56 +435,16 @@ void mosmix_scale(struct tm *now) {
 		if (s4)
 			TODAY(h)->exp4 = TODAY(h)->exp4 * m.err4 / 100;
 	}
-}
 
-// collect total expected today, tomorrow and till end of day / start of day
-void mosmix_collect(struct tm *now, int *itoday, int *itomorrow, int *sod, int *eod) {
-	mosmix_t sum_today, sum_tomorrow, msod, meod;
-	ZERO(sum_today);
-	ZERO(sum_tomorrow);
-	ZERO(msod);
-	ZERO(meod);
+	// after scale
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+	int exp2 = SUM_EXP(&mtoday);
+	int sodx2 = SUM_EXP(&msod);
+	int sodm2 = SUM_MPPT(&msod);
 
-	for (int h = 0; h < 24; h++) {
-		mosmix_t *m0 = TODAY(h);
-		mosmix_t *m1 = TOMORROW(h);
-		sum(&sum_today, m0);
-		sum(&sum_tomorrow, m1);
-
-		if (h < now->tm_hour + 1)
-			// full elapsed hours into sod
-			sum(&msod, m0);
-		else if (h > now->tm_hour + 1)
-			// full remaining hours into eod
-			sum(&meod, m0);
-		else {
-			// current hour - split at current minute
-			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
-			int xs2 = m0->exp2 * now->tm_min / 60, xe2 = m0->exp2 - xs2;
-			int xs3 = m0->exp3 * now->tm_min / 60, xe3 = m0->exp3 - xs3;
-			int xs4 = m0->exp4 * now->tm_min / 60, xe4 = m0->exp4 - xs4;
-			// elapsed minutes into sod
-			msod.exp1 += xs1;
-			msod.exp2 += xs2;
-			msod.exp3 += xs3;
-			msod.exp4 += xs4;
-			// remaining minutes into eod
-			meod.exp1 += xe1;
-			meod.exp2 += xe2;
-			meod.exp3 += xe3;
-			meod.exp4 += xe4;
-		}
-	}
-
-	*itoday = sum_today.exp1 + sum_today.exp2 + sum_today.exp3 + sum_today.exp4;
-	*itomorrow = sum_tomorrow.exp1 + sum_tomorrow.exp2 + sum_tomorrow.exp3 + sum_tomorrow.exp4;
-	*sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
-	*eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
-	xdebug("MOSMIX today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *sod, *eod);
-
-	// validate
-	if (*itoday != *sod + *eod)
-		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *sod, *eod);
+	float succ1 = sodm1 * 100 / sodx1;
+	float succ2 = sodm2 * 100 / sodx2;
+	xdebug("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, succ1, exp2, sodm2, sodx2, succ2);
 }
 
 // night: collect load power where pv cannot satisfy this
@@ -444,7 +461,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 
 		// current hour -> partly, remaining hours -> full
 		int l = h == ch ? load * (60 - now->tm_min) / 60 : load;
-		int x = h == ch ? SUM_EXP * (60 - now->tm_min) / 60 : SUM_EXP;
+		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
 		// night
 		if (l > x) {
@@ -482,7 +499,7 @@ int mosmix_heating(struct tm *now, int power) {
 		mosmix_t *m = TODAY(h);
 		// current hour -> partly, remaining hours -> full
 		int p = h == ch ? power * (60 - now->tm_min) / 60 : power;
-		int x = h == ch ? SUM_EXP * (60 - now->tm_min) / 60 : SUM_EXP;
+		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 		if (x > p) {
 			snprintf(value, 48, " %d:%d:%d", h, x, p);
 			strcat(line, value);
@@ -532,11 +549,7 @@ void mosmix_dump_tomorrow(struct tm *now) {
 	dump_struct((int*) &m, MOSMIX_SIZE, "[++]", 0);
 }
 
-void mosmix_dump_history_today(struct tm *now) {
-	dump_table((int*) HISTORY(now->tm_wday, 0), MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX history today", MOSMIX_HEADER);
-}
-
-void mosmix_dump_history_full(struct tm *now) {
+void mosmix_dump_history(struct tm *now) {
 	dump_table((int*) history, MOSMIX_SIZE, 24 * 7, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
 }
 
@@ -642,34 +655,34 @@ static int test() {
 
 	// calculate expected today and tomorrow
 	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
 	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_scale(now);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 9;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_scale(now);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 12;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_scale(now);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 15;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
 	mosmix_scale(now);
-	mosmix_collect(now, &itoday, &itomorrow, &sod, &eod);
+	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
-	mosmix_dump_history_full(now);
+	mosmix_dump_history(now);
 	mosmix_dump_history_hours(9);
 	mosmix_dump_history_hours(12);
 	mosmix_dump_history_hours(15);
@@ -720,12 +733,12 @@ static int migrate() {
 }
 
 static int fix() {
-	mosmix_t *m;
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
-	m = &history[152];
-	m->mppt3 = m->diff3 = 0;
-	m->err3 = 100;
+//	mosmix_t *m;
+//	m = &history[152];
+//	m->mppt3 = m->diff3 = 0;
+//	m->err3 = 100;
 //	m = &history[139];
 //	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
 //	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
@@ -771,10 +784,10 @@ static int diffs() {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
-		int diff = SUM_MPPT - m->Rad1h;
+		int diff = SUM_MPPT(m) - m->Rad1h;
 		diff_sum += abs(diff);
 		if (diff)
-			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d   --> err %4d\n", h, SUM_MPPT, m->Rad1h, m->SunD1, diff);
+			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d   --> err %4d\n", h, SUM_MPPT(m), m->Rad1h, m->SunD1, diff);
 	}
 	return diff_sum;
 }

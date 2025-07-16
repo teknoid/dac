@@ -796,9 +796,9 @@ static void calculate_gstate() {
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
+	mosmix_collect(now, &tomorrow, &today, &sod, &eod);
 	gstate->tomorrow = tomorrow;
+	gstate->today = today;
 	gstate->sod = sod;
 	gstate->eod = eod;
 

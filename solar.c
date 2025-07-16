@@ -627,12 +627,12 @@ static void calculate_gstate() {
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &today, &tomorrow, &sod, &eod);
-	gstate->today = today;
+	mosmix_collect(now, &tomorrow, &today,  &sod, &eod);
 	gstate->tomorrow = tomorrow;
+	gstate->today = today;
 	gstate->sod = sod;
 	gstate->eod = eod;
-	gstate->success = sod && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
+	gstate->success = sod > MINIMUM && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
 	CUT(gstate->success, 2000);
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
@@ -1462,8 +1462,8 @@ int ramp_akku(device_t *akku, int power) {
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
-		// akku ramps down itself when charging or forward to next device
-		return AKKU_CHARGING ? 1 : 0;
+		// akku ramps down itself when charging, otherwise forward to next device
+		return pstate->akku < -NOISE ? 1 : 0;
 	}
 
 	// ramp up request
@@ -1477,11 +1477,11 @@ int ramp_akku(device_t *akku, int power) {
 			return akku_standby();
 
 		// forward to next device if we have grid upload in despite of charging
-		if (PSTATE_MIN_LAST1->grid < -NOISE && AKKU_CHARGING)
+		if (AKKU_CHARGING && PSTATE_MIN_LAST1->grid < -NOISE)
 			return 0; // continue loop
 
-		// summer: start charging around high noon when below 20%
-		if (SUMMER && (gstate->soc > 200 || now->tm_hour < 10 || now->tm_hour > 14))
+		// summer: start charging between 9 and 15 o'clock when below 20%
+		if (SUMMER && (gstate->soc > 200 || now->tm_hour < 9 || now->tm_hour >= 15))
 			return 0; // continue loop
 
 		// enable charging

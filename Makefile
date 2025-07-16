@@ -62,21 +62,21 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
 
+sensors: sensors.o utils.o i2c.o
+	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
+	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o
+
 solar: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o
 	$(CC) $(CFLAGS) -DSOLAR_MAIN -c solar.c mosmix.c
-	$(CC) $(CFLAGS) -o solar solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o $(LIBS) -lmodbus -lcurl -lmqttc
+	$(CC) $(CFLAGS) -L$(LIB) -o solar solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o -lm -lmodbus -lcurl -lmqttc
 
 simulator: clean utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o
 	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSIMULATOR -c solar.c mosmix.c
-	$(CC) $(CFLAGS) -o simulator solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o $(LIBS) -lmodbus -lcurl -lmqttc
-
-sensors: sensors.o utils.o i2c.o
-	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
-	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o $(LIBS)
+	$(CC) $(CFLAGS) -L$(LIB) -o simulator solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o -lm -lmodbus -lcurl -lmqttc
 
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
-	$(CC) $(CFLAGS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o $(LIBS) -lncurses -lmenu -lm
+	$(CC) $(CFLAGS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
 
 gpio-sunxi: gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
@@ -105,7 +105,7 @@ valgrind:
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 solar sunspec mosmix template aqua ledstrip
+	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 solar simulator sunspec mosmix template aqua ledstrip
 
 install:
 	@echo "[Installing and starting mcp]"
