@@ -190,7 +190,6 @@ static gstate_t gstate_history[HISTORY], gstate_minutes[60], gstate_current, *gs
 #define GSTATE_TODAY			(&gstate_history[24 * now->tm_wday])
 #define GSTATE_YDAY				(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_history[24 * now->tm_wday + (h)])
-#define GSTATE_YDAY_HOUR(h)		(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6) + (h)])
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
 
 // needed for migration

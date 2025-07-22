@@ -627,7 +627,7 @@ static void calculate_gstate() {
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &tomorrow, &today,  &sod, &eod);
+	mosmix_collect(now, &tomorrow, &today, &sod, &eod);
 	gstate->tomorrow = tomorrow;
 	gstate->today = today;
 	gstate->sod = sod;
@@ -885,12 +885,14 @@ static void daily() {
 	collect_loads();
 
 	// calculate forecast errors - actual vs. expected
-	int forecast_yesterday = GSTATE_YDAY_HOUR(23)->tomorrow;
-	int eyesterday = forecast_yesterday ? gstate->pv * 1000 / forecast_yesterday : 0;
-	xdebug("SOLAR yesterdays forecast for today %d, actual %d, strike %.1f%%", forecast_yesterday, gstate->pv, FLOAT10(eyesterday));
-	int forecast_today = GSTATE_HOUR(6)->today;
-	int etoday = forecast_today ? gstate->pv * 1000 / forecast_today : 0;
-	xdebug("SOLAR today's 04:00 forecast for today %d, actual %d, strike %.1f%%", forecast_today, gstate->pv, FLOAT10(etoday));
+	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
+	int f2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
+	int e2 = f2 ? gstate->pv * 1000 / f2 : 0;
+	xdebug("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", f2, gstate->pv, FLOAT10(e2));
+	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
+	int f1 = GSTATE_DAY_HOUR(yday1, 7)->today;
+	int e1 = f1 ? gstate->pv * 1000 / f1 : 0;
+	xdebug("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", f1, gstate->pv, FLOAT10(e1));
 
 	// store state at least once per day
 	store_state();
