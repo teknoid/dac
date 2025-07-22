@@ -85,9 +85,7 @@ static int expect(mosmix_t *m, int r, int s, int tco) {
 		xdebug("MOSMIX expected < 0, recalculating with s = 0");
 		x = EXPECT(r, 0, tco);
 	}
-	if (x < NOISE)
-		x = 0;
-	return x;
+	return x > NOISE ? x : 0;
 }
 
 // calculate expected pv as combination of raw mosmix values with mppt specific coefficients
@@ -242,10 +240,25 @@ static void* calculate_factors_slave(void *arg) {
 //					xdebug("MOSMIX Rad1h=%d SunD1=%d TTT=%d r=s=100 exp1=%d exp2=%d exp3=%d exp4=%d", m->Rad1h, m->SunD1, m->TTT, exp1, exp2, exp3, exp4);
 
 				// calculate absolute error
-				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+				if (exp1 < 0)
+					e1 += INT16_MAX;
+				else
+					e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+
+				if (exp2 < 0)
+					e2 += INT16_MAX;
+				else
+					e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+
+				if (exp3 < 0)
+					e3 += INT16_MAX;
+				else
+					e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+
+				if (exp4 < 0)
+					e4 += INT16_MAX;
+				else
+					e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
 			}
 
 			// take over coefficients from the smallest error
@@ -326,7 +339,9 @@ static void* calculate_factors_master(void *arg) {
 		sleep(1);
 	}
 
+#ifndef MOSMIX_MAIN
 	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
+#endif
 	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 	return (void*) 0;
