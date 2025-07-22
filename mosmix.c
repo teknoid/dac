@@ -31,7 +31,7 @@
 #define FRMAX					5555
 #define FSMAX					1111
 
-#define EXPECTED(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
 
 #define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -79,21 +79,23 @@ static void parse(char **strings, size_t size) {
 	m->RSunD = atoi(strings[5]);
 }
 
-// calculate expected pv as combination of raw mosmix values with mppt specific coefficients
-static void expected(mosmix_t *m, factor_t *f) {
-	m->exp1 = EXPECTED(f->r1, f->s1, TCOPMAX1);
-	m->exp2 = EXPECTED(f->r2, f->s2, TCOPMAX2);
-	m->exp3 = EXPECTED(f->r3, f->s3, TCOPMAX3);
-	m->exp4 = EXPECTED(f->r4, f->s4, TCOPMAX4);
+static int expect(mosmix_t *m, int r, int s, int tco) {
+	int x = EXPECT(r, s, tco);
+	if (x < 0) {
+		xdebug("MOSMIX expected < 0, recalculating with s = 0");
+		x = EXPECT(r, 0, tco);
+	}
+	if (x < NOISE)
+		x = 0;
+	return x;
+}
 
-	if (m->exp1 < NOISE)
-		m->exp1 = 0;
-	if (m->exp2 < NOISE)
-		m->exp2 = 0;
-	if (m->exp3 < NOISE)
-		m->exp3 = 0;
-	if (m->exp4 < NOISE)
-		m->exp4 = 0;
+// calculate expected pv as combination of raw mosmix values with mppt specific coefficients
+static void expecteds(mosmix_t *m, factor_t *f) {
+	m->exp1 = expect(m, f->r1, f->s1, TCOPMAX1);
+	m->exp2 = expect(m, f->r2, f->s2, TCOPMAX2);
+	m->exp3 = expect(m, f->r3, f->s3, TCOPMAX3);
+	m->exp4 = expect(m, f->r4, f->s4, TCOPMAX4);
 }
 
 static void errors(mosmix_t *m) {
@@ -156,18 +158,18 @@ static void recalc_expected() {
 
 		// today
 		mosmix_t *m0 = TODAY(h);
-		expected(m0, f);
+		expecteds(m0, f);
 		errors(m0);
 
 		// tomorrow
 		mosmix_t *m1 = TOMORROW(h);
-		expected(m1, f);
+		expecteds(m1, f);
 		errors(m1);
 
 		// history
 		for (int d = 0; d < 7; d++) {
 			mosmix_t *m = HISTORY(d, h);
-			expected(m, f);
+			expecteds(m, f);
 			errors(m);
 		}
 	}
@@ -231,10 +233,10 @@ static void* calculate_factors_slave(void *arg) {
 				mosmix_t *m = HISTORY(d, *h);
 
 				// calculate expected
-				int exp1 = EXPECTED(r, s, TCOPMAX1);
-				int exp2 = EXPECTED(r, s, TCOPMAX2);
-				int exp3 = EXPECTED(r, s, TCOPMAX3);
-				int exp4 = EXPECTED(r, s, TCOPMAX4);
+				int exp1 = EXPECT(r, s, TCOPMAX1);
+				int exp2 = EXPECT(r, s, TCOPMAX2);
+				int exp3 = EXPECT(r, s, TCOPMAX3);
+				int exp4 = EXPECT(r, s, TCOPMAX4);
 
 //				if (r == 100 && s == 100)
 //					xdebug("MOSMIX Rad1h=%d SunD1=%d TTT=%d r=s=100 exp1=%d exp2=%d exp3=%d exp4=%d", m->Rad1h, m->SunD1, m->TTT, exp1, exp2, exp3, exp4);
