@@ -132,6 +132,7 @@ p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
   gstate u 1:"soc"    t "soc"  w lines ls 6,\
       '' u 1:"ttl"    t "ttl"  w lines,\
       '' u 1:"succ"   t "succ" w lines ls 7,\
+      '' u 1:"foca"   t "foca" w lines ls 7,\
       '' u 1:"surv"   t "surv" w lines ls 3,\
       '' u 1:"heat"   t "heat" w lines,\
       1000            t "100%" w lines ls 9

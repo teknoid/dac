@@ -40,13 +40,15 @@
 #define EXTRA					55
 #define NOISE					10
 
+#define HISTORY_SIZE			(24 * 7)
+
 // all raw values from kml file
 static mosmix_csv_t mosmix_csv[256];
 
 // 24h slots over one week and access pointers
 // today and tommorow contains only forecast data
 // history contains all data (forecast, mppt, factors and errors)
-static mosmix_t today[24], tomorrow[24], history[24 * 7];
+static mosmix_t today[24], tomorrow[24], history[HISTORY_SIZE];
 #define TODAY(h)				(&today[h])
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
@@ -180,7 +182,7 @@ static void update_today_tomorrow(struct tm *now) {
 	int day_tomorrow = now->tm_yday < 365 ? now->tm_yday + 1 : 0;
 
 	// loop over one week
-	for (int i = 0; i < 24 * 7; i++) {
+	for (int i = 0; i < HISTORY_SIZE; i++) {
 		mosmix_csv_t *mcsv = &mosmix_csv[i];
 
 		// find slot to update
@@ -398,8 +400,17 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *isod, *ieod);
 }
 
-void mosmix_scale(struct tm *now) {
+void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	mosmix_t mtoday, mtomorrow, msod, meod;
+	*succ1 = *succ2 = 0;
+
+	// before scale
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+	int exp1 = SUM_EXP(&mtoday);
+	int sodx1 = SUM_EXP(&msod);
+	int sodm1 = SUM_MPPT(&msod);
+	float fs1 = sodx1 ? sodm1 * 100 / sodx1 : 0.0;
+	*succ1 = fs1 * 10.0;
 
 	// nothing to scale
 	if (TODAY(now->tm_hour)->Rad1h == 0)
@@ -435,12 +446,6 @@ void mosmix_scale(struct tm *now) {
 	if (!s1 && !s2 && !s3 && !s4)
 		return;
 
-	// before scale
-	collect(now, &mtomorrow, &mtoday, &msod, &meod);
-	int exp1 = SUM_EXP(&mtoday);
-	int sodx1 = SUM_EXP(&msod);
-	int sodm1 = SUM_MPPT(&msod);
-
 	// scale all sod and eod - this corrects the success factor to ~100%
 	for (int h = 0; h < 24; h++) {
 		if (s1)
@@ -458,10 +463,10 @@ void mosmix_scale(struct tm *now) {
 	int exp2 = SUM_EXP(&mtoday);
 	int sodx2 = SUM_EXP(&msod);
 	int sodm2 = SUM_MPPT(&msod);
+	float fs2 = sodx2 ? sodm2 * 100 / sodx2 : 0.0;
+	*succ2 = fs2 * 10.0;
 
-	float succ1 = sodm1 * 100 / sodx1;
-	float succ2 = sodm2 * 100 / sodx2;
-	xdebug("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, succ1, exp2, sodm2, sodx2, succ2);
+	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 
 // night: collect load power where pv cannot satisfy this
@@ -567,7 +572,7 @@ void mosmix_dump_tomorrow(struct tm *now) {
 }
 
 void mosmix_dump_history(struct tm *now) {
-	dump_table((int*) history, MOSMIX_SIZE, 24 * 7, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
+	dump_table((int*) history, MOSMIX_SIZE, HISTORY_SIZE, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
 }
 
 void mosmix_dump_history_hours(int h) {
@@ -604,7 +609,7 @@ void mosmix_store_state() {
 }
 void mosmix_store_csv() {
 	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
-	store_table_csv((int*) history, MOSMIX_SIZE, 24 * 7, MOSMIX_HEADER, RUN SLASH MOSMIX_HISTORY_CSV);
+	store_table_csv((int*) history, MOSMIX_SIZE, HISTORY_SIZE, MOSMIX_HEADER, RUN SLASH MOSMIX_HISTORY_CSV);
 	store_table_csv((int*) today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 	store_table_csv((int*) tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TOMORROW_CSV);
 }
@@ -668,7 +673,7 @@ static int test() {
 	mosmix_24h(2, &m2);
 	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
 
-	int itoday, itomorrow, sod, eod;
+	int itoday, itomorrow, sod, eod, succ1, succ2;
 
 	// calculate expected today and tomorrow
 	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
@@ -678,25 +683,25 @@ static int test() {
 
 	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now);
+	mosmix_scale(now, &succ1, &succ2);
 	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 9;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now);
+	mosmix_scale(now, &succ1, &succ2);
 	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 12;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now);
+	mosmix_scale(now, &succ1, &succ2);
 	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	now->tm_hour = 15;
 	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
 	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now);
+	mosmix_scale(now, &succ1, &succ2);
 	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod);
 
 	mosmix_dump_history(now);
@@ -727,10 +732,10 @@ static int recalc() {
 static int migrate() {
 	ZERO(history);
 
-	mosmix_old_t old[24 * 7];
+	mosmix_old_t old[HISTORY_SIZE];
 	load_blob(STATE SLASH MOSMIX_HISTORY, old, sizeof(old));
 
-	for (int i = 0; i < 24 * 7; i++) {
+	for (int i = 0; i < HISTORY_SIZE; i++) {
 		mosmix_old_t *o = &old[i];
 		mosmix_t *n = &history[i];
 		n->Rad1h = o->Rad1h;

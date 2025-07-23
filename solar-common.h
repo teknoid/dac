@@ -2,7 +2,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+// hexdump -v -e '18 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -100,7 +100,7 @@
 #define UP						(*dd)->total
 #define DOWN					(*dd)->total * -1
 
-#define HISTORY					(24 * 7)
+#define HISTORY_SIZE			(24 * 7)
 
 enum dstate {
 	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
@@ -142,7 +142,7 @@ struct _counter {
 	unsigned int mppt3;
 	unsigned int mppt4;
 };
-static counter_t counter_history[HISTORY], counter[10];
+static counter_t counter_history[HISTORY_SIZE], counter[10];
 // self counter 1-5
 #define CS_NOW					(&counter[0])
 #define CS_LAST					(&counter[1])
@@ -161,7 +161,7 @@ static counter_t counter_history[HISTORY], counter[10];
 // 24/7 gstate history slots and access pointers
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  surv  heat flags"
+#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  foca  surv  heat flags"
 struct _gstate {
 	int pv;
 	int produced;
@@ -177,11 +177,12 @@ struct _gstate {
 	int akku;
 	int ttl;
 	int success;
+	int forecast;
 	int survive;
 	int heating;
 	int flags;
 };
-static gstate_t gstate_history[HISTORY], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
+static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
 #define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define GSTATE_HOUR_NOW			(&gstate_history[24 * now->tm_wday + now->tm_hour])
@@ -210,6 +211,7 @@ typedef struct gstate_old_t {
 	int success;
 	int survive;
 	int heating;
+	int flags;
 } gstate_old_t;
 
 // pstate history every second/minute/hour and access pointers

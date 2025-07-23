@@ -260,7 +260,7 @@ static int akku_charge() {
 	AKKU->state = Charge;
 	AKKU->power = 1;
 #ifndef SOLAR_MAIN
-	int limit = SUMMER && PSTATE_HOUR_LAST1->pv > 2000;
+	int limit = SUMMER || PSTATE_HOUR_LAST1->pv > 2000;
 	if (limit) {
 		if (!sunspec_storage_limit_both(inverter1, 1750, 0)) {
 			xdebug("SOLAR set akku CHARGE limit 2000");

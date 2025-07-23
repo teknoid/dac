@@ -881,18 +881,18 @@ static void daily() {
 	PROFILING_START
 	xlog("SOLAR executing daily tasks...");
 
-	// recalculate average 24/7 loads
-	collect_loads();
-
 	// calculate forecast errors - actual vs. expected
 	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
-	int f2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
-	int e2 = f2 ? gstate->pv * 1000 / f2 : 0;
-	xdebug("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", f2, gstate->pv, FLOAT10(e2));
+	int fc2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
+	float e2 = fc2 ? gstate->pv * 100 / fc2 : 0.0;
+	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", fc2, gstate->pv, e2);
 	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
-	int f1 = GSTATE_DAY_HOUR(yday1, 7)->today;
-	int e1 = f1 ? gstate->pv * 1000 / f1 : 0;
-	xdebug("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", f1, gstate->pv, FLOAT10(e1));
+	int fc1 = GSTATE_DAY_HOUR(yday1, 7)->today;
+	float e1 = fc1 ? gstate->pv * 1000 / fc1 : 0.0;
+	xlog("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", fc1, gstate->pv, e1);
+
+	// recalculate average 24/7 loads
+	collect_loads();
 
 	// store state at least once per day
 	store_state();
@@ -937,13 +937,16 @@ static void hourly() {
 	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
 
-	// collect sod errors and scale all remaining eod values
-	mosmix_scale(now);
+	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
+	int succ1, succ2;
+	mosmix_scale(now, &succ1, &succ2);
+	gstate->forecast = succ1;
+	CUT(gstate->forecast, 2000);
 
 #ifdef GNUPLOT
 	// create fresh csv files and paint new diagrams
 	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
-	store_table_csv((int*) gstate_history, GSTATE_SIZE, 24 * 7, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
+	store_table_csv((int*) gstate_history, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
 	mosmix_store_csv();
 	system(GNUPLOT);
 #endif
@@ -1200,7 +1203,7 @@ static int fake() {
 	calculate_pstate();
 	calculate_gstate();
 
-	for (int i = 0; i < 24 * 7; i++)
+	for (int i = 0; i < HISTORY_SIZE; i++)
 		memcpy(&gstate_history[i], (void*) gstate, sizeof(gstate_t));
 	for (int i = 0; i < 24; i++)
 		memcpy(&pstate_hours[i], (void*) pstate, sizeof(pstate_t));
@@ -1267,11 +1270,11 @@ static int test() {
 }
 
 static int migrate() {
-	gstate_old_t old[24 * 7];
-	ZERO(old);
-	load_blob("/tmp/solar-gstate-hours.bin", old, sizeof(gstate_old_t));
+	gstate_old_t old[HISTORY_SIZE];
 
-	for (int i = 0; i < 24 * 7; i++) {
+	ZERO(old);
+	load_blob("/tmp/solar-gstate-hours.bin", old, sizeof(old));
+	for (int i = 0; i < HISTORY_SIZE; i++) {
 		gstate_old_t *o = &old[i];
 		gstate_t *n = &gstate_history[i];
 
@@ -1286,11 +1289,11 @@ static int migrate() {
 		n->soc = o->soc;
 		n->akku = o->akku;
 		n->ttl = o->ttl;
+		n->success = o->success;
 		n->survive = o->survive;
 		n->heating = o->heating;
-		n->success = o->success;
 	}
-	store_blob(GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
 	return 0;
 }
 
