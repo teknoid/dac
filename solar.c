@@ -838,11 +838,12 @@ static void calculate_pstate() {
 
 	// calculate ramp up / ramp down power
 	pstate->ramp = pstate->grid * -1;
-	if (pstate->akku > NOISE)
-		pstate->ramp -= pstate->akku;
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		pstate->ramp = 0;
+	// ramp down when akku is discharging
+	if (pstate->akku > NOISE)
+		pstate->ramp -= pstate->akku;
 	// ramp down between NOISE and RAMP_WINDOW
 	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		pstate->ramp = -RAMP_WINDOW;
