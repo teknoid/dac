@@ -889,7 +889,7 @@ static void daily() {
 	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", fc2, gstate->pv, e2);
 	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
 	int fc1 = GSTATE_DAY_HOUR(yday1, 7)->today;
-	float e1 = fc1 ? gstate->pv * 1000 / fc1 : 0.0;
+	float e1 = fc1 ? gstate->pv * 100 / fc1 : 0.0;
 	xlog("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", fc1, gstate->pv, e1);
 
 	// recalculate average 24/7 loads
@@ -956,11 +956,15 @@ static void hourly() {
 }
 
 static void minly() {
-	// xlog("SOLAR minly m1pv=%d m1grid=%d m1load=%d", PSTATE_MIN_LAST1->pv, PSTATE_MIN_LAST1->grid, PSTATE_MIN_LAST1->load);
-
 	// enable discharge if we have grid download
-	if (pstate->grid > NOISE && PSTATE_MIN_LAST1->grid > RAMP_WINDOW)
-		akku_discharge();
+	if (pstate->grid > NOISE) {
+		int g3 = PSTATE_MIN_LAST1->grid > 25 && PSTATE_MIN_LAST2->grid > 25 && PSTATE_MIN_LAST3->grid > 25;
+		int g2 = PSTATE_MIN_LAST1->grid > 50 && PSTATE_MIN_LAST2->grid > 50;
+		int g1 = PSTATE_MIN_LAST1->grid > 75;
+		xlog("SOLAR minly grid last 3=%d 2=%d 1=%d", PSTATE_MIN_LAST3->grid, PSTATE_MIN_LAST2->grid, PSTATE_MIN_LAST1->grid);
+		if (g3 || g2 || g1)
+			akku_discharge();
+	}
 
 	// update counter, recalculate gstate and potd
 	calculate_counter();
