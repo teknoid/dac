@@ -802,34 +802,55 @@ static void wget(struct tm *now, const char *id) {
 	system(cmd);
 }
 
-static int diffs() {
+static int diffs(struct tm *now) {
+	// take over mppt's from history into today
+	for (int h = 0; h < 24; h++) {
+		mosmix_t *mh = HISTORY(now->tm_wday, h);
+		mosmix_t *mt = TODAY(h);
+		mt->mppt1 = mh->mppt1;
+		mt->mppt2 = mh->mppt2;
+		mt->mppt3 = mh->mppt3;
+		mt->mppt4 = mh->mppt4;
+	}
+
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
-		int diff = SUM_MPPT(m) - m->Rad1h;
+		factor_t *f = FACTORS(h);
+		expecteds(m, f);
+		int mppt = SUM_MPPT(m);
+		int expt = SUM_EXP(m);
+		int diff = mppt - expt;
 		diff_sum += abs(diff);
 		if (diff)
-			printf("hour %02d mppt1 %4d Rad1H %4d SunD1 %4d   --> err %4d\n", h, SUM_MPPT(m), m->Rad1h, m->SunD1, diff);
+			printf("hour %02d mppt %4d expt %4d   --> err %4d\n", h, mppt, expt, diff);
 	}
 	return diff_sum;
 }
 
 static int compare() {
-	LOCALTIME
+	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	load_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 
-	wget(now, "10579");
-	mosmix_load(now, TMP SLASH MARIENBERG, 1);
-	int dm = diffs();
+	// yesterday
+	time_t ts_yday = time(NULL);
+	ts_yday -= 60 * 60 * 24;
+	struct tm tm_yday, *yday = &tm_yday;
+	localtime_r(&ts_yday, &tm_yday);
 
-	wget(now, "10577");
-	mosmix_load(now, TMP SLASH CHEMNITZ, 1);
-	int dc = diffs();
+	wget(yday, "10579");
+	mosmix_load(yday, TMP SLASH MARIENBERG, 1);
+	int dm = diffs(yday);
 
-	wget(now, "N4464");
-	mosmix_load(now, TMP SLASH BRAUNSDORF, 1);
-	int db = diffs();
+	wget(yday, "10577");
+	mosmix_load(yday, TMP SLASH CHEMNITZ, 1);
+	int dc = diffs(yday);
 
-	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, dm, dc, db);
+	wget(yday, "N4464");
+	mosmix_load(yday, TMP SLASH BRAUNSDORF, 1);
+	int db = diffs(yday);
+
+	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dm, dc, db);
 	return 0;
 }
 
