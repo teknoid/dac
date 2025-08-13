@@ -48,10 +48,10 @@ static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
 // inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
 static sunspec_t *inverter1 = 0;
-#define MIN_SOC					(inverter1 ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
-#define AKKU_CHARGE_MAX			(inverter1 ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
-#define AKKU_DISCHARGE_MAX		(inverter1 ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
-#define AKKU_CAPACITY			(inverter1 ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
+#define MIN_SOC					(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
+#define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
+#define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
+#define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
 static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&pstate_lock);
 
