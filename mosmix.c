@@ -28,8 +28,8 @@
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
 
-#define FRMAX					4444
-#define FSMAX					2222
+#define FRMAX					3333
+#define FSMAX					4444
 
 #define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
 
