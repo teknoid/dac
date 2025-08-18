@@ -11,6 +11,7 @@
 #include "utils.h"
 #include "frozen.h"
 #include "solar.h"
+#include "sensors.h"
 #include "flamingo.h"
 #include "tasmota-config.h"
 

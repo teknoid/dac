@@ -17,6 +17,7 @@
 #include "fronius-config.h"
 #include "fronius.h"
 #include "tasmota.h"
+#include "sensors.h"
 #include "frozen.h"
 #include "mosmix.h"
 #include "utils.h"

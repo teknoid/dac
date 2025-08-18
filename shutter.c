@@ -8,6 +8,7 @@
 
 #include "shutter-config.h"
 #include "tasmota.h"
+#include "sensors.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "mcp.h"

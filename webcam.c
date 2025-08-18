@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "tasmota.h"
+#include "sensors.h"
 #include "webcam.h"
 #include "utils.h"
 #include "mcp.h"

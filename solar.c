@@ -10,6 +10,7 @@
 #include <ansi-color-codes.h>
 
 #include "tasmota.h"
+#include "sensors.h"
 #include "mosmix.h"
 #include "solar.h"
 #include "mcp.h"

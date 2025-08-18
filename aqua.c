@@ -6,6 +6,7 @@
 
 #include "tasmota-devices.h"
 #include "tasmota.h"
+#include "sensors.h"
 #include "utils.h"
 #include "aqua.h"
 #include "mcp.h"

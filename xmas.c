@@ -9,6 +9,7 @@
 #include "ledstrip.h"
 #include "flamingo.h"
 #include "tasmota.h"
+#include "sensors.h"
 #include "utils.h"
 #include "xmas.h"
 #include "mcp.h"

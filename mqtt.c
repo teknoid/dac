@@ -18,6 +18,7 @@
 #include "tasmota-devices.h"
 #include "ledstrip.h"
 #include "tasmota.h"
+#include "sensors.h"
 #include "frozen.h"
 #include "utils.h"
 #include "mqtt.h"
