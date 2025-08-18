@@ -541,6 +541,8 @@ static device_t* response(device_t *d) {
 }
 
 static void calculate_counter() {
+	pthread_mutex_lock(&update_lock);
+
 	// meter counter daily - calculate delta to NULL entry
 	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
 	CM_DAY->produced = CM_NOW->produced && CM_NULL->produced ? CM_NOW->produced - CM_NULL->produced : 0;
@@ -578,12 +580,16 @@ static void calculate_counter() {
 		xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 		xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 
-		// copy to history / LAST entry
+		// copy to history
 #ifdef COUNTER_METER
 		memcpy(COUNTER_HOUR_NOW, (void*) CM_NOW, sizeof(counter_t));
+		mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 #else
 		memcpy(COUNTER_HOUR_NOW, (void*) CS_NOW, sizeof(counter_t));
+		mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
+
+		// copy to LAST entry
 		memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
 		memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
 
@@ -599,6 +605,8 @@ static void calculate_counter() {
 			memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 		}
 	}
+
+	pthread_mutex_unlock(&update_lock);
 }
 
 static void calculate_gstate() {
@@ -685,6 +693,8 @@ static void calculate_gstate() {
 }
 
 static void calculate_pstate() {
+	pthread_mutex_lock(&update_lock);
+
 	// clear state flags and values
 	pstate->flags = pstate->ramp = 0;
 
@@ -755,128 +765,127 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_BURNOUT; // burnout
 		else
 			pstate->flags |= FLAG_OFFLINE; // offline
-		return;
-	}
 
-	// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
-	int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
-	int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
-	if (e_short || e_long) {
-		pstate->flags |= FLAG_EMERGENCY;
-		return;
-	}
+	} else {
+		// online
 
-	// no further calculations while lock active
-	if (lock)
-		return;
+		// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
+		int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
+		int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+		if (e_short || e_long)
+			pstate->flags |= FLAG_EMERGENCY;
 
-	// first set and then clear VALID flag when values suspicious
-	pstate->flags |= FLAG_VALID;
-	int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
-	if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
-		xdebug("SOLAR suspicious values detected: sum=%d", sum);
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->load > 0) {
-		xdebug("SOLAR positive load detected");
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
-		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-		xdebug("SOLAR wasting power %d akku -> grid", waste);
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
-		xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
-		pstate->flags &= ~FLAG_VALID;
-	}
+		// first set and then clear VALID flag when values suspicious
+		pstate->flags |= FLAG_VALID;
+		int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
+		if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
+			xdebug("SOLAR suspicious values detected: sum=%d", sum);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->load > 0) {
+			xdebug("SOLAR positive load detected");
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->grid < -NOISE && pstate->akku > NOISE) {
+			int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
+			xdebug("SOLAR wasting power %d akku -> grid", waste);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
+			xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
+			pstate->flags &= ~FLAG_VALID;
+		}
 
-	// validate inverter status
-	inverter_valid();
+		// validate inverter status
+		inverter_valid();
 
-	// no further calculations while invalid
-	if (!PSTATE_VALID) {
-		lock = WAIT_INVALID; // load timer
-		return;
-	}
+		// further calculations only when valid
+		if (PSTATE_VALID) {
 
-	// state is stable when we have 3x no grid changes
-	if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
-		pstate->flags |= FLAG_STABLE;
+			// state is stable when we have 3x no grid changes
+			if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+				pstate->flags |= FLAG_STABLE;
 
-	// device loop:
-	// - xload/dxload
-	// - all devices up/down/standby
-	pstate->xload = 0;
-	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
-	for (device_t **dd = DEVICES; *dd; dd++) {
-		pstate->xload += DD->load;
-		// (!) power can be -1 when uninitialized
-		if (DD->power > 0)
-			pstate->flags &= ~FLAG_ALL_DOWN;
-		if (!DD->power || (DD->adj && DD->power != 100))
-			pstate->flags &= ~FLAG_ALL_UP;
-		if (DD->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
-	}
-	int p_load = -1 * pstate->load; // - BASELOAD;
-	pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
+			// device loop:
+			// - xload/dxload
+			// - all devices up/down/standby
+			pstate->xload = 0;
+			pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
+			for (device_t **dd = DEVICES; *dd; dd++) {
+				pstate->xload += DD->load;
+				// (!) power can be -1 when uninitialized
+				if (DD->power > 0)
+					pstate->flags &= ~FLAG_ALL_DOWN;
+				if (!DD->power || (DD->adj && DD->power != 100))
+					pstate->flags &= ~FLAG_ALL_UP;
+				if (DD->state != Standby)
+					pstate->flags &= ~FLAG_ALL_STANDBY;
+			}
+			int p_load = -1 * pstate->load; // - BASELOAD;
+			pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
 
-	// indicate standby check when actual load is 3x below 50% of calculated load
-	if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50) {
-		pstate->flags |= FLAG_CHECK_STANDBY;
-		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
-	}
+			// indicate standby check when actual load is 3x below 50% of calculated load
+			if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50) {
+				pstate->flags |= FLAG_CHECK_STANDBY;
+				xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+			}
 
-	// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-	int d0 = pstate->sdpv > m1->pv;
-	int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-	int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-	if (d0 || d1 || d2) {
-		pstate->flags |= FLAG_DISTORTION;
-		xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-	}
+			// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+			int d0 = pstate->sdpv > m1->pv;
+			int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+			int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+			if (d0 || d1 || d2) {
+				pstate->flags |= FLAG_DISTORTION;
+				xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+			}
 
-	// calculate ramp up / ramp down power
-	pstate->ramp = pstate->grid * -1;
-	// stable when grid between -RAMP_WINDOW..+NOISE
-	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
-		pstate->ramp = 0;
-	// ramp down when akku is discharging
-	if (pstate->akku > NOISE)
-		pstate->ramp -= pstate->akku;
-	// ramp down between NOISE and RAMP_WINDOW
-	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
-		pstate->ramp = -RAMP_WINDOW;
-	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
-	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
-		pstate->ramp = 0;
-	// 50% more ramp down when PV tendency is falling
-	if (pstate->ramp < 0 && m1->dpv < 0)
-		pstate->ramp += pstate->ramp / 2;
-	// delay ramp up as long as average PV is below average load
-	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
-	if (pstate->ramp > 0 && m1->pv < m1load) {
-		xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
-		pstate->ramp = 0;
-	}
-	// delay small ramp up when we just had akku discharge or grid download
-	if (0 < pstate->ramp && pstate->ramp < MINIMUM) {
-		int akku = m1->akku > NOISE || m2->akku > NOISE || m3->akku > NOISE;
-		int grid = m1->grid > NOISE || m2->grid > NOISE || m3->grid > NOISE;
-		if (akku || grid) {
-			xdebug("SOLAR last123 akku %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
-			xdebug("SOLAR last123 grid %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
-			xdebug("SOLAR delay ramp up %d < %d due to %s %s in last 3 minutes", pstate->ramp, MINIMUM, akku ? "akku discharge" : "", grid ? "grid download" : "");
-			pstate->ramp = 0;
+			// calculate ramp up / ramp down power
+			pstate->ramp = pstate->grid * -1;
+			// stable when grid between -RAMP_WINDOW..+NOISE
+			if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
+				pstate->ramp = 0;
+			// ramp down when akku is discharging
+			if (pstate->akku > NOISE)
+				pstate->ramp -= pstate->akku;
+			// ramp down between NOISE and RAMP_WINDOW
+			if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
+				pstate->ramp = -RAMP_WINDOW;
+			// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
+			if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
+				pstate->ramp = 0;
+			// 50% more ramp down when PV tendency is falling
+			if (pstate->ramp < 0 && m1->dpv < 0)
+				pstate->ramp += pstate->ramp / 2;
+			// delay ramp up as long as average PV is below average load
+			int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
+			if (pstate->ramp > 0 && m1->pv < m1load) {
+				xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
+				pstate->ramp = 0;
+			}
+			// delay small ramp up when we just had akku discharge or grid download
+			if (0 < pstate->ramp && pstate->ramp < MINIMUM) {
+				int akku = m1->akku > NOISE || m2->akku > NOISE || m3->akku > NOISE;
+				int grid = m1->grid > NOISE || m2->grid > NOISE || m3->grid > NOISE;
+				if (akku || grid) {
+					xdebug("SOLAR last123 akku %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
+					xdebug("SOLAR last123 grid %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
+					xdebug("SOLAR delay ramp up %d < %d due to %s %s in last 3 minutes", pstate->ramp, MINIMUM, akku ? "akku discharge" : "", grid ? "grid download" : "");
+					pstate->ramp = 0;
+				}
+			}
+			// delay ramp up when unstable or distortion unless we have enough power
+			if (0 < pstate->ramp && pstate->ramp < ENOUGH)
+				if (!PSTATE_STABLE || PSTATE_DISTORTION) {
+					xdebug("SOLAR delay ramp up %d < %d due to %s %s", pstate->ramp, ENOUGH, !PSTATE_STABLE ? "unstable" : "", PSTATE_DISTORTION ? "distortion" : "");
+					pstate->ramp = 0;
+				}
 		}
 	}
-	// delay ramp up when unstable or distortion unless we have enough power
-	if (0 < pstate->ramp && pstate->ramp < ENOUGH)
-		if (!PSTATE_STABLE || PSTATE_DISTORTION) {
-			xdebug("SOLAR delay ramp up %d < %d due to %s %s", pstate->ramp, ENOUGH, !PSTATE_STABLE ? "unstable" : "", PSTATE_DISTORTION ? "distortion" : "");
-			pstate->ramp = 0;
-		}
+
+	pthread_mutex_unlock(&update_lock);
+
+	// copy to history
+	memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
 }
 
 static void daily() {
@@ -926,18 +935,8 @@ static void hourly() {
 			ramp(DD, DOWN);
 	}
 
-	// set akku storage strategy
-	akku_strategy();
-
 	// update forecasts and clear at midnight
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
-
-	// update history
-#ifdef COUNTER_METER
-	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-#else
-	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
-#endif
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
@@ -1004,7 +1003,7 @@ static void aggregate_mhd() {
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
 
-			// create/append gstate and pstate minutes csv before recalculating
+			// create/append gstate and pstate minutes to csv
 			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
 			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
 				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
@@ -1036,11 +1035,12 @@ static void solar() {
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
 
-		// calculate pstate and store to history inside a mutex
-		pthread_mutex_lock(&pstate_lock);
+		// calculate pstate
 		calculate_pstate();
-		memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
-		pthread_mutex_unlock(&pstate_lock);
+
+		// invalid - load lock timer
+		if (!PSTATE_VALID)
+			lock = WAIT_INVALID;
 
 		// no actions until lock is expired
 		if (lock)
@@ -1110,7 +1110,7 @@ static void solar() {
 }
 
 static int init() {
-	pthread_mutex_init(&pstate_lock, NULL);
+	pthread_mutex_init(&update_lock, NULL);
 
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -1156,7 +1156,7 @@ static void stop() {
 	// call implementation specific stop() function
 	solar_stop();
 
-	pthread_mutex_destroy(&pstate_lock);
+	pthread_mutex_destroy(&update_lock);
 }
 
 // run the main loop forever

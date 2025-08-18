@@ -184,7 +184,7 @@ struct _gstate {
 };
 static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current, *gstate = &gstate_current;
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
-#define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define GSTATE_MIN_LAST			(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define GSTATE_HOUR_NOW			(&gstate_history[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_HOUR_LAST		(&gstate_history[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
 #define GSTATE_HOUR_NEXT		(&gstate_history[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
@@ -217,7 +217,7 @@ typedef struct gstate_old_t {
 // pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku  ac1   ac2  load Δload ∑load xload dxlod  dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku   ac1   ac2  load Δload ∑load xload dxlod   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -277,8 +277,8 @@ static int loads[24];
 static struct tm now_tm, *now = &now_tm;
 static int lock = 0, sock = 0;
 
-// mutex for updating / calculating pstate
-pthread_mutex_t pstate_lock;
+// mutex for updating / calculating pstate and counter
+static pthread_mutex_t update_lock;
 
 // set device function signatures
 int ramp_heater(device_t *device, int power);

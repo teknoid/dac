@@ -109,7 +109,6 @@ int main(void) {
 	int c = getchar();
 	stop();
 }
-#else
-MCP_REGISTER(ir, 5, &init, &stop, &ir);
 #endif
 
+MCP_REGISTER(ir, 5, &init, &stop, &ir);

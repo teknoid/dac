@@ -23,11 +23,8 @@
 
 // #define LOCALMAIN
 
-static int fd_ra;
-static pthread_t thread_ra;
-
-static int fd_rb;
-static pthread_t thread_rb;
+static int fd_ra, fd_rb;
+static pthread_t thread_ra, thread_rb;
 
 static void* rotary_axis(void *arg) {
 	struct input_event ev;
@@ -163,6 +160,6 @@ int main(void) {
 	int c = getchar();
 	stop();
 }
-#else
-MCP_REGISTER(rotary, 5, &init, &stop, NULL);
 #endif
+
+MCP_REGISTER(rotary, 5, &init, &stop, NULL);

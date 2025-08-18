@@ -308,7 +308,7 @@ static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
 }
 
-int main(int argc, char **argv) {
+int mcp_main(int argc, char **argv) {
 //	set_debug(1);
 	xlog("MCP startup");
 
@@ -377,3 +377,9 @@ int main(int argc, char **argv) {
 	xlog_close();
 	return EXIT_SUCCESS;
 }
+
+#ifdef MCP
+int main(int argc, char **argv) {
+	return mcp_main(argc, argv);
+}
+#endif

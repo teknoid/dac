@@ -30,7 +30,10 @@ static int mean;
 
 static int i2cfd = 0;
 
-sensors_t sensors_local, *sensors = &sensors_local;
+static sensors_t sensors_local;
+
+// global sensors pointer
+sensors_t *sensors = &sensors_local;
 
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux
@@ -350,6 +353,6 @@ int sensor_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 	return sensor_main(argc, argv);
 }
-#else
-MCP_REGISTER(sensors, 5, &init, &stop, &loop);
 #endif
+
+MCP_REGISTER(sensors, 5, &init, &stop, &loop);

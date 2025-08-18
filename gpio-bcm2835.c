@@ -505,6 +505,6 @@ int gpio_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 	return gpio_main(argc, argv);
 }
-#else
-MCP_REGISTER(gpio, 1, &init, &stop, NULL);
 #endif
+
+MCP_REGISTER(gpio, 1, &init, &stop, NULL);

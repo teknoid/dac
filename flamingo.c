@@ -348,6 +348,6 @@ void mcp_register(const char *name, const int prio, const init_t init, const sto
 int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);
 }
-#else
-MCP_REGISTER(flamingo, 2, &init, &stop, NULL);
 #endif
+
+MCP_REGISTER(flamingo, 2, &init, &stop, NULL);

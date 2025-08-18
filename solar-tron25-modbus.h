@@ -53,7 +53,7 @@ static sunspec_t *inverter1 = 0;
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
 static void update_inverter1(sunspec_t *ss) {
-	pthread_mutex_lock(&pstate_lock);
+	pthread_mutex_lock(&update_lock);
 
 	pstate->f = ss->inverter->Hz - 5000; // store only the diff
 	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
@@ -105,13 +105,13 @@ static void update_inverter1(sunspec_t *ss) {
 		ss->active = 0;
 	}
 
-	pthread_mutex_unlock(&pstate_lock);
+	pthread_mutex_unlock(&update_lock);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
 static sunspec_t *inverter2 = 0;
 static void update_inverter2(sunspec_t *ss) {
-	pthread_mutex_lock(&pstate_lock);
+	pthread_mutex_lock(&update_lock);
 
 	switch (ss->inverter->St) {
 	case I_STATUS_STARTING:
@@ -155,13 +155,13 @@ static void update_inverter2(sunspec_t *ss) {
 		ss->active = 0;
 	}
 
-	pthread_mutex_unlock(&pstate_lock);
+	pthread_mutex_unlock(&update_lock);
 }
 
 // meter is Fronius Smart Meter TS 65A-3
 static sunspec_t *meter = 0;
 static void update_meter(sunspec_t *ss) {
-	pthread_mutex_lock(&pstate_lock);
+	pthread_mutex_lock(&update_lock);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
@@ -181,7 +181,7 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	pthread_mutex_unlock(&pstate_lock);
+	pthread_mutex_unlock(&update_lock);
 }
 
 static int solar_init() {
@@ -240,12 +240,6 @@ static void inverter_valid() {
 	}
 }
 
-static void akku_strategy() {
-	// storage strategy: standard 5%, winter and tomorrow not much PV expected 10%
-	int min = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(inverter1, min);
-}
-
 static int akku_standby() {
 	AKKU->state = Standby;
 	AKKU->power = 0;
@@ -280,6 +274,10 @@ static int akku_discharge() {
 	AKKU->state = Discharge;
 	AKKU->power = 0;
 #ifndef SOLAR_MAIN
+	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+	int min_soc = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(inverter1, min_soc);
+
 	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
 		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {

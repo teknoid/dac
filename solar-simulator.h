@@ -55,7 +55,7 @@ static void* simulate(void *arg) {
 			load = (100 + rand() % 100 + 1) * -1;
 		grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
 
-		pthread_mutex_lock(&pstate_lock);
+		pthread_mutex_lock(&update_lock);
 
 		pstate->ac1 = mppt1 + mppt2;
 		pstate->dc1 = mppt1 + mppt2;
@@ -78,7 +78,7 @@ static void* simulate(void *arg) {
 		pstate->v3 = 0;
 		pstate->f = 0;
 
-		pthread_mutex_unlock(&pstate_lock);
+		pthread_mutex_unlock(&update_lock);
 	}
 }
 

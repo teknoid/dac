@@ -446,6 +446,6 @@ int mcp_status_get(const void *p1, const void *p2) {
 int main(int argc, char **argv) {
 	return display_main(argc, argv);
 }
-#else
-MCP_REGISTER(display, 2, &init, &stop, &display);
 #endif
+
+MCP_REGISTER(display, 2, &init, &stop, &display);

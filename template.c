@@ -1,3 +1,5 @@
+// gcc -DTEMPLATE_MAIN -I./include -o template mcp.c utils.c template.c
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -15,22 +17,19 @@ static void loop() {
 
 	while (1) {
 		sleep(1);
-
 		// do some fancy stuff in a loop
-
 		xlog("template loop");
 	}
 }
 
 static int init() {
-
+	xlog("init");
 	// initialize this module
-
 	return 0;
 }
 
 static void stop() {
-
+	xlog("stop");
 	// stop and destroy this module
 }
 
@@ -70,6 +69,6 @@ int template_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 	return template_main(argc, argv);
 }
-#else
-MCP_REGISTER(template, 99, &init, &stop, &loop);
 #endif
+
+MCP_REGISTER(template, 99, &init, &stop, &loop);

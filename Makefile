@@ -12,8 +12,8 @@ OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o frozen.o utils.o sensors.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o button.o lcd.o
-COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o
+COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o button.o lcd.o
+COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o
 COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
@@ -27,36 +27,36 @@ all: $(OBJS)
 # mcp main programs  
 #
 
-anus: CFLAGS += -DANUS
+anus: CFLAGS += -DANUS -DMCP
 anus: clean $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lmqttc
 
-tron: CFLAGS += -DTRON
+tron: CFLAGS += -DTRON -DMCP
 tron: clean $(COBJS-TRON)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lmqttc -lmodbus -lcurl
 
-odroid: CFLAGS += -DODROID
+odroid: CFLAGS += -DODROID -DMCP
 odroid: clean $(COBJS-ODROID) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ODROID) $(LIBS) -lmqttc -lmodbus -lcurl
 
-picam: CFLAGS += -DPICAM
+picam: CFLAGS += -DPICAM -DMCP
 picam: clean $(COBJS-PICAM)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
 
-piwolf: CFLAGS += -DPIWOLF
+piwolf: CFLAGS += -DPIWOLF -DMCP
 piwolf: clean $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
 
-sabre18: CFLAGS += -DSABRE18
+sabre18: CFLAGS += -DSABRE18 -DMCP
 sabre18: clean $(COBJS-SABRE18)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS)
 
-sabre28: CFLAGS += -DSABRE28
+sabre28: CFLAGS += -DSABRE28 -DMCP
 sabre28: clean $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
 
 #
-# module tests
+# standalone modules
 #
 flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
@@ -65,14 +65,6 @@ flamingo: flamingo.o utils.o gpio-bcm2835.o
 sensors: sensors.o utils.o i2c.o
 	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
 	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o
-
-solar: utils.o sensors.o i2c.o sunspec.o curl.o frozen.o
-	$(CC) $(CFLAGS) -DSOLAR_MAIN -c solar.c mosmix.c
-	$(CC) $(CFLAGS) -L$(LIB) -o solar solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o -lm -lmodbus -lcurl -lmqttc
-
-simulator: clean utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -DSOLAR_MAIN -DSIMULATOR -c solar.c mosmix.c
-	$(CC) $(CFLAGS) -L$(LIB) -o simulator solar.o mosmix.o utils.o sensors.o i2c.o sunspec.o curl.o frozen.o mqtt.o tasmota.o -lm -lmodbus -lcurl -lmqttc
 
 display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
@@ -89,14 +81,6 @@ gpio-bcm2835: gpio-bcm2835.o utils.o
 switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c gpio-sunxi.c utils.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
-
-template: template.o utils.o
-	$(CC) $(CFLAGS) -DTEMPLATE_MAIN -c template.c
-	$(CC) $(CFLAGS) -o template template.o utils.o
-
-aqua: aqua.o utils.o
-	$(CC) $(CFLAGS) -DAQUA_MAIN -c aqua.c
-	$(CC) $(CFLAGS) -o aqua aqua.o utils.o
 
 valgrind:
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp

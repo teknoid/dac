@@ -196,7 +196,7 @@ static void* update(void *arg) {
 			// reset pstates, keep counters
 			r->mppt3 = r->mppt4 = r->ac2 = r->dc2 = 0;
 
-		pthread_mutex_lock(&pstate_lock);
+		pthread_mutex_lock(&update_lock);
 
 		pstate->ac1 = r->ac1;
 		pstate->dc1 = r->mppt1 + r->mppt2 + r->akku;
@@ -226,7 +226,7 @@ static void* update(void *arg) {
 		CM_NOW->consumed = r->cons;
 		CM_NOW->produced = r->prod;
 
-		pthread_mutex_unlock(&pstate_lock);
+		pthread_mutex_unlock(&update_lock);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
@@ -299,10 +299,6 @@ static void inverter_status(char *line) {
 }
 
 static void inverter_valid() {
-	// unimplemented
-}
-
-static void akku_strategy() {
 	// unimplemented
 }
 

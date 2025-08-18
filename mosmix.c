@@ -1,3 +1,5 @@
+// gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -11,8 +13,6 @@
 #include "mosmix.h"
 #include "utils.h"
 #include "mcp.h"
-
-// gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c -lpthread
 
 // !!! never calculate average from errors/percents
 // !!! always sum up values and then calculate

@@ -1,3 +1,5 @@
+// gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip mcp.c ledstrip.c utils.c curl.c -lcurl
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -12,8 +14,6 @@
 #include "utils.h"
 #include "curl.h"
 #include "mcp.h"
-
-// gcc -DLEDSTRIP_MAIN -I ./include/ -o ledstrip ledstrip.c utils.c curl.c -lcurl
 
 #define STRIP			"192.168.25.227"
 #define DELAY_FADE		3000
@@ -334,6 +334,6 @@ int ledstrip_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 	return ledstrip_main(argc, argv);
 }
-#else
-MCP_REGISTER(ledstrip, 6, &init, &stop, &loop);
 #endif
+
+MCP_REGISTER(ledstrip, 6, &init, &stop, &loop);

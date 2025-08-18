@@ -1,3 +1,5 @@
+// gcc -DAQUA_MAIN -I./include -o template mcp.c utils.c aqua.c
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -163,6 +165,6 @@ int aqua_main(int argc, char **argv) {
 int main(int argc, char **argv) {
 	return aqua_main(argc, argv);
 }
-#else
-MCP_REGISTER(aqua, 7, &init, &stop, &loop);
 #endif
+
+MCP_REGISTER(aqua, 7, &init, &stop, &loop);
