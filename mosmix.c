@@ -28,10 +28,10 @@
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
 
-#define FRMAX					3333
-#define FSMAX					4444
+#define FRMAX					5555
+#define FSMAX					999
 
-#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 10) * (tco * (m->TTT - 25) + 10000) / 10000
 
 #define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -344,8 +344,11 @@ static void* calculate_factors_master(void *arg) {
 #ifndef MOSMIX_MAIN
 	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 #endif
+	mosmix_t mc;
 	store_table_csv((int*) factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	dump_table((int*) factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
+	cumulate((int*) &mc, (int*) factors, FACTOR_SIZE, 24);
+	dump_struct((int*) &mc, FACTOR_SIZE, "[++]", 0);
 	return (void*) 0;
 }
 
