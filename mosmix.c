@@ -751,7 +751,7 @@ static int migrate() {
 	}
 
 	// test and verify
-	// store_blob("/tmp/solar-mosmix-history.bin", history, sizeof(history));
+	store_blob(TMP SLASH MOSMIX_HISTORY, history, sizeof(history));
 	// live
 	// store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	return 0;

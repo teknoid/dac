@@ -1279,7 +1279,7 @@ static int migrate() {
 	gstate_old_t old[HISTORY_SIZE];
 
 	ZERO(old);
-	load_blob("/tmp/solar-gstate-hours.bin", old, sizeof(old));
+	load_blob(STATE SLASH GSTATE_H_FILE, old, sizeof(old));
 	for (int i = 0; i < HISTORY_SIZE; i++) {
 		gstate_old_t *o = &old[i];
 		gstate_t *n = &gstate_history[i];
@@ -1299,7 +1299,11 @@ static int migrate() {
 		n->survive = o->survive;
 		n->heating = o->heating;
 	}
-	store_blob(STATE SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
+
+	// test and verify
+	store_blob(TMP SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
+	// live
+	// store_blob(STATE SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
 	return 0;
 }
 

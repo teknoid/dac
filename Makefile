@@ -27,31 +27,31 @@ all: $(OBJS)
 # mcp main programs  
 #
 
-anus: CFLAGS += -DANUS -DMCP
+anus: CFLAGS += -DMCP -DANUS
 anus: clean $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lmqttc
 
-tron: CFLAGS += -DTRON -DMCP
+tron: CFLAGS += -DMCP -DTRON
 tron: clean $(COBJS-TRON)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lmqttc -lmodbus -lcurl
 
-odroid: CFLAGS += -DODROID -DMCP
+odroid: CFLAGS += -DMCP -DODROID
 odroid: clean $(COBJS-ODROID) 
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ODROID) $(LIBS) -lmqttc -lmodbus -lcurl
 
-picam: CFLAGS += -DPICAM -DMCP
+picam: CFLAGS += -DMCP -DPICAM
 picam: clean $(COBJS-PICAM)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PICAM) $(LIBS) -lmqttc
 
-piwolf: CFLAGS += -DPIWOLF -DMCP
+piwolf: CFLAGS += -DMCP -DPIWOLF
 piwolf: clean $(COBJS-PIWOLF)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-PIWOLF) $(LIBS)
 
-sabre18: CFLAGS += -DSABRE18 -DMCP
+sabre18: CFLAGS += -DMCP -DSABRE18
 sabre18: clean $(COBJS-SABRE18)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE18) $(LIBS)
 
-sabre28: CFLAGS += -DSABRE28 -DMCP
+sabre28: CFLAGS += -DMCP -DSABRE28
 sabre28: clean $(COBJS-SABRE28)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-SABRE28) $(LIBS) -lncurses -lmenu
 
