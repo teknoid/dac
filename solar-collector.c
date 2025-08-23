@@ -288,7 +288,6 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
-	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 25); // +25Wh inverter dissipation
 	int tocharge = gstate->need_survive - gstate->akku;
 	CUT_LOW(tocharge, 0);
 	int available = gstate->eod - tocharge;
@@ -553,8 +552,8 @@ static void daily() {
 	collect_loads();
 
 	// store state at least once per day
-//	store_state();
-//	mosmix_store_state();
+	store_state();
+	mosmix_store_state();
 
 	// save pstate SVG
 	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
@@ -571,6 +570,9 @@ static void hourly() {
 
 	// update forecasts and clear at midnight
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
+
+	// collect power to survive overnight
+	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 25); // +25Wh inverter dissipation
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
@@ -694,7 +696,7 @@ static int init() {
 }
 
 static void stop() {
-// saving state - this is the most important !!!
+	// saving state - this is the most important !!!
 	store_state();
 	mosmix_store_state();
 
