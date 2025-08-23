@@ -471,22 +471,17 @@ static void calculate_pstate() {
 		// validate inverter status
 		inverter_pstate_valid();
 
-		// further calculations only when valid
-		if (PSTATE_VALID) {
+		// state is stable when we have 3x no grid changes
+		if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+			pstate->flags |= FLAG_STABLE;
 
-			// state is stable when we have 3x no grid changes
-			if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
-				pstate->flags |= FLAG_STABLE;
-
-			// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-			int d0 = pstate->sdpv > m1->pv;
-			int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-			int d2 = m2->sdpv > m2->pv + m2->pv / 2;
-			if (d0 || d1 || d2) {
-				pstate->flags |= FLAG_DISTORTION;
-				xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
-			}
-
+		// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+		int d0 = pstate->sdpv > m1->pv;
+		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+		if (d0 || d1 || d2) {
+			pstate->flags |= FLAG_DISTORTION;
+			xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 		}
 	}
 
