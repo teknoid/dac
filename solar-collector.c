@@ -26,7 +26,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '30 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '28 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -142,18 +142,18 @@ static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "GSTATE");
 	xlogl_bits16(line, "flags", gstate->flags);
-	xlogl_int_b(line, "∑PV", gstate->pv);
-	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
-	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
 	xlogl_int(line, "Today", gstate->today);
 	xlogl_int(line, "Tomo", gstate->tomorrow);
-	xlogl_int(line, "SoD", gstate->sod);
-	xlogl_int(line, "EoD", gstate->eod);
-	xlogl_int(line, "Akku", gstate->akku);
+//	xlogl_int(line, "SoD", gstate->sod);
+//	xlogl_int(line, "EoD", gstate->eod);
+//	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 	xlogl_float(line, "Ti", FLOAT10(gstate->temp_in));
 	xlogl_float(line, "To", FLOAT10(gstate->temp_out));
+	xlogl_int_b(line, "∑PV", gstate->pv);
+	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
+	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
 	xlogl_percent10(line, "Success", gstate->success);
 	xlogl_percent10(line, "Survive", gstate->survive);
 	xlogl_percent10(line, "Heating", gstate->heating);
@@ -581,6 +581,7 @@ static void hourly() {
 }
 
 static void minly() {
+	// calculate counter and global state
 	calculate_counter();
 	calculate_gstate();
 }
@@ -645,7 +646,7 @@ static void loop() {
 		// aggregate values into minute-hour-day when 0-0-0
 		aggregate_mhd();
 
-		// calculate pstate
+		// calculate power state
 		calculate_pstate();
 
 		// cron jobs

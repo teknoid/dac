@@ -80,7 +80,7 @@ static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
 static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
 static struct tm now_tm, *now = &now_tm;
-static int lock = 0, sock = 0;
+static int sock = 0;
 
 // local dstate memory
 static dstate_t dstate_seconds[60], dstate_current;
@@ -362,8 +362,8 @@ static void print_dstate(device_t *d) {
 	strcat(line, "   potd ");
 	strcat(line, potd ? potd->name : "NULL");
 
-	if (lock)
-		xlogl_int(line, "   Lock", lock);
+	if (dstate->lock)
+		xlogl_int(line, "   Lock", dstate->lock);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -378,8 +378,8 @@ static int ramp(device_t *d, int power) {
 
 	// set/reset response lock
 	int ret = (d->ramp)(d, power);
-	if (lock < ret)
-		lock = ret;
+	if (dstate->lock < ret)
+		dstate->lock = ret;
 
 	return ret;
 }
@@ -397,7 +397,7 @@ static int select_program(const potd_t *p) {
 
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
-	lock = WAIT_RESPONSE;
+	dstate->lock = WAIT_RESPONSE;
 
 	return 0;
 }
@@ -613,8 +613,8 @@ static device_t* response(device_t *d) {
 	if (r && (d->state == Active || d->state == Active_Checked)) {
 		xdebug("SOLAR response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
-		lock = wait;
-		return lock ? d : 0;
+		dstate->lock = wait;
+		return dstate->lock ? d : 0;
 	}
 
 	// standby check was negative - we got a response
@@ -622,7 +622,7 @@ static device_t* response(device_t *d) {
 		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
 		d->state = Active_Checked; // mark Active with standby check performed
-		lock = wait;
+		dstate->lock = wait;
 		return d; // recalculate in next round
 	}
 
@@ -630,7 +630,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Standby_Check && !r) {
 		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 		ramp(d, d->total * -1);
-		d->noresponse = d->delta = lock = 0; // no response from switch off expected
+		d->noresponse = d->delta = dstate->lock = 0; // no response from switch off expected
 		d->state = Standby;
 		return d; // recalculate in next round
 	}
@@ -652,8 +652,8 @@ static void calculate_dstate() {
 	dstate->flags = dstate->xload = dstate->dload = 0;
 
 	// get history states
-	dstate_t *s1 = DSTATE_SEC_LAST1;
-	dstate_t *s2 = DSTATE_SEC_LAST2;
+	dstate_t *s1 = DSTATE_LAST1;
+	dstate_t *s2 = DSTATE_LAST2;
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -751,11 +751,11 @@ static void loop() {
 
 		// invalid - load lock timer
 		if (!PSTATE_VALID)
-			lock = WAIT_INVALID;
+			dstate->lock = WAIT_INVALID;
 
 		// no actions until lock is expired
-		if (lock)
-			lock--;
+		if (dstate->lock)
+			dstate->lock--;
 
 		else {
 
@@ -787,9 +787,9 @@ static void loop() {
 			if (!device)
 				device = steal();
 
-			// calculate dstate
-			calculate_dstate();
 		}
+		// calculate device state
+		calculate_dstate();
 
 		// print dstate once per minute / on device action
 		if (MINLY || device)

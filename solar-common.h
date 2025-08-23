@@ -211,17 +211,17 @@ extern pstate_t *pstate;
 // dstate and access pointers
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" xload dload flags"
+#define DSTATE_HEADER	" xload dload  lock flags"
 struct _dstate {
 	int xload;
 	int dload;
+	int lock;
 	int flags;
 };
 #define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
-#define DSTATE_SEC_NEXT			(&dstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
-#define DSTATE_SEC_LAST1		(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define DSTATE_SEC_LAST2		(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
-#define DSTATE_SEC_LAST3		(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+#define DSTATE_LAST1			(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define DSTATE_LAST2			(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define DSTATE_LAST3			(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
 extern dstate_t *dstate;
 
 extern pthread_mutex_t collector_lock;
