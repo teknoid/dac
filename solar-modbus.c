@@ -42,11 +42,11 @@
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 int temp_in() {
-	return TEMP_IN;
+	return TEMP_IN * 10; // scaled as x10
 }
 
 int temp_out() {
-	return TEMP_OUT;
+	return TEMP_OUT * 10; // scaled as x10
 }
 
 int akku_capacity() {

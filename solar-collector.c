@@ -301,8 +301,8 @@ static void calculate_gstate() {
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// temperature / heating needed / possible
-	gstate->temp_in = temp_in() * 10;
-	gstate->temp_out = temp_out() * 10;
+	gstate->temp_in = temp_in();
+	gstate->temp_out = temp_out();
 	if (gstate->sod == 0)
 		gstate->heating = 0; // pv not yet started - we cannot heat
 	else {

@@ -31,11 +31,11 @@
 #endif
 
 int temp_in() {
-	return TEMP_IN;
+	return TEMP_IN * 10; // scaled as x10
 }
 
 int temp_out() {
-	return TEMP_OUT;
+	return TEMP_OUT * 10; // scaled as x10
 }
 
 int akku_capacity() {
