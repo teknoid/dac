@@ -139,7 +139,7 @@ static void collect_loads() {
 
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "GSTATE ");
+	xlogl_start(line, "GSTATE");
 	xlogl_bits16(line, "flags", gstate->flags);
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
@@ -161,7 +161,7 @@ static void print_gstate() {
 
 static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "PSTATE ");
+	xlogl_start(line, "PSTATE");
 	xlogl_bits16(line, "flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);

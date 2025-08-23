@@ -305,7 +305,7 @@ static void create_dstate_json() {
 
 static void print_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "DSTATE  ");
+	xlogl_start(line, "DSTATE");
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
