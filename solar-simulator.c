@@ -133,12 +133,8 @@ static void loop() {
 }
 
 static int init() {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
 	// initialize random number generator
 	srand(time(NULL));
-
 	return 0;
 }
 

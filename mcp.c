@@ -308,8 +308,16 @@ static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
 }
 
+static void __attribute__((constructor(101))) constructor() {
+#ifdef STDOUT
+	set_xlog(XLOG_STDOUT);
+#endif
+#ifdef DEBUG
+	set_debug(1);
+#endif
+}
+
 int mcp_main(int argc, char **argv) {
-//	set_debug(1);
 	xlog("MCP startup");
 
 	// allocate global data exchange structures

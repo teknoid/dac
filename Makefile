@@ -82,6 +82,14 @@ switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c gpio-sunxi.c utils.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
 
+solar: CFLAGS += -DMCP -DSTDOUT
+solar: clean mcp.o solar-modbus.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o sunspec.o
+	$(CC) $(CFLAGS) -o solar mcp.o solar-modbus.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o sunspec.o -lmodbus -lm
+
+simulator: CFLAGS += -DMCP -DSTDOUT
+simulator: clean mcp.o solar-simulator.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o
+	$(CC) $(CFLAGS) -o simulator mcp.o solar-simulator.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o -lm
+
 valgrind:
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp
 	

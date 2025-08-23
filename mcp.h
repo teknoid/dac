@@ -28,7 +28,7 @@
 
 // register a module in the MCP's execution context
 #define MCP_REGISTER(name, prio, init, stop, loop) \
-  void __attribute__((constructor(101 + prio))) \
+  void __attribute__((constructor(102 + prio))) \
   register_##name(void) { mcp_register("\""#name"\"", prio, init, stop, loop); };
 
 typedef enum {

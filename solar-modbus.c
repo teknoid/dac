@@ -69,9 +69,6 @@ int akku_standby(device_t *akku) {
 	akku->state = Standby;
 	akku->power = 0;
 
-	// TODO
-	return 0;
-
 	if (!sunspec_storage_limit_both(inverter1, 0, 0))
 		xdebug("SOLAR set akku STANDBY");
 	return 0; // continue loop
@@ -80,9 +77,6 @@ int akku_standby(device_t *akku) {
 int akku_charge(device_t *akku) {
 	akku->state = Charge;
 	akku->power = 1;
-
-	// TODO
-	return 0;
 
 	int limit = GSTATE_SUMMER || gstate->today > AKKU_CAPACITY * 2;
 	if (limit) {
@@ -102,9 +96,6 @@ int akku_charge(device_t *akku) {
 int akku_discharge(device_t *akku) {
 	akku->state = Discharge;
 	akku->power = 0;
-
-	// TODO
-	return 0;
 
 	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
 	int min_soc = GSTATE_WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;

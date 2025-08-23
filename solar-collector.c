@@ -139,7 +139,8 @@ static void collect_loads() {
 
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "GSTATE");
+	xlogl_start(line, "GSTATE ");
+	xlogl_bits16(line, "flags", gstate->flags);
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
@@ -155,20 +156,19 @@ static void print_gstate() {
 	xlogl_percent10(line, "Heating", gstate->heating);
 	xlogl_float(line, "Tin", FLOAT10(gstate->temp_in));
 	xlogl_float(line, "Tout", FLOAT60(gstate->temp_out));
-	xlogl_bits16(line, "  flags", gstate->flags);
 	xlogl_end(line, strlen(line), 0);
 }
 
 static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "PSTATE");
+	xlogl_start(line, "PSTATE ");
+	xlogl_bits16(line, "flags", pstate->flags);
 	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, "Load", pstate->load);
-	xlogl_bits16(line, "  flags", pstate->flags);
 	inverter_status(line);
 	xlogl_end(line, strlen(line), 0);
 }
@@ -596,14 +596,14 @@ static void aggregate_mhd() {
 	if (MINLY) {
 		// aggregate 60 seconds into one minute
 		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
-		dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
+		// dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 		if (HOURLY) {
 			// aggregate 60 minutes into one hour
 			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
-			dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+			// dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
 
 			// create/append gstate and pstate minutes to csv
 			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
