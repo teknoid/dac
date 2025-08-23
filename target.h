@@ -17,14 +17,10 @@
 #define LCD
 #define I2C				"/dev/i2c-7"
 #define MIXER			"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
-#define SOLAR			"solar-tron25-modbus.h"
-//#define SOLAR			"solar-tron25-api.h"
 #endif
 
 #ifdef ODROID
 #define FLAMINGO
-#define SOLAR			"solar-tron25-modbus.h"
-//#define SOLAR			"solar-tron25-api.h"
 #endif
 
 #ifdef PICAM
@@ -49,8 +45,3 @@
 #define DISPLAY			"/dev/tty1"
 #define I2C				"/dev/i2c-0"
 #endif
-
-#ifdef SIMULATOR
-#define SOLAR			"solar-simulator.h"
-#endif
-
