@@ -9,7 +9,7 @@ function update_sensors() {
 		if (this.status == 200) {
 			var data = JSON.parse(this.responseText);
 			Object.entries(data).forEach(([k, v]) => {
-				var item = document.querySelector('.gstate .' + k);
+				var item = document.querySelector('.dstate .' + k);
 				if (item) { 
 					var value = item.querySelector('.v');
 					value.innerHTML = Number(v).toLocaleString('de-DE');
@@ -20,9 +20,9 @@ function update_sensors() {
 	request.send();
 }
 
-function update_dstate() {
+function update_devices() {
 	var request = new XMLHttpRequest();
-	request.open("GET", "/pv/data/dstate.json");
+	request.open("GET", "/pv/data/devices.json");
 	request.addEventListener('load', function(event) {
 		if (this.status == 200) {
 			var data = JSON.parse(this.responseText);
@@ -109,6 +109,10 @@ function update_pstate() {
 	update_state("/pv/data/pstate.json", ".pstate");
 }
 
+function update_dstate() {
+	update_state("/pv/data/dstate.json", ".dstate");
+}
+
 window.onload = function() {
 	var images = document.getElementsByClassName("svg");
 	for (var i=0; i<images.length; i++) 
@@ -116,11 +120,13 @@ window.onload = function() {
 
 	update_pstate();
 	update_dstate();
+	update_devices();
 	update_gstate();
 	update_sensors();
 	
 	setInterval(update_pstate, 2000);
 	setInterval(update_dstate, 2000);
+	setInterval(update_devices, 2000);
 	setInterval(update_gstate, 30000);
 	setInterval(update_sensors, 30000);
 }

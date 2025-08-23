@@ -19,6 +19,7 @@
 
 // JSON files for webui
 #define DSTATE_JSON				"dstate.json"
+#define DEVICES_JSON			"devices.json"
 
 #define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 
@@ -287,9 +288,12 @@ static int ramp_akku(device_t *akku, int power) {
 	return 0;
 }
 
-// devices
 static void create_dstate_json() {
-	FILE *fp = fopen(RUN SLASH DSTATE_JSON, "wt");
+	store_struct_json((int*) dstate, DSTATE_SIZE, DSTATE_HEADER, RUN SLASH DSTATE_JSON);
+}
+
+static void create_devices_json() {
+	FILE *fp = fopen(RUN SLASH DEVICES_JSON, "wt");
 	if (fp == NULL)
 		return;
 
@@ -867,6 +871,7 @@ static void loop() {
 
 		// web output
 		create_dstate_json();
+		create_devices_json();
 
 		// wait for next second
 		while (now_ts == time(NULL))

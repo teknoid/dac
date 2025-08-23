@@ -13,6 +13,7 @@
 		<div class="powerflow">
 			<iframe frameBorder="0" src="fronius.html"></iframe>
 			
+
 			<div class="state">
 				<div class="pstate">
 					<div class="lv pv">
@@ -65,15 +66,6 @@
 						<div class="u">&nbsp;W</div>
 						<div class="v"></div>
 					</div>
-					<div class="lv ramp">
-						<div class="l">Ramp</div>
-						<div class="u">&nbsp;W</div>
-						<div class="v"></div>
-					</div>
-					<div class="lv flags">
-						<div class="l">Flags</div>
-						<div class="v"></div>
-					</div>
 				</div>
 
 				<div class="gstate">
@@ -98,12 +90,12 @@
 						<div class="v"></div>
 					</div>
 					<div class="lv tomo">
-						<div class="l">Tomorrow</div>
+						<div class="l">Tomo</div>
 						<div class="u">&nbsp;Wh</div>
 						<div class="v"></div>
 					</div>
 					<div class="lv eod">
-						<div class="l">End of Day</div>
+						<div class="l">EoD</div>
 						<div class="u">&nbsp;Wh</div>
 						<div class="v"></div>
 					</div>
@@ -137,13 +129,20 @@
 						<div class="u">&nbsp;%</div>
 						<div class="v"></div>
 					</div>
+				</div>
+
+				<div class="dstate">
+					<div class="lv ramp">
+						<div class="l">Ramp</div>
+						<div class="v"></div>
+					</div>
 					<div class="lv HTU21_TEMP">
-						<div class="l">Temp in</div>
+						<div class="l">Tin</div>
 						<div class="u">&nbsp;°C</div>
 						<div class="v"></div>
 					</div>
 					<div class="lv SHT31_TEMP">
-						<div class="l">Temp out</div>
+						<div class="l">Tout</div>
 						<div class="u">&nbsp;°C</div>
 						<div class="v"></div>
 					</div>
@@ -154,9 +153,11 @@
 					</div>
 				</div>
 			</div>
-			<div class="dstate">
+			
+			<div class="devices">
 				<dl></dl>
 			</div>
+
 		</div>
 
 		<div class="mosmix">
