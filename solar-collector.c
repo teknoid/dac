@@ -26,7 +26,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '28 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '27 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -164,11 +164,12 @@ static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE");
 	xlogl_bits16(line, "flags", pstate->flags);
-	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
-	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
+	if (!PSTATE_OFFLINE) {
+		xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
+		xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
+	}
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
-	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
 	xlogl_int(line, "Load", pstate->load);
 	inverter_status(line);
 	xlogl_end(line, strlen(line), 0);
@@ -334,7 +335,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear state flags and values
-	pstate->flags = pstate->ramp = 0;
+	pstate->flags = 0;
 
 	// clear delta sum counters every minute
 	if (MINLY)
@@ -393,23 +394,36 @@ static void calculate_pstate() {
 	if (abs(pstate->ac2 - s1->ac2) > NOISE)
 		pstate->flags |= FLAG_DELTA;
 
-	// long term grid upload or download
+	// grid upload in last 3 minutes
 	if (pstate->grid < -NOISE) {
-		int g3 = PSTATE_MIN_LAST1->grid < -25 && PSTATE_MIN_LAST2->grid < -25 && PSTATE_MIN_LAST3->grid < -25;
-		int g2 = PSTATE_MIN_LAST1->grid < -50 && PSTATE_MIN_LAST2->grid < -50;
-		int g1 = PSTATE_MIN_LAST1->grid < -75;
+		int g3 = m1->grid < -25 && m2->grid < -25 && m3->grid < -25;
+		int g2 = m1->grid < -50 && m2->grid < -50;
+		int g1 = m1->grid < -75;
 		if (g3 || g2 || g1) {
 			pstate->flags |= FLAG_GRID_ULOAD;
-			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", PSTATE_MIN_LAST3->grid, PSTATE_MIN_LAST2->grid, PSTATE_MIN_LAST1->grid);
+			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m3->grid, m2->grid, m1->grid);
 		}
 	}
+
+	// grid download in last 3 minutes
 	if (pstate->grid > NOISE) {
-		int g3 = PSTATE_MIN_LAST1->grid > 25 && PSTATE_MIN_LAST2->grid > 25 && PSTATE_MIN_LAST3->grid > 25;
-		int g2 = PSTATE_MIN_LAST1->grid > 50 && PSTATE_MIN_LAST2->grid > 50;
-		int g1 = PSTATE_MIN_LAST1->grid > 75;
+		int g3 = m1->grid > 25 && m2->grid > 25 && m3->grid > 25;
+		int g2 = m1->grid > 50 && m2->grid > 50;
+		int g1 = m1->grid > 75;
 		if (g3 || g2 || g1) {
 			pstate->flags |= FLAG_GRID_DLOAD;
-			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", PSTATE_MIN_LAST3->grid, PSTATE_MIN_LAST2->grid, PSTATE_MIN_LAST1->grid);
+			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m3->grid, m2->grid, m1->grid);
+		}
+	}
+
+	// akku discharge in last 3 minutes
+	if (pstate->akku > NOISE) {
+		int a3 = m1->akku > 25 && m2->akku > 25 && m3->akku > 25;
+		int a2 = m1->akku > 50 && m2->akku > 50;
+		int a1 = m1->akku > 75;
+		if (a3 || a2 || a1) {
+			pstate->flags |= FLAG_AKKU_DCHARGE;
+			xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m3->akku, m2->akku, m1->akku);
 		}
 	}
 
@@ -473,46 +487,6 @@ static void calculate_pstate() {
 				xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 			}
 
-			// calculate ramp up / ramp down power
-			pstate->ramp = pstate->grid * -1;
-			// stable when grid between -RAMP_WINDOW..+NOISE
-			if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
-				pstate->ramp = 0;
-			// ramp down when akku is discharging
-			if (pstate->akku > NOISE)
-				pstate->ramp -= pstate->akku;
-			// ramp down between NOISE and RAMP_WINDOW
-			if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
-				pstate->ramp = -RAMP_WINDOW;
-			// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
-			if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
-				pstate->ramp = 0;
-			// 50% more ramp down when PV tendency is falling
-			if (pstate->ramp < 0 && m1->dpv < 0)
-				pstate->ramp += pstate->ramp / 2;
-			// delay ramp up as long as average PV is below average load
-			int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
-			if (pstate->ramp > 0 && m1->pv < m1load) {
-				xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
-				pstate->ramp = 0;
-			}
-			// delay small ramp up when we just had akku discharge or grid download
-			if (0 < pstate->ramp && pstate->ramp < MINIMUM) {
-				int akku = m1->akku > NOISE || m2->akku > NOISE || m3->akku > NOISE;
-				int grid = m1->grid > NOISE || m2->grid > NOISE || m3->grid > NOISE;
-				if (akku || grid) {
-					xdebug("SOLAR last123 akku %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
-					xdebug("SOLAR last123 grid %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
-					xdebug("SOLAR delay ramp up %d < %d due to %s %s in last 3 minutes", pstate->ramp, MINIMUM, akku ? "akku discharge" : "", grid ? "grid download" : "");
-					pstate->ramp = 0;
-				}
-			}
-			// delay ramp up when unstable or distortion unless we have enough power
-			if (0 < pstate->ramp && pstate->ramp < ENOUGH)
-				if (!PSTATE_STABLE || PSTATE_DISTORTION) {
-					xdebug("SOLAR delay ramp up %d < %d due to %s %s", pstate->ramp, ENOUGH, !PSTATE_STABLE ? "unstable" : "", PSTATE_DISTORTION ? "distortion" : "");
-					pstate->ramp = 0;
-				}
 		}
 	}
 

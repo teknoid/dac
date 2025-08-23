@@ -313,10 +313,12 @@ static void print_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE");
 	xlogl_bits16(line, "flags", dstate->flags);
-	xlogl_int(line, "XLoad", dstate->xload);
-	xlogl_int(line, "DLoad", dstate->dload);
-
-	strcat(line, "   ");
+	if (!PSTATE_OFFLINE) {
+		xlogl_int_noise(line, NOISE, 0, "Ramp", dstate->ramp);
+		xlogl_int(line, "XLoad", dstate->xload);
+		xlogl_int(line, "DLoad", dstate->dload);
+		strcat(line, "   ");
+	}
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
 		case Disabled:
@@ -368,7 +370,7 @@ static void print_dstate(device_t *d) {
 }
 
 // call device specific ramp function
-static int ramp(device_t *d, int power) {
+static int ramp_device(device_t *d, int power) {
 	if (power < 0)
 		xdebug("SOLAR ramp↓ %d %s", power, d->name);
 	else if (power > 0)
@@ -391,7 +393,7 @@ static int select_program(const potd_t *p) {
 	// potd has changed - reset all devices (except AKKU) and set AKKU to initial state
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD != AKKU)
-			ramp(DD, DOWN);
+			ramp_device(DD, DOWN);
 	if (AKKU_CHARGING)
 		AKKU->power = -1;
 
@@ -442,7 +444,7 @@ static int choose_program() {
 static void emergency() {
 	akku_discharge(AKKU); // enable discharge
 	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp(DD, DOWN);
+		ramp_device(DD, DOWN);
 	xlog("SOLAR emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
 }
 
@@ -454,17 +456,17 @@ static void burnout() {
 }
 
 static int ramp_multi(device_t *d) {
-	int ret = ramp(d, pstate->ramp);
+	int ret = ramp_device(d, dstate->ramp);
 	if (ret) {
 		// recalculate ramp power
-		int old_ramp = pstate->ramp;
-		pstate->ramp -= d->delta + d->delta / 2; // add 50%
+		int old_ramp = dstate->ramp;
+		dstate->ramp -= d->delta + d->delta / 2; // add 50%
 		// too less to forward
-		if (old_ramp > 0 && pstate->ramp < NOISE * 2)
-			pstate->ramp = 0;
-		if (old_ramp < 0 && pstate->ramp > NOISE * -2)
-			pstate->ramp = 0;
-		if (pstate->ramp)
+		if (old_ramp > 0 && dstate->ramp < NOISE * 2)
+			dstate->ramp = 0;
+		if (old_ramp < 0 && dstate->ramp > NOISE * -2)
+			dstate->ramp = 0;
+		if (dstate->ramp)
 			msleep(33);
 	}
 	return ret;
@@ -475,7 +477,7 @@ static device_t* rampup() {
 		return 0;
 
 	device_t *d = 0, **dd = potd->devices;
-	while (*dd && pstate->ramp > 0) {
+	while (*dd && dstate->ramp > 0) {
 		if (ramp_multi(DD))
 			d = DD;
 		dd++;
@@ -494,15 +496,76 @@ static device_t* rampdown() {
 		dd++;
 
 	// now go backward - this gives reverse order
-	while (dd-- != potd->devices && pstate->ramp < 0)
+	while (dd-- != potd->devices && dstate->ramp < 0)
 		if (ramp_multi(DD))
 			d = DD;
 
 	return d;
 }
 
+static device_t* ramp() {
+	if (!PSTATE_VALID)
+		return 0;
+
+	// calculate the power for ramping
+	dstate->ramp = pstate->grid * -1;
+
+	// stable when grid between -RAMP_WINDOW..+NOISE
+	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
+		dstate->ramp = 0;
+
+	// ramp down when akku is discharging
+	if (pstate->akku > NOISE)
+		dstate->ramp -= pstate->akku;
+
+	// ramp down between NOISE and RAMP_WINDOW
+	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
+		dstate->ramp = -RAMP_WINDOW;
+
+	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
+	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
+		dstate->ramp = 0;
+
+// TODO wie auf m1 zugreifen?
+//	// 50% more ramp down when PV tendency is falling
+//	if (dstate->ramp < 0 && m1->dpv < 0)
+//		dstate->ramp += dstate->ramp / 2;
+//
+//	// delay ramp up as long as average PV is below average load
+//	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
+//	if (dstate->ramp > 0 && m1->pv < m1load) {
+//		xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
+//		dstate->ramp = 0;
+//	}
+
+	// delay small ramp up when we just had akku discharge or grid download
+	if (0 < dstate->ramp && dstate->ramp < MINIMUM) {
+		if (PSTATE_AKKU_DCHARGE || PSTATE_GRID_DLOAD) {
+			xdebug("SOLAR delay ramp up %d < %d due to %s %s", dstate->ramp, MINIMUM, PSTATE_AKKU_DCHARGE ? "discharge" : "", PSTATE_GRID_DLOAD ? "gridload" : "");
+			dstate->ramp = 0;
+		}
+	}
+
+	// delay ramp up when unstable or distortion unless we have enough power
+	if (0 < dstate->ramp && dstate->ramp < ENOUGH)
+		if (!PSTATE_STABLE || PSTATE_DISTORTION) {
+			xdebug("SOLAR delay ramp up %d < %d due to %s %s", dstate->ramp, ENOUGH, !PSTATE_STABLE ? "unstable" : "", PSTATE_DISTORTION ? "distortion" : "");
+			dstate->ramp = 0;
+		}
+
+	// ramp down in reverse order
+	if (dstate->ramp < 0)
+		return rampdown();
+
+	// ramp up in order
+	if (dstate->ramp > 0)
+		return rampup();
+
+	return 0;
+}
+
 static device_t* steal() {
-	if (DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION)
+	if (DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY || !PSTATE_VALID || !PSTATE_STABLE || PSTATE_DISTORTION)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -531,7 +594,7 @@ static device_t* steal() {
 			continue;
 
 		// ramp up thief - victims gets automatically ramped down in next round
-		if (ramp(DD, p)) {
+		if (ramp_device(DD, p)) {
 			xdebug("SOLAR %s steal %d (min=%d)", DD->name, p, min);
 			return DD;
 		}
@@ -544,12 +607,12 @@ static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xdebug("SOLAR starting standby check on %s with power=%d", d->name, power);
 	d->state = Standby_Check;
-	ramp(d, power);
+	ramp_device(d, power);
 	return d;
 }
 
 static device_t* standby() {
-	if (DSTATE_ALL_STANDBY || !DSTATE_CHECK_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
+	if (DSTATE_ALL_STANDBY || !DSTATE_CHECK_STANDBY || !PSTATE_VALID || !PSTATE_STABLE || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
 		return 0;
 
 	// try first active powered adjustable device with noresponse counter > 0
@@ -576,6 +639,9 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
+	if (!PSTATE_VALID)
+		return 0;
+
 	// akku or no expected delta load - no response to check
 	if (d == AKKU || !d->delta)
 		return 0;
@@ -629,7 +695,7 @@ static device_t* response(device_t *d) {
 	// standby check was positive -> set device into standby
 	if (d->state == Standby_Check && !r) {
 		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
-		ramp(d, d->total * -1);
+		ramp_device(d, d->total * -1);
 		d->noresponse = d->delta = dstate->lock = 0; // no response from switch off expected
 		d->state = Standby;
 		return d; // recalculate in next round
@@ -698,7 +764,7 @@ static void hourly() {
 			if (DD != AKKU)
 				DD->state = Active;
 		if (PSTATE_OFFLINE)
-			ramp(DD, DOWN);
+			ramp_device(DD, DOWN);
 	}
 }
 
@@ -724,7 +790,7 @@ int solar_override_seconds(const char *name, int seconds) {
 
 	d->state = Active;
 	d->override = time(NULL) + seconds;
-	ramp(d, d->total);
+	ramp_device(d, d->total);
 
 	return 0;
 }
@@ -749,23 +815,19 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
-		// invalid - load lock timer
-		if (!PSTATE_VALID)
-			dstate->lock = WAIT_INVALID;
+		// emergency mode
+		if (PSTATE_EMERGENCY)
+			emergency();
+
+		// burnout mode
+		if (PSTATE_BURNOUT)
+			burnout();
 
 		// no actions until lock is expired
 		if (dstate->lock)
 			dstate->lock--;
 
 		else {
-
-			// emergency mode
-			if (PSTATE_EMERGENCY)
-				emergency();
-
-			// burnout mode
-			if (PSTATE_BURNOUT)
-				burnout();
 
 			// prio1: check response from previous action
 			if (device)
@@ -775,15 +837,11 @@ static void loop() {
 			if (!device)
 				device = standby();
 
-			// prio3: ramp down in reverse order
-			if (!device && pstate->ramp < 0)
-				device = rampdown();
+			// prio3: ramp
+			if (!device)
+				device = ramp();
 
-			// prio4: ramp up in order
-			if (!device && pstate->ramp > 0)
-				device = rampup();
-
-			// prio5: check if higher prioritized device can steal from lower prioritized
+			// prio4: check if higher prioritized device can steal from lower prioritized
 			if (!device)
 				device = steal();
 

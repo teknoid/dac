@@ -37,6 +37,7 @@
 #define FLAG_DISTORTION			(1 << 3)
 #define FLAG_GRID_ULOAD			(1 << 4)
 #define FLAG_GRID_DLOAD			(1 << 5)
+#define FLAG_AKKU_DCHARGE		(1 << 6)
 
 #define FLAG_BURNOUT			(1 << 13)
 #define FLAG_EMERGENCY			(1 << 14)
@@ -48,6 +49,7 @@
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
 #define PSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
+#define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
@@ -190,7 +192,6 @@ struct _pstate {
 	int v2;
 	int v3;
 	int f;
-	int ramp;
 	int soc;
 	int flags;
 };
@@ -211,8 +212,9 @@ extern pstate_t *pstate;
 // dstate and access pointers
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" xload dload  lock flags"
+#define DSTATE_HEADER	"  ramp xload dload  lock flags"
 struct _dstate {
+	int ramp;
 	int xload;
 	int dload;
 	int lock;
