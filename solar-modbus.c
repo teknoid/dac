@@ -145,20 +145,24 @@ static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	pstate->f = ss->inverter->Hz - 5000; // store only the diff
+	pstate->ac1 = SFI(ss->inverter->W, ss->inverter->W_SF);
+	pstate->dc1 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
 	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
 	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
 
 	switch (ss->inverter->St) {
+	case I_STATUS_OFF:
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		break;
+
 	case I_STATUS_STARTING:
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = 0;
+		// TODO prüfen ob Werte stimmen
+		// pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		break;
 
 	case I_STATUS_MPPT:
-		// only take over values in MPPT state
-		pstate->ac1 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		pstate->dc1 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 		// TODO find sunspec register
@@ -183,7 +187,7 @@ static void update_inverter1(sunspec_t *ss) {
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
 		ss->active = 0;
 		break;
