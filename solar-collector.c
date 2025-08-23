@@ -151,11 +151,11 @@ static void print_gstate() {
 	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_float(line, "Ti", FLOAT10(gstate->temp_in));
+	xlogl_float(line, "To", FLOAT10(gstate->temp_out));
 	xlogl_percent10(line, "Success", gstate->success);
 	xlogl_percent10(line, "Survive", gstate->survive);
 	xlogl_percent10(line, "Heating", gstate->heating);
-	xlogl_float(line, "Tin", FLOAT10(gstate->temp_in));
-	xlogl_float(line, "Tout", FLOAT60(gstate->temp_out));
 	xlogl_end(line, strlen(line), 0);
 }
 
