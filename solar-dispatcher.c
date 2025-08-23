@@ -82,6 +82,12 @@ static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 static struct tm now_tm, *now = &now_tm;
 static int lock = 0, sock = 0;
 
+// local dstate memory
+static dstate_t dstate_seconds[60], dstate_current;
+
+// global dstate pointer
+dstate_t *dstate = &dstate_current;
+
 static device_t* get_by_name(const char *name) {
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (!strcmp(DD->name, name))
@@ -306,7 +312,11 @@ static void create_dstate_json() {
 static void print_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE");
+	xlogl_bits16(line, "flags", dstate->flags);
+	xlogl_int(line, "XLoad", dstate->xload);
+	xlogl_int(line, "DLoad", dstate->dload);
 
+	strcat(line, "   ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
 		case Disabled:
@@ -461,7 +471,7 @@ static int ramp_multi(device_t *d) {
 }
 
 static device_t* rampup() {
-	if (PSTATE_ALL_UP || PSTATE_ALL_STANDBY)
+	if (DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
 		return 0;
 
 	device_t *d = 0, **dd = potd->devices;
@@ -475,7 +485,7 @@ static device_t* rampup() {
 }
 
 static device_t* rampdown() {
-	if (PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY)
+	if (DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
 	// jump to last entry
@@ -492,7 +502,7 @@ static device_t* rampdown() {
 }
 
 static device_t* steal() {
-	if (PSTATE_ALL_UP || PSTATE_ALL_DOWN || PSTATE_ALL_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION)
+	if (DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -539,7 +549,7 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static device_t* standby() {
-	if (PSTATE_ALL_STANDBY || !PSTATE_CHECK_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
+	if (DSTATE_ALL_STANDBY || !DSTATE_CHECK_STANDBY || !PSTATE_STABLE || PSTATE_DISTORTION || pstate->pv < BASELOAD * 2)
 		return 0;
 
 	// try first active powered adjustable device with noresponse counter > 0
@@ -637,21 +647,41 @@ static device_t* response(device_t *d) {
 	return 0;
 }
 
-// - calculate expected load
-// - calculate flags for all devices up/down/standby
-static void update_pstate() {
-	pstate->xload = 0;
-	pstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
+static void calculate_dstate() {
+	// clear state flags and values
+	dstate->flags = dstate->xload = dstate->dload = 0;
+
+	// get history states
+	dstate_t *s1 = DSTATE_SEC_LAST1;
+	dstate_t *s2 = DSTATE_SEC_LAST2;
+
+	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		pstate->xload += DD->load;
+		// calculated load
+		dstate->xload += DD->load;
+
+		// flags for all devices up/down/standby
 		// (!) power can be -1 when uninitialized
 		if (DD->power > 0)
-			pstate->flags &= ~FLAG_ALL_DOWN;
+			dstate->flags &= ~FLAG_ALL_DOWN;
 		if (!DD->power || (DD->adj && DD->power != 100))
-			pstate->flags &= ~FLAG_ALL_UP;
+			dstate->flags &= ~FLAG_ALL_UP;
 		if (DD->state != Standby)
-			pstate->flags &= ~FLAG_ALL_STANDBY;
+			dstate->flags &= ~FLAG_ALL_STANDBY;
 	}
+
+	// delta between actual load an calculated load
+	int p_load = -1 * pstate->load; // - BASELOAD;
+	dstate->dload = p_load > 0 && dstate->xload ? p_load * 100 / dstate->xload : 0;
+
+	// indicate standby check when actual load is 3x below 50% of calculated load
+	if (dstate->xload && dstate->dload < 50 && s1->dload < 50 && s2->dload < 50) {
+		dstate->flags |= FLAG_CHECK_STANDBY;
+		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
+	}
+
+	// copy to history
+	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 }
 
 static void daily() {
@@ -757,8 +787,8 @@ static void loop() {
 			if (!device)
 				device = steal();
 
-			// update_pstate
-			update_pstate();
+			// calculate dstate
+			calculate_dstate();
 		}
 
 		// print dstate once per minute / on device action

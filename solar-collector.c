@@ -45,14 +45,15 @@
 #define DSTATE_JSON				"dstate.json"
 #define POWERFLOW_JSON			"powerflow.json"
 
-static counter_t counter_history[HISTORY_SIZE];
-static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
-
 // average loads over 24/7
 static int loads[24];
 
 static struct tm now_tm, *now = &now_tm;
+
+// local pstate/gstate/counter memory
+static counter_t counter_history[HISTORY_SIZE];
+static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
 
 // global pstate/gstate/counter pointer
 counter_t counter[10];
@@ -462,16 +463,6 @@ static void calculate_pstate() {
 			// state is stable when we have 3x no grid changes
 			if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
 				pstate->flags |= FLAG_STABLE;
-
-			// difference between actual load an calculated load
-			int p_load = -1 * pstate->load; // - BASELOAD;
-			pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
-
-			// indicate standby check when actual load is 3x below 50% of calculated load
-			if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50) {
-				pstate->flags |= FLAG_CHECK_STANDBY;
-				xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
-			}
 
 			// distortion when current sdpv is too big or aggregated last two sdpv's are too big
 			int d0 = pstate->sdpv > m1->pv;

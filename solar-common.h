@@ -35,13 +35,9 @@
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_DISTORTION			(1 << 3)
-#define FLAG_CHECK_STANDBY		(1 << 4)
-#define FLAG_GRID_ULOAD			(1 << 5)
-#define FLAG_GRID_DLOAD			(1 << 6)
+#define FLAG_GRID_ULOAD			(1 << 4)
+#define FLAG_GRID_DLOAD			(1 << 5)
 
-#define FLAG_ALL_UP				(1 << 10)
-#define FLAG_ALL_STANDBY		(1 << 11)
-#define FLAG_ALL_DOWN			(1 << 12)
 #define FLAG_BURNOUT			(1 << 13)
 #define FLAG_EMERGENCY			(1 << 14)
 #define FLAG_OFFLINE			(1 << 15)
@@ -50,20 +46,27 @@
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
-#define PSTATE_CHECK_STANDBY	(pstate->flags & FLAG_CHECK_STANDBY)
 #define PSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
 
-#define PSTATE_ALL_UP			(pstate->flags & FLAG_ALL_UP)
-#define PSTATE_ALL_STANDBY		(pstate->flags & FLAG_ALL_STANDBY)
-#define PSTATE_ALL_DOWN			(pstate->flags & FLAG_ALL_DOWN)
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
+// dstate flags
+#define FLAG_ALL_DOWN			(1 << 0)
+#define FLAG_ALL_STANDBY		(1 << 1)
+#define FLAG_ALL_UP				(1 << 2)
+#define FLAG_CHECK_STANDBY		(1 << 15)
+
+#define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
+#define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
+#define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
+#define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
+
 #define HISTORY_SIZE			(24 * 7)
 
-enum dstate {
+enum e_state {
 	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
 };
 
@@ -79,7 +82,7 @@ struct _device {
 	const int total;
 	const int from;
 	const int to;
-	enum dstate state;
+	enum e_state state;
 	int power;
 	int delta;
 	int load;
@@ -160,7 +163,7 @@ extern gstate_t *gstate;
 // pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku   ac1   ac2  load Δload ∑load xload dxlod   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
+#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku   ac1   ac2  load Δload ∑load   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f  ramp   soc flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -174,8 +177,6 @@ struct _pstate {
 	int load;
 	int dload;
 	int sdload;
-	int xload;
-	int dxload;
 	int dc1;
 	int dc2;
 	int mppt1;
@@ -206,6 +207,22 @@ struct _pstate {
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 extern pstate_t *pstate;
+
+// dstate and access pointers
+typedef struct _dstate dstate_t;
+#define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
+#define DSTATE_HEADER	" xload dload flags"
+struct _dstate {
+	int xload;
+	int dload;
+	int flags;
+};
+#define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
+#define DSTATE_SEC_NEXT			(&dstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
+#define DSTATE_SEC_LAST1		(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define DSTATE_SEC_LAST2		(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define DSTATE_SEC_LAST3		(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+extern dstate_t *dstate;
 
 extern pthread_mutex_t collector_lock;
 
