@@ -7,9 +7,9 @@
 #include <time.h>
 
 #include "solar-common.h"
-#include "mcp.h"
 #include "mosmix.h"
 #include "utils.h"
+#include "mcp.h"
 
 #define AKKU_BURNOUT			1
 
