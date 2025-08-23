@@ -1,0 +1,704 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <signal.h>
+#include <string.h>
+#include <time.h>
+
+#include "solar-common.h"
+#include "mcp.h"
+#include "mosmix.h"
+#include "utils.h"
+
+#define AKKU_BURNOUT			1
+
+#define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar.gp"
+
+#define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
+
+// hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
+#define COUNTER_H_FILE			"solar-counter-hours.bin"
+#define COUNTER_FILE			"solar-counter.bin"
+
+// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+#define GSTATE_H_FILE			"solar-gstate-hours.bin"
+#define GSTATE_M_FILE			"solar-gstate-minutes.bin"
+#define GSTATE_FILE				"solar-gstate.bin"
+
+// hexdump -v -e '30 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+#define PSTATE_H_FILE			"solar-pstate-hours.bin"
+#define PSTATE_M_FILE			"solar-pstate-minutes.bin"
+#define PSTATE_S_FILE			"solar-pstate-seconds.bin"
+#define PSTATE_FILE				"solar-pstate.bin"
+
+// CSV files for gnuplot
+#define GSTATE_TODAY_CSV		"gstate-today.csv"
+#define GSTATE_WEEK_CSV			"gstate-week.csv"
+#define GSTATE_M_CSV			"gstate-minutes.csv"
+#define PSTATE_M_CSV			"pstate-minutes.csv"
+#define LOADS_CSV				"loads.csv"
+
+// JSON files for webui
+#define PSTATE_JSON				"pstate.json"
+#define GSTATE_JSON				"gstate.json"
+#define DSTATE_JSON				"dstate.json"
+#define POWERFLOW_JSON			"powerflow.json"
+
+static counter_t counter_history[HISTORY_SIZE];
+static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
+
+// average loads over 24/7
+static int loads[24];
+
+static struct tm now_tm, *now = &now_tm;
+
+// global pstate/gstate/counter pointer
+counter_t counter[10];
+gstate_t *gstate = &gstate_current;
+pstate_t *pstate = &pstate_current;
+
+// mutex for updating / calculating pstate and counter
+pthread_mutex_t collector_lock;
+
+static void load_state() {
+	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	load_blob(STATE SLASH COUNTER_H_FILE, counter_history, sizeof(counter_history));
+
+	load_blob(STATE SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
+	load_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	load_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstate_current));
+
+	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	load_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
+}
+
+static void store_state() {
+	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(STATE SLASH COUNTER_H_FILE, counter_history, sizeof(counter_history));
+
+	store_blob(STATE SLASH GSTATE_H_FILE, gstate_history, sizeof(gstate_history));
+	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
+	store_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstate_current));
+
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
+	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
+	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
+}
+
+static void create_pstate_json() {
+	store_struct_json((int*) pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
+}
+
+static void create_gstate_json() {
+	store_struct_json((int*) gstate, GSTATE_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_JSON);
+}
+
+// feed Fronius powerflow web application
+static void create_powerflow_json() {
+	FILE *fp = fopen(RUN SLASH POWERFLOW_JSON, "wt");
+	if (fp == NULL)
+		return;
+
+	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
+	fflush(fp);
+	fclose(fp);
+}
+
+static void collect_loads() {
+	char line[LINEBUF], value[10];
+
+	ZERO(loads);
+	for (int h = 0; h < 24; h++) {
+		for (int d = 0; d < 7; d++) {
+			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
+			if (load == 0)
+				load = BASELOAD;
+			if (load < NOISE) {
+				xdebug("SOLAR suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
+				load = BASELOAD;
+			}
+			loads[h] += load;
+		}
+		loads[h] /= 7;
+	}
+
+	strcpy(line, "SOLAR average 24/7 loads:");
+	for (int h = 0; h < 24; h++) {
+		snprintf(value, 10, " %d", loads[h]);
+		strcat(line, value);
+	}
+	xdebug(line);
+
+	store_array_csv(loads, 24, 1, "  load", RUN SLASH LOADS_CSV);
+}
+
+static void print_gstate() {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "GSTATE");
+	xlogl_int_b(line, "∑PV", gstate->pv);
+	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
+	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
+	xlogl_int(line, "Today", gstate->today);
+	xlogl_int(line, "Tomo", gstate->tomorrow);
+	xlogl_int(line, "SoD", gstate->sod);
+	xlogl_int(line, "EoD", gstate->eod);
+	xlogl_int(line, "Akku", gstate->akku);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+	xlogl_percent10(line, "Success", gstate->success);
+	xlogl_percent10(line, "Survive", gstate->survive);
+	xlogl_percent10(line, "Heating", gstate->heating);
+	xlogl_float(line, "Tin", FLOAT10(gstate->temp_in));
+	xlogl_float(line, "Tout", FLOAT60(gstate->temp_out));
+	xlogl_bits16(line, "  flags", gstate->flags);
+	xlogl_end(line, strlen(line), 0);
+}
+
+static void print_pstate() {
+	char line[512]; // 256 is not enough due to color escape sequences!!!
+	xlogl_start(line, "PSTATE");
+	xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
+	xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
+	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
+	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
+	xlogl_int(line, "Load", pstate->load);
+	xlogl_bits16(line, "  flags", pstate->flags);
+	inverter_status(line);
+	xlogl_end(line, strlen(line), 0);
+}
+
+static void calculate_counter() {
+	pthread_mutex_lock(&collector_lock);
+
+	// meter counter daily - calculate delta to NULL entry
+	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
+	CM_DAY->produced = CM_NOW->produced && CM_NULL->produced ? CM_NOW->produced - CM_NULL->produced : 0;
+	CM_DAY->mppt1 = CM_NOW->mppt1 && CM_NULL->mppt1 ? CM_NOW->mppt1 - CM_NULL->mppt1 : 0;
+	CM_DAY->mppt2 = CM_NOW->mppt2 && CM_NULL->mppt2 ? CM_NOW->mppt2 - CM_NULL->mppt2 : 0;
+	CM_DAY->mppt3 = CM_NOW->mppt3 && CM_NULL->mppt3 ? CM_NOW->mppt3 - CM_NULL->mppt3 : 0;
+	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
+
+	// self counter daily - convert Watt-secons to Watt-hours
+	CS_DAY->consumed = CS_NOW->consumed / 3600;
+	CS_DAY->produced = CS_NOW->produced / 3600;
+	CS_DAY->mppt1 = CS_NOW->mppt1 / 3600;
+	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
+	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
+	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
+
+	if (HOURLY) {
+		// meter counter for last hour
+		CM_HOUR->consumed = CM_NOW->consumed && CM_LAST->consumed ? CM_NOW->consumed - CM_LAST->consumed : 0;
+		CM_HOUR->produced = CM_NOW->produced && CM_LAST->produced ? CM_NOW->produced - CM_LAST->produced : 0;
+		CM_HOUR->mppt1 = CM_NOW->mppt1 && CM_LAST->mppt1 ? CM_NOW->mppt1 - CM_LAST->mppt1 : 0;
+		CM_HOUR->mppt2 = CM_NOW->mppt2 && CM_LAST->mppt2 ? CM_NOW->mppt2 - CM_LAST->mppt2 : 0;
+		CM_HOUR->mppt3 = CM_NOW->mppt3 && CM_LAST->mppt3 ? CM_NOW->mppt3 - CM_LAST->mppt3 : 0;
+		CM_HOUR->mppt4 = CM_NOW->mppt4 && CM_LAST->mppt4 ? CM_NOW->mppt4 - CM_LAST->mppt4 : 0;
+
+		// self counter for last hour
+		CS_HOUR->consumed = (CS_NOW->consumed - CS_LAST->consumed) / 3600;
+		CS_HOUR->produced = (CS_NOW->produced - CS_LAST->produced) / 3600;
+		CS_HOUR->mppt1 = (CS_NOW->mppt1 - CS_LAST->mppt1) / 3600;
+		CS_HOUR->mppt2 = (CS_NOW->mppt2 - CS_LAST->mppt2) / 3600;
+		CS_HOUR->mppt3 = (CS_NOW->mppt3 - CS_LAST->mppt3) / 3600;
+		CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
+
+		// compare hourly self and meter counter
+		xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+		xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+
+		// copy to history
+#ifdef COUNTER_METER
+		memcpy(COUNTER_HOUR_NOW, (void*) CM_NOW, sizeof(counter_t));
+		mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+#else
+		memcpy(COUNTER_HOUR_NOW, (void*) CS_NOW, sizeof(counter_t));
+		mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+#endif
+
+		// copy to LAST entry
+		memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
+		memcpy(CS_LAST, CS_NOW, sizeof(counter_t));
+
+		if (DAILY) {
+			// compare daily self and meter counter
+			xlog("FRONIUS counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+			xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+
+			// reset self counter and copy self/meter counter to NULL entry
+			memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
+			ZEROP(CS_NOW);
+			ZEROP(CS_LAST);
+			memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
+		}
+	}
+
+	pthread_mutex_unlock(&collector_lock);
+}
+
+static void calculate_gstate() {
+	// clear state flags and values
+	gstate->flags = 0;
+
+	// summer / winter mode
+	if (SUMMER)
+		gstate->flags |= FLAG_SUMMER;
+
+	if (WINTER)
+		gstate->flags |= FLAG_WINTER;
+
+	// take over pstate values
+	gstate->soc = pstate->soc;
+
+	// store average load in gstate history
+	gstate->load = PSTATE_HOUR_LAST1->load;
+
+	// day total: consumed / produced / pv
+#ifdef COUNTER_METER
+	gstate->consumed = CM_DAY->consumed;
+	gstate->produced = CM_DAY->produced;
+	gstate->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
+#else
+	gstate->consumed = CS_DAY->consumed;
+	gstate->produced = CS_DAY->produced;
+	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
+#endif
+
+	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
+	int min = akku_min_soc();
+	int capa = akku_capacity();
+	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
+	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 25) * -1 : 0;
+
+	// collect mosmix forecasts
+	int today, tomorrow, sod, eod;
+	mosmix_collect(now, &tomorrow, &today, &sod, &eod);
+	gstate->tomorrow = tomorrow;
+	gstate->today = today;
+	gstate->sod = sod;
+	gstate->eod = eod;
+	gstate->success = sod > MINIMUM && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
+	CUT(gstate->success, 2000);
+	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
+
+	// survival factor
+	gstate->need_survive = mosmix_survive(now, loads, BASELOAD, 25); // +25Wh inverter dissipation
+	int tocharge = gstate->need_survive - gstate->akku;
+	CUT_LOW(tocharge, 0);
+	int available = gstate->eod - tocharge;
+	CUT_LOW(available, 0);
+	if (gstate->sod == 0)
+		available = 0; // pv not yet started - we only have akku
+	gstate->survive = gstate->need_survive ? (available + gstate->akku) * 1000 / gstate->need_survive : 0;
+	CUT(gstate->survive, 2000);
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
+
+	// temperature / heating needed / possible
+	gstate->temp_in = temp_in() * 10;
+	gstate->temp_out = temp_out() * 10;
+	if (gstate->sod == 0)
+		gstate->heating = 0; // pv not yet started - we cannot heat
+	else {
+		gstate->flags |= FLAG_HEATING;
+		// no need to heat
+		if (gstate->temp_in > 250)
+			gstate->flags &= ~FLAG_HEATING;
+		if (gstate->temp_in > 180 && SUMMER)
+			gstate->flags &= ~FLAG_HEATING;
+		if (gstate->temp_in > 200 && gstate->temp_out > 150 && !SUMMER)
+			gstate->flags &= ~FLAG_HEATING;
+		// force heating independently from temperature
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always if not too hot
+			gstate->flags |= FLAG_HEATING;
+	}
+
+	// copy to history
+	memcpy(GSTATE_MIN_LAST, (void*) gstate, sizeof(gstate_t));
+	if (HOURLY)
+		memcpy(GSTATE_HOUR_LAST, (void*) gstate, sizeof(gstate_t));
+
+	print_gstate();
+}
+
+static void calculate_pstate() {
+	pthread_mutex_lock(&collector_lock);
+
+	// clear state flags and values
+	pstate->flags = pstate->ramp = 0;
+
+	// clear delta sum counters every minute
+	if (MINLY)
+		pstate->sdpv = pstate->sdgrid = pstate->sdload = 0;
+
+	// update self counter before shaping
+	if (pstate->grid > 0)
+		CS_NOW->consumed += pstate->grid;
+	if (pstate->grid < 0)
+		CS_NOW->produced += pstate->grid * -1;
+	CS_NOW->mppt1 += pstate->mppt1;
+	CS_NOW->mppt2 += pstate->mppt2;
+	CS_NOW->mppt3 += pstate->mppt3;
+	CS_NOW->mppt4 += pstate->mppt4;
+
+	// get history states
+	pstate_t *s1 = PSTATE_SEC_LAST1;
+	pstate_t *s2 = PSTATE_SEC_LAST2;
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	pstate_t *m2 = PSTATE_MIN_LAST2;
+	pstate_t *m3 = PSTATE_MIN_LAST3;
+
+	// total PV produced by all strings
+	if (pstate->mppt1 == 1)
+		pstate->mppt1 = 0; // noise
+	if (pstate->mppt2 == 1)
+		pstate->mppt2 = 0; // noise
+	if (pstate->mppt3 == 1)
+		pstate->mppt3 = 0; // noise
+	if (pstate->mppt4 == 1)
+		pstate->mppt4 = 0; // noise
+	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
+	pstate->dpv = pstate->pv - s1->pv;
+	if (abs(pstate->dpv) < NOISE)
+		pstate->dpv = 0; // shape dgrid
+	pstate->sdpv += abs(pstate->dpv);
+
+	// grid, delta grid and sum
+	pstate->dgrid = pstate->grid - s1->grid;
+	if (abs(pstate->dgrid) < NOISE)
+		pstate->dgrid = 0; // shape dgrid
+	pstate->sdgrid += abs(pstate->dgrid);
+
+	// load, delta load + sum
+	pstate->load = (pstate->ac1 + pstate->ac2 + pstate->grid) * -1;
+	pstate->dload = pstate->load - s1->load;
+	if (abs(pstate->dload) < NOISE)
+		pstate->dload = 0; // shape dload
+	pstate->sdload += abs(pstate->dload);
+
+	// check if we have delta ac power anywhere
+	if (abs(pstate->grid - s1->grid) > NOISE)
+		pstate->flags |= FLAG_DELTA;
+	if (abs(pstate->ac1 - s1->ac1) > NOISE)
+		pstate->flags |= FLAG_DELTA;
+	if (abs(pstate->ac2 - s1->ac2) > NOISE)
+		pstate->flags |= FLAG_DELTA;
+
+	// long term grid upload or download
+	if (pstate->grid < -NOISE) {
+		int g3 = PSTATE_MIN_LAST1->grid < -25 && PSTATE_MIN_LAST2->grid < -25 && PSTATE_MIN_LAST3->grid < -25;
+		int g2 = PSTATE_MIN_LAST1->grid < -50 && PSTATE_MIN_LAST2->grid < -50;
+		int g1 = PSTATE_MIN_LAST1->grid < -75;
+		if (g3 || g2 || g1) {
+			pstate->flags |= FLAG_GRID_ULOAD;
+			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", PSTATE_MIN_LAST3->grid, PSTATE_MIN_LAST2->grid, PSTATE_MIN_LAST1->grid);
+		}
+	}
+	if (pstate->grid > NOISE) {
+		int g3 = PSTATE_MIN_LAST1->grid > 25 && PSTATE_MIN_LAST2->grid > 25 && PSTATE_MIN_LAST3->grid > 25;
+		int g2 = PSTATE_MIN_LAST1->grid > 50 && PSTATE_MIN_LAST2->grid > 50;
+		int g1 = PSTATE_MIN_LAST1->grid > 75;
+		if (g3 || g2 || g1) {
+			pstate->flags |= FLAG_GRID_DLOAD;
+			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", PSTATE_MIN_LAST3->grid, PSTATE_MIN_LAST2->grid, PSTATE_MIN_LAST1->grid);
+		}
+	}
+
+	// offline mode when not enough PV production
+	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM || m3->pv > MINIMUM;
+	if (!online) {
+		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
+		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
+		int burnout_possible = gstate->temp_in < 180 && pstate->soc > 150;
+		if (burnout_time && burnout_possible && AKKU_BURNOUT)
+			pstate->flags |= FLAG_BURNOUT; // burnout
+		else
+			pstate->flags |= FLAG_OFFLINE; // offline
+
+	} else {
+		// online
+
+		// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
+		int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
+		int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+		if (e_short || e_long)
+			pstate->flags |= FLAG_EMERGENCY;
+
+		// first set and then clear VALID flag when values suspicious
+		pstate->flags |= FLAG_VALID;
+		int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
+		if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
+			xdebug("SOLAR suspicious values detected: sum=%d", sum);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->load > 0) {
+			xdebug("SOLAR positive load detected");
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->grid < -NOISE && pstate->akku > NOISE) {
+			int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
+			xdebug("SOLAR wasting power %d akku -> grid", waste);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
+			xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
+			pstate->flags &= ~FLAG_VALID;
+		}
+
+		// validate inverter status
+		inverter_pstate_valid();
+
+		// further calculations only when valid
+		if (PSTATE_VALID) {
+
+			// state is stable when we have 3x no grid changes
+			if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+				pstate->flags |= FLAG_STABLE;
+
+			// difference between actual load an calculated load
+			int p_load = -1 * pstate->load; // - BASELOAD;
+			pstate->dxload = p_load > 0 && pstate->xload ? p_load * 100 / pstate->xload : 0;
+
+			// indicate standby check when actual load is 3x below 50% of calculated load
+			if (pstate->xload && pstate->dxload < 50 && s1->dxload < 50 && s2->dxload < 50) {
+				pstate->flags |= FLAG_CHECK_STANDBY;
+				xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, pstate->xload, pstate->dxload);
+			}
+
+			// distortion when current sdpv is too big or aggregated last two sdpv's are too big
+			int d0 = pstate->sdpv > m1->pv;
+			int d1 = m1->sdpv > m1->pv + m1->pv / 2;
+			int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+			if (d0 || d1 || d2) {
+				pstate->flags |= FLAG_DISTORTION;
+				xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+			}
+
+			// calculate ramp up / ramp down power
+			pstate->ramp = pstate->grid * -1;
+			// stable when grid between -RAMP_WINDOW..+NOISE
+			if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
+				pstate->ramp = 0;
+			// ramp down when akku is discharging
+			if (pstate->akku > NOISE)
+				pstate->ramp -= pstate->akku;
+			// ramp down between NOISE and RAMP_WINDOW
+			if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
+				pstate->ramp = -RAMP_WINDOW;
+			// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
+			if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
+				pstate->ramp = 0;
+			// 50% more ramp down when PV tendency is falling
+			if (pstate->ramp < 0 && m1->dpv < 0)
+				pstate->ramp += pstate->ramp / 2;
+			// delay ramp up as long as average PV is below average load
+			int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
+			if (pstate->ramp > 0 && m1->pv < m1load) {
+				xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
+				pstate->ramp = 0;
+			}
+			// delay small ramp up when we just had akku discharge or grid download
+			if (0 < pstate->ramp && pstate->ramp < MINIMUM) {
+				int akku = m1->akku > NOISE || m2->akku > NOISE || m3->akku > NOISE;
+				int grid = m1->grid > NOISE || m2->grid > NOISE || m3->grid > NOISE;
+				if (akku || grid) {
+					xdebug("SOLAR last123 akku %4d %4d %4d -> %d", m1->akku, m2->akku, m3->akku, akku);
+					xdebug("SOLAR last123 grid %4d %4d %4d -> %d", m1->grid, m2->grid, m3->grid, grid);
+					xdebug("SOLAR delay ramp up %d < %d due to %s %s in last 3 minutes", pstate->ramp, MINIMUM, akku ? "akku discharge" : "", grid ? "grid download" : "");
+					pstate->ramp = 0;
+				}
+			}
+			// delay ramp up when unstable or distortion unless we have enough power
+			if (0 < pstate->ramp && pstate->ramp < ENOUGH)
+				if (!PSTATE_STABLE || PSTATE_DISTORTION) {
+					xdebug("SOLAR delay ramp up %d < %d due to %s %s", pstate->ramp, ENOUGH, !PSTATE_STABLE ? "unstable" : "", PSTATE_DISTORTION ? "distortion" : "");
+					pstate->ramp = 0;
+				}
+		}
+	}
+
+	pthread_mutex_unlock(&collector_lock);
+
+	// copy to history
+	memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
+
+	// print pstate once per minute / when delta / on grid load
+	if (MINLY || PSTATE_DELTA || pstate->grid > NOISE)
+		print_pstate();
+}
+
+static void daily() {
+	xlog("SOLAR collector executing daily tasks...");
+
+	// calculate forecast errors - actual vs. expected
+	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
+	int fc2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
+	float e2 = fc2 ? gstate->pv * 100 / fc2 : 0.0;
+	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", fc2, gstate->pv, e2);
+	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
+	int fc1 = GSTATE_DAY_HOUR(yday1, 7)->today;
+	float e1 = fc1 ? gstate->pv * 100 / fc1 : 0.0;
+	xlog("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", fc1, gstate->pv, e1);
+
+	// recalculate average 24/7 loads
+	collect_loads();
+
+	// store state at least once per day
+//	store_state();
+//	mosmix_store_state();
+
+	// save pstate SVG
+	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
+	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
+	system(command);
+	xdebug("SOLAR saved pstate SVG: %s", command);
+
+	// recalculate mosmix factors
+	mosmix_factors(0);
+}
+
+static void hourly() {
+	xlog("SOLAR collector executing hourly tasks...");
+
+	// update forecasts and clear at midnight
+	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
+
+	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
+	int succ1, succ2;
+	mosmix_scale(now, &succ1, &succ2);
+	gstate->forecast = succ1;
+	CUT(gstate->forecast, 2000);
+
+#ifdef GNUPLOT
+	// create fresh csv files and paint new diagrams
+	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
+	store_table_csv((int*) gstate_history, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
+	mosmix_store_csv();
+	system(GNUPLOT);
+#endif
+}
+
+static void minly() {
+	calculate_counter();
+	calculate_gstate();
+}
+
+static void aggregate_mhd() {
+	if (MINLY) {
+		// aggregate 60 seconds into one minute
+		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
+		dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
+		dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+
+		if (HOURLY) {
+			// aggregate 60 minutes into one hour
+			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
+			dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+			dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
+
+			// create/append gstate and pstate minutes to csv
+			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+			if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+				store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+			append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
+			append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
+
+			if (DAILY) {
+				// aggregate 24 pstate hours into one day
+				pstate_t pda, pdc;
+				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
+				cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
+				dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
+				dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
+				dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
+				// aggregate 24 gstate hours into one day
+				gstate_t gda, gdc;
+				aggregate((int*) &gda, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+				cumulate((int*) &gdc, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+				dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
+				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
+				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
+			}
+		}
+	}
+}
+
+static void loop() {
+	time_t now_ts;
+
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return;
+	}
+
+	// the SOLAR main loop
+	while (1) {
+
+		// get actual time and store global
+		now_ts = time(NULL);
+		localtime_r(&now_ts, &now_tm);
+
+		// aggregate values into minute-hour-day when 0-0-0
+		aggregate_mhd();
+
+		// calculate pstate
+		calculate_pstate();
+
+		// cron jobs
+		if (MINLY) {
+			minly();
+
+			if (HOURLY) {
+				hourly();
+
+				if (DAILY)
+					daily();
+			}
+		}
+
+		// web output
+		create_pstate_json();
+		create_gstate_json();
+		create_powerflow_json();
+
+		// wait for next second
+		while (now_ts == time(NULL))
+			msleep(111);
+	}
+}
+
+static int init() {
+	// initialize global time structure
+	time_t now_ts = time(NULL);
+	localtime_r(&now_ts, &now_tm);
+
+	pthread_mutex_init(&collector_lock, NULL);
+
+	load_state();
+	mosmix_load_state(now);
+	mosmix_load(now, WORK SLASH MARIENBERG, 0);
+	collect_loads();
+
+	return 0;
+}
+
+static void stop() {
+// saving state - this is the most important !!!
+	store_state();
+	mosmix_store_state();
+
+	pthread_mutex_destroy(&collector_lock);
+}
+
+MCP_REGISTER(solar_collector, 11, &init, &stop, &loop);

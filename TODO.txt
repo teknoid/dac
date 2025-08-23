@@ -6,7 +6,16 @@ BUGS
 TODO
 --------------------------------------------------------------------------------------------
 
+* mcp.c entrümpeln, kein terminal mehr, kein display mehr etc.
+
 * solar: device und potd config in json ablegen und WebUI dafür bauen
+
+* alles solar* in separates verzeichnis solar/
+
+* alles dac* in separates verzeichnis dac/
+
+* solar: statt 24/7 history und factors calc eine 365 history tabelle und aus dieser den am besten passenden wert +/- 1 Monat um heute nehmen:
+	(yday + h), rad1h, sund1, ttt, mppt1, mppt2, mppt3, mppt4  
 
 * Sprachausgabe e.g. confirm("Strahler Bad an")
 
@@ -43,6 +52,28 @@ TODO
 
 DONE
 ----------------------------------------------
+
+
+solar definitiv
+- keine includes sondern .c files die im Makefile je nach target kombiniert werden
+
+- pstate/gstate/counter in eigenes modul auslagern mit gemeinsamen speicher wie bei sensors
+
+- als mcp modul mit init/stop/loop
+
+- init lädt state, stop sichert state
+
+- zeitkritisch! loop macht jede sekunde nur aggregate und die calculates und schreibt in die pstate/gstate/counter current
+
+- nächste sekunde abwarten mit while / msleep(100)
+
+- epoche sekunden modulo 60 -> minly, modulo 3600 -> hourly modulo 86400 -> daily
+	*now wird eh gebraucht - nicht nötig
+
+- rest in eigenes modul auslagern (device / dispatcher) - dieser macht dann reponse / ramp / standby und die cron sachen
+
+- ebenfals als mcp modul, hauptsache loop, hier ist dann die laufzeit unkritisch, zB. sleep(5)
+
 
 * Fronius auslesen
 

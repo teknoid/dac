@@ -1,59 +1,157 @@
+// localmain
+// gcc -DSOLAR_MAIN -I./include -o solar mcp.c solar-modbus.c solar-collector.c solar-dispatcher.c utils.c mosmix.c sunspec.c -lmodbus -lm
+
+// loop
+// gcc -DMCP -I./include -o solar mcp.c solar-modbus.c solar-collector.c solar-dispatcher.c utils.c mosmix.c sunspec.c sensors.c i2c.c -lmodbus -lm
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+#include <math.h>
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "tasmota-devices.h"
-#include "solar-y.h"
+#include "solar-common.h"
 #include "sunspec.h"
 #include "utils.h"
+#include "mcp.h"
 
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
-
-#define COUNTER_METER
-
-// devices
-static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 5 };
-static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
-static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
-static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
-static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 3, };
-
-// all devices, needed for initialization
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-
-// first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 };
-
-// steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 };
-
-// heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
-static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
-
-// force boiler heating first
-static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
-static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
-
-// define POTDs
-static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
-static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
-static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
-static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
-static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
-
-// inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
-static sunspec_t *inverter1 = 0;
 #define MIN_SOC					(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
 #define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
+
+#ifdef MCP
+#include "sensors.h"
+#define TEMP_IN					sensors->htu21_temp
+#define TEMP_OUT				sensors->sht31_temp
+#endif
+
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
+
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
+
+// sunspec devices
+static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
+
+int temp_in() {
+	return TEMP_IN;
+}
+
+int temp_out() {
+	return TEMP_OUT;
+}
+
+int akku_capacity() {
+	return AKKU_CAPACITY;
+}
+
+int akku_min_soc() {
+	return MIN_SOC;
+}
+
+int akku_charge_max() {
+	return AKKU_CHARGE_MAX;
+}
+
+int akku_discharge_max() {
+	return AKKU_DISCHARGE_MAX;
+}
+
+int akku_standby(device_t *akku) {
+	akku->state = Standby;
+	akku->power = 0;
+
+	// TODO
+	return 0;
+
+	if (!sunspec_storage_limit_both(inverter1, 0, 0))
+		xdebug("SOLAR set akku STANDBY");
+	return 0; // continue loop
+}
+
+int akku_charge(device_t *akku) {
+	akku->state = Charge;
+	akku->power = 1;
+
+	// TODO
+	return 0;
+
+	int limit = GSTATE_SUMMER || gstate->today > AKKU_CAPACITY * 2;
+	if (limit) {
+		if (!sunspec_storage_limit_both(inverter1, 1750, 0)) {
+			xdebug("SOLAR set akku CHARGE limit 2000");
+			return WAIT_AKKU_CHARGE; // loop done
+		}
+	} else {
+		if (!sunspec_storage_limit_discharge(inverter1, 0)) {
+			xdebug("SOLAR set akku CHARGE");
+			return WAIT_AKKU_CHARGE; // loop done
+		}
+	}
+	return 0; // continue loop
+}
+
+int akku_discharge(device_t *akku) {
+	akku->state = Discharge;
+	akku->power = 0;
+
+	// TODO
+	return 0;
+
+	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+	int min_soc = GSTATE_WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
+	sunspec_storage_minimum_soc(inverter1, min_soc);
+
+	int limit = GSTATE_WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
+	if (limit) {
+		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {
+			xdebug("SOLAR set akku DISCHARGE limit BASELOAD");
+			return WAIT_RESPONSE; // loop done
+		}
+	} else {
+		if (!sunspec_storage_limit_charge(inverter1, 0)) {
+			xdebug("SOLAR set akku DISCHARGE");
+			return WAIT_RESPONSE; // loop done
+		}
+	}
+	return 0; // continue loop
+}
+
+void inverter_status(char *line) {
+	char value[16];
+
+	strcat(line, "   F");
+	if (inverter1 && inverter1->inverter) {
+		snprintf(value, 16, ":%d", inverter1->inverter->St);
+		strcat(line, value);
+	}
+	if (inverter2 && inverter2->inverter) {
+		snprintf(value, 16, ":%d", inverter2->inverter->St);
+		strcat(line, value);
+	}
+}
+
+void inverter_pstate_valid() {
+	if (inverter1 && !inverter1->active) {
+		xdebug("SOLAR Inverter1 is not active!");
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (inverter2 && !inverter2->active) {
+		xdebug("SOLAR Inverter2 is not active!");
+	}
+}
+
+// inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
 static void update_inverter1(sunspec_t *ss) {
-	pthread_mutex_lock(&update_lock);
+	pthread_mutex_lock(&collector_lock);
 
 	pstate->f = ss->inverter->Hz - 5000; // store only the diff
 	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
@@ -105,13 +203,12 @@ static void update_inverter1(sunspec_t *ss) {
 		ss->active = 0;
 	}
 
-	pthread_mutex_unlock(&update_lock);
+	pthread_mutex_unlock(&collector_lock);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
-static sunspec_t *inverter2 = 0;
 static void update_inverter2(sunspec_t *ss) {
-	pthread_mutex_lock(&update_lock);
+	pthread_mutex_lock(&collector_lock);
 
 	switch (ss->inverter->St) {
 	case I_STATUS_STARTING:
@@ -155,13 +252,12 @@ static void update_inverter2(sunspec_t *ss) {
 		ss->active = 0;
 	}
 
-	pthread_mutex_unlock(&update_lock);
+	pthread_mutex_unlock(&collector_lock);
 }
 
 // meter is Fronius Smart Meter TS 65A-3
-static sunspec_t *meter = 0;
 static void update_meter(sunspec_t *ss) {
-	pthread_mutex_lock(&update_lock);
+	pthread_mutex_lock(&collector_lock);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
@@ -181,164 +277,7 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	pthread_mutex_unlock(&update_lock);
-}
-
-static int solar_init() {
-	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
-	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
-	meter = sunspec_init_poll("fronius10", 200, &update_meter);
-
-	// use the same lock as both run against same IP address
-	meter->lock = inverter1->lock;
-
-	// stop if Fronius10 is not available
-	if (!inverter1)
-		return xerr("No connection to Fronius10");
-
-	// do not continue before we have SoC value from Fronius10
-	int retry = 100;
-	while (--retry) {
-		msleep(100);
-		if (inverter1->storage != 0 && inverter1->storage->ChaState != 0)
-			break;
-	}
-	if (!retry)
-		return xerr("No SoC from Fronius10");
-	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
-
-	return 0;
-}
-
-static void solar_stop() {
-	sunspec_stop(inverter1);
-	sunspec_stop(inverter2);
-	sunspec_stop(meter);
-}
-
-static void inverter_status(char *line) {
-	char value[16];
-
-	strcat(line, "   F");
-	if (inverter1 && inverter1->inverter) {
-		snprintf(value, 16, ":%d", inverter1->inverter->St);
-		strcat(line, value);
-	}
-	if (inverter2 && inverter2->inverter) {
-		snprintf(value, 16, ":%d", inverter2->inverter->St);
-		strcat(line, value);
-	}
-}
-
-static void inverter_valid() {
-	if (inverter1 && !inverter1->active) {
-		xdebug("SOLAR Inverter1 is not active!");
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (inverter2 && !inverter2->active) {
-		xdebug("SOLAR Inverter2 is not active!");
-	}
-}
-
-static int akku_standby() {
-	AKKU->state = Standby;
-	AKKU->power = 0;
-#ifndef SOLAR_MAIN
-	if (!sunspec_storage_limit_both(inverter1, 0, 0))
-		xdebug("SOLAR set akku STANDBY");
-#endif
-	return 0; // continue loop
-}
-
-static int akku_charge() {
-	AKKU->state = Charge;
-	AKKU->power = 1;
-#ifndef SOLAR_MAIN
-	int limit = SUMMER || PSTATE_HOUR_LAST1->pv > 2000;
-	if (limit) {
-		if (!sunspec_storage_limit_both(inverter1, 1750, 0)) {
-			xdebug("SOLAR set akku CHARGE limit 2000");
-			return WAIT_AKKU_CHARGE; // loop done
-		}
-	} else {
-		if (!sunspec_storage_limit_discharge(inverter1, 0)) {
-			xdebug("SOLAR set akku CHARGE");
-			return WAIT_AKKU_CHARGE; // loop done
-		}
-	}
-#endif
-	return 0; // continue loop
-}
-
-static int akku_discharge() {
-	AKKU->state = Discharge;
-	AKKU->power = 0;
-#ifndef SOLAR_MAIN
-	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-	int min_soc = WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(inverter1, min_soc);
-
-	int limit = WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
-	if (limit) {
-		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {
-			xdebug("SOLAR set akku DISCHARGE limit BASELOAD");
-			return WAIT_RESPONSE; // loop done
-		}
-	} else {
-		if (!sunspec_storage_limit_charge(inverter1, 0)) {
-			xdebug("SOLAR set akku DISCHARGE");
-			return WAIT_RESPONSE; // loop done
-		}
-	}
-#endif
-	return 0; // continue loop
-}
-
-// sample grid values from meter
-static int grid() {
-	pstate_t pp, *p = &pp;
-	sunspec_t *ss = sunspec_init("fronius10", 200);
-	sunspec_read(ss);
-	ss->common = 0;
-
-	while (1) {
-		msleep(666);
-		sunspec_read(ss);
-
-		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-		p->f = ss->meter->Hz; // without scaling factor
-
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
-	}
-	return 0;
-}
-
-// set charge(-) / discharge(+) limits or reset when 0
-static int battery(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int wh = atoi(arg);
-	if (wh > 0)
-		return sunspec_storage_limit_discharge(ss, wh);
-	if (wh < 0)
-		return sunspec_storage_limit_charge(ss, wh * -1);
-	return sunspec_storage_limit_reset(ss);
-}
-
-// set minimum SoC
-static int storage_min(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
-	sunspec_read(ss);
-
-	int min = atoi(arg);
-	return sunspec_storage_minimum_soc(ss, min);
+	pthread_mutex_unlock(&collector_lock);
 }
 
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
@@ -360,9 +299,8 @@ static int calibrate(char *name) {
 	ss->common = 0;
 	ss->storage = 0;
 
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	// create a socket
+	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
@@ -512,3 +450,124 @@ static int calibrate(char *name) {
 	sunspec_stop(ss);
 	return 0;
 }
+
+// sample grid values from meter
+static int grid() {
+	pstate_t pp, *p = &pp;
+	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_read(ss);
+	ss->common = 0;
+
+	while (1) {
+		msleep(666);
+		sunspec_read(ss);
+
+		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
+		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+		p->f = ss->meter->Hz; // without scaling factor
+
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+	}
+	return 0;
+}
+
+// set charge(-) / discharge(+) limits or reset when 0
+static int battery(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+
+	int wh = atoi(arg);
+	if (wh > 0)
+		return sunspec_storage_limit_discharge(ss, wh);
+	if (wh < 0)
+		return sunspec_storage_limit_charge(ss, wh * -1);
+	return sunspec_storage_limit_reset(ss);
+}
+
+// set minimum SoC
+static int storage_min(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+
+	int min = atoi(arg);
+	return sunspec_storage_minimum_soc(ss, min);
+}
+
+static int init() {
+	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
+	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
+	meter = sunspec_init_poll("fronius10", 200, &update_meter);
+
+	// use the same lock as both run against same IP address
+	meter->lock = inverter1->lock;
+
+	// stop if Fronius10 is not available
+	if (!inverter1)
+		return xerr("No connection to Fronius10");
+
+	// do not continue before we have SoC value from Fronius10
+	int retry = 100;
+	while (--retry) {
+		msleep(100);
+		if (inverter1->storage != 0 && inverter1->storage->ChaState != 0)
+			break;
+	}
+	if (!retry)
+		return xerr("No SoC from Fronius10");
+	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
+
+	return 0;
+}
+
+static void stop() {
+	sunspec_stop(inverter1);
+	sunspec_stop(inverter2);
+	sunspec_stop(meter);
+}
+
+static int test() {
+	return 0;
+}
+
+int solar_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
+	int c;
+	while ((c = getopt(argc, argv, "b:c:o:s:gt")) != -1) {
+		// printf("getopt %c\n", c);
+		switch (c) {
+		case 'b':
+			// -X: limit charge, +X: limit discharge, 0: no limits
+			return battery(optarg);
+		case 'c':
+			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
+			return calibrate(optarg);
+		case 'o':
+			return solar_override(optarg);
+		case 's':
+			return storage_min(optarg);
+		case 'g':
+			return grid();
+		case 't':
+			return test();
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+
+	return 0;
+}
+
+#ifdef SOLAR_MAIN
+int main(int argc, char **argv) {
+	return solar_main(argc, argv);
+}
+#endif
+
+MCP_REGISTER(solar, 10, &init, &stop, NULL);

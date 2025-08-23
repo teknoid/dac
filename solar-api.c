@@ -1,86 +1,46 @@
-#include <pthread.h>
+// localmain
+// gcc -DSOLAR_MAIN -I./include -o solar mcp.c solar-api.c solar-collector.c solar-dispatcher.c utils.c frozen.c curl.c mosmix.c -lcurl -lm
+
+// loop
+// gcc -DMCP -I./include -o solar mcp.c solar-api.c solar-collector.c solar-dispatcher.c utils.c frozen.c curl.c mosmix.c sensors.c i2c.c -lcurl -lm
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+#include <math.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include "tasmota-devices.h"
-#include "solar-y.h"
+#include "solar-common.h"
 #include "frozen.h"
-#include "curl.h"
 #include "utils.h"
+#include "curl.h"
+#include "mcp.h"
 
+#define MIN_SOC					50
+#define AKKU_CHARGE_MAX			4500
+#define AKKU_DISCHARGE_MAX		4500
+#define AKKU_CAPACITY			11000
+
+#ifdef MCP
+#include "sensors.h"
 #define TEMP_IN					sensors->htu21_temp
 #define TEMP_OUT				sensors->sht31_temp
+#endif
 
-#define COUNTER_METER
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
 
-// devices
-static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 5 };
-static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
-static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
-static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
-static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 3, };
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
 
-// all devices, needed for initialization
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-
-// first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 };
-
-// steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 };
-
-// heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
-static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
-
-// force boiler heating first
-static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
-static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
-
-// define POTDs
-static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
-static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
-static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
-static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
-static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
-
-typedef struct _raw raw_t;
-struct _raw {
-	float akku;
-	float grid;
-	float mppt1;
-	float mppt2;
-	float mppt3;
-	float mppt4;
-	float mppt1_total;
-	float mppt2_total;
-	float mppt3_total;
-	float mppt4_total;
-	float ac1;
-	float ac2;
-	float dc2;
-	float soc;
-	float cons;
-	float prod;
-	float p1;
-	float p2;
-	float p3;
-	float v1;
-	float v2;
-	float v3;
-	float f;
-};
-static raw_t raw, *r = &raw;
-
-// reading Inverter API: CURL handles, response memory, raw date, error counter
-static CURL *curl1, *curl2;
-static response_t memory = { 0 };
-static pthread_t thread_update;
+#define URL_READABLE_INVERTER1	"http://fronius10/components/readable"
+#define URL_READABLE_INVERTER2	"http://fronius7/components/readable"
 
 #define CHA						"{ channels { "
 #define END						" } }"
@@ -116,8 +76,92 @@ static pthread_t thread_update;
 #define JF7MPPT2SUM				" Energy_DC_String_2:%f "
 #define JF7AC					" PowerReal_PAC_Sum:%f "
 
+typedef struct _raw raw_t;
+struct _raw {
+	float akku;
+	float grid;
+	float mppt1;
+	float mppt2;
+	float mppt3;
+	float mppt4;
+	float mppt1_total;
+	float mppt2_total;
+	float mppt3_total;
+	float mppt4_total;
+	float ac1;
+	float ac2;
+	float dc2;
+	float soc;
+	float cons;
+	float prod;
+	float p1;
+	float p2;
+	float p3;
+	float v1;
+	float v2;
+	float v3;
+	float f;
+};
+static raw_t raw, *r = &raw;
+
+// reading Inverter API: CURL handles, response memory, raw date, error counter
+static CURL *curl1, *curl2;
+static response_t memory = { 0 };
+
+int temp_in() {
+	return TEMP_IN;
+}
+
+int temp_out() {
+	return TEMP_OUT;
+}
+
+int akku_capacity() {
+	return AKKU_CAPACITY;
+}
+
+int akku_min_soc() {
+	return MIN_SOC;
+}
+
+int akku_charge_max() {
+	return AKKU_CHARGE_MAX;
+}
+
+int akku_discharge_max() {
+	return AKKU_DISCHARGE_MAX;
+}
+
+int akku_standby(device_t *akku) {
+	// dummy implementation
+	akku->state = Standby;
+	akku->power = 0;
+	return 0;
+}
+
+int akku_charge(device_t *akku) {
+	// dummy implementation
+	akku->state = Charge;
+	akku->power = 1;
+	return 0;
+}
+
+int akku_discharge(device_t *akku) {
+	// dummy implementation
+	akku->state = Discharge;
+	akku->power = 0;
+	return 0;
+}
+
+void inverter_status(char *line) {
+	// unimplemented
+}
+
+void inverter_pstate_valid() {
+	// unimplemented
+}
+
 // inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
-#define URL_READABLE_INVERTER1	"http://fronius10/components/readable"
 static int parse_inverter1(response_t *resp) {
 	int ret;
 	char *p;
@@ -145,7 +189,6 @@ static int parse_inverter1(response_t *resp) {
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
-#define URL_READABLE_INVERTER2	"http://fronius7/components/readable"
 static int parse_inverter2(response_t *resp) {
 	int ret;
 	char *p;
@@ -159,19 +202,19 @@ static int parse_inverter2(response_t *resp) {
 	return 0;
 }
 
-static void* update(void *arg) {
+static void loop() {
 	int wait = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
+		return;
 	}
 
 	while (1) {
 		WAIT_NEXT_SECOND
 
 		// skip wait to get fresh pstate data
-		if (lock || pstate->grid > NOISE)
+		if (pstate->grid > NOISE)
 			wait = 0;
 
 		// wait
@@ -196,7 +239,7 @@ static void* update(void *arg) {
 			// reset pstates, keep counters
 			r->mppt3 = r->mppt4 = r->ac2 = r->dc2 = 0;
 
-		pthread_mutex_lock(&update_lock);
+		pthread_mutex_lock(&collector_lock);
 
 		pstate->ac1 = r->ac1;
 		pstate->dc1 = r->mppt1 + r->mppt2 + r->akku;
@@ -226,7 +269,7 @@ static void* update(void *arg) {
 		CM_NOW->consumed = r->cons;
 		CM_NOW->produced = r->prod;
 
-		pthread_mutex_unlock(&update_lock);
+		pthread_mutex_unlock(&collector_lock);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
@@ -252,111 +295,6 @@ static void* update(void *arg) {
 	}
 }
 
-static int solar_init() {
-	ZERO(raw);
-
-	// libcurl handle for inverter1 API
-	curl1 = curl_init(URL_READABLE_INVERTER1, &memory);
-	if (curl1 == NULL)
-		return xerr("Error initializing libcurl");
-
-	// libcurl handle for inverter2 API
-	curl2 = curl_init(URL_READABLE_INVERTER2, &memory);
-	if (curl2 == NULL)
-		return xerr("Error initializing libcurl");
-
-	// start updater thread
-	if (pthread_create(&thread_update, NULL, &update, NULL))
-		return xerr("Error creating thread_update");
-
-	// do not continue before we have SoC value from Fronius10
-	int retry = 100;
-	while (--retry) {
-		msleep(100);
-		if (r->soc > 1.0)
-			break;
-	}
-	if (!retry)
-		return xerr("No SoC from Fronius10");
-	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
-
-	return 0;
-}
-
-static void solar_stop() {
-	if (pthread_cancel(thread_update))
-		xlog("Error canceling thread_update");
-
-	if (pthread_join(thread_update, NULL))
-		xlog("Error joining thread_update");
-
-	curl_easy_cleanup(curl1);
-	curl_easy_cleanup(curl2);
-}
-
-static void inverter_status(char *line) {
-	// unimplemented
-}
-
-static void inverter_valid() {
-	// unimplemented
-}
-
-static int akku_standby() {
-	// dummy implementation
-	AKKU->state = Standby;
-	AKKU->power = 0;
-	return 0; // continue loop
-}
-
-static int akku_charge() {
-	// dummy implementation
-	AKKU->state = Charge;
-	AKKU->power = 1;
-	return 0; // continue loop
-}
-
-static int akku_discharge() {
-	// dummy implementation
-	AKKU->state = Discharge;
-	AKKU->power = 0;
-	return 0; // continue loop
-}
-
-static int battery(char *arg) {
-	return 0; // unimplemented
-}
-
-static int storage_min(char *arg) {
-	return 0; // unimplemented
-}
-
-// sample grid values from meter
-static int grid() {
-	pstate_t pp, *p = &pp;
-
-	CURL *curl = curl_init(URL_READABLE_INVERTER1, &memory);
-	if (curl == NULL)
-		perror("Error initializing libcurl");
-
-	while (1) {
-		msleep(666);
-		curl_perform(curl, &memory, &parse_inverter1);
-
-		p->grid = r->grid;
-		p->p1 = r->p1;
-		p->p2 = r->p2;
-		p->p3 = r->p3;
-		p->v1 = r->v1;
-		p->v2 = r->v2;
-		p->v3 = r->v3;
-		p->f = r->f * 100.0;
-
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
-	}
-	return 0;
-}
-
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
 // - Nur Nachts
 // - Akku aus
@@ -370,9 +308,8 @@ static int calibrate(char *name) {
 	float offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
 
-	// create a socket if not yet done
-	if (sock == 0)
-		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	// create a socket
+	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
@@ -485,7 +422,7 @@ static int calibrate(char *name) {
 			int m_y = measure[i];
 			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d < %d:%d\n", v_x, m_x, v_y, m_y);
 		}
-	if (offset_start != offset_end)
+	if ((int) offset_start != (int) offset_end)
 		printf("!!! WARNING !!! measuring tainted with parasitic power between start and end\n");
 
 	// dump raster table in ascending order
@@ -502,3 +439,99 @@ static int calibrate(char *name) {
 	curl_easy_cleanup(curl);
 	return 0;
 }
+
+// sample grid values from meter
+static int grid() {
+	pstate_t pp, *p = &pp;
+
+	CURL *curl = curl_init(URL_READABLE_INVERTER1, &memory);
+	if (curl == NULL)
+		perror("Error initializing libcurl");
+
+	while (1) {
+		msleep(666);
+		curl_perform(curl, &memory, &parse_inverter1);
+
+		p->grid = r->grid;
+		p->p1 = r->p1;
+		p->p2 = r->p2;
+		p->p3 = r->p3;
+		p->v1 = r->v1;
+		p->v2 = r->v2;
+		p->v3 = r->v3;
+		p->f = r->f * 100.0;
+
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+	}
+	return 0;
+}
+
+static int init() {
+
+	ZERO(raw);
+
+	// libcurl handle for inverter1 API
+	curl1 = curl_init(URL_READABLE_INVERTER1, &memory);
+	if (curl1 == NULL)
+		return xerr("Error initializing libcurl");
+
+	// libcurl handle for inverter2 API
+	curl2 = curl_init(URL_READABLE_INVERTER2, &memory);
+	if (curl2 == NULL)
+		return xerr("Error initializing libcurl");
+
+	// do not continue before we have SoC value from Fronius10
+	int retry = 100;
+	while (--retry) {
+		msleep(100);
+		if (r->soc > 1.0)
+			break;
+	}
+	if (!retry)
+		return xerr("No SoC from Fronius10");
+	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
+
+	return 0;
+}
+
+static void stop() {
+	curl_easy_cleanup(curl1);
+	curl_easy_cleanup(curl2);
+}
+
+static int test() {
+	return 0;
+}
+
+int solar_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
+	int c;
+	while ((c = getopt(argc, argv, "c:o:gt")) != -1) {
+		// printf("getopt %c\n", c);
+		switch (c) {
+		case 'c':
+			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
+			return calibrate(optarg);
+		case 'o':
+			return solar_override(optarg);
+		case 'g':
+			return grid();
+		case 't':
+			return test();
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+
+	return 0;
+}
+
+#ifdef SOLAR_MAIN
+int main(int argc, char **argv) {
+	return solar_main(argc, argv);
+}
+#endif
+
+MCP_REGISTER(solar, 10, &init, &stop, &loop);
