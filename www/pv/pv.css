@@ -22,7 +22,7 @@ body, html {
 
 /* desktop */
 @media (max-width: 2000px) {
-	iframe					{ width:400px; height:400px }
+	iframe					{ width:420px; height:420px }
 	.powerflow				{ width:420px; display:block; float:inline-end }
 	.svg					{ max-width:1500px }
 	
@@ -39,7 +39,7 @@ body, html {
 
 /* laptop */
 @media (max-width: 1400px) {
-	iframe					{ width:400px; height:400px }
+	iframe					{ width:420px; height:420px }
 	.powerflow				{ width:420px; display:block; float:inline-end }
 	.svg					{ max-width:960px }
 
@@ -57,7 +57,7 @@ body, html {
 /* mobile */
 @media (max-width: 1000px) {
 	iframe					{ width:980px; height:940px }
-	.powerflow				{ display:block; float:inline-end }
+	.powerflow				{ width:940px; display:block; float:inline-end }
 	.state					{ font-size:32px }
 	.svg					{ max-width:980px }
 
