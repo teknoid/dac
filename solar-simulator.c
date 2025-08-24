@@ -75,11 +75,7 @@ int akku_discharge(device_t *akku) {
 	return 0;
 }
 
-void inverter_status(char *line) {
-	// unimplemented
-}
-
-void inverter_pstate_valid() {
+void inverter_status(int *inv1, int *inv2) {
 	// unimplemented
 }
 

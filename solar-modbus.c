@@ -116,28 +116,12 @@ int akku_discharge(device_t *akku) {
 	return 0; // continue loop
 }
 
-void inverter_status(char *line) {
-	char value[16];
-
-	strcat(line, "   F");
-	if (inverter1 && inverter1->inverter) {
-		snprintf(value, 16, ":%d", inverter1->inverter->St);
-		strcat(line, value);
-	}
-	if (inverter2 && inverter2->inverter) {
-		snprintf(value, 16, ":%d", inverter2->inverter->St);
-		strcat(line, value);
-	}
-}
-
-void inverter_pstate_valid() {
-	if (inverter1 && !inverter1->active) {
-		xdebug("SOLAR Inverter1 is not active!");
-		pstate->flags &= ~FLAG_VALID;
-	}
-	if (inverter2 && !inverter2->active) {
-		xdebug("SOLAR Inverter2 is not active!");
-	}
+void inverter_status(int *inv1, int *inv2) {
+	*inv1 = *inv2 = 0;
+	if (inverter1 && inverter1->inverter)
+		*inv1 = inverter1->inverter->St;
+	if (inverter2 && inverter2->inverter)
+		*inv2 = inverter2->inverter->St;
 }
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku

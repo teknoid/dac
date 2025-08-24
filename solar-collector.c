@@ -7,6 +7,7 @@
 #include <time.h>
 
 #include "solar-common.h"
+#include "sunspec.h"
 #include "mosmix.h"
 #include "utils.h"
 #include "mcp.h"
@@ -26,7 +27,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '27 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '28 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -171,7 +172,7 @@ static void print_pstate() {
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
-	inverter_status(line);
+	xlogl_int(line, "Inv", pstate->inv);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -334,6 +335,11 @@ static void calculate_gstate() {
 static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
+	// inverter status
+	int inv1, inv2;
+	inverter_status(&inv1, &inv2);
+	pstate->inv = inv1 * 10 + inv2;
+
 	// clear state flags and values
 	pstate->flags = 0;
 
@@ -467,9 +473,14 @@ static void calculate_pstate() {
 			xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
 			pstate->flags &= ~FLAG_VALID;
 		}
-
-		// validate inverter status
-		inverter_pstate_valid();
+		if (inv1 != I_STATUS_MPPT) {
+			xdebug("SOLAR Inverter1 state %d != %d", inv1, I_STATUS_MPPT);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (inv2 != I_STATUS_MPPT) {
+			xdebug("SOLAR Inverter2 state %d != %d ", inv2, I_STATUS_MPPT);
+			// pstate->flags &= ~FLAG_VALID;
+		}
 
 		// state is stable when we have 3x no grid changes
 		if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
