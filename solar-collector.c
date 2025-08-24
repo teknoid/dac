@@ -256,12 +256,6 @@ static void calculate_gstate() {
 	if (WINTER)
 		gstate->flags |= FLAG_WINTER;
 
-	// take over pstate values
-	gstate->soc = pstate->soc;
-
-	// store average load in gstate history
-	gstate->load = PSTATE_HOUR_LAST1->load;
-
 	// day total: consumed / produced / pv
 #ifdef COUNTER_METER
 	gstate->consumed = CM_DAY->consumed;
@@ -272,6 +266,12 @@ static void calculate_gstate() {
 	gstate->produced = CS_DAY->produced;
 	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
+
+	// take over pstate values
+	gstate->soc = pstate->soc;
+
+	// store average load in gstate history
+	gstate->load = PSTATE_HOUR_LAST1->load;
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
 	int min = akku_min_soc();
@@ -325,9 +325,9 @@ static void calculate_gstate() {
 	}
 
 	// copy to history
-	memcpy(GSTATE_MIN_LAST, (void*) gstate, sizeof(gstate_t));
+	memcpy(GSTATE_MIN_NOW, (void*) gstate, sizeof(gstate_t));
 	if (HOURLY)
-		memcpy(GSTATE_HOUR_LAST, (void*) gstate, sizeof(gstate_t));
+		memcpy(GSTATE_HOUR_NOW, (void*) gstate, sizeof(gstate_t));
 
 	print_gstate();
 }
@@ -507,7 +507,7 @@ static void calculate_pstate() {
 }
 
 static void daily() {
-	xlog("SOLAR collector executing daily tasks...");
+	xdebug("SOLAR collector executing daily tasks...");
 
 	// calculate forecast errors - actual vs. expected
 	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
@@ -537,7 +537,7 @@ static void daily() {
 }
 
 static void hourly() {
-	xlog("SOLAR collector executing hourly tasks...");
+	xdebug("SOLAR collector executing hourly tasks...");
 
 	// update forecasts and clear at midnight
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);

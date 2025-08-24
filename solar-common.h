@@ -35,24 +35,24 @@
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_DISTORTION			(1 << 3)
-#define FLAG_GRID_ULOAD			(1 << 4)
-#define FLAG_GRID_DLOAD			(1 << 5)
-#define FLAG_AKKU_DCHARGE		(1 << 6)
+#define FLAG_BURNOUT			(1 << 4)
+#define FLAG_EMERGENCY			(1 << 5)
 
-#define FLAG_BURNOUT			(1 << 13)
-#define FLAG_EMERGENCY			(1 << 14)
+#define FLAG_GRID_ULOAD			(1 << 12)
+#define FLAG_GRID_DLOAD			(1 << 13)
+#define FLAG_AKKU_DCHARGE		(1 << 14)
 #define FLAG_OFFLINE			(1 << 15)
 
 #define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
+#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
+#define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
+
 #define PSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
-
-#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
-#define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 // dstate flags
@@ -243,5 +243,3 @@ int akku_charge(device_t *akku);
 int akku_discharge(device_t *akku);
 
 void inverter_status(int *inv1, int *inv2);
-void inverter_pstate_valid();
-void inverter_gstate_akku();

@@ -139,6 +139,7 @@ static void update_inverter1(sunspec_t *ss) {
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		ss->active = 0;
 		break;
 
 	case I_STATUS_STARTING:
@@ -152,21 +153,21 @@ static void update_inverter1(sunspec_t *ss) {
 		// TODO find sunspec register
 		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 
-		// dissipation
-		// int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
-		// xlog("SOLAR Inverter1 dissipation=%d", dissipation);
-
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
-		ss->sleep = 0;
-		ss->active = 1;
+		// dissipation
+		// int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
+		// xlog("SOLAR Inverter1 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
 			CM_NULL->mppt1 = CM_NOW->mppt1;
 		if (CM_NULL->mppt2 == 0)
 			CM_NULL->mppt2 = CM_NOW->mppt2;
+
+		ss->sleep = 0;
+		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -176,9 +177,17 @@ static void update_inverter1(sunspec_t *ss) {
 		ss->active = 0;
 		break;
 
+	case I_STATUS_FAULT:
+		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		// this is normal when we are offline
+		if (PSTATE_OFFLINE)
+			ss->sleep = SLEEP_TIME_SLEEPING;
+		ss->active = 0;
+		break;
+
 	default:
-		xdebug("SOLAR %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		ss->sleep = SLEEP_TIME_FAULT;
+		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
+		// ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
 	}
 
@@ -189,33 +198,39 @@ static void update_inverter1(sunspec_t *ss) {
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
+	pstate->ac2 = SFI(ss->inverter->W, ss->inverter->W_SF);
+	pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+
 	switch (ss->inverter->St) {
+	case I_STATUS_OFF:
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		ss->active = 0;
+		break;
+
 	case I_STATUS_STARTING:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
+		ss->active = 0;
 		break;
 
 	case I_STATUS_MPPT:
-		// only take over values in MPPT state
-		pstate->ac2 = SFI(ss->inverter->W, ss->inverter->W_SF);
-		pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-
-		// dissipation
-		// int dissipation = pstate->dc1 - pstate->ac1;
-		// xlog("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
-		ss->sleep = 0;
-		ss->active = 1;
+		// dissipation
+		// int dissipation = pstate->dc1 - pstate->ac1;
+		// xlog("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt3 == 0)
 			CM_NULL->mppt3 = CM_NOW->mppt3;
 		if (CM_NULL->mppt4 == 0)
 			CM_NULL->mppt4 = CM_NOW->mppt4;
+
+		ss->sleep = 0;
+		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
@@ -225,9 +240,17 @@ static void update_inverter2(sunspec_t *ss) {
 		ss->active = 0;
 		break;
 
+	case I_STATUS_FAULT:
+		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		// this is normal when we are offline
+		if (PSTATE_OFFLINE)
+			ss->sleep = SLEEP_TIME_SLEEPING;
+		ss->active = 0;
+		break;
+
 	default:
-		// xdebug("SOLAR %s inverter St %d W %d DCW %d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		ss->sleep = SLEEP_TIME_FAULT;
+		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
+		// ss->sleep = SLEEP_TIME_FAULT;
 		ss->active = 0;
 	}
 

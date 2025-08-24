@@ -508,7 +508,7 @@ static device_t* rampdown() {
 }
 
 static device_t* ramp() {
-	if (!PSTATE_VALID)
+	if (!PSTATE_VALID || PSTATE_OFFLINE)
 		return 0;
 
 	// calculate the power for ramping
@@ -569,7 +569,7 @@ static device_t* ramp() {
 }
 
 static device_t* steal() {
-	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
+	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
@@ -616,7 +616,7 @@ static device_t* perform_standby(device_t *d) {
 }
 
 static device_t* standby() {
-	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_STANDBY || !DSTATE_CHECK_STANDBY || pstate->pv < BASELOAD * 2)
+	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_STANDBY || !DSTATE_CHECK_STANDBY || pstate->pv < BASELOAD * 2)
 		return 0;
 
 	// try first active powered adjustable device with noresponse counter > 0
@@ -643,7 +643,7 @@ static device_t* standby() {
 }
 
 static device_t* response(device_t *d) {
-	if (!PSTATE_VALID)
+	if (!PSTATE_VALID || PSTATE_OFFLINE)
 		return 0;
 
 	// akku or no expected delta load - no response to check
@@ -761,18 +761,25 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
 
-	// resetting noresponse counters and set all devices back to active, force off when offline
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		// reset noresponse counters
 		DD->noresponse = 0;
+
+		// set all devices back to active
 		if (DD->state == Standby || DD->state == Active_Checked)
 			if (DD != AKKU)
 				DD->state = Active;
+
+		// force off when offline
 		if (PSTATE_OFFLINE)
 			ramp_device(DD, DOWN);
 	}
 }
 
 static void minly() {
+	if (PSTATE_OFFLINE)
+		dstate->ramp = 0;
+
 	// set akku to DISCHARGE if we have long term grid download
 	if (PSTATE_GRID_DLOAD)
 		akku_discharge(AKKU);
