@@ -1,9 +1,3 @@
-// localmain
-// gcc -DSOLAR_MAIN -I./include -o solar mcp.c solar-api.c solar-collector.c solar-dispatcher.c utils.c frozen.c curl.c mosmix.c -lcurl -lm
-
-// loop
-// gcc -DMCP -I./include -o solar mcp.c solar-api.c solar-collector.c solar-dispatcher.c utils.c frozen.c curl.c mosmix.c sensors.c i2c.c -lcurl -lm
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -500,20 +494,17 @@ static int test() {
 }
 
 int solar_main(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
 	int c;
-	while ((c = getopt(argc, argv, "c:o:gt")) != -1) {
+	while ((c = getopt(argc, argv, "c:glt")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
 			return calibrate(optarg);
-		case 'o':
-			return solar_override(optarg);
 		case 'g':
 			return grid();
+		case 'l':
+			return mcp_main(argc, argv);
 		case 't':
 			return test();
 		default:

@@ -51,12 +51,12 @@ static int loads[24];
 
 static struct tm now_tm, *now = &now_tm;
 
-// local pstate/gstate/counter memory
+// local counter/pstate/gstate memory
 static counter_t counter_history[HISTORY_SIZE];
 static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
 
-// global pstate/gstate/counter pointer
+// global counter/pstate/gstate pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstate_current;

@@ -1,6 +1,3 @@
-// loop
-// gcc -DMCP -I./include -o solar mcp.c solar-simulator.c solar-collector.c solar-dispatcher.c utils.c mosmix.c sensors.c i2c.c -lm
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

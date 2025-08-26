@@ -123,7 +123,6 @@ struct _counter {
 #define CM_DAY					(&counter[9])
 // history
 #define COUNTER_HOUR_NOW		(&counter_history[24 * now->tm_wday + now->tm_hour])
-extern counter_t counter[10];
 
 // 24/7 gstate history slots and access pointers
 typedef struct _gstate gstate_t;
@@ -160,7 +159,6 @@ struct _gstate {
 #define GSTATE_YDAY				(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_history[24 * now->tm_wday + (h)])
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
-extern gstate_t *gstate;
 
 // pstate history every second/minute/hour and access pointers
 typedef struct _pstate pstate_t;
@@ -208,7 +206,6 @@ struct _pstate {
 #define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
 #define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
-extern pstate_t *pstate;
 
 // dstate and access pointers
 typedef struct _dstate dstate_t;
@@ -225,8 +222,14 @@ struct _dstate {
 #define DSTATE_LAST1			(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define DSTATE_LAST2			(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
 #define DSTATE_LAST3			(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+
+// global counter and state pointer
+extern counter_t counter[10];
+extern gstate_t *gstate;
+extern pstate_t *pstate;
 extern dstate_t *dstate;
 
+// mutex for updating / calculating pstate and counter
 extern pthread_mutex_t collector_lock;
 
 // implementations in modbus.c / api.c / simulator.c

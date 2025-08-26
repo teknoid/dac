@@ -107,6 +107,16 @@ mcp_state_t *mcp = NULL;
 mcp_config_t *cfg = NULL;
 mcp_module_t *module = NULL;
 
+// initialize logging at the very first beginning
+static void __attribute__((constructor(101))) constructor() {
+#ifdef STDOUT
+	set_xlog(XLOG_STDOUT);
+#endif
+#ifdef DEBUG
+	set_debug(1);
+#endif
+}
+
 // register a new module in the module chain
 // called in each module via macro MCP_REGISTER(...) before main()
 void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
@@ -306,15 +316,6 @@ static void module_loop(mcp_module_t *m) {
 
 static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
-}
-
-static void __attribute__((constructor(101))) constructor() {
-#ifdef STDOUT
-	set_xlog(XLOG_STDOUT);
-#endif
-#ifdef DEBUG
-	set_debug(1);
-#endif
 }
 
 int mcp_main(int argc, char **argv) {

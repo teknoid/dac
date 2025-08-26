@@ -10,7 +10,7 @@ LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
-COBJS-COMMON	= mcp.o frozen.o utils.o sensors.o i2c.o
+COBJS-COMMON	= mcp.o utils.o frozen.o sensors.o i2c.o
 COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
 COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o button.o lcd.o
 COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o
@@ -58,6 +58,15 @@ sabre28: clean $(COBJS-SABRE28)
 #
 # standalone modules
 #
+
+solar: CFLAGS += -DSOLAR_MAIN -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
+solar: clean $(COBJS-COMMON) solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -L$(LIB) -o solar $(COBJS-COMMON) solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o -lmodbus -lmqttc -lm
+
+simulator: CFLAGS += -DMCP -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
+simulator: clean $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -L$(LIB) -o simulator $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o -lmqttc -lm
+
 flamingo: flamingo.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
 	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
@@ -81,14 +90,6 @@ gpio-bcm2835: gpio-bcm2835.o utils.o
 switch: switch.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -c switch.c gpio-sunxi.c utils.c
 	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
-
-solar: CFLAGS += -DMCP -DSTDOUT
-solar: clean mcp.o solar-modbus.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o sunspec.o frozen.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o solar-modbus.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o sunspec.o frozen.o mqtt.o tasmota.o -lmodbus -lmqttc -lm
-
-simulator: CFLAGS += -DMCP -DSTDOUT
-simulator: clean mcp.o solar-simulator.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o frozen.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -L$(LIB) -o simulator mcp.o solar-simulator.o solar-collector.o solar-dispatcher.o utils.o mosmix.o sensors.o i2c.o frozen.o mqtt.o tasmota.o -lmqttc -lm
 
 valgrind:
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp

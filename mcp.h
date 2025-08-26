@@ -28,8 +28,8 @@
 
 // register a module in the MCP's execution context
 #define MCP_REGISTER(name, prio, init, stop, loop) \
-  void __attribute__((constructor(102 + prio))) \
-  register_##name(void) { mcp_register("\""#name"\"", prio, init, stop, loop); };
+  static void __attribute__((constructor(102 + prio))) register_##name(void) \
+  { mcp_register("\""#name"\"", prio, init, stop, loop); };
 
 typedef enum {
 	nlock, dsd, pcm, spdif, dop
@@ -95,6 +95,7 @@ typedef struct mcp_config_t {
 extern mcp_config_t *cfg;
 
 void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
+int mcp_main(int argc, char **argv);
 int mcp_status_get(const void*, const void*);
 void mcp_status_set(const void*, const void*, int);
 void mcp_system_shutdown(void);
