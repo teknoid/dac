@@ -760,8 +760,10 @@ static void calculate_dstate() {
 		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
 			dstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: charging between 9 and 15 o'clock when below 50%
+		// autumn/spring: charging between 9 and 15 o'clock when below 50% or tomorrow not enough pv
 		if (gstate->soc < 500 && now->tm_hour >= 9 && now->tm_hour < 15)
+			dstate->flags |= FLAG_CHARGE_AKKU;
+		if (gstate->tomorrow < akku_capacity() * 2)
 			dstate->flags |= FLAG_CHARGE_AKKU;
 	}
 
@@ -797,14 +799,14 @@ static void minly() {
 
 	// set akku to DISCHARGE if we have long term grid download
 	if (PSTATE_GRID_DLOAD) {
-		int capa = akku_capacity();
+		int tiny_tomorrow = gstate->tomorrow < akku_capacity();
 
 		// winter: limit discharge and try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && (gstate->survive < 0 || gstate->tomorrow < capa) ? AKKU_LIMIT_DISCHARGE : 0;
+		int limit = GSTATE_WINTER && (gstate->survive < 0 || tiny_tomorrow) ? AKKU_LIMIT_DISCHARGE : 0;
 		akku_discharge(AKKU, limit);
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		int min_soc = GSTATE_WINTER && gstate->tomorrow < capa && gstate->soc > 111 ? 10 : 5;
+		int min_soc = GSTATE_WINTER && tiny_tomorrow && gstate->soc > 111 ? 10 : 5;
 		akku_set_min_soc(min_soc);
 	}
 }
