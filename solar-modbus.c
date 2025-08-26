@@ -47,8 +47,12 @@ int akku_capacity() {
 	return AKKU_CAPACITY;
 }
 
-int akku_min_soc() {
+int akku_get_min_soc() {
 	return MIN_SOC;
+}
+
+void akku_set_min_soc(int min) {
+	sunspec_storage_minimum_soc(inverter1, min);
 }
 
 int akku_charge_max() {
@@ -68,14 +72,13 @@ int akku_standby(device_t *akku) {
 	return 0; // continue loop
 }
 
-int akku_charge(device_t *akku) {
+int akku_charge(device_t *akku, int limit) {
 	akku->state = Charge;
 	akku->power = 1;
 
-	int limit = GSTATE_SUMMER || gstate->today > AKKU_CAPACITY * 2;
 	if (limit) {
-		if (!sunspec_storage_limit_both(inverter1, 1750, 0)) {
-			xdebug("SOLAR set akku CHARGE limit 2000");
+		if (!sunspec_storage_limit_both(inverter1, limit, 0)) {
+			xdebug("SOLAR set akku CHARGE limit %d", limit);
 			return WAIT_AKKU_CHARGE; // loop done
 		}
 	} else {
@@ -87,18 +90,13 @@ int akku_charge(device_t *akku) {
 	return 0; // continue loop
 }
 
-int akku_discharge(device_t *akku) {
+int akku_discharge(device_t *akku, int limit) {
 	akku->state = Discharge;
 	akku->power = 0;
 
-	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-	int min_soc = GSTATE_WINTER && gstate->tomorrow < AKKU_CAPACITY && gstate->soc > 111 ? 10 : 5;
-	sunspec_storage_minimum_soc(inverter1, min_soc);
-
-	int limit = GSTATE_WINTER && (gstate->survive < 0 || gstate->tomorrow < AKKU_CAPACITY);
 	if (limit) {
-		if (!sunspec_storage_limit_both(inverter1, 0, BASELOAD)) {
-			xdebug("SOLAR set akku DISCHARGE limit BASELOAD");
+		if (!sunspec_storage_limit_both(inverter1, 0, limit)) {
+			xdebug("SOLAR set akku DISCHARGE limit %d", limit);
 			return WAIT_RESPONSE; // loop done
 		}
 	} else {

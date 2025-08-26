@@ -28,6 +28,8 @@
 #define DOWN					(*dd)->total * -1
 
 #define AKKU_CHARGING			(AKKU->state == Charge)
+#define AKKU_LIMIT_CHARGE		1750
+#define AKKU_LIMIT_DISCHARGE	BASELOAD
 
 #define OVERRIDE				600
 
@@ -250,7 +252,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 static int ramp_akku(device_t *akku, int power) {
 	// init - set to discharge when offline, otherwise to standby
 	if (akku->power == -1)
-		return PSTATE_OFFLINE ? akku_discharge(akku) : akku_standby(akku);
+		return PSTATE_OFFLINE ? akku_discharge(akku, 0) : akku_standby(akku);
 
 	// ramp down request
 	if (power < 0) {
@@ -277,15 +279,14 @@ static int ramp_akku(device_t *akku, int power) {
 		if (AKKU_CHARGING && PSTATE_GRID_ULOAD)
 			return 0; // continue loop
 
-		// summer: start charging between 9 and 15 o'clock when below 20%
-		if (GSTATE_SUMMER && (gstate->soc > 200 || now->tm_hour < 9 || now->tm_hour >= 15))
-			return 0; // continue loop
-
-		// enable charging
-		return akku_charge(akku);
+		// start charging when flag is set
+		if (DSTATE_CHARGE_AKKU) {
+			int limit = GSTATE_SUMMER || gstate->today > akku_capacity() * 2 ? AKKU_LIMIT_CHARGE : 0;
+			return akku_charge(akku, limit);
+		}
 	}
 
-	return 0;
+	return 0; // continue loop
 }
 
 static void create_dstate_json() {
@@ -446,14 +447,14 @@ static int choose_program() {
 }
 
 static void emergency() {
-	akku_discharge(AKKU); // enable discharge
+	akku_discharge(AKKU, 0); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DOWN);
 	xlog("SOLAR emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
 }
 
 static void burnout() {
-	akku_discharge(AKKU); // enable discharge
+	akku_discharge(AKKU, 0); // enable discharge no limit
 	solar_override_seconds("küche", WAIT_BURNOUT);
 	solar_override_seconds("wozi", WAIT_BURNOUT);
 	xlog("SOLAR burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), FLOAT10(gstate->temp_in));
@@ -750,6 +751,20 @@ static void calculate_dstate() {
 		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
 	}
 
+	// check if we we need to charge the akku
+	if (GSTATE_WINTER)
+		// winter: always
+		dstate->flags |= FLAG_CHARGE_AKKU;
+	else if (GSTATE_SUMMER) {
+		// summer: charging between 9 and 15 o'clock when below 20%
+		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
+			dstate->flags |= FLAG_CHARGE_AKKU;
+	} else {
+		// autumn/spring: charging between 9 and 15 o'clock when below 50%
+		if (gstate->soc < 500 && now->tm_hour >= 9 && now->tm_hour < 15)
+			dstate->flags |= FLAG_CHARGE_AKKU;
+	}
+
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 }
@@ -781,8 +796,17 @@ static void minly() {
 		dstate->ramp = 0;
 
 	// set akku to DISCHARGE if we have long term grid download
-	if (PSTATE_GRID_DLOAD)
-		akku_discharge(AKKU);
+	if (PSTATE_GRID_DLOAD) {
+		int capa = akku_capacity();
+
+		// winter: limit discharge and try to extend ttl as much as possible
+		int limit = GSTATE_WINTER && (gstate->survive < 0 || gstate->tomorrow < capa) ? AKKU_LIMIT_DISCHARGE : 0;
+		akku_discharge(AKKU, limit);
+
+		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+		int min_soc = GSTATE_WINTER && gstate->tomorrow < capa && gstate->soc > 111 ? 10 : 5;
+		akku_set_min_soc(min_soc);
+	}
 }
 
 int solar_override_seconds(const char *name, int seconds) {

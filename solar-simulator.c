@@ -39,8 +39,11 @@ int akku_capacity() {
 	return 0;
 }
 
-int akku_min_soc() {
+int akku_get_min_soc() {
 	return 0;
+}
+
+void akku_set_min_soc(int min) {
 }
 
 int akku_charge_max() {
@@ -58,14 +61,14 @@ int akku_standby(device_t *akku) {
 	return 0;
 }
 
-int akku_charge(device_t *akku) {
+int akku_charge(device_t *akku, int limit) {
 	// dummy implementation
 	akku->state = Charge;
 	akku->power = 1;
 	return 0;
 }
 
-int akku_discharge(device_t *akku) {
+int akku_discharge(device_t *akku, int limit) {
 	// dummy implementation
 	akku->state = Discharge;
 	akku->power = 0;

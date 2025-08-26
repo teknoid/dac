@@ -274,7 +274,7 @@ static void calculate_gstate() {
 	gstate->load = PSTATE_HOUR_LAST1->load;
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
-	int min = akku_min_soc();
+	int min = akku_get_min_soc();
 	int capa = akku_capacity();
 	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
 	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 25) * -1 : 0;

@@ -14,7 +14,7 @@
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 
-#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 8) 									// May - September
+#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
 #define MINLY					(now->tm_sec == 0)
@@ -59,11 +59,13 @@
 #define FLAG_ALL_DOWN			(1 << 0)
 #define FLAG_ALL_STANDBY		(1 << 1)
 #define FLAG_ALL_UP				(1 << 2)
+#define FLAG_CHARGE_AKKU		(1 << 14)
 #define FLAG_CHECK_STANDBY		(1 << 15)
 
 #define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
 #define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
+#define DSTATE_CHARGE_AKKU		(dstate->flags & FLAG_CHARGE_AKKU)
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
 #define HISTORY_SIZE			(24 * 7)
@@ -238,11 +240,12 @@ int temp_in();
 int temp_out();
 
 int akku_capacity();
-int akku_min_soc();
 int akku_charge_max();
 int akku_discharge_max();
+int akku_get_min_soc();
+void akku_set_min_soc();
 int akku_standby(device_t *akku);
-int akku_charge(device_t *akku);
-int akku_discharge(device_t *akku);
+int akku_charge(device_t *akku, int limit);
+int akku_discharge(device_t *akku, int limit);
 
 void inverter_status(int *inv1, int *inv2);
