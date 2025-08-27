@@ -131,7 +131,6 @@ static void update_inverter1(sunspec_t *ss) {
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
-		ss->active = 0;
 		break;
 
 	case I_STATUS_STARTING:
@@ -159,28 +158,25 @@ static void update_inverter1(sunspec_t *ss) {
 			CM_NULL->mppt2 = CM_NOW->mppt2;
 
 		ss->sleep = 0;
-		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
 		break;
 
 	case I_STATUS_FAULT:
 		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		pstate->mppt1 = pstate->mppt2 = 0;
 		// this is normal when we are offline
 		if (PSTATE_OFFLINE)
 			ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
 		break;
 
 	default:
 		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		// ss->sleep = SLEEP_TIME_FAULT;
-		ss->active = 0;
 	}
 
 	pthread_mutex_unlock(&collector_lock);
@@ -196,12 +192,11 @@ static void update_inverter2(sunspec_t *ss) {
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
-		ss->active = 0;
 		break;
 
 	case I_STATUS_STARTING:
-		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
-		ss->active = 0;
+		// TODO prüfen ob Werte stimmen
+		// pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
 		break;
 
 	case I_STATUS_MPPT:
@@ -222,28 +217,25 @@ static void update_inverter2(sunspec_t *ss) {
 			CM_NULL->mppt4 = CM_NOW->mppt4;
 
 		ss->sleep = 0;
-		ss->active = 1;
 		break;
 
 	case I_STATUS_SLEEPING:
 		// let the inverter sleep
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
 		break;
 
 	case I_STATUS_FAULT:
 		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		pstate->mppt3 = pstate->mppt4 = 0;
 		// this is normal when we are offline
 		if (PSTATE_OFFLINE)
 			ss->sleep = SLEEP_TIME_SLEEPING;
-		ss->active = 0;
 		break;
 
 	default:
 		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		// ss->sleep = SLEEP_TIME_FAULT;
-		ss->active = 0;
 	}
 
 	pthread_mutex_unlock(&collector_lock);

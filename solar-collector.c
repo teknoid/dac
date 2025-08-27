@@ -324,16 +324,16 @@ static void calculate_gstate() {
 			gstate->flags |= FLAG_HEATING;
 	}
 
-	// check if we we need to charge the akku
+	// charging akku
 	if (WINTER)
 		// winter: always
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
-		// summer: charging between 9 and 15 o'clock when below 20%
+		// summer: between 9 and 15 o'clock when below 20%
 		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: charging between 9 and 15 o'clock when below 50% or tomorrow not enough pv
+		// autumn/spring: between 9 and 15 o'clock when below 50% or tomorrow not enough pv
 		if (gstate->soc < 500 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 		if (gstate->tomorrow < akku_capacity() * 2)
@@ -376,6 +376,7 @@ static void calculate_pstate() {
 	// get history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
+	pstate_t *s3 = PSTATE_SEC_LAST3;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *m3 = PSTATE_MIN_LAST3;
@@ -392,7 +393,7 @@ static void calculate_pstate() {
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	if (abs(pstate->dpv) < NOISE)
-		pstate->dpv = 0; // shape dgrid
+		pstate->dpv = 0; // shape dpv
 	pstate->sdpv += abs(pstate->dpv);
 
 	// grid, delta grid and sum
@@ -449,9 +450,11 @@ static void calculate_pstate() {
 		}
 	}
 
-	// offline mode when not enough PV production
-	int online = pstate->pv > MINIMUM || m1->pv > MINIMUM || m2->pv > MINIMUM || m3->pv > MINIMUM;
-	if (!online) {
+	// offline mode when average PV is below average load in last 3 minutes
+	int o1 = m1->pv < m1->load * -1 + NOISE;
+	int o2 = m2->pv < m2->load * -1 + NOISE;
+	int o3 = m3->pv < m3->load * -1 + NOISE;
+	if (o1 && o2 && o3) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
 		int burnout_possible = gstate->temp_in < 180 && pstate->soc > 150;
@@ -510,6 +513,19 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_DISTORTION;
 			xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
 		}
+
+		// PV tendency: rising or falling
+		int r3 = s1->dpv > 25 && s2->dpv > 25 && s3->dpv > 25;
+		int r2 = s1->dpv > 50 && s2->dpv > 50;
+		int r1 = s1->dpv > 100;
+		if (r3 || r2 || r1)
+			pstate->flags |= FLAG_PV_RISING;
+		int f3 = s1->dpv < -25 && s2->dpv < -25 && s3->dpv < -25;
+		int f2 = s1->dpv < -50 && s2->dpv < -50;
+		int f1 = s1->dpv < -100;
+		if (f3 || f2 || f1)
+			pstate->flags |= FLAG_PV_FALLING;
+		// xlog("SOLAR pv=%d dpv=%d sdpv=%d", pstate->pv, pstate->dpv, pstate->sdpv);
 	}
 
 	pthread_mutex_unlock(&collector_lock);

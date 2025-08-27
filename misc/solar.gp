@@ -161,7 +161,7 @@ p pstate u 1:"f"   w lines t "f"
 
 
 # loads
-set ylabel "Average Loads 24/7"
+set ylabel "Average Load 24/7"
 set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"

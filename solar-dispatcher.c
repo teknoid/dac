@@ -512,36 +512,28 @@ static device_t* ramp() {
 	if (!PSTATE_VALID || PSTATE_OFFLINE)
 		return 0;
 
-	// calculate the power for ramping
+	// ramp power is inverted grid
 	dstate->ramp = pstate->grid * -1;
 
 	// stable when grid between -RAMP_WINDOW..+NOISE
 	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
 		dstate->ramp = 0;
 
-	// ramp down when akku is discharging
-	if (pstate->akku > NOISE)
-		dstate->ramp -= pstate->akku;
-
 	// ramp down between NOISE and RAMP_WINDOW
 	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		dstate->ramp = -RAMP_WINDOW;
 
-	// when akku is charging it regulates around 0, so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
+	// akku is charging: regulates around 0 - so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
 	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
 		dstate->ramp = 0;
 
-// TODO wie auf m1 zugreifen?
-//	// 50% more ramp down when PV tendency is falling
-//	if (dstate->ramp < 0 && m1->dpv < 0)
-//		dstate->ramp += dstate->ramp / 2;
-//
-//	// delay ramp up as long as average PV is below average load
-//	int m1load = (m1->load + m1->load / 10) * -1; // + 10%;
-//	if (dstate->ramp > 0 && m1->pv < m1load) {
-//		xdebug("SOLAR delay ramp up as long as average pv %d < average load %d", m1->pv, m1load);
-//		dstate->ramp = 0;
-//	}
+	// akku is discharging: subtract + 50%
+	if (pstate->akku > NOISE)
+		dstate->ramp -= pstate->akku + pstate->akku / 2;
+
+	// 50% more ramp down when PV tendency falls
+	if (PSTATE_PV_FALLING)
+		dstate->ramp += dstate->ramp / 2;
 
 	// delay small ramp up when we just had akku discharge or grid download
 	if (0 < dstate->ramp && dstate->ramp < MINIMUM) {
@@ -574,7 +566,7 @@ static device_t* steal() {
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		// thief not active or in standby - TODO akku cannot actively steal - only by ramping down victims
+		// thief not active or in standby
 		if (DD == AKKU || DD->state == Disabled || DD->state == Standby)
 			continue;
 
@@ -604,6 +596,11 @@ static device_t* steal() {
 			return DD;
 		}
 	}
+
+	// TODO akku cannot actively steal - only by ramping down victims
+	// - zweite runde und dann die victims down rampen
+	// - stealable ist mppt1 + mppt2 - akku
+	// - wenn das > 0 victims hinter akku down rampen
 
 	return 0;
 }
@@ -762,31 +759,30 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
 
+	// reset noresponse counters and set all devices back to active
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		// reset noresponse counters
+		if (DD == AKKU)
+			continue;
 		DD->noresponse = 0;
-
-		// set all devices back to active
 		if (DD->state == Standby || DD->state == Active_Checked)
-			if (DD != AKKU)
-				DD->state = Active;
-
-		// force off when offline
-		if (PSTATE_OFFLINE)
-			ramp_device(DD, DOWN);
+			DD->state = Active;
 	}
 }
 
 static void minly() {
-	if (PSTATE_OFFLINE)
+	// force off when offline
+	if (PSTATE_OFFLINE) {
 		dstate->ramp = 0;
+		for (device_t **dd = DEVICES; *dd; dd++)
+			ramp_device(DD, DOWN);
+	}
 
 	// set akku to DISCHARGE if we have long term grid download
 	if (PSTATE_GRID_DLOAD) {
 		int tiny_tomorrow = gstate->tomorrow < akku_capacity();
 
 		// winter: limit discharge and try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && (gstate->survive < 0 || tiny_tomorrow) ? AKKU_LIMIT_DISCHARGE : 0;
+		int limit = GSTATE_WINTER && (tiny_tomorrow || gstate->survive < 0) ? AKKU_LIMIT_DISCHARGE : 0;
 		akku_discharge(AKKU, limit);
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%

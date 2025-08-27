@@ -37,8 +37,10 @@
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_DISTORTION			(1 << 3)
-#define FLAG_BURNOUT			(1 << 4)
-#define FLAG_EMERGENCY			(1 << 5)
+#define FLAG_PV_FALLING			(1 << 4)
+#define FLAG_PV_RISING			(1 << 5)
+#define FLAG_BURNOUT			(1 << 6)
+#define FLAG_EMERGENCY			(1 << 7)
 
 #define FLAG_GRID_ULOAD			(1 << 12)
 #define FLAG_GRID_DLOAD			(1 << 13)
@@ -49,6 +51,8 @@
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
+#define PSTATE_PV_RISING		(pstate->flags & FLAG_PV_RISING)
+#define PSTATE_PV_FALLING		(pstate->flags & FLAG_PV_FALLING)
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 
