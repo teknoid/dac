@@ -22,10 +22,12 @@
 #define DAILY					(now->tm_hour == 0)
 
 // gstate flags
+#define FLAG_CHARGE_AKKU		(1 << 12)
 #define FLAG_HEATING			(1 << 13)
 #define FLAG_WINTER				(1 << 14)
 #define FLAG_SUMMER				(1 << 15)
 
+#define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
 #define GSTATE_HEATING			(gstate->flags & FLAG_HEATING)
 #define GSTATE_WINTER			(gstate->flags & FLAG_WINTER)
 #define GSTATE_SUMMER			(gstate->flags & FLAG_SUMMER)
@@ -59,13 +61,11 @@
 #define FLAG_ALL_DOWN			(1 << 0)
 #define FLAG_ALL_STANDBY		(1 << 1)
 #define FLAG_ALL_UP				(1 << 2)
-#define FLAG_CHARGE_AKKU		(1 << 14)
 #define FLAG_CHECK_STANDBY		(1 << 15)
 
 #define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
 #define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
-#define DSTATE_CHARGE_AKKU		(dstate->flags & FLAG_CHARGE_AKKU)
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
 #define HISTORY_SIZE			(24 * 7)
