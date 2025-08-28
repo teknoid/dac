@@ -339,15 +339,30 @@ static int dispatch_cmnd(unsigned int id, const char *topic, uint16_t tsize, con
 
 static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char a[5];
-	int i;
 
-	// scan for relay power state results
+	int i = -1;
 	if (json_scanf(message, msize, "{POWER:%s}", &a))
-		update_relay(id, 0, !strcmp(a, ON) ? 1 : 0);
+		i = 0;
 	if (json_scanf(message, msize, "{POWER1:%s}", &a))
-		update_relay(id, 1, !strcmp(a, ON) ? 1 : 0);
+		i = 1;
 	if (json_scanf(message, msize, "{POWER2:%s}", &a))
-		update_relay(id, 2, !strcmp(a, ON) ? 1 : 0);
+		i = 2;
+	if (json_scanf(message, msize, "{POWER3:%s}", &a))
+		i = 3;
+	if (json_scanf(message, msize, "{POWER4:%s}", &a))
+		i = 4;
+
+	// power state results
+	if (i >= 0) {
+		int p = !strcmp(a, ON) ? 1 : 0;
+		update_relay(id, i, p);
+
+		// motion detection sensors
+		// if (id == DEVKIT1 && i == 0 && p)
+		// 	return notify("motion", "devkit1", "au.wav");
+		if (id == CARPORT && i == 0 && p)
+			return notify("motion", "carport", "au.wav");
+	}
 
 	// scan for shutter position results
 	char *sh = NULL;

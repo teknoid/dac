@@ -35,6 +35,10 @@
 #define INFRARED		0x555555
 #define AQUA			0x666666
 
+// ESP32 Development Kits
+#define DEVKIT1			0x7ECDD0
+#define DEVKIT2			0x123456
+
 // 433MHz RF Transmitter ID
 #define	DOORBELL		0x670537
 
