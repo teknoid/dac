@@ -120,7 +120,7 @@ static void update_relay(unsigned int id, int relay, int power) {
 		xlog("TASMOTA %06X updated relay3 state to %d", ss->id, power);
 	} else if (relay == 4) {
 		ss->relay4 = power;
-		xlog("TASMOTA  updated relay4 state to %d", ss->id, power);
+		xlog("TASMOTA %06X updated relay4 state to %d", ss->id, power);
 	} else
 		xlog("TASMOTA %06X no relay %d", ss->id, relay);
 }
