@@ -3,8 +3,9 @@
 
 #include "display-menu.h"
 #include "display.h"
-#include "mcp.h"
 #include "utils.h"
+#include "dac.h"
+#include "mcp.h"
 
 #define XPOS_BITS				(WIDTH / 2) - 4
 #define YPOS_BITS				3
@@ -110,7 +111,7 @@ static void menu_select() {
 	// this is the back item -> go to parent menu or exit
 	if (!item) {
 		if (!menu->back) {
-			mcp->menu = 0;
+			dac->menu = 0;
 			xlog("leaving menu mode");
 			return;
 		} else {
@@ -170,13 +171,13 @@ static void menu_select() {
 
 	// we do not have menuconfig, execute void/integer functions if available
 	if (item->vfunc) {
-		mcp->menu = 0;
+		dac->menu = 0;
 		xlog("executing void function for %s", item->name);
 		(*item->vfunc)();
 		return;
 	}
 	if (item->ifunc) {
-		mcp->menu = 0;
+		dac->menu = 0;
 		xlog("executing integer function for %s with %d", item->name, item->index);
 		(*item->ifunc)(item->index);
 		return;
@@ -335,13 +336,13 @@ void menu_handle(int c) {
 	case 59:	// KEY_F1
 	case 128:	// KEY_STOP
 	case 'q':
-		mcp->menu = 0;
+		dac->menu = 0;
 		xlog("leaving menu mode");
 		break;
 	default:
 	}
 
 	// update screen
-	if (mcp->menu)
+	if (dac->menu)
 		menu_paint();
 }

@@ -47,7 +47,7 @@ static void ir() {
 		if (ev.type != EV_KEY)
 			continue;
 
-		if (!mcp->ir_active)
+		if (!dac->ir_active)
 			continue;
 
 		switch (ev.value) {

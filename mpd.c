@@ -196,18 +196,18 @@ static void process_song(struct mpd_song *song, int pos) {
 	const char *album = mpd_song_get_tag(song, MPD_TAG_ALBUM, 0);
 
 	// update status
-	mcp->plist_key = plist_key;
-	mcp->plist_pos = pos;
+	dac->plist_key = plist_key;
+	dac->plist_pos = pos;
 	int valid = artist != NULL && title != NULL;
 	if (valid) {
 		xlog("MPD [%d:%d] %s - %s", plist_key, pos, artist, title);
-		strcpy(mcp->artist, artist);
-		strcpy(mcp->title, title);
+		strcpy(dac->artist, artist);
+		strcpy(dac->title, title);
 		if (album != NULL) {
-			strcpy(mcp->album, album);
+			strcpy(dac->album, album);
 		}
-		strcpy(mcp->extension, get_filename_ext(path));
-		upper(mcp->extension);
+		strcpy(dac->extension, get_filename_ext(path));
+		upper(dac->extension);
 	} else {
 		xlog("MPD [%d:%d] %s", plist_key, pos, path);
 	}
@@ -359,8 +359,8 @@ static void mpdclient() {
 				continue;
 			}
 
-			mcp->mpd_state = mpd_status_get_state(status);
-			switch (mcp->mpd_state) {
+			dac->mpd_state = mpd_status_get_state(status);
+			switch (dac->mpd_state) {
 			case MPD_STATE_PAUSE:
 				xlog("MPD State PAUSE");
 				break;
@@ -376,8 +376,8 @@ static void mpdclient() {
 
 			const struct mpd_audio_format *audio_format = mpd_status_get_audio_format(status);
 			if (audio_format) {
-				mcp->mpd_bits = audio_format->bits;
-				mcp->mpd_rate = audio_format->sample_rate;
+				dac->mpd_bits = audio_format->bits;
+				dac->mpd_rate = audio_format->sample_rate;
 			}
 
 			struct mpd_song *song = mpd_run_current_song(conn_status);
@@ -391,7 +391,7 @@ static void mpdclient() {
 				mpd_song_free(song);
 			}
 		}
-		mcp->dac_state_changed = 1;
+		dac->dac_state_changed = 1;
 	}
 }
 

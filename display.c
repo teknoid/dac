@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <curses.h>
+#include <termios.h>
 
 #include <mpd/status.h>
 
@@ -35,7 +36,7 @@ static int scroller_artist = 0;
 static int scroller_title = 0;
 
 static void check_nightmode() {
-	if (mcp->nightmode)
+	if (dac->nightmode)
 		attroff(A_BOLD);
 	else
 		attron(A_BOLD);
@@ -84,94 +85,94 @@ static void dotchar(unsigned int startx, unsigned int starty, char c) {
 }
 
 static void audioinfo(int line) {
-	if (mcp->dac_mute)
+	if (dac->dac_mute)
 		mvprintw(line, 0, "---");
 	else
-		mvprintw(line, 0, "%2ddB", mcp->dac_volume);
+		mvprintw(line, 0, "%2ddB", dac->dac_volume);
 
-	if (mcp->dac_signal == nlock) {
+	if (dac->dac_signal == nlock) {
 		mvaddstr(line, 8, "NLOCK");
 		mvaddstr(line, 15, "--/--");
 		return;
 	}
-	if (mcp->dac_source == opt) {
+	if (dac->dac_source == opt) {
 		mvaddstr(line, 9, "OPT");
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%dkHz", mcp->dac_rate);
+		mvprintw(line, dac->dac_rate > 100 ? 14 : 15, "%dkHz", dac->dac_rate);
 		return;
 	}
-	if (mcp->dac_source == coax) {
+	if (dac->dac_source == coax) {
 		mvaddstr(line, 8, "COAX");
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%dkHz", mcp->dac_rate);
+		mvprintw(line, dac->dac_rate > 100 ? 14 : 15, "%dkHz", dac->dac_rate);
 		return;
 	}
-	if (mcp->dac_signal == pcm) {
-		mvaddstr(line, strlen(mcp->extension) == 4 ? 8 : 9, mcp->extension);
-		mvprintw(line, mcp->dac_rate > 100 ? 14 : 15, "%d/%d", mcp->mpd_bits, mcp->dac_rate);
+	if (dac->dac_signal == pcm) {
+		mvaddstr(line, strlen(dac->extension) == 4 ? 8 : 9, dac->extension);
+		mvprintw(line, dac->dac_rate > 100 ? 14 : 15, "%d/%d", dac->mpd_bits, dac->dac_rate);
 		return;
 	}
-	if (mcp->dac_signal == dsd) {
-		if (mcp->dac_rate == 44)
+	if (dac->dac_signal == dsd) {
+		if (dac->dac_rate == 44)
 			mvaddstr(line, 9, "DSD64");
-		else if (mcp->dac_rate == 88)
+		else if (dac->dac_rate == 88)
 			mvaddstr(line, 8, "DSD128");
-		else if (mcp->dac_rate == 176)
+		else if (dac->dac_rate == 176)
 			mvaddstr(line, 8, "DSD256");
-		else if (mcp->dac_rate == 384)
+		else if (dac->dac_rate == 384)
 			mvaddstr(line, 8, "DSD512");
-		else if (mcp->dac_rate == 768)
+		else if (dac->dac_rate == 768)
 			mvaddstr(line, 7, "DSD1024");
 		else
 			mvaddstr(line, 9, "DSD?");
 
-		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
+		mvprintw(line, dac->dac_rate > 100 ? 17 : 18, "%d", dac->dac_rate);
 		return;
 	}
-	if (mcp->dac_signal == dop) {
+	if (dac->dac_signal == dop) {
 		mvaddstr(line, 9, "DOP");
-		mvprintw(line, mcp->dac_rate > 100 ? 17 : 18, "%d", mcp->dac_rate);
+		mvprintw(line, dac->dac_rate > 100 ? 17 : 18, "%d", dac->dac_rate);
 	}
 	mvaddstr(line, 9, "???");
-	mvprintw(line, 18, "%d", mcp->dac_rate);
+	mvprintw(line, 18, "%d", dac->dac_rate);
 }
 
 static void songinfo(int line) {
 	int x;
 
-	if (mcp->plist_pos < 10)
+	if (dac->plist_pos < 10)
 		x = 8;
-	else if (mcp->plist_pos > 100)
+	else if (dac->plist_pos > 100)
 		x = 7;
 	else
 		x = 7;
 
-	mvprintw(line, x, "[%d:%d]", mcp->plist_key, mcp->plist_pos);
-	if (strlen(mcp->artist) <= WIDTH)
-		center_line(line + 1, mcp->artist);
+	mvprintw(line, x, "[%d:%d]", dac->plist_key, dac->plist_pos);
+	if (strlen(dac->artist) <= WIDTH)
+		center_line(line + 1, dac->artist);
 	else
-		scroll_line(line + 1, &scroller_artist, mcp->artist);
+		scroll_line(line + 1, &scroller_artist, dac->artist);
 
-	if (strlen(mcp->title) <= WIDTH)
-		center_line(line + 2, mcp->title);
+	if (strlen(dac->title) <= WIDTH)
+		center_line(line + 2, dac->title);
 	else
-		scroll_line(line + 2, &scroller_title, mcp->title);
+		scroll_line(line + 2, &scroller_title, dac->title);
 }
 
 static void systeminfo(int line) {
-	mvprintw(line, 0, "%d:%02d", mcp->clock_h, mcp->clock_m);
-	if (mcp->temp >= 60) {
+	mvprintw(line, 0, "%d:%02d", dac->clock_h, dac->clock_m);
+	if (dac->temp >= 60) {
 		color_set(RRED, NULL);
-		mvprintw(line, 8, "%2.1f", mcp->temp);
-	} else if (mcp->temp >= 50) {
+		mvprintw(line, 8, "%2.1f", dac->temp);
+	} else if (dac->temp >= 50) {
 		attron(A_BOLD);
 		color_set(YELLOW, NULL);
-		mvprintw(line, 8, "%2.1f", mcp->temp);
+		mvprintw(line, 8, "%2.1f", dac->temp);
 		check_nightmode();
 	} else {
 		color_set(GREEN, NULL);
-		mvprintw(line, 8, "%2.1f", mcp->temp);
+		mvprintw(line, 8, "%2.1f", dac->temp);
 	}
 	color_set(WHITE, NULL);
-	mvprintw(line, 16, "%1.2f", mcp->load);
+	mvprintw(line, 16, "%1.2f", dac->load);
 }
 
 static void paint_play() {
@@ -228,9 +229,9 @@ static void paint() {
 	if (--countdown_fullscreen > 0)
 		return; // still in fullscreen mode
 
-	if (mcp->menu) {
+	if (dac->menu) {
 		if (--countdown_menu == 0) {
-			mcp->menu = 0; // no input -> close
+			dac->menu = 0; // no input -> close
 			xlog("menu timeout");
 		} else {
 			return; // still in menu mode
@@ -239,11 +240,11 @@ static void paint() {
 		countdown_menu = 0;
 
 	clear();
-	if (!mcp->dac_power)
+	if (!dac->dac_power)
 		paint_stdby();
-	else if (mcp->dac_source != mpd)
+	else if (dac->dac_source != mpd)
 		paint_source_ext();
-	else if (mcp->mpd_state == MPD_STATE_PLAY)
+	else if (dac->mpd_state == MPD_STATE_PLAY)
 		paint_play();
 	else
 		paint_stop();
@@ -252,36 +253,36 @@ static void paint() {
 }
 
 static void clear_clocktick() {
-	if (countdown_fullscreen || mcp->menu)
+	if (countdown_fullscreen || dac->menu)
 		return;
 
-	if (!mcp->dac_power)
-		mvaddch(CENTER, mcp->clock_h < 10 ? 1 : 2, ' ');
+	if (!dac->dac_power)
+		mvaddch(CENTER, dac->clock_h < 10 ? 1 : 2, ' ');
 	else
-		mvaddch(FOOTER, mcp->clock_h < 10 ? 1 : 2, ' ');
+		mvaddch(FOOTER, dac->clock_h < 10 ? 1 : 2, ' ');
 
 	refresh();
 }
 
 static void get_system_status() {
 	LOCALTIME
-	mcp->clock_h = now->tm_hour;
-	mcp->clock_m = now->tm_min;
+	dac->clock_h = now->tm_hour;
+	dac->clock_m = now->tm_min;
 
-	if (mcp->clock_h >= 8 && mcp->clock_h < 22)
-		mcp->nightmode = 0;
+	if (dac->clock_h >= 8 && dac->clock_h < 22)
+		dac->nightmode = 0;
 	else
-		mcp->nightmode = 1;
+		dac->nightmode = 1;
 
 	double load[3];
 	if (getloadavg(load, 3) != -1)
-		mcp->load = load[0];
+		dac->load = load[0];
 
 	unsigned long temp = 0;
 	FILE *fp = fopen("/sys/devices/virtual/thermal/thermal_zone0/temp", "r");
 	if (fp) {
 		if (fscanf(fp, "%lu", &temp) == 1) {
-			mcp->temp = temp / 1000.0;
+			dac->temp = temp / 1000.0;
 		}
 		fclose(fp);
 	}
@@ -305,10 +306,52 @@ void display_fullscreen_string(char *value) {
 
 void display_menu_mode() {
 	xlog("menu mode");
-	mcp->menu = 1;
+	dac->menu = 1;
 	countdown_menu = 30;
 }
 
+void display_interactive() {
+	struct termios new_io;
+	struct termios old_io;
+
+	printf("interactive mode, use keys UP / DOWN / ENTER; quit with 'q'\r\n");
+
+	// set terminal into CBREAK mode
+	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
+		xlog("cannot set CBREAK");
+		exit(EXIT_FAILURE);
+	}
+
+	new_io = old_io;
+	new_io.c_lflag = new_io.c_lflag & ~(ECHO | ICANON);
+	new_io.c_cc[VMIN] = 1;
+	new_io.c_cc[VTIME] = 0;
+
+	if ((tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_io)) == -1) {
+		xlog("cannot set TCSAFLUSH");
+		exit(EXIT_FAILURE);
+	}
+
+	while (1) {
+		int c = getchar();
+		// xlog("console 0x%20x", c);
+
+		if (c == 'q')
+			break;
+
+		if (c == 0x1b || c == 0x5b)
+			continue; // ignore
+
+		xlog("CONSOLE: distributing key 0x%02x", c);
+#ifdef DAC
+		dac_handle(c);
+#endif
+	}
+
+	// reset terminal
+	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
+	printf("quit\r\n");
+}
 static void display() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -320,7 +363,7 @@ static void display() {
 		get_system_status();
 		paint();
 
-		if (!mcp->dac_power) {
+		if (!dac->dac_power) {
 //			msleep(500);
 //			clear_clocktick();
 			msleep(500 * 10);
@@ -378,15 +421,15 @@ int display_main(int argc, char **argv) {
 	cfg = malloc(sizeof(*cfg));
 	ZEROP(cfg);
 
-	mcp = malloc(sizeof(*mcp));
-	ZEROP(mcp);
+	dac = malloc(sizeof(*dac));
+	ZEROP(dac);
 
-	mcp->ir_active = 1;
-	mcp->dac_power = 1;
-	mcp->mpd_state = MPD_STATE_PLAY;
-	strcpy(mcp->artist, "The KLF");
-	strcpy(mcp->title, "Justified & Ancient (Stand by the Jams)");
-	strcpy(mcp->album, "");
+	dac->ir_active = 1;
+	dac->dac_power = 1;
+	dac->mpd_state = MPD_STATE_PLAY;
+	strcpy(dac->artist, "The KLF");
+	strcpy(dac->title, "Justified & Ancient (Stand by the Jams)");
+	strcpy(dac->album, "");
 
 	init();
 	es9028_prepare_menus();
@@ -395,7 +438,7 @@ int display_main(int argc, char **argv) {
 	while (1) {
 		int c = getch();
 
-		if (mcp->menu) {
+		if (dac->menu) {
 			display_menu_mode();
 			menu_handle(c);
 			continue;

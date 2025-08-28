@@ -64,7 +64,9 @@ static menu_t m_system = { "System", "System Operations", NULL, NULL, mi_system,
 
 
 /* Status Menu */
-static const menuconfig_t mc_status = { onoff, mcp_status_get, mcp_status_set, 0, 0, 0, 0, 0 };
+int dac_status_get(const void *p1, const void *p2);
+void dac_status_set(const void *p1, const void *p2, int value);
+static const menuconfig_t mc_status = { onoff, dac_status_get, dac_status_set, 0, 0, 0, 0, 0 };
 static const menuitem_t mi_status[] = {
     { 1,	"IR on/off",		NULL, NULL, NULL, NULL },
 };
@@ -72,7 +74,9 @@ static menu_t m_status = { "Status", "Status changes", NULL, &mc_status, mi_stat
 
 
 /* Filter Type Menu */
-static const menuconfig_t mc_filter = { selection, dac_status_get, dac_status_set, 7, 0b11100000, 0, 7, 2 };
+int dac_config_get(const void*, const void*);
+void dac_config_set(const void*, const void*, int);
+static const menuconfig_t mc_filter = { selection, dac_config_get, dac_config_set, 7, 0b11100000, 0, 7, 2 };
 static const menuitem_t mi_filter[] = {
 	{ 0,	"Fast/Linear",		"Fast Roll-off, Linear Phase Filter", NULL, NULL, NULL },
 	{ 1,	"Slow/Linear",		"Slow Roll-off, Linear Phase Filter", NULL, NULL, NULL },
@@ -174,21 +178,4 @@ static const menuitem_t mi_main[] = {
 };
 static menu_t m_main = { "Main Menu", "", NULL, NULL, mi_main, ARRAY_SIZE(mi_main), NULL, NULL };
 
-// create and connect the menus
-static void es9028_prepare_menus() {
-	menu_create(&m_main, NULL);
-	menu_create(&m_playlist, &m_main);
-	menu_create(&m_input, &m_main);
-	menu_create(&m_setup, &m_main);
-	menu_create(&m_system, &m_main);
-	menu_create(&m_status, &m_main);
-	menu_create(&m_filter, &m_setup);
-	menu_create(&m_iir, &m_setup);
-	menu_create(&m_dpll_spdif, &m_setup);
-	menu_create(&m_dpll_dsd, &m_setup);
-	menu_create(&m_lock_speed, &m_setup);
-	menu_create(&m_automute, &m_setup);
-	menu_create(&m_automute_time, &m_setup);
-	menu_create(&m_automute_level, &m_setup);
-	menu_create(&m_18db_gain, &m_setup);
-}
+void es9028_prepare_menus();

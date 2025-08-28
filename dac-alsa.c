@@ -13,7 +13,9 @@
 #define MIXER	"/usr/bin/amixer -q set Master"
 #endif
 
-int dummy_status;
+// local memory and global pointer
+static dac_state_t dac_state;
+dac_state_t *dac = &dac_state;
 
 static void dac_on() {
 
@@ -21,7 +23,7 @@ static void dac_on() {
 	gpio_set(GPIO_POWER, 1);
 #endif
 
-	mcp->dac_power = 1;
+	dac->dac_power = 1;
 	xlog("DAC switched on");
 
 	// wait for DAC init
@@ -37,11 +39,11 @@ static void dac_off() {
 #endif
 
 	xlog("DAC switched off");
-	mcp->dac_power = 0;
+	dac->dac_power = 0;
 }
 
 void dac_power() {
-	if (!mcp->dac_power)
+	if (!dac->dac_power)
 		dac_on();
 	else
 		dac_off();
@@ -59,28 +61,18 @@ void dac_volume_down() {
 
 void dac_mute() {
 	system(MIXER" mute");
-	mcp->dac_mute = 1;
+	dac->dac_mute = 1;
 	xlog("DAC MUTE");
 }
 
 void dac_unmute() {
 	system(MIXER" unmute");
-	mcp->dac_mute = 0;
+	dac->dac_mute = 0;
 	xlog("DAC UNMUTE");
 }
 
 void dac_source(int source) {
 	xlog("DAC dac_source");
-}
-
-int dac_status_get(const void *p1, const void *p2) {
-	xlog("DAC dac_config_get");
-	return dummy_status;
-}
-
-void dac_status_set(const void *p1, const void *p2, int value) {
-	xlog("DAC dac_config_set");
-	dummy_status = value;
 }
 
 void dac_handle(int c) {

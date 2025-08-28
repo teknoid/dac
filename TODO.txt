@@ -6,8 +6,6 @@ BUGS
 TODO
 --------------------------------------------------------------------------------------------
 
-* mcp.c entrümpeln, kein terminal mehr, kein display mehr etc.
-
 * solar: device und potd config in json ablegen und WebUI dafür bauen
 
 * alles solar* in separates verzeichnis solar/
@@ -53,6 +51,7 @@ TODO
 DONE
 ----------------------------------------------
 
+* mcp.c entrümpeln, kein terminal mehr, kein display mehr etc.
 
 solar definitiv
 - keine includes sondern .c files die im Makefile je nach target kombiniert werden

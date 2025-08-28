@@ -18,6 +18,7 @@
 
 #define FULLSCREEN_CHAR		'*'
 
+void display_interactive();
 void display_menu_mode(void);
 void display_fullscreen_number(int value);
 void display_fullscreen_string(char *value);

@@ -27,6 +27,10 @@
 #define KEY_CUP			0x00FD609F
 #define KEY_CDOWN		0x00FD50AF
 
+// local memory and global pointer
+static dac_state_t dac_state;
+dac_state_t *dac = &dac_state;
+
 // WM8741 workaround: switch through all channels
 static void workaround_channel() {
 	gpio_lirc(GPIO_LIRC_TX, KEY_CUP);
@@ -47,7 +51,7 @@ static void workaround_volume() {
 
 static void dac_on() {
 	gpio_set(GPIO_POWER, 1);
-	mcp->dac_power = 1;
+	dac->dac_power = 1;
 	xlog("DAC switched DAC on");
 	sleep(3);
 	workaround_volume();
@@ -55,12 +59,12 @@ static void dac_on() {
 
 static void dac_off() {
 	gpio_set(GPIO_POWER, 0);
-	mcp->dac_power = 0;
+	dac->dac_power = 0;
 	xlog("DAC switched DAC off");
 }
 
 void dac_power() {
-	if (!mcp->dac_power) {
+	if (!dac->dac_power) {
 		dac_on();
 		mpdclient_handle(KEY_PLAY);
 	} else {
@@ -86,13 +90,6 @@ void dac_unmute() {
 }
 
 void dac_source(int source) {
-}
-
-int dac_status_get(const void *p1, const void *p2) {
-	return 0;
-}
-
-void dac_status_set(const void *p1, const void *p2, int value) {
 }
 
 void dac_handle(int c) {
@@ -124,7 +121,6 @@ void dac_handle(int c) {
 }
 
 static int init() {
-
 	// elevate realtime priority for lirc sending
 	if (elevate_realtime(3) < 0)
 		return xerr("DAC Error elevating realtime");
@@ -132,8 +128,8 @@ static int init() {
 	// LIRC TX is low_active
 	gpio_configure(GPIO_LIRC_TX, 1, 0, 1);
 
-	mcp->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
-	if (mcp->dac_power)
+	dac->dac_power = gpio_configure(GPIO_POWER, 1, 0, -1);
+	if (dac->dac_power)
 		xlog("DAC power is ON");
 	else
 		xlog("DAC power is OFF");

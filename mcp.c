@@ -89,18 +89,20 @@
 #include <getopt.h>
 #include <signal.h>
 #include <string.h>
-#include <termios.h>
 #include <unistd.h>
 
 #include <sys/stat.h>
 
 #include "utils.h"
-#include "dac.h"
 #include "mcp.h"
 
-#if defined(SABRE18) || defined(SABRE28)
+#ifdef DISPLAY
 #include "display.h"
 #include "display-menu.h"
+#endif
+
+#ifdef DAC
+#include "dac.h"
 #endif
 
 mcp_state_t *mcp = NULL;
@@ -144,37 +146,15 @@ void mcp_register(const char *name, const int prio, const init_t init, const sto
 }
 
 int mcp_status_get(const void *p1, const void *p2) {
-#ifdef DAC
-	// const menuconfig_t *config = p1;
-	const menuitem_t *item = p2;
-	xlog("mcp_status_get %i", item->index);
-	switch (item->index) {
-	case 1:
-		return mcp->ir_active;
-	default:
-		return 0;
-	}
-#else
 	return 0;
-#endif
 }
 
 void mcp_status_set(const void *p1, const void *p2, int value) {
-#ifdef DAC
-	// const menuconfig_t *config = p1;
-	const menuitem_t *item = p2;
-	xlog("mcp_status_set %i", item->index);
-	switch (item->index) {
-	case 1:
-		mcp->ir_active = value;
-		return;
-	}
-#endif
 }
 
 void mcp_system_shutdown() {
 #ifdef DAC
-	if (mcp->dac_power)
+	if (dac->dac_power)
 		dac_power();
 #endif
 	xlog("shutting down system now!");
@@ -183,54 +163,11 @@ void mcp_system_shutdown() {
 
 void mcp_system_reboot() {
 #ifdef DAC
-	if (mcp->dac_power)
+	if (dac->dac_power)
 		dac_power();
 #endif
 	xlog("rebooting system now!");
 	system("shutdown -r now");
-}
-
-static void interactive() {
-	struct termios new_io;
-	struct termios old_io;
-
-	printf("interactive mode, use keys UP / DOWN / ENTER; quit with 'q'\r\n");
-
-	// set terminal into CBREAK mode
-	if ((tcgetattr(STDIN_FILENO, &old_io)) == -1) {
-		xlog("cannot set CBREAK");
-		exit(EXIT_FAILURE);
-	}
-
-	new_io = old_io;
-	new_io.c_lflag = new_io.c_lflag & ~(ECHO | ICANON);
-	new_io.c_cc[VMIN] = 1;
-	new_io.c_cc[VTIME] = 0;
-
-	if ((tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_io)) == -1) {
-		xlog("cannot set TCSAFLUSH");
-		exit(EXIT_FAILURE);
-	}
-
-	while (1) {
-		int c = getchar();
-		// xlog("console 0x%20x", c);
-
-		if (c == 'q')
-			break;
-
-		if (c == 0x1b || c == 0x5b)
-			continue; // ignore
-
-		xlog("CONSOLE: distributing key 0x%02x", c);
-#ifdef DAC
-		dac_handle(c);
-#endif
-	}
-
-	// reset terminal
-	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
-	printf("quit\r\n");
 }
 
 static void daemonize() {
@@ -327,7 +264,6 @@ int mcp_main(int argc, char **argv) {
 
 	mcp = malloc(sizeof(*mcp));
 	ZEROP(mcp);
-	mcp->ir_active = 1;
 	mcp->notifications_lcd = 1;
 	mcp->notifications_sound = 1;
 	mcp->notifications_desktop = 1;
@@ -373,7 +309,9 @@ int mcp_main(int argc, char **argv) {
 
 	if (cfg->interactive) {
 		xlog("MCP online, waiting for input");
-		interactive();
+#ifdef DISPLAY
+		display_interactive();
+#endif
 	} else {
 		xlog("MCP online");
 		pause();

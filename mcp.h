@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <mpd/status.h>
 
 #include "target.h"
 
@@ -31,14 +30,6 @@
   static void __attribute__((constructor(102 + prio))) register_##name(void) \
   { mcp_register("\""#name"\"", prio, init, stop, loop); };
 
-typedef enum {
-	nlock, dsd, pcm, spdif, dop
-} dac_signal_t;
-
-typedef enum {
-	mpd, opt, coax
-} dac_source_t;
-
 typedef int (*init_t)();
 typedef void (*stop_t)();
 typedef void (*loop_t)();
@@ -54,34 +45,6 @@ struct _mcp_module {
 };
 
 typedef struct mcp_state_t {
-	dac_signal_t dac_signal;
-	dac_source_t dac_source;
-	int dac_state_changed;
-	int ext_power;
-	int dac_power;
-	int dac_rate;
-	int dac_volume;
-	int dac_mute;
-	enum mpd_state mpd_state;
-	int mpd_bits;
-	int mpd_rate;
-	int clock_h;
-	int clock_m;
-	int nightmode;
-	double load;
-	double temp;
-	int plist_key;
-	int plist_pos;
-	char artist[BUFSIZE];
-	char title[BUFSIZE];
-	char album[BUFSIZE];
-	char extension[8];
-	int menu;
-	int ir_active;
-	int switch1;
-	int switch2;
-	int switch3;
-	int switch4;
 	int notifications_lcd;
 	int notifications_sound;
 	int notifications_desktop;
