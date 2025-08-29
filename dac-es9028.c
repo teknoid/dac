@@ -28,25 +28,6 @@ dac_state_t *dac = &dac_state;
 
 static int i2c;
 
-// create and connect the menus
-void es9028_prepare_menus() {
-	menu_create(&m_main, NULL);
-	menu_create(&m_playlist, &m_main);
-	menu_create(&m_input, &m_main);
-	menu_create(&m_setup, &m_main);
-	menu_create(&m_system, &m_main);
-	menu_create(&m_status, &m_main);
-	menu_create(&m_filter, &m_setup);
-	menu_create(&m_iir, &m_setup);
-	menu_create(&m_dpll_spdif, &m_setup);
-	menu_create(&m_dpll_dsd, &m_setup);
-	menu_create(&m_lock_speed, &m_setup);
-	menu_create(&m_automute, &m_setup);
-	menu_create(&m_automute_time, &m_setup);
-	menu_create(&m_automute_level, &m_setup);
-	menu_create(&m_18db_gain, &m_setup);
-}
-
 static dac_signal_t dac_get_signal() {
 	uint8_t value;
 	i2c_read(i2c, ADDR, REG_STATUS, &value);
@@ -183,6 +164,80 @@ static void dac_off() {
 	xlog("DAC switched off");
 }
 
+int es9028_config_get(const void *p1, const void *p2) {
+	const menuconfig_t *config = p1;
+	// const menuitem_t *item = p2;
+	uint8_t value;
+	i2c_read_bits(i2c, ADDR, config->reg, &value, config->mask);
+	xlog("DAC dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
+	return value;
+}
+
+void es9028_config_set(const void *p1, const void *p2, int value) {
+	const menuconfig_t *config = p1;
+	// const menuitem_t *item = p2;
+	xlog("DAC dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
+	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
+}
+
+int es9028_status_get(const void *p1, const void *p2) {
+	// const menuconfig_t *config = p1;
+	const menuitem_t *item = p2;
+	xlog("dac_state_get %i", item->index);
+	switch (item->index) {
+	case 1:
+		return dac->ir_active;
+	default:
+		return 0;
+	}
+}
+
+void es9028_status_set(const void *p1, const void *p2, int value) {
+	// const menuconfig_t *config = p1;
+	const menuitem_t *item = p2;
+	xlog("dac_state_set %i", item->index);
+	switch (item->index) {
+	case 1:
+		dac->ir_active = value;
+		return;
+	default:
+		return;
+	}
+}
+
+void es9028_system_shutdown() {
+	if (dac->dac_power)
+		dac_power();
+	xlog("shutting down system now!");
+	system("shutdown -h now");
+}
+
+void es9028_system_reboot() {
+	if (dac->dac_power)
+		dac_power();
+	xlog("rebooting system now!");
+	system("shutdown -r now");
+}
+
+// create and connect the menus
+void es9028_prepare_menus() {
+	menu_create(&m_main, NULL);
+	menu_create(&m_playlist, &m_main);
+	menu_create(&m_input, &m_main);
+	menu_create(&m_setup, &m_main);
+	menu_create(&m_system, &m_main);
+	menu_create(&m_status, &m_main);
+	menu_create(&m_filter, &m_setup);
+	menu_create(&m_iir, &m_setup);
+	menu_create(&m_dpll_spdif, &m_setup);
+	menu_create(&m_dpll_dsd, &m_setup);
+	menu_create(&m_lock_speed, &m_setup);
+	menu_create(&m_automute, &m_setup);
+	menu_create(&m_automute_time, &m_setup);
+	menu_create(&m_automute_level, &m_setup);
+	menu_create(&m_18db_gain, &m_setup);
+}
+
 void dac_power() {
 	if (!dac->dac_power) {
 		dac_on();
@@ -285,47 +340,6 @@ void dac_source(int source) {
 	}
 	dac->dac_source = source;
 	dac->dac_state_changed = 1;
-}
-
-int dac_config_get(const void *p1, const void *p2) {
-	const menuconfig_t *config = p1;
-	// const menuitem_t *item = p2;
-	uint8_t value;
-	i2c_read_bits(i2c, ADDR, config->reg, &value, config->mask);
-	xlog("DAC dac_status_get %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
-	return value;
-}
-
-void dac_config_set(const void *p1, const void *p2, int value) {
-	const menuconfig_t *config = p1;
-	// const menuitem_t *item = p2;
-	xlog("DAC dac_status_set %02d, mask 0b%s, value %d", config->reg, printbits(config->mask), value);
-	i2c_write_bits(i2c, ADDR, config->reg, value, config->mask);
-}
-
-int dac_status_get(const void *p1, const void *p2) {
-	// const menuconfig_t *config = p1;
-	const menuitem_t *item = p2;
-	xlog("dac_state_get %i", item->index);
-	switch (item->index) {
-	case 1:
-		return dac->ir_active;
-	default:
-		return 0;
-	}
-}
-
-void dac_status_set(const void *p1, const void *p2, int value) {
-	// const menuconfig_t *config = p1;
-	const menuitem_t *item = p2;
-	xlog("dac_state_set %i", item->index);
-	switch (item->index) {
-	case 1:
-		dac->ir_active = value;
-		return;
-	default:
-		return;
-	}
 }
 
 void dac_handle(int c) {

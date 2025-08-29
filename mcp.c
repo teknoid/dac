@@ -98,11 +98,6 @@
 
 #ifdef DISPLAY
 #include "display.h"
-#include "display-menu.h"
-#endif
-
-#ifdef DAC
-#include "dac.h"
 #endif
 
 mcp_state_t *mcp = NULL;
@@ -143,31 +138,6 @@ void mcp_register(const char *name, const int prio, const init_t init, const sto
 	}
 
 	xlog("MCP registered module {%d} %s", prio, name);
-}
-
-int mcp_status_get(const void *p1, const void *p2) {
-	return 0;
-}
-
-void mcp_status_set(const void *p1, const void *p2, int value) {
-}
-
-void mcp_system_shutdown() {
-#ifdef DAC
-	if (dac->dac_power)
-		dac_power();
-#endif
-	xlog("shutting down system now!");
-	system("shutdown -h now");
-}
-
-void mcp_system_reboot() {
-#ifdef DAC
-	if (dac->dac_power)
-		dac_power();
-#endif
-	xlog("rebooting system now!");
-	system("shutdown -r now");
 }
 
 static void daemonize() {

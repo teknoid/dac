@@ -55,18 +55,20 @@ static menu_t m_input = { "Input", "Set DAC Input Source", NULL, NULL, mi_input,
 
 
 /* System Menu */
+void es9028_system_shutdown(void);
+void es9028_system_reboot(void);
 static const menuitem_t mi_system[] = {
     { 0,	"DAC on/off",		NULL, NULL, dac_power, NULL },
-    { 0,	"Reboot",			NULL, NULL, mcp_system_reboot, NULL },
-    { 0,	"Shutdown",			NULL, NULL, mcp_system_shutdown, NULL },
+    { 0,	"Reboot",			NULL, NULL, es9028_system_reboot, NULL },
+    { 0,	"Shutdown",			NULL, NULL, es9028_system_shutdown, NULL },
 };
 static menu_t m_system = { "System", "System Operations", NULL, NULL, mi_system, ARRAY_SIZE(mi_system), NULL, NULL };
 
 
 /* Status Menu */
-int dac_status_get(const void *p1, const void *p2);
-void dac_status_set(const void *p1, const void *p2, int value);
-static const menuconfig_t mc_status = { onoff, dac_status_get, dac_status_set, 0, 0, 0, 0, 0 };
+int es9028_status_get(const void *p1, const void *p2);
+void es9028_status_set(const void *p1, const void *p2, int value);
+static const menuconfig_t mc_status = { onoff, es9028_status_get, es9028_status_set, 0, 0, 0, 0, 0 };
 static const menuitem_t mi_status[] = {
     { 1,	"IR on/off",		NULL, NULL, NULL, NULL },
 };
@@ -74,9 +76,9 @@ static menu_t m_status = { "Status", "Status changes", NULL, &mc_status, mi_stat
 
 
 /* Filter Type Menu */
-int dac_config_get(const void*, const void*);
-void dac_config_set(const void*, const void*, int);
-static const menuconfig_t mc_filter = { selection, dac_config_get, dac_config_set, 7, 0b11100000, 0, 7, 2 };
+int es9028_config_get(const void*, const void*);
+void es9028_config_set(const void*, const void*, int);
+static const menuconfig_t mc_filter = { selection, es9028_config_get, es9028_config_set, 7, 0b11100000, 0, 7, 2 };
 static const menuitem_t mi_filter[] = {
 	{ 0,	"Fast/Linear",		"Fast Roll-off, Linear Phase Filter", NULL, NULL, NULL },
 	{ 1,	"Slow/Linear",		"Slow Roll-off, Linear Phase Filter", NULL, NULL, NULL },
@@ -90,7 +92,7 @@ static menu_t m_filter = { "Filter Shape", "Selects the type of filter to use du
 
 
 /* IIR Bandwidth Menu */
-static const menuconfig_t mc_iir = { selection, dac_status_get, dac_status_set, 7, 0b00000110, 0, 3, 0 };
+static const menuconfig_t mc_iir = { selection, es9028_status_get, es9028_status_set, 7, 0b00000110, 0, 3, 0 };
 static const menuitem_t mi_iir[] = {
 	{ 0,	"47k @ 44.1kHz",	NULL, NULL, NULL, NULL },
 	{ 1,	"50k @ 44.1kHz",	NULL, NULL, NULL, NULL },
@@ -101,17 +103,17 @@ static menu_t m_iir = { "IIR Bandwidth", "Selects the type of filter to use duri
 
 
 /* Jitter Eliminator / DPLL Bandwidth in I2S+SPDIF mode */
-static const menuconfig_t mc_dpll_spdif = { bits, dac_status_get, dac_status_set, 12, 0b11110000, 0, 15, 5 };
+static const menuconfig_t mc_dpll_spdif = { bits, es9028_status_get, es9028_status_set, 12, 0b11110000, 0, 15, 5 };
 static menu_t m_dpll_spdif = { "DPLL I2S/SPDIF", "Sets the bandwidth of the DPLL when operating in I2S/SPDIF mode", NULL, &mc_dpll_spdif, NULL, 0, NULL, NULL };
 
 
 /* Jitter Eliminator / DPLL Bandwidth in DSD mode */
-static const menuconfig_t mc_dpll_dsd = { bits, dac_status_get, dac_status_set, 12, 0b00001111, 0, 15, 10 };
+static const menuconfig_t mc_dpll_dsd = { bits, es9028_status_get, es9028_status_set, 12, 0b00001111, 0, 15, 10 };
 static menu_t m_dpll_dsd = { "DPLL DSD", "Sets the bandwidth of the DPLL when operating in DSD mode", NULL, &mc_dpll_dsd, NULL, 0, NULL, NULL };
 
 
 /* Lock Speed */
-static const menuconfig_t mc_lock_speed = { selection, dac_status_get, dac_status_set, 10, 0b00001111, 0, 15, 0 };
+static const menuconfig_t mc_lock_speed = { selection, es9028_status_get, es9028_status_set, 10, 0b00001111, 0, 15, 0 };
 static const menuitem_t mi_lock_speed[] = {
 	{ 0,	"16384 FSL edges",	NULL, NULL, NULL, NULL },
 	{ 1,	" 8192 FSL edges",	NULL, NULL, NULL, NULL },
@@ -134,7 +136,7 @@ static menu_t m_lock_speed = { "Lock Speed", "Sets the number of audio samples r
 
 
 /* Auto Mute */
-static const menuconfig_t mc_automute = { selection, dac_status_get, dac_status_set, 2, 0b11000000, 0, 3, 0 };
+static const menuconfig_t mc_automute = { selection, es9028_status_get, es9028_status_set, 2, 0b11000000, 0, 3, 0 };
 static const menuitem_t mi_automute[] = {
 	{ 0,	"normal",			NULL, NULL, NULL, NULL },
 	{ 1,	"mute",				NULL, NULL, NULL, NULL },
@@ -143,13 +145,13 @@ static const menuitem_t mi_automute[] = {
 };
 static menu_t m_automute = { "Auto Mute", "Configures the automute state machine, which allows the SABRE DAC to perform different power saving and sound optimizations.", NULL, &mc_automute, mi_automute, ARRAY_SIZE(mi_automute), NULL, NULL };
 
-static const menuconfig_t mc_automute_time = { bits, dac_status_get, dac_status_set, 4, 0b11111111, 0, 255, 0 };
+static const menuconfig_t mc_automute_time = { bits, es9028_status_get, es9028_status_set, 4, 0b11111111, 0, 255, 0 };
 static menu_t m_automute_time = { "Auto Mute Time", "Configures the amount of time the audio data must remain below the automute_level before an automute condition is flagged. Defaults to 0 which disables automute.", NULL, &mc_automute_time, NULL, 0, NULL, NULL };
 
-static const menuconfig_t mc_automute_level = { bits, dac_status_get, dac_status_set, 5, 0b01111111, 0, 127, 104 };
+static const menuconfig_t mc_automute_level = { bits, es9028_status_get, es9028_status_set, 5, 0b01111111, 0, 127, 104 };
 static menu_t m_automute_level = { "Auto Mute Level", "Configures the threshold which the audio must be below before an automute condition is flagged. The level is measured in decibels (dB) and defaults to -104dB.", NULL, &mc_automute_level, NULL, 0, NULL, NULL };
 
-static const menuconfig_t mc_18db_gain = { bits, dac_status_get, dac_status_set, 62, 0b11111111, 0, 0, 0 };
+static const menuconfig_t mc_18db_gain = { bits, es9028_status_get, es9028_status_set, 62, 0b11111111, 0, 0, 0 };
 static menu_t m_18db_gain = { "+18dB Gain", "+18dB gain applied after volume control. The +18dB gain only works in PCM mode and is applied prior to the channel mapping.", NULL, &mc_18db_gain, NULL, 0, NULL, NULL };
 
 /* Setup Menu */

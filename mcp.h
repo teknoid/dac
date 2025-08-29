@@ -59,7 +59,3 @@ extern mcp_config_t *cfg;
 
 void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
 int mcp_main(int argc, char **argv);
-int mcp_status_get(const void*, const void*);
-void mcp_status_set(const void*, const void*, int);
-void mcp_system_shutdown(void);
-void mcp_system_reboot(void);
