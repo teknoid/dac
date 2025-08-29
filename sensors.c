@@ -147,6 +147,15 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
+static int essential() {
+	int ok = sensors->sht31_temp < 1000 && sensors->htu21_temp < 1000 && sensors->bh1750_lux != UINT16_MAX;
+	if (ok)
+		xdebug("SENSORS ok: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
+	else
+		xdebug("SENSORS Warning! MQTT sensor data incomplete: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
+	return ok;
+}
+
 static void publish_sensors_tasmotalike() {
 	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
 	gethostname(hostname, 32);
@@ -205,6 +214,11 @@ static void publish_sensors() {
 }
 
 static void write_sensors_sysfslike() {
+#ifndef PICAM
+	if (!essential())
+		return;
+#endif
+
 	char cvalue[8];
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
@@ -230,6 +244,11 @@ static void write_sensors_sysfslike() {
 }
 
 static void write_sensors_json() {
+#ifndef PICAM
+	if (!essential())
+		return;
+#endif
+
 	FILE *fp = fopen(RUN SLASH SENSORS_JSON, "wt");
 	if (fp == NULL)
 		return;
@@ -250,29 +269,11 @@ static void write_sensors_json() {
 	fclose(fp);
 }
 
-static void wait_essential() {
-	// wait till we received essential sensor data
-	int retry = 100;
-	while (--retry) {
-		msleep(100);
-		if (sensors->sht31_temp < 1000 && sensors->htu21_temp < 1000 && sensors->bh1750_lux != UINT16_MAX)
-			break;
-	}
-	if (retry)
-		xdebug("SENSORS ok: retry=%d sht31=%.1f htu21=%.1f bh1750=%d", retry, sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
-	else
-		xdebug("SENSORS Warning! MQTT sensor data incomplete: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
-}
-
 static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
-
-#ifndef PICAM
-	wait_essential();
-#endif
 
 	while (1) {
 		read_bmp085();
@@ -294,10 +295,11 @@ static void loop() {
 }
 
 static int init() {
-#ifdef PICAM
+#if defined(PICAM) || defined(SENSORS_MAIN)
 	i2cfd = open(I2C, O_RDWR);
 	if (i2cfd < 0)
 		return xerr("I2C BUS error");
+	xlog("opened I2C device %s as %d", I2C, i2cfd);
 #endif
 
 	// clear average value buffer
@@ -328,8 +330,9 @@ static void stop() {
 
 int sensor_main(int argc, char **argv) {
 	mcp_init();
-
+	mcp_loop();
 	sleep(1);
+
 	while (1) {
 		xlog(BH1750" raw  %d", sensors->bh1750_raw);
 		xlog(BH1750" raw2 %d", sensors->bh1750_raw2);
