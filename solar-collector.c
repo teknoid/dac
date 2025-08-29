@@ -598,7 +598,8 @@ static void minly() {
 	calculate_gstate();
 }
 
-static void aggregate_mhd() {
+static void aggregate_state() {
+	// reverse order: first aggregate hours, then minutes, then seconds
 	if (MINLY) {
 		if (HOURLY) {
 			if (DAILY) {
@@ -656,8 +657,8 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
-		// aggregate values into minute-hour-day when 0-0-0
-		aggregate_mhd();
+		// aggregate state values into day-hour-minute when 0-0-0
+		aggregate_state();
 
 		// calculate power state
 		calculate_pstate();
