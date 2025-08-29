@@ -600,27 +600,9 @@ static void minly() {
 
 static void aggregate_mhd() {
 	if (MINLY) {
-		// aggregate 60 seconds into one minute
-		aggregate((int*) PSTATE_MIN_LAST1, (int*) pstate_seconds, PSTATE_SIZE, 60);
-		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
-		// dump_struct((int*) PSTATE_MIN_LAST1, PSTATE_SIZE, "[ØØ]", 0);
-
 		if (HOURLY) {
-			// aggregate 60 minutes into one hour
-			aggregate((int*) PSTATE_HOUR_LAST1, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
-			// dump_struct((int*) PSTATE_HOUR_LAST1, PSTATE_SIZE, "[ØØ]", 0);
-
-			// create/append gstate and pstate minutes to csv
-			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
-			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
-				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
-			if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
-				store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
-			append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
-			append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
-
 			if (DAILY) {
+
 				// aggregate 24 pstate hours into one day
 				pstate_t pda, pdc;
 				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
@@ -636,7 +618,26 @@ static void aggregate_mhd() {
 				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
 				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
 			}
+
+			// aggregate 60 minutes into one hour
+			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
+
+			// create/append gstate and pstate minutes to csv
+			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+			if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+				store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+			append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
+			append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 		}
+
+		// aggregate 60 seconds into one minute
+		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
+		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
+		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 	}
 }
 
