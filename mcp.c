@@ -100,8 +100,15 @@
 #include "display.h"
 #endif
 
-mcp_state_t *mcp = NULL;
-mcp_config_t *cfg = NULL;
+// local memory
+static mcp_state_t mcp_local;
+static mcp_config_t cfg_local;
+
+// global pointer
+mcp_state_t *mcp = &mcp_local;
+mcp_config_t *cfg = &cfg_local;
+
+// dynamic module chain
 mcp_module_t *module = NULL;
 
 // initialize logging at the very first beginning
@@ -229,10 +236,7 @@ int mcp_main(int argc, char **argv) {
 	xlog("MCP startup");
 
 	// allocate global data exchange structures
-	cfg = malloc(sizeof(*cfg));
 	ZEROP(cfg);
-
-	mcp = malloc(sizeof(*mcp));
 	ZEROP(mcp);
 	mcp->notifications_lcd = 1;
 	mcp->notifications_sound = 1;
