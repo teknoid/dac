@@ -66,8 +66,18 @@ static void read_bh1750() {
 		sensors->bh1750_lux = sensors->bh1750_raw / 1.2;
 	else
 		sensors->bh1750_lux = sensors->bh1750_raw2 / 2.4;
+}
 
-	sensors_bh1750_calc_mean();
+static void mean_bh1750() {
+	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
+	if (mean == MEAN)
+		mean = 0;
+
+	unsigned long sum = 0;
+	for (int i = 0; i < MEAN; i++)
+		sum += bh1750_lux_mean[i];
+
+	sensors->bh1750_lux_mean = sum / MEAN;
 }
 
 // https://forums.raspberrypi.com/viewtopic.php?t=16968
@@ -240,13 +250,7 @@ static void write_sensors_json() {
 	fclose(fp);
 }
 
-static void loop() {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
-		return;
-	}
-
-#ifndef PICAM
+static void wait_essential() {
 	// wait till we received essential sensor data
 	int retry = 100;
 	while (--retry) {
@@ -258,11 +262,23 @@ static void loop() {
 		xdebug("SENSORS ok: retry=%d sht31=%.1f htu21=%.1f bh1750=%d", retry, sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
 	else
 		xdebug("SENSORS Warning! MQTT sensor data incomplete: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
+}
+
+static void loop() {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return;
+	}
+
+#ifndef PICAM
+	wait_essential();
 #endif
 
 	while (1) {
-		read_bh1750();
 		read_bmp085();
+
+		read_bh1750();
+		mean_bh1750();
 
 		publish_sensors_tasmotalike();
 		publish_sensors();
@@ -310,25 +326,10 @@ static void stop() {
 		close(i2cfd);
 }
 
-void sensors_bh1750_calc_mean() {
-	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
-	if (mean == MEAN)
-		mean = 0;
-
-	unsigned long sum = 0;
-	for (int i = 0; i < MEAN; i++)
-		sum += bh1750_lux_mean[i];
-
-	sensors->bh1750_lux_mean = sum / MEAN;
-}
-
 int sensor_main(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
+	mcp_init();
 
-	init();
 	sleep(1);
-
 	while (1) {
 		xlog(BH1750" raw  %d", sensors->bh1750_raw);
 		xlog(BH1750" raw2 %d", sensors->bh1750_raw2);
@@ -346,9 +347,10 @@ int sensor_main(int argc, char **argv) {
 		sleep(10);
 	}
 
-	stop();
+	mcp_stop();
 	return 0;
 }
+
 #ifdef SENSORS_MAIN
 int main(int argc, char **argv) {
 	return sensor_main(argc, argv);

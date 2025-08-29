@@ -57,5 +57,8 @@ typedef struct mcp_config_t {
 } mcp_config_t;
 extern mcp_config_t *cfg;
 
-void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
 int mcp_main(int argc, char **argv);
+void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
+void mcp_init();
+void mcp_stop();
+void mcp_loop();

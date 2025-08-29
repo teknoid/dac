@@ -55,7 +55,4 @@ typedef struct sensors_t {
 	uint16_t ml8511_uv;
 
 } sensors_t;
-
 extern sensors_t *sensors;
-
-void sensors_bh1750_calc_mean();

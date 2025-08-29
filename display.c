@@ -20,11 +20,6 @@
 #include "dac.h"
 #include "dac-es9028.h"
 
-#ifdef DISPLAY_MAIN
-mcp_state_t *mcp = NULL;
-mcp_config_t *cfg = NULL;
-#endif
-
 #ifndef DISPLAY
 #define DISPLAY			"/dev/tty"
 #endif
@@ -468,23 +463,8 @@ int display_main(int argc, char **argv) {
 }
 
 #ifdef DISPLAY_MAIN
-void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-	xlog("call init() + loop() for  %s", name);
-	(init)();
-}
-// dummy functions for menu items in dac-es9028.h
+// dummy functions for dac-es9028.c
 void mpdclient_handle(int key) {
-}
-void mcp_system_reboot() {
-}
-void mcp_system_shutdown() {
-}
-void mcp_status_set(const void *p1, const void *p2, int value) {
-}
-int mcp_status_get(const void *p1, const void *p2) {
-	return 0;
 }
 int main(int argc, char **argv) {
 	return display_main(argc, argv);

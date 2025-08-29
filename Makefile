@@ -11,13 +11,14 @@ SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
 COBJS-COMMON	= mcp.o utils.o frozen.o sensors.o i2c.o
-COBJS-ANUS 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o 
-COBJS-TRON 		= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-alsa.o mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o button.o lcd.o
-COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o aqua.o gpio-dummy.o curl.o
-COBJS-PIWOLF 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
-COBJS-SABRE18 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9018.o devinput-infrared.o gpio-sunxi.o
-COBJS-SABRE28 	= $(COBJS-COMMON) mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o dac-es9028.o devinput-infrared.o gpio-sunxi.o display.o display-menu.o devinput-rotary.o
-COBJS-PICAM		= $(COBJS-COMMON) webcam.o xmas.o mqtt.o tasmota.o flamingo.o gpio-bcm2835.o
+COBJS-DAC		= mcp.o utils.o frozen.o sensors.o i2c.o mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o 
+COBJS-ANUS 		= $(COBJS-DAC) dac-alsa.o 
+COBJS-PIWOLF 	= $(COBJS-DAC) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
+COBJS-SABRE18 	= $(COBJS-DAC) dac-es9018.o devinput-infrared.o gpio-sunxi.o
+COBJS-SABRE28 	= $(COBJS-DAC) dac-es9028.o devinput-infrared.o devinput-rotary.o display.o display-menu.o gpio-sunxi.o  
+COBJS-TRON 		= $(COBJS-DAC)    mqtt.o tasmota.o xmas.o aqua.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o gpio-dummy.o curl.o button.o lcd.o dac-alsa.o 
+COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o aqua.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o gpio-dummy.o curl.o
+COBJS-PICAM		= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o webcam.o flamingo.o gpio-bcm2835.o
 
 all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
@@ -67,29 +68,28 @@ simulator: CFLAGS += -DMCP -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
 simulator: clean $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o
 	$(CC) $(CFLAGS) -L$(LIB) -o simulator $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o -lmqttc -lm
 
-flamingo: flamingo.o utils.o gpio-bcm2835.o
-	$(CC) $(CFLAGS) -DFLAMINGO_MAIN -c flamingo.c
-	$(CC) $(CFLAGS) -o flamingo flamingo.o utils.o gpio-bcm2835.o
+flamingo: CFLAGS += -DFLAMINGO_MAIN -DSTDOUT
+flamingo: clean mcp.o flamingo.o utils.o gpio-bcm2835.o
+	$(CC) $(CFLAGS) -o flamingo mcp.o flamingo.o utils.o gpio-bcm2835.o
 
-sensors: sensors.o utils.o i2c.o
-	$(CC) $(CFLAGS) -DSENSORS_MAIN -c sensors.c
-	$(CC) $(CFLAGS) -o sensors sensors.o utils.o i2c.o
+sensors: CFLAGS += -DSENSORS_MAIN -DSTDOUT
+sensors: clean mcp.o sensors.o utils.o i2c.o
+	$(CC) $(CFLAGS) -o sensors mcp.o sensors.o utils.o i2c.o
 
-display: display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
-	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
-	$(CC) $(CFLAGS) -o display display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
-
-gpio-sunxi: gpio-sunxi.o utils.o
+gpio-sunxi: clean mcp.o gpio-sunxi.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
-	$(CC) $(CFLAGS) -o gpio-sunxi gpio-sunxi.o utils.o
+	$(CC) $(CFLAGS) -o gpio-sunxi mcp.o gpio-sunxi.o utils.o
 
-gpio-bcm2835: gpio-bcm2835.o utils.o
+gpio-bcm2835: clean mcp.o gpio-bcm2835.o utils.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
-	$(CC) $(CFLAGS) -o gpio-bcm2835 gpio-bcm2835.o utils.o
-	
-switch: switch.o gpio-sunxi.o utils.o
-	$(CC) $(CFLAGS) -c switch.c gpio-sunxi.c utils.c
-	$(CC) $(CFLAGS) -o switch switch.o gpio-sunxi.o utils.o
+	$(CC) $(CFLAGS) -o gpio-bcm2835 mcp.o gpio-bcm2835.o utils.o
+
+display: clean mcp.o display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
+	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
+	$(CC) $(CFLAGS) -o display mcp.o display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
+
+switch: clean mcp.o switch.o gpio-sunxi.o utils.o
+	$(CC) $(CFLAGS) -o switch mcp.o switch.o gpio-sunxi.o utils.o
 
 valgrind:
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp

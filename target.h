@@ -8,8 +8,6 @@
 //#define SABRE28
 
 #ifdef ANUS
-#define MUSIC 			"/opt/music/"
-#define DISPLAY			"/dev/tty"
 #endif
 
 #ifdef TRON

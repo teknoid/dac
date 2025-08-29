@@ -232,6 +232,18 @@ static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
 }
 
+void mcp_init() {
+	module_init(module);
+}
+
+void mcp_stop() {
+	module_stop(module);
+}
+
+void mcp_loop() {
+	module_loop(module);
+}
+
 int mcp_main(int argc, char **argv) {
 	xlog("MCP startup");
 

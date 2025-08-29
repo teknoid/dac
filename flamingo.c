@@ -38,11 +38,11 @@
 #include <errno.h>
 #include <ctype.h>
 
-#include "mcp.h"
-#include "gpio.h"
-#include "utils.h"
-#include "frozen.h"
 #include "flamingo.h"
+#include "frozen.h"
+#include "utils.h"
+#include "gpio.h"
+#include "mcp.h"
 
 #define BUFFER				128
 
@@ -327,9 +327,9 @@ int flamingo_main(int argc, char *argv[]) {
 		if (elevate_realtime(1) < 0)
 			return -2;
 
-		init();
+		mcp_init();
 		flamingo_send_FA500(remote, channel, command, rolling);
-		stop();
+		mcp_stop();
 
 		return EXIT_SUCCESS;
 	}
@@ -338,13 +338,6 @@ int flamingo_main(int argc, char *argv[]) {
 }
 
 #ifdef FLAMINGO_MAIN
-// gpio-bcm2835.c needs mcp_register()
-void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-	xlog("call init() + loop() for  %s", name);
-	(init)();
-}
 int main(int argc, char **argv) {
 	return flamingo_main(argc, argv);
 }
