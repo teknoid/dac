@@ -10,19 +10,22 @@ LIBS = -L$(LIB) -lpthread -lmpdclient -lFLAC -lid3tag -lmagic -lm
 SRCS := $(shell find . -maxdepth 1 -name '*.c' | sort)
 OBJS := $(patsubst %.c, %.o, $(SRCS))
 
-COBJS-COMMON	= mcp.o utils.o frozen.o sensors.o i2c.o
-COBJS-DAC		= mcp.o utils.o frozen.o sensors.o i2c.o mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o 
-COBJS-ANUS 		= $(COBJS-DAC) dac-alsa.o 
-COBJS-PIWOLF 	= $(COBJS-DAC) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
-COBJS-SABRE18 	= $(COBJS-DAC) dac-es9018.o devinput-infrared.o gpio-sunxi.o
-COBJS-SABRE28 	= $(COBJS-DAC) dac-es9028.o devinput-infrared.o devinput-rotary.o display.o display-menu.o gpio-sunxi.o  
-COBJS-TRON 		= $(COBJS-DAC)    mqtt.o tasmota.o xmas.o aqua.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o gpio-dummy.o curl.o button.o lcd.o dac-alsa.o 
-COBJS-ODROID 	= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o aqua.o ledstrip.o shutter.o flamingo.o solar-collector.o solar-dispatcher.o solar-modbus.o sunspec.o mosmix.o gpio-dummy.o curl.o
-COBJS-PICAM		= $(COBJS-COMMON) mqtt.o tasmota.o xmas.o webcam.o flamingo.o gpio-bcm2835.o
+# objects for DAC and SOLAR
+COD		= mpd.o replaygain.o mp3gain-id3.o mp3gain-ape.o
+COS		= solar-collector.o solar-dispatcher.o sunspec.o mosmix.o solar-modbus.o
+#COS	= solar-collector.o solar-dispatcher.o mosmix.o solar-api.o
+
+COBJS-ANUS 		= mcp.o utils.o $(COD) dac-alsa.o 
+COBJS-PIWOLF 	= mcp.o utils.o $(COD) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
+COBJS-SABRE18 	= mcp.o utils.o $(COD) dac-es9018.o devinput-infrared.o gpio-sunxi.o
+COBJS-SABRE28 	= mcp.o utils.o $(COD) dac-es9028.o devinput-infrared.o gpio-sunxi.o devinput-rotary.o display.o display-menu.o i2c.o
+COBJS-TRON 		= mcp.o utils.o $(COD) $(COS) xmas.o mqtt.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o button.o lcd.o dac-alsa.o
+COBJS-ODROID 	= mcp.o utils.o $(COS)        xmas.o mqtt.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o
+COBJS-PICAM		= mcp.o utils.o               xmas.o mqtt.o tasmota.o sensors.o i2c.o flamingo.o webcam.o frozen.o gpio-bcm2835.o
 
 all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
-	@echo "To create executables specify target: \"make (anus|tron|odroid|picam|piwolf|sabre18|sabre28)\""
+	@echo "To create executables specify target: \"make (anus|piwolf|sabre18|sabre28|tron|odroid|picam)\""
 
 #
 # mcp main programs  
@@ -61,35 +64,35 @@ sabre28: clean $(COBJS-SABRE28)
 #
 
 solar: CFLAGS += -DSOLAR_MAIN -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
-solar: clean $(COBJS-COMMON) solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -L$(LIB) -o solar $(COBJS-COMMON) solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o -lmodbus -lmqttc -lm
+solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o mqtt.o tasmota.o -lmodbus -lmqttc -lm
 
 simulator: CFLAGS += -DMCP -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
-simulator: clean $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o
-	$(CC) $(CFLAGS) -L$(LIB) -o simulator $(COBJS-COMMON) solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o -lmqttc -lm
+simulator: clean mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o
+	$(CC) $(CFLAGS) -L$(LIB) -o simulator mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o mqtt.o tasmota.o -lmqttc -lm
 
 flamingo: CFLAGS += -DFLAMINGO_MAIN -DSTDOUT
-flamingo: clean mcp.o flamingo.o utils.o gpio-bcm2835.o
-	$(CC) $(CFLAGS) -o flamingo mcp.o flamingo.o utils.o gpio-bcm2835.o
+flamingo: clean mcp.o utils.o flamingo.o gpio-bcm2835.o
+	$(CC) $(CFLAGS) -o flamingo mcp.o utils.o flamingo.o gpio-bcm2835.o
 
 sensors: CFLAGS += -DSENSORS_MAIN -DSTDOUT
-sensors: clean mcp.o sensors.o utils.o i2c.o
-	$(CC) $(CFLAGS) -o sensors mcp.o sensors.o utils.o i2c.o
+sensors: clean mcp.o utils.o sensors.o i2c.o
+	$(CC) $(CFLAGS) -o sensors mcp.o utils.o sensors.o i2c.o
 
-gpio-sunxi: clean mcp.o gpio-sunxi.o utils.o
+gpio-sunxi: clean mcp.o utils.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
-	$(CC) $(CFLAGS) -o gpio-sunxi mcp.o gpio-sunxi.o utils.o
+	$(CC) $(CFLAGS) -o gpio-sunxi mcp.o utils.o gpio-sunxi.o 
 
-gpio-bcm2835: clean mcp.o gpio-bcm2835.o utils.o
+gpio-bcm2835: clean mcp.o utils.o gpio-bcm2835.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-bcm2835.c
-	$(CC) $(CFLAGS) -o gpio-bcm2835 mcp.o gpio-bcm2835.o utils.o
+	$(CC) $(CFLAGS) -o gpio-bcm2835 mcp.o  utils.o gpio-bcm2835.o
 
-display: clean mcp.o display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o
+display: clean mcp.o utils.o display.o display-menu.o i2c.o dac-es9028.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DDISPLAY_MAIN -c display.c
-	$(CC) $(CFLAGS) -o display mcp.o display.o display-menu.o utils.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
+	$(CC) $(CFLAGS) -o display mcp.o utils.o display.o display-menu.o i2c.o dac-es9028.o gpio-sunxi.o -lncurses -lmenu -lm
 
-switch: clean mcp.o switch.o gpio-sunxi.o utils.o
-	$(CC) $(CFLAGS) -o switch mcp.o switch.o gpio-sunxi.o utils.o
+switch: clean mcp.o utils.o switch.o gpio-sunxi.o
+	$(CC) $(CFLAGS) -o switch mcp.o utils.o switch.o gpio-sunxi.o
 
 valgrind:
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=/tmp/valgrind-out.txt ./mcp
