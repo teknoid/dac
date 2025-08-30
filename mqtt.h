@@ -1,6 +1,3 @@
-#define ON					"ON"
-#define OFF					"OFF"
-
 #define	HOST				"mqtt"
 #define PORT				"1883"
 

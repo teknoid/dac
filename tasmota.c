@@ -16,6 +16,10 @@
 #include "tasmota-config.h"
 
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
+#define ON					"ON"
+#define OFF					"OFF"
+
+#define TOPIC_LEN			32
 #define PREFIX_LEN			32
 #define SUFFIX_LEN			32
 
@@ -68,7 +72,7 @@ static void split(const char *topic, size_t size, unsigned int *id, char *prefix
 
 		// index
 		*idx = 0;
-		if (suffix[len - 1] > '0' && suffix[len - 1] < '9') {
+		if (suffix[len - 1] >= '0' && suffix[len - 1] <= '9') {
 			*idx = suffix[len - 1] - '0';
 			suffix[len - 1] = '\0';
 		}
@@ -119,8 +123,8 @@ static tasmota_state_t* get_state(unsigned int id) {
 
 // execute tasmota BACKLOG command via mqtt publish
 static int backlog(unsigned int id, const char *message) {
-	char topic[32];
-	snprintf(topic, 32, "cmnd/%6X/Backlog", id);
+	char topic[TOPIC_LEN];
+	snprintf(topic, TOPIC_LEN, "cmnd/%6X/Backlog", id);
 	xlog("TASMOTA %06X executing backlog command :: %s", id, message);
 	return publish(topic, message, 0);
 }
@@ -439,11 +443,11 @@ int tasmota_power_get(unsigned int id, int relay) {
 	if (!id)
 		return 0;
 
-	char topic[32];
+	char topic[TOPIC_LEN];
 	if (relay)
-		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER%d", id, relay);
 	else
-		snprintf(topic, 32, "cmnd/%6X/POWER", id);
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
 	xlog("TASMOTA %06X requesting power state from relay %d", id, relay);
 
 	// publish and wait for updating state
@@ -478,8 +482,8 @@ int openbeken_color(unsigned int id, int r, int g, int b) {
 	if (b > 0xff)
 		b = 0xff;
 
-	char topic[32], message[12];
-	snprintf(topic, 32, "cmnd/%08X/color", id);
+	char topic[TOPIC_LEN], message[12];
+	snprintf(topic, TOPIC_LEN, "cmnd/%08X/color", id);
 	snprintf(message, 12, "%02x%02x%02x", r, g, b);
 
 	xlog("TASMOTA %08X color %s", id, message);
@@ -494,8 +498,8 @@ int openbeken_dimmer(unsigned int id, int d) {
 	if (d > 100)
 		d = 100;
 
-	char topic[32], message[12];
-	snprintf(topic, 32, "cmnd/%08X/dimmer", id);
+	char topic[TOPIC_LEN], message[12];
+	snprintf(topic, TOPIC_LEN, "cmnd/%08X/dimmer", id);
 	snprintf(message, 12, "%d", d);
 
 	xlog("TASMOTA %08X dimmer %s", id, message);
@@ -510,8 +514,8 @@ int openbeken_set(unsigned int id, int channel, int value) {
 	if (value > 100)
 		value = 100;
 
-	char topic[32], message[12];
-	snprintf(topic, 32, "%08X/%d/set", id, channel);
+	char topic[TOPIC_LEN], message[12];
+	snprintf(topic, TOPIC_LEN, "%08X/%d/set", id, channel);
 	snprintf(message, 12, "%d", value);
 
 	xlog("TASMOTA %08X channel %d value %s", id, channel, message);
@@ -523,11 +527,11 @@ int tasmota_power(unsigned int id, int relay, int power) {
 	if (!id)
 		return 0;
 
-	char topic[32];
+	char topic[TOPIC_LEN];
 	if (relay)
-		snprintf(topic, 32, "cmnd/%6X/POWER%d", id, relay);
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER%d", id, relay);
 	else
-		snprintf(topic, 32, "cmnd/%6X/POWER", id);
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
 
 	tasmota_state_t *ss = get_state(id);
 	if (power) {
