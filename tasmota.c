@@ -15,6 +15,8 @@
 #include "flamingo.h"
 #include "tasmota-config.h"
 
+#define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
+
 static tasmota_state_t *tasmota_state = NULL;
 
 //static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
@@ -338,8 +340,27 @@ static int dispatch_cmnd(unsigned int id, const char *topic, uint16_t tsize, con
 
 static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	char a[5];
+	int i;
 
-	int i = -1;
+	// PIR motion detection sensors
+	// SwitchMode1 1
+	// SwitchTopic 0
+	// Rule1 on Switch1#state=1 do publish stat/%topic%/PIR1 ON endon on Switch1#state=0 do Publish stat/%topic%/PIR1 OFF endon
+	// Rule1 1
+	i = -1;
+	if (ends_with("PIR", topic, tsize))
+		i = 0;
+	if (ends_with("PIR1", topic, tsize))
+		i = 1;
+	if (i >= 0) {
+		// if (id == DEVKIT1 && i == 1 && MESSAGE_ON)
+		//	return notify("motion", "devkit1", "au.wav");
+		if (id == CARPORT && i == 1 && MESSAGE_ON)
+			return notify("motion", "carport", "au.wav");
+	}
+
+	// power state results
+	i = -1;
 	if (json_scanf(message, msize, "{POWER:%s}", &a))
 		i = 0;
 	if (json_scanf(message, msize, "{POWER1:%s}", &a))
@@ -350,17 +371,9 @@ static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, con
 		i = 3;
 	if (json_scanf(message, msize, "{POWER4:%s}", &a))
 		i = 4;
-
-	// power state results
 	if (i >= 0) {
 		int p = !strcmp(a, ON) ? 1 : 0;
 		update_relay(id, i, p);
-
-		// motion detection sensors
-		// if (id == DEVKIT1 && i == 0 && p)
-		// 	return notify("motion", "devkit1", "au.wav");
-		if (id == CARPORT && i == 0 && p)
-			return notify("motion", "carport", "au.wav");
 	}
 
 	// scan for shutter position results
