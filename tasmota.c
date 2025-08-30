@@ -16,22 +16,28 @@
 #include "tasmota-config.h"
 
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
+#define PREFIX_LEN			32
+#define SUFFIX_LEN			32
 
 static tasmota_state_t *tasmota_state = NULL;
 
-//static void dump(const char *prefix, unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
-//	char *t = make_string(topic, tsize);
-//	char *m = make_string(message, msize);
-//	xlog("%s %06X topic('%s') = %s", prefix, id, t, m);
-//	free(t);
-//	free(m);
-//}
-
-// topic('tele/7ECDD0/SENSOR') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
-//             ^^^^^^
-static unsigned int get_id(const char *topic, size_t size) {
+// topic('tele/7ECDD0/SENSOR1') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
+//        ^    ^      ^     ^
+//        |    |      |     |
+//        |    |      |     -- index
+//        |    |      -------- suffix
+//        |    --------------- id
+//        -------------------- prefix
+static void split(const char *topic, size_t size, unsigned int *id, char *prefix, char *suffix, unsigned int *idx) {
 	int slash1 = 0, slash2 = 0;
 
+	// check size
+	if (size > (PREFIX_LEN + SUFFIX_LEN + 6 + 2)) {
+		xlog("TASMOTA topic size exceeds buffer");
+		return;
+	}
+
+	// find the two slashes
 	for (int i = 0; i < size; i++)
 		if (topic[i] == '/') {
 			if (!slash1)
@@ -40,15 +46,33 @@ static unsigned int get_id(const char *topic, size_t size) {
 				slash2 = i;
 		}
 
-	if (slash1 && slash2 && ((slash2 - slash1) == 7)) {
-		char id[7];
-		memcpy(id, &topic[slash1 + 1], 6);
-		id[6] = '\0';
-		long l = strtol(id, NULL, 16);
-		return (unsigned int) l;
+	// prefix
+	if (slash1) {
+		memcpy(prefix, topic, slash1);
+		prefix[slash1] = '\0';
 	}
 
-	return 0;
+	// id
+	if (slash1 && slash2 && ((slash2 - slash1) == 7)) {
+		char idc[7];
+		memcpy(idc, &topic[slash1 + 1], 6);
+		idc[6] = '\0';
+		*id = (unsigned int) strtol(idc, NULL, 16);
+	}
+
+	// suffix
+	if (slash2) {
+		int len = size - slash2 - 1;
+		memcpy(suffix, &topic[slash2 + 1], len);
+		suffix[len] = '\0';
+
+		// index
+		*idx = 0;
+		if (suffix[len - 1] > '0' && suffix[len - 1] < '9') {
+			*idx = suffix[len - 1] - '0';
+			suffix[len - 1] = '\0';
+		}
+	}
 }
 
 static const tasmota_config_t* get_config(unsigned int id) {
@@ -102,14 +126,15 @@ static int backlog(unsigned int id, const char *message) {
 }
 
 // update tasmota shutter position
-static void update_shutter(unsigned int id, unsigned int position) {
+static int update_shutter(unsigned int id, unsigned int position) {
 	tasmota_state_t *ss = get_state(id);
 	ss->position = position;
 	xlog("TASMOTA %06X updated shutter position to %d", ss->id, position);
+	return 0;
 }
 
 // update tasmota relay power state
-static void update_relay(unsigned int id, int relay, int power) {
+static int update_relay(unsigned int id, int relay, int power) {
 	tasmota_state_t *ss = get_state(id);
 	if (relay == 0 || relay == 1) {
 		ss->relay1 = power;
@@ -125,6 +150,7 @@ static void update_relay(unsigned int id, int relay, int power) {
 		xlog("TASMOTA %06X updated relay4 state to %d", ss->id, power);
 	} else
 		xlog("TASMOTA %06X no relay %d", ss->id, relay);
+	return 0;
 }
 
 // trigger a button press event
@@ -215,7 +241,7 @@ static int flamingo(unsigned int code) {
 	return 0;
 }
 
-static void dispatch_button(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+static void dispatch_button(unsigned int id, int idx, const char *message, size_t msize) {
 	char fmt[32], a[5];
 
 	for (int i = 0; i < 8; i++) {
@@ -244,7 +270,7 @@ static void dispatch_button(unsigned int id, const char *topic, uint16_t tsize, 
 	}
 }
 
-static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+static int dispatch_tele_sensor(unsigned int id, int idx, const char *message, size_t msize) {
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
 	char *bmp085 = NULL;
@@ -291,12 +317,12 @@ static int dispatch_tele_sensor(unsigned int id, const char *topic, uint16_t tsi
 	}
 
 	// TASMOTA 2FEFEE topic('tele/2FEFEE/SENSOR') = {"Time":"2024-05-24T14:09:31","Switch1":"OFF","Switch2":"ON","ANALOG":{"Temperature":40.3},"TempUnit":"C"}
-	dispatch_button(id, topic, tsize, message, msize);
+	dispatch_button(id, idx, message, msize);
 
 	return 0;
 }
 
-static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+static int dispatch_tele_result(unsigned int id, int idx, const char *message, size_t msize) {
 	char *rf = NULL;
 
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
@@ -324,60 +350,38 @@ static int dispatch_tele_result(unsigned int id, const char *topic, uint16_t tsi
 	return 0;
 }
 
-static int dispatch_tele(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	if (ends_with("SENSOR", topic, tsize))
-		return dispatch_tele_sensor(id, topic, tsize, message, msize);
+static int dispatch_tele(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+	if (!strcmp(suffix, "SENSOR"))
+		return dispatch_tele_sensor(id, idx, message, msize);
 
-	if (ends_with("RESULT", topic, tsize))
-		return dispatch_tele_result(id, topic, tsize, message, msize);
+	if (!strcmp(suffix, "RESULT"))
+		return dispatch_tele_result(id, idx, message, msize);
 
 	return 0;
 }
 
-static int dispatch_cmnd(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
+static int dispatch_cmnd(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
 	return 0;
 }
 
-static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char a[5];
-	int i;
+static int dispatch_stat(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+	// power state results
+	if (!strcmp(suffix, "POWER"))
+		return update_relay(id, idx, MESSAGE_ON);
 
-	// PIR motion detection sensors
+	// PIR motion detection sensors - tasmota configuration:
 	// SwitchMode1 1
 	// SwitchTopic 0
 	// Rule1 on Switch1#state=1 do publish stat/%topic%/PIR1 ON endon on Switch1#state=0 do Publish stat/%topic%/PIR1 OFF endon
 	// Rule1 1
-	i = -1;
-	if (ends_with("PIR", topic, tsize))
-		i = 0;
-	if (ends_with("PIR1", topic, tsize))
-		i = 1;
-	if (i >= 0) {
-		// if (id == DEVKIT1 && i == 1 && MESSAGE_ON)
-		//	return notify("motion", "devkit1", "au.wav");
-		if (id == CARPORT && i == 1 && MESSAGE_ON)
-			return notify("motion", "carport", "au.wav");
-	}
-
-	// power state results
-	i = -1;
-	if (json_scanf(message, msize, "{POWER:%s}", &a))
-		i = 0;
-	if (json_scanf(message, msize, "{POWER1:%s}", &a))
-		i = 1;
-	if (json_scanf(message, msize, "{POWER2:%s}", &a))
-		i = 2;
-	if (json_scanf(message, msize, "{POWER3:%s}", &a))
-		i = 3;
-	if (json_scanf(message, msize, "{POWER4:%s}", &a))
-		i = 4;
-	if (i >= 0) {
-		int p = !strcmp(a, ON) ? 1 : 0;
-		update_relay(id, i, p);
-	}
+//	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
+//		return notify("motion", "devkit1", "au.wav");
+	if (id == CARPORT && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
+		return notify("motion", "carport", "au.wav");
 
 	// scan for shutter position results
 	char *sh = NULL;
+	int i;
 	if (json_scanf(message, msize, "{Shutter1:%Q}", &sh)) {
 		if (json_scanf(sh, strlen(sh), "{Position:%d}", &i))
 			update_shutter(id, i);
@@ -385,30 +389,47 @@ static int dispatch_stat(unsigned int id, const char *topic, uint16_t tsize, con
 	}
 
 	// TASMOTA B20670 topic('stat/B20670/RESULT') = {"Switch3":{"Action":"ON"}}
-	dispatch_button(id, topic, tsize, message, msize);
+	dispatch_button(id, idx, message, msize);
 
 	return 0;
 }
 
 // handle a subscribed mqtt message
 int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	unsigned int id = get_id(topic, tsize);
+	unsigned int id, idx;
+	char prefix[PREFIX_LEN], suffix[SUFFIX_LEN];
+
+	// raw topic + raw message
+//	if (is_debug()) {
+//		char *t = make_string(topic, tsize);
+//		char *m = make_string(message, msize);
+//		xdebug("TASMOTA %06X topic('%s') = %s", id, t, m);
+//		free(t);
+//		free(m);
+//	}
+
+	split(topic, tsize, &id, prefix, suffix, &idx);
 	if (!id)
 		return 0;
 
-	// dump("TASMOTA", id, topic, tsize, message, msize);
+	// splitted topic + raw message
+	if (is_debug()) {
+		char *m = make_string(message, msize);
+		xdebug("TASMOTA id=%06X prefix=%s suffix=%s index=%d message=%s", id, prefix, suffix, idx, m);
+		free(m);
+	}
 
 	// TELE
-	if (starts_with(TOPIC_TELE, topic, tsize))
-		return dispatch_tele(id, topic, tsize, message, msize);
+	if (!strcmp(prefix, TOPIC_TELE))
+		return dispatch_tele(id, suffix, idx, message, msize);
 
 	// CMND
-	if (starts_with(TOPIC_CMND, topic, tsize))
-		return dispatch_cmnd(id, topic, tsize, message, msize);
+	if (!strcmp(prefix, TOPIC_CMND))
+		return dispatch_cmnd(id, suffix, idx, message, msize);
 
 	// STAT
-	if (starts_with(TOPIC_STAT, topic, tsize))
-		return dispatch_stat(id, topic, tsize, message, msize);
+	if (!strcmp(prefix, TOPIC_STAT))
+		return dispatch_stat(id, suffix, idx, message, msize);
 
 	return 0;
 }

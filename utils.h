@@ -93,8 +93,9 @@
 		else \
 			xlog("%s profiling in %dns", s, ts_profiling_ns);
 
-void set_xlog(int output);
+int is_debug();
 void set_debug(int debug);
+void set_xlog(int output);
 void xlog_close();
 void xlog(const char *format, ...);
 void xdebug(const char *format, ...);

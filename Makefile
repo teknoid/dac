@@ -79,6 +79,10 @@ sensors: CFLAGS += -DSENSORS_MAIN -DSTDOUT
 sensors: clean mcp.o utils.o sensors.o i2c.o
 	$(CC) $(CFLAGS) -o sensors mcp.o utils.o sensors.o i2c.o
 
+tasmota: CFLAGS += -DMCP -DSTDOUT -DDEBUG
+tasmota: clean mcp.o utils.o tasmota.o mqtt.o sensors.o i2c.o frozen.o
+	$(CC) $(CFLAGS) -L$(LIB) -o tasmota mcp.o utils.o tasmota.o mqtt.o sensors.o i2c.o frozen.o -lmqttc
+
 gpio-sunxi: clean mcp.o utils.o gpio-sunxi.o
 	$(CC) $(CFLAGS) -DGPIO_MAIN -c gpio-sunxi.c
 	$(CC) $(CFLAGS) -o gpio-sunxi mcp.o utils.o gpio-sunxi.o 

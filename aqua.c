@@ -135,24 +135,14 @@ static int test() {
 }
 
 int aqua_main(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
-
-	// no arguments - main loop
-	if (argc == 1) {
-		init();
-		loop();
-		pause();
-		stop();
-		return 0;
-	}
-
-	// with arguments
 	int c;
-	while ((c = getopt(argc, argv, "t")) != -1) {
+	while ((c = getopt(argc, argv, "lt")) != -1) {
 		switch (c) {
+		case 'l':
+			return mcp_main(argc, argv);
 		case 't':
 			return test();
+
 		default:
 			xlog("unknown getopt %c", c);
 		}

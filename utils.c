@@ -46,6 +46,10 @@ static void xlog_open() {
 	fflush(xlog_file);
 }
 
+int is_debug() {
+	return debug;
+}
+
 void set_debug(int d) {
 	debug = d;
 }
