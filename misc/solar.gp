@@ -22,9 +22,9 @@ set style line 3 linecolor "orange-red" lw 1			# Grid download
 set style line 4 linecolor "orchid" lw 1				# Grid upload
 set style line 5 linecolor "navy" lw 1					# Load
 set style line 6 linecolor "olive" lw 1					# SoC
-set style line 7 linecolor "magenta" lw 1				# Success
-set style line 8 linecolor "orange-red" lw 12			# Rad1h over SunD1
-set style line 9 linecolor "black" lw 1
+set style line 7 linecolor "magenta" lw 1				# 
+set style line 8 linecolor "black" lw 1					# 
+set style line 9 linecolor "orange-red" lw 12			# Rad1h over SunD1
 
 set style fill solid 1.0
 set boxwidth 0.33 relative
@@ -64,11 +64,11 @@ p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"e
 set ylabel "GState week"
 set xrange [0:168]
 set output "/run/mcp/gstate-week.svg"
-p gstatew u 1:"load"  t "load"     w lines,\
-       '' u 1:"soc"   t "soc"      w lines,\
-       '' u 1:"ttl"   t "ttl"      w lines,\
-       '' u 1:"surv"  t "survive"  w lines,\
-       '' u 1:"heat"  t "heating"  w lines
+p gstatew u 1:"load"  t "load"     w lines ls 5,\
+       '' u 1:"soc"   t "soc"      w lines ls 6,\
+       '' u 1:"ttl"   t "ttl"      w lines lt 4,\
+       '' u 1:"surv"  t "survive"  w lines lt 1,\
+       '' u 1:"heat"  t "heating"  w lines lt 7
 
 
 # factors
@@ -89,7 +89,7 @@ set yrange [0:10000]
 set y2range [0:100]
 set output "/run/mcp/mosmix-today.svg" 
 p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
-        '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
+        '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
@@ -99,7 +99,7 @@ p today    u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
 set ylabel "Tomorrow"
 set output "/run/mcp/mosmix-tomorrow.svg" 
 p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
-        '' u 1:"Rad1h" t "Rad1h" w impulses ls 8,\
+        '' u 1:"Rad1h" t "Rad1h" w impulses ls 9,\
         '' u 1:"exp1"  t "exp1"  w lines lt 1,\
         '' u 1:"exp2"  t "exp2"  w lines lt 2,\
         '' u 1:"exp3"  t "exp3"  w lines lt 3, \
@@ -130,12 +130,12 @@ set xtics time 60 format "%tM"
 set output "/run/mcp/gstate.svg"
 p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
   gstate u 1:"soc"    t "soc"  w lines ls 6,\
-      '' u 1:"ttl"    t "ttl"  w lines,\
-      '' u 1:"succ"   t "succ" w lines ls 7,\
-      '' u 1:"foca"   t "foca" w lines ls 7,\
-      '' u 1:"surv"   t "surv" w lines ls 3,\
-      '' u 1:"heat"   t "heat" w lines,\
-      1000            t "100%" w lines ls 9
+      '' u 1:"ttl"    t "ttl"  w lines lt 4,\
+      '' u 1:"surv"   t "surv" w lines lt 1,\
+      '' u 1:"heat"   t "heat" w lines lt 7,\
+      '' u 1:"succ"   t "succ" w lines lt 3,\
+      '' u 1:"foca"   t "foca" w lines lt 6,\
+      1000            t "100%" w lines lt 8
       
 set ylabel "Grid - Power"
 set yrange [*:*]
