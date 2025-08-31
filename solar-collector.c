@@ -12,7 +12,10 @@
 #include "utils.h"
 #include "mcp.h"
 
+#define COUNTER_METER
+
 #define AKKU_BURNOUT			1
+#define HISTORY_SIZE			(24 * 7)
 
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar.gp"
 
@@ -45,6 +48,34 @@
 #define GSTATE_JSON				"gstate.json"
 #define DSTATE_JSON				"dstate.json"
 #define POWERFLOW_JSON			"powerflow.json"
+
+// counter history
+#define COUNTER_HOUR_NOW		(&counter_history[24 * now->tm_wday + now->tm_hour])
+
+// gstate access pointers
+#define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
+#define GSTATE_MIN_LAST			(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define GSTATE_HOUR_NOW			(&gstate_history[24 * now->tm_wday + now->tm_hour])
+#define GSTATE_HOUR_LAST		(&gstate_history[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
+#define GSTATE_HOUR_NEXT		(&gstate_history[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
+#define GSTATE_TODAY			(&gstate_history[24 * now->tm_wday])
+#define GSTATE_YDAY				(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
+#define GSTATE_HOUR(h)			(&gstate_history[24 * now->tm_wday + (h)])
+#define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
+
+// pstate access pointers
+#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
+#define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
+#define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+#define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
+#define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
+#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
+#define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
+//#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
+#define PSTATE_HOUR(h)			(&pstate_hours[h])
 
 // average loads over 24/7
 static int loads[24];
@@ -271,7 +302,7 @@ static void calculate_gstate() {
 	gstate->soc = pstate->soc;
 
 	// store average load in gstate history
-	gstate->load = PSTATE_HOUR_LAST1->load;
+	gstate->load = PSTATE_HOUR_NOW->load;
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
 	int min = akku_get_min_soc();

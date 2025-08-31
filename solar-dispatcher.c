@@ -35,6 +35,12 @@
 
 #define STANDBY_NORESPONSE		5
 
+// dstate access pointers
+#define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
+#define DSTATE_LAST1			(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
+#define DSTATE_LAST2			(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define DSTATE_LAST3			(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
+
 // program of the day - choosen by mosmix forecast data
 typedef struct potd_t {
 	const char *name;

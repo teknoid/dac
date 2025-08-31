@@ -72,8 +72,6 @@
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
-#define HISTORY_SIZE			(24 * 7)
-
 enum e_state {
 	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
 };
@@ -127,10 +125,8 @@ struct _counter {
 #define CM_NULL					(&counter[7])
 #define CM_HOUR					(&counter[8])
 #define CM_DAY					(&counter[9])
-// history
-#define COUNTER_HOUR_NOW		(&counter_history[24 * now->tm_wday + now->tm_hour])
 
-// 24/7 gstate history slots and access pointers
+// 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
 #define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  foca  surv  heat   tin  tout flags"
@@ -156,17 +152,8 @@ struct _gstate {
 	int temp_out;
 	int flags;
 };
-#define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
-#define GSTATE_MIN_LAST			(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define GSTATE_HOUR_NOW			(&gstate_history[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_HOUR_LAST		(&gstate_history[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
-#define GSTATE_HOUR_NEXT		(&gstate_history[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
-#define GSTATE_TODAY			(&gstate_history[24 * now->tm_wday])
-#define GSTATE_YDAY				(&gstate_history[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
-#define GSTATE_HOUR(h)			(&gstate_history[24 * now->tm_wday + (h)])
-#define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
 
-// pstate history every second/minute/hour and access pointers
+// pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
 #define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku   ac1   ac2  load Δload ∑load   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
@@ -200,20 +187,8 @@ struct _pstate {
 	int inv;
 	int flags;
 };
-#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
-#define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
-#define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
-#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
-#define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
-#define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
-#define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
-#define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
-#define PSTATE_HOUR_NOW			(&pstate_hours[now->tm_hour])
-#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
-#define PSTATE_HOUR(h)			(&pstate_hours[h])
 
-// dstate and access pointers
+// dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
 #define DSTATE_HEADER	"  ramp xload dload  lock flags"
@@ -224,10 +199,6 @@ struct _dstate {
 	int lock;
 	int flags;
 };
-#define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
-#define DSTATE_LAST1			(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
-#define DSTATE_LAST2			(&dstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
-#define DSTATE_LAST3			(&dstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
 
 // global counter and state pointer
 extern counter_t counter[10];
