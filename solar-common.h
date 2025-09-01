@@ -1,5 +1,7 @@
 #include "solar.h"
 
+#define HISTORY_SIZE			(24 * 7)
+
 #define NOISE					10
 #define RAMP_WINDOW				35
 #define SUSPICIOUS				500

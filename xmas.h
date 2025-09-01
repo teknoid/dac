@@ -1,5 +1,3 @@
-#include "tasmota-devices.h"
-
 // light on: ↑earlier, ↓later
 #define SUNDOWN			50
 

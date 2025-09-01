@@ -1,3 +1,5 @@
+#include "tasmota-devices.h"
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;

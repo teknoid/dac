@@ -1,4 +1,3 @@
-#include "tasmota.h"
 
 //   1   2      3   4    5   6    7   8    9   10   11
 // { id, relay, t1, t1b, t2, t2b, t3, t3b, t4, t4b, timer }

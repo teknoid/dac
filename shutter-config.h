@@ -1,5 +1,3 @@
-#include "tasmota-devices.h"
-
 #ifdef SHUTTER_MAIN
 #define TEMP				23.2
 #define HUMI				33

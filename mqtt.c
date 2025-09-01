@@ -15,19 +15,15 @@
 #include <posix_sockets.h>
 #include <mqttc.h>
 
-#include "tasmota-devices.h"
 #include "ledstrip.h"
 #include "tasmota.h"
 #include "sensors.h"
 #include "frozen.h"
+#include "solar.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "lcd.h"
 #include "mcp.h"
-
-#ifdef SOLAR
-#include "solar.h"
-#endif
 
 #define LUMI				sensors->bh1750_lux
 
@@ -181,8 +177,8 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 
 static int dispatch_solar(struct mqtt_response_publish *p) {
 	if (ends_with("override", p->topic_name, p->topic_name_size)) {
-		char *device = make_string(p->application_message, p->application_message_size);
 #ifdef SOLAR
+		char *device = make_string(p->application_message, p->application_message_size);
 		solar_override_seconds(device, 3600);
 #endif
 	}

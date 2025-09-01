@@ -5,15 +5,16 @@
 #include <limits.h>
 #include <string.h>
 
-#include "mcp.h"
-#include "mqtt.h"
-#include "xmas.h"
-#include "utils.h"
+#include "tasmota.h"
+#include "tasmota-config.h"
+#include "flamingo.h"
+#include "sensors.h"
 #include "frozen.h"
 #include "solar.h"
-#include "sensors.h"
-#include "flamingo.h"
-#include "tasmota-config.h"
+#include "utils.h"
+#include "xmas.h"
+#include "mqtt.h"
+#include "mcp.h"
 
 #ifdef SOLAR
 #include "solar.h"

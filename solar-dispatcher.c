@@ -11,7 +11,6 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
-#include "tasmota-devices.h"
 #include "tasmota.h"
 #include "sunspec.h"
 #include "utils.h"

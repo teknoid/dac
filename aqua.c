@@ -6,7 +6,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "tasmota-devices.h"
 #include "tasmota.h"
 #include "sensors.h"
 #include "utils.h"

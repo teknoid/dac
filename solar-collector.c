@@ -15,7 +15,6 @@
 #define COUNTER_METER
 
 #define AKKU_BURNOUT			1
-#define HISTORY_SIZE			(24 * 7)
 
 #define GNUPLOT					"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar.gp"
 

@@ -6,8 +6,8 @@
 #include <limits.h>
 #include <time.h>
 
-#include "shutter-config.h"
 #include "tasmota.h"
+#include "shutter-config.h"
 #include "sensors.h"
 #include "utils.h"
 #include "mqtt.h"
