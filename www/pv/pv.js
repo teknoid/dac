@@ -20,6 +20,21 @@ function update_sensors() {
 	request.send();
 }
 
+function toggle(e) {
+	var host = e.currentTarget.getAttribute('data-host');
+	var id = e.currentTarget.getAttribute('data-id');
+	var r = e.currentTarget.getAttribute('data-r');
+	if (r == 0)
+		var cm = '/' + host + '/cm?cmnd=Power%20TOGGLE';
+	else
+		var cm = '/' + host + '/cm?cmnd=Power' + r + '%20TOGGLE';
+	if (id != 0) {
+		var request = new XMLHttpRequest();
+		request.open("GET", cm);
+		request.send();
+	}
+}
+
 function update_devices() {
 	var request = new XMLHttpRequest();
 	request.open("GET", "/pv/data/devices.json");
@@ -40,8 +55,19 @@ function update_devices() {
 				} else {
 					clazz += ' p';
 				}
-				dl.innerHTML += '<dt>' + v.name + '</dt>';
-				dl.innerHTML += '<dd class="' + v.name + '"><span class="' + clazz + '" style="height:' + height + '%;"></span><div class="load">' + v.load + '</div></dd>';
+				
+				var dt = document.createElement("dt");
+				dt.innerHTML = v.name;
+
+				var dd = document.createElement("dd");
+				dd.classList.add(v.name);
+				dd.setAttribute('data-host', v.host);
+				dd.setAttribute('data-id', v.id);
+				dd.setAttribute('data-r', v.r);
+				dd.addEventListener("click", toggle);
+				dd.innerHTML = '<span class="' + clazz + '" style="height:' + height + '%;"></span><div class="load">' + v.load + '</div>'
+				dd.appendChild(dt);
+				dl.appendChild(dd);
 			});
 		}
 	});

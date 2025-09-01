@@ -15,6 +15,10 @@
 #include "flamingo.h"
 #include "tasmota-config.h"
 
+#ifdef SOLAR
+#include "solar.h"
+#endif
+
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
 #define ON					"ON"
 #define OFF					"OFF"
@@ -154,6 +158,12 @@ static int update_relay(unsigned int id, int relay, int power) {
 		xlog("TASMOTA %06X updated relay4 state to %d", ss->id, power);
 	} else
 		xlog("TASMOTA %06X no relay %d", ss->id, relay);
+
+#ifdef SOLAR
+	// forward to solar dispatcher
+	solar_update(id, relay, power);
+#endif
+
 	return 0;
 }
 

@@ -84,6 +84,7 @@ struct _device {
 	const unsigned int r;
 	const char *name;
 	const char *addr;
+	const char *host;
 	const int adj;
 	const int total;
 	const int from;

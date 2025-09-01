@@ -11,6 +11,7 @@
 #endif
 
 #ifdef TRON
+#define SOLAR
 #define FLAMINGO
 #define LCD
 #define I2C				"/dev/i2c-7"

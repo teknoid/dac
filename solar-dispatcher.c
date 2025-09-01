@@ -21,7 +21,7 @@
 #define DSTATE_JSON				"dstate.json"
 #define DEVICES_JSON			"devices.json"
 
-#define DSTATE_TEMPLATE			"{\"name\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
+#define DSTATE_TEMPLATE			"{\"id\":\"%d\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 
 #define DD						(*dd)
 #define UP						(*dd)->total
@@ -58,10 +58,10 @@ static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 
 static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
 static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 5 };
-static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 1 };
-static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 2 };
-static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .id = PLUG5, .r = 0 };
-static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .id = SWITCHBOX, .r = 3, };
+static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 1 };
+static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 2 };
+static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "plug5", .id = PLUG5, .r = 0 };
+static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 3, };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
@@ -310,9 +310,9 @@ static void create_devices_json() {
 		if (i++)
 			fprintf(fp, ",");
 		if (DD == AKKU)
-			fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, akku_charge_max(), pstate->akku);
+			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, akku_charge_max(), pstate->akku);
 		else
-			fprintf(fp, DSTATE_TEMPLATE, DD->name, DD->state, DD->power, DD->total, DD->load);
+			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->total, DD->load);
 	}
 
 	fprintf(fp, "]");
@@ -820,6 +820,16 @@ int solar_override_seconds(const char *name, int seconds) {
 
 int solar_override(const char *name) {
 	return solar_override_seconds(name, OVERRIDE);
+}
+
+int solar_update(unsigned int id, int relay, int power) {
+	xlog("SOLAR update id=%d relay=%d power=%d", id, relay, power);
+	for (device_t **dd = potd->devices; *dd; dd++)
+		if (DD->id == id && DD->r == relay) {
+			DD->power = power;
+			DD->load = power ? DD->total : 0;
+		}
+	return 0;
 }
 
 static void loop() {

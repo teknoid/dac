@@ -18,13 +18,16 @@
 
 #include "ledstrip.h"
 #include "tasmota.h"
-#include "solar.h"
 #include "button.h"
 #include "utils.h"
 #include "dac.h"
 #include "i2c.h"
 #include "mcp.h"
 #include "mpd.h"
+
+#ifdef SOLAR
+#include "solar.h"
+#endif
 
 #ifndef I2C
 #define I2C				"/dev/i2c-3"
