@@ -335,16 +335,17 @@ static void calculate_gstate() {
 	// temperature / heating needed / possible
 	gstate->temp_in = temp_in();
 	gstate->temp_out = temp_out();
-	if (gstate->sod == 0)
-		gstate->heating = 0; // pv not yet started - we cannot heat
+	if (gstate->pv < MINIMUM)
+		// pv not yet started - we cannot heat
+		gstate->heating = 0;
 	else {
 		gstate->flags |= FLAG_HEATING;
 		// no need to heat
-		if (gstate->temp_in > 250)
-			gstate->flags &= ~FLAG_HEATING;
 		if (gstate->temp_in > 180 && SUMMER)
 			gstate->flags &= ~FLAG_HEATING;
 		if (gstate->temp_in > 200 && gstate->temp_out > 150 && !SUMMER)
+			gstate->flags &= ~FLAG_HEATING;
+		if (gstate->temp_in > 250)
 			gstate->flags &= ~FLAG_HEATING;
 		// force heating independently from temperature
 		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
@@ -367,7 +368,7 @@ static void calculate_gstate() {
 		// autumn/spring: between 9 and 15 o'clock when below 50% or tomorrow not enough pv
 		if (gstate->soc < 500 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
-		if (gstate->tomorrow < akku_capacity() * 2)
+		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
 
