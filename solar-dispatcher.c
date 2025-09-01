@@ -826,8 +826,9 @@ int solar_update(unsigned int id, int relay, int power) {
 	xlog("SOLAR update id=%d relay=%d power=%d", id, relay, power);
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (DD->id == id && DD->r == relay) {
-			DD->power = power;
 			DD->load = power ? DD->total : 0;
+			DD->power = power;
+			return 0;
 		}
 	return 0;
 }
