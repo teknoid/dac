@@ -12,6 +12,7 @@
 
 #define TOPIC_NOTIFICATION	"notification"
 #define TOPIC_SENSOR		"sensor"
+#define TOPIC_SOLAR			"solar"
 #define TOPIC_NETWORK		"network"
 #define TOPIC_TELE			"tele"
 #define TOPIC_CMND			"cmnd"

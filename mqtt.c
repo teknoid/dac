@@ -25,6 +25,10 @@
 #include "lcd.h"
 #include "mcp.h"
 
+#ifdef SOLAR
+#include "solar.h"
+#endif
+
 #define LUMI				sensors->bh1750_lux
 
 //
@@ -175,6 +179,16 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 	return 0;
 }
 
+static int dispatch_solar(struct mqtt_response_publish *p) {
+	if (ends_with("override", p->topic_name, p->topic_name_size)) {
+		char *device = make_string(p->application_message, p->application_message_size);
+#ifdef SOLAR
+		solar_override_seconds(device, 3600);
+#endif
+	}
+	return 0;
+}
+
 static int dispatch(struct mqtt_response_publish *p) {
 	// dump("MQTT", p);
 
@@ -189,6 +203,10 @@ static int dispatch(struct mqtt_response_publish *p) {
 	// sensor
 	if (starts_with(TOPIC_SENSOR, p->topic_name, p->topic_name_size))
 		return dispatch_sensor(p);
+
+	// sensor
+	if (starts_with(TOPIC_SOLAR, p->topic_name, p->topic_name_size))
+		return dispatch_solar(p);
 
 	// tasmota TELE
 	if (starts_with(TOPIC_TELE, p->topic_name, p->topic_name_size))
@@ -273,6 +291,9 @@ static int init() {
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_subscribe(client_rx, TOPIC_SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	if (mqtt_subscribe(client_rx, TOPIC_SOLAR"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
