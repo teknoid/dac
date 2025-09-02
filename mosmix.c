@@ -412,8 +412,7 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	int exp1 = SUM_EXP(&mtoday);
 	int sodx1 = SUM_EXP(&msod);
 	int sodm1 = SUM_MPPT(&msod);
-	float fs1 = sodx1 ? sodm1 * 100 / sodx1 : 0.0;
-	*succ1 = fs1 * 10.0;
+	*succ1 = sodx1 ? sodm1 * 1000 / sodx1 : 0;
 
 	// nothing to scale
 	if (TODAY(now->tm_hour)->Rad1h == 0)
@@ -466,9 +465,9 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	int exp2 = SUM_EXP(&mtoday);
 	int sodx2 = SUM_EXP(&msod);
 	int sodm2 = SUM_MPPT(&msod);
-	float fs2 = sodx2 ? sodm2 * 100 / sodx2 : 0.0;
-	*succ2 = fs2 * 10.0;
+	*succ2 = sodx2 ? sodm2 * 1000 / sodx2 : 0;
 
+	float fs1 = FLOAT10(*succ1), fs2 = FLOAT10(*succ2);
 	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 

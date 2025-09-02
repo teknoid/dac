@@ -63,7 +63,7 @@
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_history[24 * (d) + (h)])
 
 // pstate access pointers
-#define PSTATE_NOW				(&pstate_seconds[now->tm_sec])
+#define PSTATE_SEC_NOW			(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec + 1 : 0])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
@@ -171,8 +171,8 @@ static void collect_loads() {
 
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "GSTATE");
-	xlogl_bits16(line, "flags", gstate->flags);
+	xlogl_start(line, "GSTATE ");
+	xlogl_bits16(line, NULL, gstate->flags);
 	xlogl_int(line, "Today", gstate->today);
 	xlogl_int(line, "Tomo", gstate->tomorrow);
 //	xlogl_int(line, "SoD", gstate->sod);
@@ -193,8 +193,8 @@ static void print_gstate() {
 
 static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "PSTATE");
-	xlogl_bits16(line, "flags", pstate->flags);
+	xlogl_start(line, "PSTATE ");
+	xlogl_bits16(line, NULL, pstate->flags);
 	if (!PSTATE_OFFLINE) {
 		xlogl_int_b(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int_b(line, "PV7", pstate->mppt3 + pstate->mppt4);
@@ -364,8 +364,8 @@ static void calculate_gstate() {
 		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: between 9 and 15 o'clock when below 40% or tomorrow not enough pv
-		if (gstate->soc < 400 && now->tm_hour >= 9 && now->tm_hour < 15)
+		// autumn/spring: between 9 and 15 o'clock when below 35% or tomorrow not enough pv
+		if (gstate->soc < 350 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
@@ -441,11 +441,11 @@ static void calculate_pstate() {
 	pstate->sdload += abs(pstate->dload);
 
 	// check if we have delta ac power anywhere
-	if (abs(pstate->grid - s1->grid) > NOISE)
+	if (abs(pstate->grid - s1->grid) > DELTA)
 		pstate->flags |= FLAG_DELTA;
-	if (abs(pstate->ac1 - s1->ac1) > NOISE)
+	if (abs(pstate->ac1 - s1->ac1) > DELTA)
 		pstate->flags |= FLAG_DELTA;
-	if (abs(pstate->ac2 - s1->ac2) > NOISE)
+	if (abs(pstate->ac2 - s1->ac2) > DELTA)
 		pstate->flags |= FLAG_DELTA;
 
 	// grid upload in last 3 minutes
@@ -562,7 +562,7 @@ static void calculate_pstate() {
 	pthread_mutex_unlock(&collector_lock);
 
 	// copy to history
-	memcpy(PSTATE_NOW, (void*) pstate, sizeof(pstate_t));
+	memcpy(PSTATE_SEC_NOW, (void*) pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when delta / on grid load
 	if (MINLY || PSTATE_DELTA || pstate->grid > NOISE)
@@ -575,12 +575,12 @@ static void daily() {
 	// calculate forecast errors - actual vs. expected
 	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
 	int fc2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
-	float e2 = fc2 ? gstate->pv * 100 / fc2 : 0.0;
-	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %.1f%%", fc2, gstate->pv, e2);
+	int e2 = fc2 ? gstate->pv * 100 / fc2 : 0;
+	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %d%%", fc2, gstate->pv, e2);
 	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
 	int fc1 = GSTATE_DAY_HOUR(yday1, 7)->today;
-	float e1 = fc1 ? gstate->pv * 100 / fc1 : 0.0;
-	xlog("SOLAR todays 07:00 forecast for today     %d, actual %d, strike %.1f%%", fc1, gstate->pv, e1);
+	int e1 = fc1 ? gstate->pv * 100 / fc1 : 0;
+	xlog("SOLAR     todays 07:00 forecast for today %d, actual %d, strike %d%%", fc1, gstate->pv, e1);
 
 	// recalculate average 24/7 loads
 	collect_loads();

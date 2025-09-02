@@ -3,7 +3,8 @@
 #define HISTORY_SIZE			(24 * 7)
 
 #define NOISE					10
-#define RAMP_WINDOW				35
+#define DELTA					15
+#define RAMP					35
 #define SUSPICIOUS				500
 #define EMERGENCY				1000
 #define ENOUGH					2000

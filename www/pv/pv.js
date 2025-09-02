@@ -44,29 +44,29 @@ function update_devices() {
 			var dl = document.querySelector('dl');
 			dl.innerHTML = '';
 			Object.entries(data).forEach(([k, v]) => {
-				var height = v.load * 100 / v.total;
-				var load = v.load;
-				var clazz = 'bar';
-				if (v.state == 3) {
-					clazz += ' z';
-				} else if (v.load < 0) {
-					clazz += ' m';
-					height *= -1;
-				} else {
-					clazz += ' p';
-				}
-				
-				var dt = document.createElement("dt");
-				dt.innerHTML = v.name;
-
 				var dd = document.createElement("dd");
 				dd.classList.add(v.name);
+
+				var height = v.load * 100 / v.total;
+				var clazz;
+				if (v.state == 0) {
+					dd.classList.add('d');
+					clazz = 'd';
+				} else if (v.state == 3) {
+					dd.classList.add('z');
+					clazz = 'z';
+				} else if (v.load < 0) {
+					clazz = 'm';
+					height *= -1;
+				} else {
+					clazz = 'p';
+				}
+
 				dd.setAttribute('data-host', v.host);
 				dd.setAttribute('data-id', v.id);
 				dd.setAttribute('data-r', v.r);
 				dd.addEventListener("click", toggle);
-				dd.innerHTML = '<span class="' + clazz + '" style="height:' + height + '%;"></span><div class="load">' + v.load + '</div>'
-				dd.appendChild(dt);
+				dd.innerHTML = '<span class="bar ' + clazz + '" style="height:' + height + '%;"></span><div class="load">' + v.load + '</div><div class="name">' + v.name + '</div>'
 				dl.appendChild(dd);
 			});
 		}

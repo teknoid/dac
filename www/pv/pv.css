@@ -20,6 +20,16 @@ body, html {
 	float: left
 }
 
+dl .d						{ background:gainsboro; color:gray }
+dl .z						{ background:silver }
+dl .p						{ background:skyblue }
+
+dl dd.akku .m				{ background:palegreen }
+dl dd.akku .p				{ background:orangered }
+
+dl dd						{ float:left; margin: 0 5px 0 0; border:1px solid lightgrey; cursor:pointer }
+dl dd.d						{ cursor:default }
+
 /* desktop */
 @media (max-width: 2000px) {
 	iframe					{ width:420px; height:420px }
@@ -27,31 +37,23 @@ body, html {
 	.svg					{ max-width:1500px }
 	
 	dl 						{ }
-	dl dt					{ float:left; writing-mode:sideways-rl; position:relative; left:10px; z-index:+1 }
-	dl dd					{ width:35px; height:100px; float:left; margin: 0 5px 0 0; border:1px solid lightgrey; position:relative; cursor:pointer }
-	dl dd .bar				{ width:35px; display:block; position:absolute; bottom:0px; text-align:center }
-	dl dd .p				{ background:skyblue }
-	dl dd .z				{ background:silver; height:100% !important }
+	dl dd					{ position:relative; width:35px; height:100px }
+	dl dd .bar				{ position:absolute; bottom:0px; width:35px; display:block }
 	dl dd .load				{ position:relative; top:80px; text-align:center }
-	dl dd.akku .m			{ background:palegreen }
-	dl dd.akku .p			{ background:orangered }
+	dl dd .name				{ position:relative; left:10px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
 /* laptop */
 @media (max-width: 1400px) {
 	iframe					{ width:420px; height:420px }
 	.powerflow				{ width:420px; display:block; float:inline-end }
-	.svg					{ max-width:960px }
+	.svg					{ max-width:940px }
 
 	dl 						{ }
-	dl dt					{ float:left; writing-mode:sideways-rl; position:relative; left:10px; z-index:+1 }
-	dl dd					{ width:35px; height:100px; float:left; margin: 0 5px 0 0; border:1px solid lightgrey; position:relative; cursor:pointer }
-	dl dd .bar				{ width:35px; display:block; position:absolute; bottom:0px; text-align:center }
-	dl dd .p				{ background:skyblue }
-	dl dd .z				{ background:silver; height:100% !important }
+	dl dd					{ position:relative; width:35px; height:100px }
+	dl dd .bar				{ position:absolute; bottom:0px; width:35px; display:block }
 	dl dd .load				{ position:relative; top:80px; text-align:center }
-	dl dd.akku .m			{ background:palegreen }
-	dl dd.akku .p			{ background:orangered }
+	dl dd .name				{ position:relative; left:10px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
 /* mobile */
@@ -62,14 +64,10 @@ body, html {
 	.svg					{ max-width:980px }
 
 	dl 						{ font-size:32px }
-	dl dt					{ float:left; writing-mode:sideways-rl; position:relative; left:32px; z-index:+1 }
-	dl dd					{ width:95px; height:300px; float:left; margin: 0 5px 0 0; border:2px solid lightgrey; position:relative; cursor:pointer }
-	dl dd .bar				{ width:95px; display:block; position:absolute; bottom:0px; text-align:center }
-	dl dd .p				{ background:skyblue }
-	dl dd .z				{ background:silver; height:100% !important }
+	dl dd					{ position:relative; width:95px; height:300px; }
+	dl dd .bar				{ position:absolute; bottom:0px; width:95px; display:block }
 	dl dd .load				{ position:relative; top:250px; text-align:center }
-	dl dd.akku .m			{ background:palegreen }
-	dl dd.akku .p			{ background:orangered }
+	dl dd .name				{ position:relative; left:32px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
 .lv							{ margin:5px 2px; padding:4px 6px; background-color:lightgrey }

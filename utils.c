@@ -246,13 +246,19 @@ void xlogl_start(char *line, const char *s) {
 
 void xlogl_bits(char *line, const char *name, int bits) {
 	char c[32];
-	snprintf(c, 32, " %s:"BYTE2BIN_PATTERN, name, BYTE2BIN(bits));
+	if (name != NULL)
+		snprintf(c, 32, " %s:"BYTE2BIN_PATTERN, name, BYTE2BIN(bits));
+	else
+		snprintf(c, 32, BYTE2BIN_PATTERN, BYTE2BIN(bits));
 	strncat(line, c, 32);
 }
 
 void xlogl_bits16(char *line, const char *name, int bits) {
 	char c[32];
-	snprintf(c, 32, " %s:"BYTE2BIN_PATTERN16, name, BYTE2BIN16(bits));
+	if (name != NULL)
+		snprintf(c, 32, " %s:"BYTE2BIN_PATTERN16, name, BYTE2BIN16(bits));
+	else
+		snprintf(c, 32, BYTE2BIN_PATTERN16, BYTE2BIN16(bits));
 	strncat(line, c, 32);
 }
 

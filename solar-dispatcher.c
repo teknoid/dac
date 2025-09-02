@@ -321,8 +321,8 @@ static void create_devices_json() {
 
 static void print_dstate(device_t *d) {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
-	xlogl_start(line, "DSTATE");
-	xlogl_bits16(line, "flags", dstate->flags);
+	xlogl_start(line, "DSTATE ");
+	xlogl_bits16(line, NULL, dstate->flags);
 	if (!PSTATE_OFFLINE) {
 		xlogl_int_noise(line, NOISE, 0, "Ramp", dstate->ramp);
 		xlogl_int(line, "XLoad", dstate->xload);
@@ -398,7 +398,7 @@ static int ramp_device(device_t *d, int power) {
 
 static int select_program(const potd_t *p) {
 	if (potd == p)
-		return 0;
+		return 0; // no change
 
 	// potd has changed - reset all devices (except AKKU) and set AKKU to initial state
 	for (device_t **dd = DEVICES; *dd; dd++)
@@ -419,8 +419,8 @@ static int choose_program() {
 	// return select_program(&GREEDY);
 	// return select_program(&MODEST);
 
-	// summer
-	if (GSTATE_SUMMER)
+	// summer or enough pv
+	if (GSTATE_SUMMER || gstate->today > 50000)
 		return select_program(&PLENTY);
 
 	// akku is empty - charging akku has priority
@@ -444,7 +444,7 @@ static int choose_program() {
 		return select_program(&GREEDY);
 
 	// survive but not enough for heating --> load boilers
-	if (gstate->heating < 1000)
+	if (0 < gstate->heating && gstate->heating < 1000)
 		return select_program(&BOILERS);
 
 	// enough PV available to survive + heating
@@ -520,24 +520,20 @@ static device_t* ramp() {
 	// ramp power is inverted grid
 	dstate->ramp = pstate->grid * -1;
 
-	// stable when grid between -RAMP_WINDOW..+NOISE
-	if (-RAMP_WINDOW < pstate->grid && pstate->grid <= NOISE)
+	// stable when grid between -RAMP..+RAMP
+	if (-RAMP < pstate->grid && pstate->grid <= RAMP)
 		dstate->ramp = 0;
 
-	// ramp down between NOISE and RAMP_WINDOW
-	if (NOISE < pstate->grid && pstate->grid <= RAMP_WINDOW)
-		dstate->ramp = -RAMP_WINDOW;
+	// ramp one step down when grid between +NOISE..+RAMP
+	if (NOISE < pstate->grid && pstate->grid <= RAMP)
+		dstate->ramp = -RAMP;
 
-	// akku is charging: regulates around 0 - so set stable window between -RAMP_WINDOW..+RAMP_WINDOW
-	if (pstate->akku < -NOISE && -RAMP_WINDOW < pstate->grid && pstate->grid <= RAMP_WINDOW)
-		dstate->ramp = 0;
-
-	// akku is discharging: subtract + 50%
+	// akku is discharging: subtract it's power + 50%
 	if (pstate->akku > NOISE)
 		dstate->ramp -= pstate->akku + pstate->akku / 2;
 
 	// 50% more ramp down when PV tendency falls
-	if (PSTATE_PV_FALLING)
+	if (dstate->ramp < 0 && PSTATE_PV_FALLING)
 		dstate->ramp += dstate->ramp / 2;
 
 	// delay small ramp up when we just had akku discharge or grid download
@@ -730,6 +726,9 @@ static void calculate_dstate() {
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD->state == Disabled)
+			continue;
+
 		// calculated load
 		dstate->xload += DD->load;
 
@@ -750,8 +749,8 @@ static void calculate_dstate() {
 		dstate->xload += load < BASELOAD ? load : BASELOAD;
 	dstate->dload = load > 0 && dstate->xload ? load * 100 / dstate->xload : 0;
 
-	// indicate standby check when actual load is 3x below 50% of calculated load
-	if (dstate->xload && dstate->dload < 50 && s1->dload < 50 && s2->dload < 50) {
+	// indicate standby check when actual load is 3x below 33% of calculated load
+	if (dstate->xload && dstate->dload < 33 && s1->dload < 33 && s2->dload < 33) {
 		dstate->flags |= FLAG_CHECK_STANDBY;
 		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
 	}
@@ -797,6 +796,9 @@ static void minly() {
 		int min_soc = GSTATE_WINTER && tiny_tomorrow && gstate->soc > 111 ? 10 : 5;
 		akku_set_min_soc(min_soc);
 	}
+
+	// choose potd
+	choose_program();
 }
 
 int solar_override_seconds(const char *name, int seconds) {
@@ -933,6 +935,10 @@ static int init() {
 			DD->state = Disabled; // disable when we don't have an ip address to send UDP messages
 	}
 
+	// devices hard disabled
+	b2.state = Disabled;
+
+	// initially select the program of the day
 	choose_program();
 
 	return 0;
