@@ -346,12 +346,12 @@ static void calculate_gstate() {
 			gstate->flags &= ~FLAG_HEATING;
 		if (gstate->temp_in > 250)
 			gstate->flags &= ~FLAG_HEATING;
-		// force heating independently from temperature
-		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16) // may/sept begin 16 o'clock
+		// force heating
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 220) // may/sept begin 16 o'clock
 			gstate->flags |= FLAG_HEATING;
-		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14) // apr/oct begin 14 o'clock
+		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
 			gstate->flags |= FLAG_HEATING;
-		else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always if not too hot
+		else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
 			gstate->flags |= FLAG_HEATING;
 	}
 
@@ -364,8 +364,8 @@ static void calculate_gstate() {
 		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: between 9 and 15 o'clock when below 50% or tomorrow not enough pv
-		if (gstate->soc < 500 && now->tm_hour >= 9 && now->tm_hour < 15)
+		// autumn/spring: between 9 and 15 o'clock when below 40% or tomorrow not enough pv
+		if (gstate->soc < 400 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 15)
 			gstate->flags |= FLAG_CHARGE_AKKU;
@@ -408,9 +408,9 @@ static void calculate_pstate() {
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
 	pstate_t *s3 = PSTATE_SEC_LAST3;
+	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
-	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// total PV produced by all strings
 	if (pstate->mppt1 == 1)
@@ -450,42 +450,42 @@ static void calculate_pstate() {
 
 	// grid upload in last 3 minutes
 	if (pstate->grid < -NOISE) {
-		int g3 = m1->grid < -25 && m2->grid < -25 && m3->grid < -25;
-		int g2 = m1->grid < -50 && m2->grid < -50;
-		int g1 = m1->grid < -75;
-		if (g3 || g2 || g1) {
+		int g2 = m0->grid < -25 && m1->grid < -25 && m2->grid < -25;
+		int g1 = m0->grid < -50 && m1->grid < -50;
+		int g0 = m0->grid < -75;
+		if (g2 || g1 || g0) {
 			pstate->flags |= FLAG_GRID_ULOAD;
-			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m3->grid, m2->grid, m1->grid);
+			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
 		}
 	}
 
 	// grid download in last 3 minutes
 	if (pstate->grid > NOISE) {
-		int g3 = m1->grid > 25 && m2->grid > 25 && m3->grid > 25;
-		int g2 = m1->grid > 50 && m2->grid > 50;
-		int g1 = m1->grid > 75;
-		if (g3 || g2 || g1) {
+		int g2 = m0->grid > 25 && m1->grid > 25 && m2->grid > 25;
+		int g1 = m0->grid > 50 && m1->grid > 50;
+		int g0 = m0->grid > 75;
+		if (g2 || g1 || g0) {
 			pstate->flags |= FLAG_GRID_DLOAD;
-			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m3->grid, m2->grid, m1->grid);
+			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
 		}
 	}
 
 	// akku discharge in last 3 minutes
 	if (pstate->akku > NOISE) {
-		int a3 = m1->akku > 25 && m2->akku > 25 && m3->akku > 25;
-		int a2 = m1->akku > 50 && m2->akku > 50;
-		int a1 = m1->akku > 75;
-		if (a3 || a2 || a1) {
+		int a2 = m0->akku > 25 && m1->akku > 25 && m2->akku > 25;
+		int a1 = m0->akku > 50 && m1->akku > 50;
+		int a0 = m0->akku > 75;
+		if (a2 || a1 || a0) {
 			pstate->flags |= FLAG_AKKU_DCHARGE;
-			xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m3->akku, m2->akku, m1->akku);
+			xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
 		}
 	}
 
 	// offline mode when average PV is below average load in last 3 minutes
-	int o1 = m1->pv < m1->load * -1 + NOISE;
 	int o2 = m2->pv < m2->load * -1 + NOISE;
-	int o3 = m3->pv < m3->load * -1 + NOISE;
-	if (o1 && o2 && o3) {
+	int o1 = m1->pv < m1->load * -1 + NOISE;
+	int o0 = m0->pv < m0->load * -1 + NOISE;
+	if (o2 && o1 && o0) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
 		int burnout_possible = gstate->temp_in < 180 && pstate->soc > 150;
@@ -499,7 +499,7 @@ static void calculate_pstate() {
 
 		// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
 		int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
-		int e_long = EMERGENCY && (m1->akku > EMERGENCY || m1->grid > EMERGENCY);
+		int e_long = EMERGENCY && (m0->akku > EMERGENCY || m0->grid > EMERGENCY);
 		if (e_short || e_long)
 			pstate->flags |= FLAG_EMERGENCY;
 
@@ -537,12 +537,12 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_STABLE;
 
 		// distortion when current sdpv is too big or aggregated last two sdpv's are too big
-		int d0 = pstate->sdpv > m1->pv;
-		int d1 = m1->sdpv > m1->pv + m1->pv / 2;
-		int d2 = m2->sdpv > m2->pv + m2->pv / 2;
+		int d0 = pstate->sdpv > m0->pv;
+		int d1 = m0->sdpv > m0->pv + m0->pv / 2;
+		int d2 = m1->sdpv > m1->pv + m1->pv / 2;
 		if (d0 || d1 || d2) {
 			pstate->flags |= FLAG_DISTORTION;
-			xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m1->sdpv, m1->pv, m2->sdpv, m2->pv);
+			xdebug("SOLAR set FLAG_DISTORTION 0=%d/%d 1=%d/%d 2=%d/%d", pstate->sdpv, pstate->pv, m0->sdpv, m0->pv, m1->sdpv, m1->pv);
 		}
 
 		// PV tendency: rising or falling

@@ -744,8 +744,11 @@ static void calculate_dstate() {
 	}
 
 	// delta between actual load an calculated load
-	int p_load = -1 * pstate->load; // - BASELOAD;
-	dstate->dload = p_load > 0 && dstate->xload ? p_load * 100 / dstate->xload : 0;
+	int load = -1 * pstate->load;
+	if (!DSTATE_ALL_DOWN)
+		// add load or BASELOAD
+		dstate->xload += load < BASELOAD ? load : BASELOAD;
+	dstate->dload = load > 0 && dstate->xload ? load * 100 / dstate->xload : 0;
 
 	// indicate standby check when actual load is 3x below 50% of calculated load
 	if (dstate->xload && dstate->dload < 50 && s1->dload < 50 && s2->dload < 50) {
@@ -825,6 +828,7 @@ int solar_update(unsigned int id, int relay, int power) {
 	xlog("SOLAR update id=%d relay=%d power=%d", id, relay, power);
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (DD->id == id && DD->r == relay) {
+			DD->state = Active;
 			DD->load = power ? DD->total : 0;
 			DD->power = power;
 			return 0;
