@@ -167,7 +167,9 @@ static void update_inverter1(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_FAULT:
-		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		uint16_t active_state_code;
+		sunspec_read_reg(ss, 214, &active_state_code);
+		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		pstate->mppt1 = pstate->mppt2 = 0;
 		// this is normal when we are offline
 		if (PSTATE_OFFLINE)
@@ -226,7 +228,9 @@ static void update_inverter2(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_FAULT:
-		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2);
+		uint16_t active_state_code;
+		sunspec_read_reg(ss, 214, &active_state_code);
+		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		pstate->mppt3 = pstate->mppt4 = 0;
 		// this is normal when we are offline
 		if (PSTATE_OFFLINE)
