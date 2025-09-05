@@ -9,6 +9,13 @@
 #include "utils.h"
 #include "mcp.h"
 
+// run on tron12 - use sensors from picam
+#ifdef MCP
+#define TEMP_IN					sensors->bmp085_temp
+#define TEMP_OUT				sensors->bmp085_temp
+#define LUMI					sensors->bh1750_lux
+#endif
+
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
 #endif
