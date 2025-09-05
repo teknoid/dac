@@ -158,8 +158,8 @@ static void update_inverter1(sunspec_t *ss) {
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		// dissipation
-		// int dissipation = pstate->dc1 - pstate->ac1 - pstate->akku;
-		// xlog("SOLAR Inverter1 dissipation=%d", dissipation);
+		// int dissipation = pstate->dc1 - pstate->akku - pstate->ac1;
+		// xdebug("SOLAR Inverter1 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
@@ -220,7 +220,7 @@ static void update_inverter2(sunspec_t *ss) {
 
 		// dissipation
 		// int dissipation = pstate->dc1 - pstate->ac1;
-		// xlog("SOLAR Inverter2 dissipation=%d", dissipation);
+		// xdebug("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt3 == 0)

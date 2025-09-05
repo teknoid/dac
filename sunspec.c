@@ -12,8 +12,6 @@
 
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm
 
-// #define STORAGE_CONTROL_DISABLED
-
 // track storage state and limits
 static int wchamax, storctl, inwrte, outwrte, inoutwrte_sf, minrsvpct, minrsvpct_sf;
 
@@ -632,7 +630,7 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	return 0;
 }
 
-int test(int argc, char **argv) {
+static int test1(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
@@ -642,7 +640,7 @@ int test(int argc, char **argv) {
 	return 0;
 }
 
-int test1(int argc, char **argv) {
+static int test2(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
@@ -722,8 +720,25 @@ int test1(int argc, char **argv) {
 	modbus_free(mb);
 }
 
+int sunspec_main(int argc, char **argv) {
+	int c;
+	while ((c = getopt(argc, argv, "t")) != -1) {
+		// printf("getopt %c\n", c);
+		switch (c) {
+		case 't':
+			test1(argc, argv);
+			test2(argc, argv);
+			return 0;
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+
+	return 0;
+}
+
 #ifdef SUNSPEC_MAIN
 int main(int argc, char **argv) {
-	return test1(argc, argv);
+	return sunspec_main(argc, argv);
 }
 #endif

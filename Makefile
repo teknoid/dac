@@ -63,7 +63,7 @@ sabre28: clean $(COBJS-SABRE28)
 # standalone modules
 #
 
-solar: CFLAGS += -DSOLAR_MAIN -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
+solar: CFLAGS += -DSOLAR_MAIN -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DDEBUG
 solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o
 	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o -lmodbus -lmqttc -lm
 
