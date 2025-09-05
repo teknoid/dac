@@ -416,6 +416,7 @@ sunspec_t* sunspec_init(const char *name, int slave) {
 
 	ss->name = name;
 	ss->slave = slave;
+	ss->control = 1;
 	ss->sleep = 0;
 
 	ss->ip = resolve_ip(ss->name);
@@ -489,9 +490,8 @@ void sunspec_stop(sunspec_t *ss) {
 }
 
 int sunspec_storage_limit_both(sunspec_t *ss, int in, int out) {
-#ifdef STORAGE_CONTROL_DISABLED
-	return EPERM;
-#endif
+	if (!ss->control)
+		return EPERM;
 
 	if (!ss->storage)
 		return ENOENT;
@@ -523,9 +523,8 @@ int sunspec_storage_limit_both(sunspec_t *ss, int in, int out) {
 }
 
 int sunspec_storage_limit_charge(sunspec_t *ss, int in) {
-#ifdef STORAGE_CONTROL_DISABLED
-	return EPERM;
-#endif
+	if (!ss->control)
+		return EPERM;
 
 	if (!ss->storage)
 		return ENOENT;
@@ -549,9 +548,8 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int in) {
 }
 
 int sunspec_storage_limit_discharge(sunspec_t *ss, int out) {
-#ifdef STORAGE_CONTROL_DISABLED
-	return EPERM;
-#endif
+	if (!ss->control)
+		return EPERM;
 
 	if (!ss->storage)
 		return ENOENT;
@@ -575,9 +573,8 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int out) {
 }
 
 int sunspec_storage_limit_reset(sunspec_t *ss) {
-#ifdef STORAGE_CONTROL_DISABLED
-	return EPERM;
-#endif
+	if (!ss->control)
+		return EPERM;
 
 	if (!ss->storage)
 		return ENOENT;
@@ -594,9 +591,8 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 }
 
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
-#ifdef STORAGE_CONTROL_DISABLED
-	return EPERM;
-#endif
+	if (!ss->control)
+		return EPERM;
 
 	if (!ss->storage)
 		return ENOENT;

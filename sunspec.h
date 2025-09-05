@@ -392,6 +392,7 @@ struct _sunspec {
 	const char *ip;
 	int slave;
 	int sleep;
+	int control;
 	time_t ts;
 	sunspec_callback_t callback;
 	pthread_t thread;

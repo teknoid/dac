@@ -35,6 +35,8 @@
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
+static int control = 1;
+
 int temp_in() {
 	return TEMP_IN * 10; // scaled as x10
 }
@@ -141,8 +143,12 @@ static void update_inverter1(sunspec_t *ss) {
 	case I_STATUS_MPPT:
 		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-		// TODO find sunspec register
-		pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
+
+		// pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
+		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
+		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
+		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d", ss->name, mppt3, mppt4);
+		pstate->akku = mppt3 > 0 ? mppt3 * -1 : mppt4;
 
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
@@ -493,6 +499,10 @@ static int init() {
 	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 
+	// disable storage control in loop mode
+	if (!control)
+		inverter1->control = 0;
+
 	// use the same lock as both run against same IP address
 	meter->lock = inverter1->lock;
 
@@ -540,6 +550,7 @@ int solar_main(int argc, char **argv) {
 		case 'g':
 			return grid();
 		case 'l':
+			control = 0;
 			return mcp_main(argc, argv);
 		case 't':
 			return test();
