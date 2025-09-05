@@ -55,6 +55,10 @@ int akku_discharge_max() {
 	return 0;
 }
 
+int akku_state() {
+	return 0;
+}
+
 int akku_standby(device_t *akku) {
 	// dummy implementation
 	akku->state = Standby;
