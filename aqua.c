@@ -12,6 +12,22 @@
 #include "aqua.h"
 #include "mcp.h"
 
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
+
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
+
+#ifndef HUMI
+#define HUMI					33
+#endif
+
+#ifndef LUMI
+#define LUMI					35000
+#endif
+
 static void set_pump(int value) {
 	xdebug("AQUA set_pump %d", value);
 
@@ -36,7 +52,7 @@ static int get_rain(int valve, int hour) {
 		if (!h || !v)
 			continue; // valve not active for this hour
 
-		int temp_ok = TEMP >= a->t;
+		int temp_ok = TEMP_OUT >= a->t;
 		int humi_ok = HUMI <= a->h;
 		int lumi_ok = LUMI >= a->l;
 
@@ -70,8 +86,8 @@ static int get_rain(int valve, int hour) {
 }
 
 static void process(int hour) {
-	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", TEMP, HUMI, LUMI);
-	if (TEMP > 1000 || HUMI > 1000 || LUMI == UINT16_MAX) {
+	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", TEMP_OUT, HUMI, LUMI);
+	if (TEMP_OUT > 1000 || HUMI > 1000 || LUMI == UINT16_MAX) {
 		xlog("AQUA Error no sensor data");
 		return;
 	}

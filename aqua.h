@@ -1,15 +1,5 @@
 #define VALVES			4
 
-#ifdef AQUA_MAIN
-#define TEMP				23.2
-#define HUMI				33
-#define LUMI				35000
-#else
-#define TEMP				sensors->sht31_temp
-#define HUMI				sensors->sht31_humi
-#define LUMI				sensors->bh1750_lux_mean
-#endif
-
 typedef struct aqua_t {
 	const int v[VALVES];	// valve 0..VALVES-1
 	const int hr[24];		// hours 0..23

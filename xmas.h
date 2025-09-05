@@ -1,9 +1,3 @@
-// light on: ↑earlier, ↓later
-#define SUNDOWN			50
-
-// light off: ↑later ↓earlier
-#define SUNRISE			100
-
 // the remote control unit
 #define WHITE1				1
 

@@ -25,7 +25,9 @@
 #include "lcd.h"
 #include "mcp.h"
 
-#define LUMI				sensors->bh1750_lux
+#ifndef LUMI
+#define LUMI					6666
+#endif
 
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback

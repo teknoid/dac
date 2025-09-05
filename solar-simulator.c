@@ -5,15 +5,9 @@
 #include <unistd.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "utils.h"
 #include "mcp.h"
-
-#ifdef MCP
-#include "sensors.h"
-#define TEMP_IN					sensors->bmp085_temp
-#define TEMP_OUT				sensors->bmp085_temp
-#define LUMI					sensors->bh1750_lux
-#endif
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0

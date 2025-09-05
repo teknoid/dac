@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "sunspec.h"
 #include "utils.h"
 #include "mcp.h"
@@ -17,12 +18,6 @@
 #define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
-
-#ifdef MCP
-#include "sensors.h"
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
-#endif
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0

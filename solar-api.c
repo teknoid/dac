@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "frozen.h"
 #include "utils.h"
 #include "curl.h"
@@ -18,12 +19,6 @@
 #define AKKU_CHARGE_MAX			4500
 #define AKKU_DISCHARGE_MAX		4500
 #define AKKU_CAPACITY			11000
-
-#ifdef MCP
-#include "sensors.h"
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
-#endif
 
 #ifndef TEMP_IN
 #define TEMP_IN					22.0

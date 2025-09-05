@@ -7,11 +7,23 @@
 
 #include "tasmota.h"
 #include "sensors.h"
-#include "webcam.h"
 #include "utils.h"
 #include "mcp.h"
 
-#define LUMI				sensors->bh1750_raw2
+#ifndef LUMI
+#define LUMI					6666
+#endif
+
+#define WEBCAM_START			"su -c \"/server/www/webcam/webcam-start.sh\" hje"
+#define WEBCAM_START_RESET		"su -c \"/server/www/webcam/webcam-start.sh reset\" hje"
+#define WEBCAM_STOP				"su -c \"/server/www/webcam/webcam-stop.sh\" hje"
+#define WEBCAM_STOP_TIMELAPSE	"su -c \"/server/www/webcam/webcam-stop.sh timelapse &\" hje"
+
+// webcam off: ↑earlier, ↓later
+#define WEBCAM_SUNDOWN			1
+
+// webcam on: ↑later ↓earlier
+#define WEBCAM_SUNRISE			1
 
 static int webcam_on;
 

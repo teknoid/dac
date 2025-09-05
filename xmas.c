@@ -14,7 +14,19 @@
 #include "xmas.h"
 #include "mcp.h"
 
-#define LUMI				sensors->bh1750_lux
+#ifndef LUMI
+#define LUMI					6666
+#endif
+
+// light on: ↑earlier, ↓later
+#ifndef SUNDOWN
+#define SUNDOWN					50
+#endif
+
+// light off: ↑later ↓earlier
+#ifndef SUNRISE
+#define SUNRISE					100
+#endif
 
 // TODO define channel status for each remote control unit
 static char channel_status[128];
