@@ -213,7 +213,7 @@ extern dstate_t *dstate;
 // mutex for updating / calculating pstate and counter
 extern pthread_mutex_t collector_lock;
 
-// implementations in modbus.c / api.c / simulator.c
+// implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 
 int akku_capacity();
 int akku_charge_max();
