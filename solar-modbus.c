@@ -65,6 +65,10 @@ int akku_discharge_max() {
 	return AKKU_DISCHARGE_MAX;
 }
 
+int akku_state() {
+	return sunspec_storage_state(inverter1);
+}
+
 int akku_standby(device_t *akku) {
 	akku->state = Standby;
 	akku->power = 0;

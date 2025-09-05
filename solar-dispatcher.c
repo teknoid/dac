@@ -255,10 +255,6 @@ static int ramp_boiler(device_t *boiler, int power) {
 }
 
 static int ramp_akku(device_t *akku, int power) {
-	// init - set to discharge when offline, otherwise to standby
-	if (akku->power == -1)
-		return PSTATE_OFFLINE ? akku_discharge(akku, 0) : akku_standby(akku);
-
 	// ramp down request
 	if (power < 0) {
 
@@ -400,12 +396,16 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0; // no change
 
-	// potd has changed - reset all devices (except AKKU) and set AKKU to initial state
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD != AKKU)
+	// potd has changed
+	if (potd != 0) {
+		// reset all devices
+		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp_device(DD, DOWN);
-	if (AKKU_CHARGING)
-		AKKU->power = -1;
+
+		// set AKKU to standby when charging
+		if (AKKU_CHARGING)
+			akku_standby(AKKU);
+	}
 
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
@@ -827,12 +827,15 @@ int solar_override(const char *name) {
 }
 
 int solar_update(unsigned int id, int relay, int power) {
-	xlog("SOLAR update id=%d relay=%d power=%d", id, relay, power);
+	if (!potd)
+		return 0;
+
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (DD->id == id && DD->r == relay) {
 			DD->state = Active;
 			DD->load = power ? DD->total : 0;
 			DD->power = power;
+			xlog("SOLAR update id=%d relay=%d power=%d name=%s", DD->id, DD->r, DD->power, DD->name);
 			return 0;
 		}
 	return 0;
@@ -846,6 +849,10 @@ static void loop() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
+
+	// get initial akku state
+	AKKU->state = akku_state();
+	xlog("SOLAR akku state=%d", AKKU->state);
 
 	// the SOLAR main loop
 	while (1) {

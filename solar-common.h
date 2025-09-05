@@ -221,6 +221,7 @@ int temp_out();
 int akku_capacity();
 int akku_charge_max();
 int akku_discharge_max();
+int akku_state();
 int akku_get_min_soc();
 void akku_set_min_soc();
 int akku_standby(device_t *akku);

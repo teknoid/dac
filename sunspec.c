@@ -591,6 +591,31 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	return 0;
 }
 
+int sunspec_storage_state(sunspec_t *ss) {
+	if (!ss->storage)
+		return 0;
+
+	read_storage(ss);
+
+	// use enum e_state values
+	switch (storctl) {
+	case STORAGE_LIMIT_NONE:
+		// Active
+		return 1;
+	case STORAGE_LIMIT_BOTH:
+		// Standby / Active
+		return inwrte == 0 && outwrte == 0 ? 3 : 1;
+	case STORAGE_LIMIT_CHARGE:
+		// Discharge / Active
+		return inwrte == 0 ? 6 : 1;
+	case STORAGE_LIMIT_DISCHARGE:
+		// Charge / Active
+		return outwrte == 0 ? 5 : 1;
+	default:
+		return 0;
+	}
+}
+
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (!ss->control)
 		return EPERM;

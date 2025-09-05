@@ -458,4 +458,5 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte);
 int sunspec_storage_limit_charge(sunspec_t *ss, int wcha);
 int sunspec_storage_limit_discharge(sunspec_t *ss, int inWRte);
 int sunspec_storage_limit_reset(sunspec_t *ss);
+int sunspec_storage_state(sunspec_t *ss);
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc);
