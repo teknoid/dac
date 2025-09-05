@@ -19,26 +19,10 @@
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
 
-#ifndef TEMP_IN
-#define TEMP_IN					22.0
-#endif
-
-#ifndef TEMP_OUT
-#define TEMP_OUT				15.0
-#endif
-
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 static int control = 1;
-
-int temp_in() {
-	return TEMP_IN * 10; // scaled as x10
-}
-
-int temp_out() {
-	return TEMP_OUT * 10; // scaled as x10
-}
 
 int akku_capacity() {
 	return AKKU_CAPACITY;

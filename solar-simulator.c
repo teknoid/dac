@@ -16,25 +16,9 @@
 #define LUMI					sensors->bh1750_lux
 #endif
 
-#ifndef TEMP_IN
-#define TEMP_IN					22.0
-#endif
-
-#ifndef TEMP_OUT
-#define TEMP_OUT				15.0
-#endif
-
 #ifndef LUMI
 #define LUMI					6666
 #endif
-
-int temp_in() {
-	return TEMP_IN * 10; // scaled as x10
-}
-
-int temp_out() {
-	return TEMP_OUT * 10; // scaled as x10
-}
 
 int akku_capacity() {
 	return 0;

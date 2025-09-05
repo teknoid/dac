@@ -33,14 +33,6 @@ typedef struct gstate_old_t {
 	int flags;
 } gstate_old_t;
 
-int temp_in() {
-	return 0;
-}
-
-int temp_out() {
-	return 0;
-}
-
 int akku_capacity() {
 	return 0;
 }

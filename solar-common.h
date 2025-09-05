@@ -215,9 +215,6 @@ extern pthread_mutex_t collector_lock;
 
 // implementations in modbus.c / api.c / simulator.c
 
-int temp_in();
-int temp_out();
-
 int akku_capacity();
 int akku_charge_max();
 int akku_discharge_max();

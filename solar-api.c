@@ -20,14 +20,6 @@
 #define AKKU_DISCHARGE_MAX		4500
 #define AKKU_CAPACITY			11000
 
-#ifndef TEMP_IN
-#define TEMP_IN					22.0
-#endif
-
-#ifndef TEMP_OUT
-#define TEMP_OUT				15.0
-#endif
-
 #define URL_READABLE_INVERTER1	"http://fronius10/components/readable"
 #define URL_READABLE_INVERTER2	"http://fronius7/components/readable"
 
@@ -96,14 +88,6 @@ static raw_t raw, *r = &raw;
 // reading Inverter API: CURL handles, response memory, raw date, error counter
 static CURL *curl1, *curl2;
 static response_t memory = { 0 };
-
-int temp_in() {
-	return TEMP_IN;
-}
-
-int temp_out() {
-	return TEMP_OUT;
-}
 
 int akku_capacity() {
 	return AKKU_CAPACITY;

@@ -8,9 +8,18 @@
 
 #include "solar-common.h"
 #include "sunspec.h"
+#include "sensors.h"
 #include "mosmix.h"
 #include "utils.h"
 #include "mcp.h"
+
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
+
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
 
 #define COUNTER_METER
 
@@ -332,8 +341,8 @@ static void calculate_gstate() {
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
 	// temperature / heating needed / possible
-	gstate->temp_in = temp_in();
-	gstate->temp_out = temp_out();
+	gstate->temp_in = TEMP_IN * 10; // scaled as x10
+	gstate->temp_out = TEMP_OUT * 10; // scaled as x10
 	if (gstate->pv < MINIMUM)
 		// pv not yet started - we cannot heat
 		gstate->heating = 0;
