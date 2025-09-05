@@ -449,8 +449,9 @@ sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback
 
 	ss->name = name;
 	ss->slave = slave;
-	ss->callback = callback;
+	ss->control = 1;
 	ss->sleep = 0;
+	ss->callback = callback;
 
 	ss->ip = resolve_ip(ss->name);
 	if (!ss->ip)
