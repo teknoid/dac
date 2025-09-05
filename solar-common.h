@@ -76,7 +76,7 @@
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
 enum e_state {
-	Disabled, Active, Active_Checked, Standby, Standby_Check, Charge, Discharge
+	Disabled, Active, Charge, Discharge, Standby, Standby_Check, Active_Checked,
 };
 
 // device definitions

@@ -52,7 +52,7 @@ function update_devices() {
 				if (v.state == 0) {
 					dd.classList.add('d');
 					clazz = 'd';
-				} else if (v.state == 3) {
+				} else if (v.state == 4) {
 					dd.classList.add('z');
 					clazz = 'z';
 				} else if (v.load < 0) {
