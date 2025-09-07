@@ -261,8 +261,9 @@ static int ramp_akku(device_t *akku, int power) {
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
-		// akku ramps down itself when charging, otherwise forward to next device
-		return pstate->akku < -NOISE ? 1 : 0;
+		// akku ramps down itself when charging - loop is done as long as we have grid upload and akku charge
+		int done = pstate->grid < -NOISE && pstate->akku < -NOISE;
+		return done;
 	}
 
 	// ramp up request
@@ -483,7 +484,7 @@ static int ramp_multi(device_t *d) {
 }
 
 static device_t* rampup() {
-	if (DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
+	if (DSTATE_ALL_UP || DSTATE_ALL_STANDBY || !PSTATE_VALID)
 		return 0;
 
 	device_t *d = 0, **dd = potd->devices;
@@ -514,7 +515,7 @@ static device_t* rampdown() {
 }
 
 static device_t* ramp() {
-	if (!PSTATE_VALID || PSTATE_OFFLINE)
+	if (PSTATE_OFFLINE)
 		return 0;
 
 	// ramp power is inverted grid
