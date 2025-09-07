@@ -594,7 +594,7 @@ int sunspec_storage_state(sunspec_t *ss) {
 	if (!ss->storage)
 		return 0;
 
-	xlog("SUNSPEC akku storctl=%d inwrte=%d outwrte=%d", storctl, inwrte, outwrte);
+	xdebug("SUNSPEC akku storctl=%d inwrte=%d outwrte=%d", storctl, inwrte, outwrte);
 
 	// use enum e_state values
 	switch (storctl) {
@@ -605,11 +605,11 @@ int sunspec_storage_state(sunspec_t *ss) {
 		// Standby / Active
 		return inwrte == 0 && outwrte == 0 ? 4 : 1;
 	case STORAGE_LIMIT_CHARGE:
-		// Charge / Active
-		return inwrte != 0 ? 2 : 1;
+		// Discharge / Charge
+		return inwrte == 0 ? 3 : 2;
 	case STORAGE_LIMIT_DISCHARGE:
-		// Discharge / Active
-		return outwrte != 0 ? 3 : 1;
+		// Charge / Discharge
+		return outwrte == 0 ? 2 : 3;
 	default:
 		return 0;
 	}

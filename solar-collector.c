@@ -389,6 +389,7 @@ static void calculate_gstate() {
 }
 
 static void calculate_pstate() {
+	// lock while calculating
 	pthread_mutex_lock(&collector_lock);
 
 	// inverter status
@@ -558,14 +559,17 @@ static void calculate_pstate() {
 		int r3 = s1->dpv > 25 && s2->dpv > 25 && s3->dpv > 25;
 		int r2 = s1->dpv > 50 && s2->dpv > 50;
 		int r1 = s1->dpv > 100;
-		if (r3 || r2 || r1)
+		if (r3 || r2 || r1) {
 			pstate->flags |= FLAG_PV_RISING;
+			xdebug("SOLAR set FLAG_PV_RISING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
+		}
 		int f3 = s1->dpv < -25 && s2->dpv < -25 && s3->dpv < -25;
 		int f2 = s1->dpv < -50 && s2->dpv < -50;
 		int f1 = s1->dpv < -100;
-		if (f3 || f2 || f1)
+		if (f3 || f2 || f1) {
 			pstate->flags |= FLAG_PV_FALLING;
-		// xlog("SOLAR pv=%d dpv=%d sdpv=%d", pstate->pv, pstate->dpv, pstate->sdpv);
+			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
+		}
 	}
 
 	pthread_mutex_unlock(&collector_lock);

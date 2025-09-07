@@ -20,7 +20,7 @@
 #define DSTATE_JSON				"dstate.json"
 #define DEVICES_JSON			"devices.json"
 
-#define DSTATE_TEMPLATE			"{\"id\":\"%d\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
+#define DSTATE_TEMPLATE			"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
 
 #define DD						(*dd)
 #define UP						(*dd)->total
@@ -262,8 +262,7 @@ static int ramp_akku(device_t *akku, int power) {
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
 		// akku ramps down itself when charging - loop is done as long as we have grid upload and akku charge
-		int done = pstate->grid < -NOISE && pstate->akku < -NOISE;
-		return done;
+		return pstate->grid < -NOISE && pstate->akku < -NOISE;
 	}
 
 	// ramp up request
@@ -839,7 +838,7 @@ int solar_update(unsigned int id, int relay, int power) {
 			DD->state = Active;
 			DD->load = power ? DD->total : 0;
 			DD->power = power;
-			xlog("SOLAR update id=%d relay=%d power=%d name=%s", DD->id, DD->r, DD->power, DD->name);
+			xlog("SOLAR update id=%06X relay=%d power=%d name=%s", DD->id, DD->r, DD->power, DD->name);
 			return 0;
 		}
 	return 0;
@@ -853,6 +852,9 @@ static void loop() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
+
+	// get initial akku state
+	AKKU->state = akku_state();
 
 	// the SOLAR main loop
 	while (1) {

@@ -231,13 +231,14 @@ static void trigger(unsigned int id, int button, int action) {
 
 // decode flamingo message
 static int flamingo(unsigned int code) {
+	uint16_t xmitter = 0;
+	uint8_t command = 0, channel = 0, payload = 0, rolling = 0;
+
 #ifdef FLAMINGO
-	uint16_t xmitter;
-	uint8_t command, channel, payload, rolling;
-
-	xlog("TASMOTA flamingo");
 	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
+#endif
 
+	xdebug("TASMOTA flamingo xmitter=%d channel=%d command=%d payload=%d rolling=%d", xmitter, channel, command, payload, rolling);
 	switch (xmitter) {
 	case 0x835a:
 		switch (channel) {
@@ -252,7 +253,6 @@ static int flamingo(unsigned int code) {
 		break;
 	default:
 	}
-#endif
 	return 0;
 }
 
