@@ -798,6 +798,9 @@ static void minly() {
 		akku_set_min_soc(min_soc);
 	}
 
+	// update akku state
+	AKKU->state = akku_state();
+
 	// choose potd
 	choose_program();
 }
@@ -850,10 +853,6 @@ static void loop() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
-
-	// get initial akku state
-	AKKU->state = akku_state();
-	xlog("SOLAR akku state=%d", AKKU->state);
 
 	// the SOLAR main loop
 	while (1) {

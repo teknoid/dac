@@ -340,8 +340,9 @@ static void* poll(void *arg) {
 			errors_now = 0;
 			errors_now += read_inverter(ss);
 			errors_now += read_mppt(ss);
-			if (ss->ts % 60 == 0)
-				errors_now += read_storage(ss); // storage once per minute
+			// storage at startup and then once per minute
+			if (wchamax == 0 || ss->ts % 60 == 0)
+				errors_now += read_storage(ss);
 			errors_now += read_meter(ss);
 			errors_all += errors_now;
 
@@ -593,7 +594,7 @@ int sunspec_storage_state(sunspec_t *ss) {
 	if (!ss->storage)
 		return 0;
 
-	read_storage(ss);
+	xlog("SUNSPEC akku storctl=%d inwrte=%d outwrte=%d", storctl, inwrte, outwrte);
 
 	// use enum e_state values
 	switch (storctl) {
@@ -604,11 +605,11 @@ int sunspec_storage_state(sunspec_t *ss) {
 		// Standby / Active
 		return inwrte == 0 && outwrte == 0 ? 4 : 1;
 	case STORAGE_LIMIT_CHARGE:
-		// Discharge / Active
-		return inwrte == 0 ? 3 : 1;
-	case STORAGE_LIMIT_DISCHARGE:
 		// Charge / Active
-		return outwrte == 0 ? 2 : 1;
+		return inwrte != 0 ? 2 : 1;
+	case STORAGE_LIMIT_DISCHARGE:
+		// Discharge / Active
+		return outwrte != 0 ? 3 : 1;
 	default:
 		return 0;
 	}
