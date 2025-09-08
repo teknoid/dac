@@ -256,6 +256,9 @@ static void loop() {
 		return;
 	}
 
+	// wait for tasmotas initial sensors subscription
+	sleep(5);
+
 	while (1) {
 		read_bmp085();
 
