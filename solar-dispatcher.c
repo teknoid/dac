@@ -76,16 +76,16 @@ static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 
 
 // force boiler heating first
 static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
-static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
+//static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
+//static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
 
 // define POTDs
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
 static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
-static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
-static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
+//static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
+//static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
 static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
