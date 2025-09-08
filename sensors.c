@@ -147,15 +147,6 @@ static void read_bmp085() {
 	sensors->bmp085_baro = p / 100.0;
 }
 
-static int essential() {
-	int ok = sensors->sht31_temp < 1000 && sensors->htu21_temp < 1000 && sensors->bh1750_lux != UINT16_MAX;
-	if (ok)
-		xdebug("SENSORS ok: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
-	else
-		xdebug("SENSORS Warning! MQTT sensor data incomplete: sht31=%.1f htu21=%.1f bh1750=%d", sensors->sht31_temp, sensors->htu21_temp, sensors->bh1750_lux);
-	return ok;
-}
-
 static void publish_sensors_tasmotalike() {
 	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
 	gethostname(hostname, 32);
@@ -214,11 +205,6 @@ static void publish_sensors() {
 }
 
 static void write_sensors_sysfslike() {
-#ifndef PICAM
-	if (!essential())
-		return;
-#endif
-
 	char cvalue[8];
 
 	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
@@ -244,11 +230,6 @@ static void write_sensors_sysfslike() {
 }
 
 static void write_sensors_json() {
-#ifndef PICAM
-	if (!essential())
-		return;
-#endif
-
 	FILE *fp = fopen(RUN SLASH SENSORS_JSON, "wt");
 	if (fp == NULL)
 		return;
