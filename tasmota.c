@@ -16,10 +16,6 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#ifdef SOLAR
-#include "solar.h"
-#endif
-
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
 #define ON					"ON"
 #define OFF					"OFF"
@@ -235,7 +231,6 @@ static int flamingo(unsigned int code) {
 	uint16_t xmitter;
 	uint8_t command, channel, payload, rolling;
 
-	xlog("TASMOTA flamingo");
 	flamingo28_decode(code, &xmitter, &command, &channel, &payload, &rolling);
 
 	switch (xmitter) {
@@ -349,7 +344,7 @@ static int dispatch_tele_result(unsigned int id, int idx, const char *message, s
 		free(rf);
 
 		if (bits < 16 || (data & 0xffff) == 0xffff) {
-			// xlog("TASMOTA RF noise data=0x%x bits=%d protocol=%d pulse=%d", data, bits, proto, pulse);
+			xdebug("TASMOTA RF noise data=0x%x bits=%d protocol=%d pulse=%d", data, bits, proto, pulse);
 			return 0;
 		}
 
