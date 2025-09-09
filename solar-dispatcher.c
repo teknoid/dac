@@ -190,8 +190,8 @@ static int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power == 0 && power < 0)
 		return 0;
 
-	// summer: charging boilers only between configured FROM / TO
-	if (boiler->power == 0 && power > 0 && GSTATE_SUMMER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
+	// charging boilers only between configured FROM / TO (winter always)
+	if (boiler->power == 0 && power > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
 		boiler->state = Standby;
 		return 0;
 	}
@@ -733,8 +733,7 @@ static void calculate_dstate() {
 		dstate->xload += DD->load;
 
 		// flags for all devices up/down/standby
-		// (!) power can be -1 when uninitialized
-		if (DD->power > 0)
+		if (DD->power)
 			dstate->flags &= ~FLAG_ALL_DOWN;
 		if (!DD->power || (DD->adj && DD->power != 100))
 			dstate->flags &= ~FLAG_ALL_UP;
@@ -937,7 +936,7 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Active;
-		DD->power = -1;
+		DD->power = 0;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
 		if (DD->adj && DD->addr == 0)
@@ -946,6 +945,7 @@ static int init() {
 
 	// devices hard disabled
 	b2.state = Disabled;
+	h3.state = Disabled;
 
 	// initially select the program of the day
 	choose_program();
