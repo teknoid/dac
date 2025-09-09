@@ -733,7 +733,8 @@ static void calculate_dstate() {
 		dstate->xload += DD->load;
 
 		// flags for all devices up/down/standby
-		if (DD->power)
+		// (!) power can be -1 when uninitialized
+		if (DD->power > 0)
 			dstate->flags &= ~FLAG_ALL_DOWN;
 		if (!DD->power || (DD->adj && DD->power != 100))
 			dstate->flags &= ~FLAG_ALL_UP;
@@ -936,11 +937,17 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Active;
-		DD->power = 0;
+		DD->power = -1;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
-		if (DD->adj && DD->addr == 0)
-			DD->state = Disabled; // disable when we don't have an ip address to send UDP messages
+		if (DD->adj) {
+			if (DD->addr == 0)
+				// disable when we don't have an ip address to send UDP messages
+				DD->state = Disabled;
+			else
+				// initally ramp down boilers as we do not get state from mqtt
+				ramp_device(DD, DOWN);
+		}
 	}
 
 	// devices hard disabled
