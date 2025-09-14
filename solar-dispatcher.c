@@ -131,7 +131,7 @@ static int check_override(device_t *d, int power) {
 }
 
 static int ramp_heater(device_t *heater, int power) {
-	if (!power || heater->state == Disabled || heater->state == Standby || heater->power == -1)
+	if (!power || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return 0; // 0 - continue loop
 
 	// heating disabled except override
@@ -332,6 +332,9 @@ static void print_dstate(device_t *d) {
 		switch (DD->state) {
 		case Disabled:
 			snprintf(value, 5, " .");
+			break;
+		case Initial:
+			snprintf(value, 5, " i");
 			break;
 		case Active:
 			if (DD->adj)
@@ -736,7 +739,7 @@ static void calculate_dstate() {
 
 		// ask POWER state if initial
 #if defined(TRON) || defined(ODROID)
-		if (DD->power == -1)
+		if (DD->state == Initial)
 			tasmota_power_ask(DD->id, DD->r);
 #endif
 
@@ -744,8 +747,7 @@ static void calculate_dstate() {
 		dstate->xload += DD->load;
 
 		// flags for all devices up/down/standby
-		// (!) power can be -1 when uninitialized
-		if (DD->power > 0)
+		if (DD->power)
 			dstate->flags &= ~FLAG_ALL_DOWN;
 		if (!DD->power || (DD->adj && DD->power != 100))
 			dstate->flags &= ~FLAG_ALL_UP;
@@ -754,7 +756,7 @@ static void calculate_dstate() {
 	}
 
 	// delta between actual load an calculated load
-	int load = -1 * pstate->load;
+	int load = pstate->load * -1;
 	if (!DSTATE_ALL_DOWN)
 		// add load or BASELOAD
 		dstate->xload += load < BASELOAD ? load : BASELOAD;
@@ -821,17 +823,8 @@ int solar_override_seconds(const char *name, int seconds) {
 		return 0;
 
 	xlog("SOLAR Activating Override on %s", d->name);
-	d->power = -1;
-	if (!d->id)
-		d->addr = resolve_ip(d->name);
-	if (d->adj && d->addr == 0)
-		d->state = Disabled; // disable when we don't have an ip address to send UDP messages
-
-	d->state = Active;
 	d->override = time(NULL) + seconds;
-	ramp_device(d, d->total);
-
-	return 0;
+	return ramp_device(d, d->total);
 }
 
 int solar_override(const char *name) {
@@ -845,13 +838,12 @@ int solar_update(unsigned int id, int relay, int power) {
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (DD->id == id && DD->r == relay) {
 			DD->state = Active;
-			DD->load = power ? DD->total : 0;
 			DD->power = power;
 			if (DD->adj)
 				DD->load = power * DD->total / 100;
 			else
 				DD->load = power ? DD->total : 0;
-			xlog("SOLAR update id=%06X relay=%d power=%d name=%s", DD->id, DD->r, DD->power, DD->name);
+			xlog("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", DD->id, DD->r, DD->power, DD->load, DD->name);
 			return 0;
 		}
 	return 0;
@@ -949,8 +941,7 @@ static int init() {
 	// initialize all devices with start values
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		DD->state = Active;
-		DD->power = -1;
+		DD->state = Initial;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
 

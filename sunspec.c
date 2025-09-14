@@ -600,16 +600,16 @@ int sunspec_storage_state(sunspec_t *ss) {
 	switch (storctl) {
 	case STORAGE_LIMIT_NONE:
 		// Active
-		return 1;
+		return 2;
 	case STORAGE_LIMIT_BOTH:
 		// Standby / Active
-		return inwrte == 0 && outwrte == 0 ? 4 : 1;
+		return inwrte == 0 && outwrte == 0 ? 5 : 2;
 	case STORAGE_LIMIT_CHARGE:
 		// Discharge / Charge
-		return inwrte == 0 ? 3 : 2;
+		return inwrte == 0 ? 4 : 3;
 	case STORAGE_LIMIT_DISCHARGE:
 		// Charge / Discharge
-		return outwrte == 0 ? 2 : 3;
+		return outwrte == 0 ? 3 : 4;
 	default:
 		return 0;
 	}
