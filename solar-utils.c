@@ -30,6 +30,8 @@ typedef struct gstate_old_t {
 	int forecast;
 	int survive;
 	int heating;
+	int temp_in;
+	int temp_out;
 	int flags;
 } gstate_old_t;
 
@@ -101,7 +103,6 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->survive = o->survive;
-		n->heating = o->heating;
 	}
 
 	// test and verify

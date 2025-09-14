@@ -94,7 +94,7 @@ dl dd.d						{ cursor:default }
 .mppt2-p					{ background-color:#FAD967 }
 .mppt3-p					{ background-color:#FAD967 }
 .mppt4-p					{ background-color:#FAD967 }
-.ramp-p						{ background-color:orchid }
+.ramp-p, .steal-p			{ background-color:orchid }
 .ramp-m						{ background-color:deepskyblue }
 .flags-p	 				{ background-color:peru }
 

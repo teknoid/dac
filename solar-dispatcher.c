@@ -80,7 +80,7 @@ static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 
 static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
 
 // force boiler heating first
-static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
+//static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
 //static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
 //static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
 
@@ -88,7 +88,7 @@ static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
+//static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
 //static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
 //static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
 
@@ -445,10 +445,6 @@ static int choose_program() {
 	// start heating asap and charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
-
-	// survive but not enough for heating --> load boilers
-	if (0 < gstate->heating && gstate->heating < 1000)
-		return select_program(&BOILERS);
 
 	// enough PV available to survive + heating
 	return select_program(&PLENTY);

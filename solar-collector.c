@@ -33,7 +33,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -196,7 +196,6 @@ static void print_gstate() {
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
 	xlogl_percent10(line, "Succ", gstate->success);
 	xlogl_percent10(line, "Surv", gstate->survive);
-	xlogl_percent10(line, "Heat", gstate->heating);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -343,26 +342,23 @@ static void calculate_gstate() {
 	// temperature / heating needed / possible
 	gstate->temp_in = TEMP_IN * 10; // scaled as x10
 	gstate->temp_out = TEMP_OUT * 10; // scaled as x10
-	if (gstate->pv < MINIMUM)
-		// pv not yet started - we cannot heat
-		gstate->heating = 0;
-	else {
+
+	// heating
+	gstate->flags |= FLAG_HEATING;
+	// no need to heat
+	if (gstate->temp_in > 180 && SUMMER)
+		gstate->flags &= ~FLAG_HEATING;
+	if (gstate->temp_in > 200 && gstate->temp_out > 150 && !SUMMER)
+		gstate->flags &= ~FLAG_HEATING;
+	if (gstate->temp_in > 250)
+		gstate->flags &= ~FLAG_HEATING;
+	// force heating
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 240) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
-		// no need to heat
-		if (gstate->temp_in > 180 && SUMMER)
-			gstate->flags &= ~FLAG_HEATING;
-		if (gstate->temp_in > 200 && gstate->temp_out > 150 && !SUMMER)
-			gstate->flags &= ~FLAG_HEATING;
-		if (gstate->temp_in > 250)
-			gstate->flags &= ~FLAG_HEATING;
-		// force heating
-		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 240) // may/sept begin 16 o'clock
-			gstate->flags |= FLAG_HEATING;
-		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
-			gstate->flags |= FLAG_HEATING;
-		else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
-			gstate->flags |= FLAG_HEATING;
-	}
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
+		gstate->flags |= FLAG_HEATING;
+	else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
+		gstate->flags |= FLAG_HEATING;
 
 	// charging akku
 	if (WINTER)

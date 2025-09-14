@@ -67,8 +67,7 @@ set output "/run/mcp/gstate-week.svg"
 p gstatew u 1:"load"  t "load"     w lines ls 5,\
        '' u 1:"soc"   t "soc"      w lines ls 6,\
        '' u 1:"ttl"   t "ttl"      w lines lt 4,\
-       '' u 1:"surv"  t "survive"  w lines lt 1,\
-       '' u 1:"heat"  t "heating"  w lines lt 7
+       '' u 1:"surv"  t "survive"  w lines lt 1
 
 
 # factors
@@ -132,7 +131,6 @@ p pstate u 1:(0):"pv" t "pv"   w filledc ls 1 axes x1y2,\
   gstate u 1:"soc"    t "soc"  w lines ls 6,\
       '' u 1:"ttl"    t "ttl"  w lines lt 4,\
       '' u 1:"surv"   t "surv" w lines lt 1,\
-      '' u 1:"heat"   t "heat" w lines lt 7,\
       '' u 1:"succ"   t "succ" w lines lt 3,\
       '' u 1:"foca"   t "foca" w lines lt 6,\
       1000            t "100%" w lines lt 8
