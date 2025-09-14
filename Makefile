@@ -35,6 +35,7 @@ anus: CFLAGS += -DMCP -DANUS
 anus: clean $(COBJS-ANUS)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-ANUS) $(LIBS) -lmqttc
 
+#tron: CFLAGS += -DMCP -DTRON -DDEBUG
 tron: CFLAGS += -DMCP -DTRON
 tron: clean $(COBJS-TRON)
 	$(CC) $(CFLAGS) -o mcp $(COBJS-TRON) $(LIBS) -lmqttc -lmodbus -lcurl

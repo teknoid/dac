@@ -256,8 +256,8 @@ static void loop() {
 		return;
 	}
 
-	// wait for tasmotas initial sensors subscription
-	sleep(5);
+	// skip file generation in first round and wait for tasmota's next sensor transmission
+	int write_files = 0;
 
 	while (1) {
 		read_bmp085();
@@ -268,13 +268,16 @@ static void loop() {
 		publish_sensors_tasmotalike();
 		publish_sensors();
 
-		if (WRITE_JSON)
-			write_sensors_json();
+		if (write_files) {
+			if (WRITE_JSON)
+				write_sensors_json();
 
-		if (WRITE_SYSFSLIKE)
-			write_sensors_sysfslike();
+			if (WRITE_SYSFSLIKE)
+				write_sensors_sysfslike();
+		}
 
 		sleep(60);
+		write_files = 1;
 	}
 }
 

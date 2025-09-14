@@ -444,38 +444,6 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	return 0;
 }
 
-// execute tasmota POWER command to get device state
-int tasmota_power_get(unsigned int id, int relay) {
-	if (!id)
-		return 0;
-
-	char topic[TOPIC_LEN];
-	if (relay)
-		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER%d", id, relay);
-	else
-		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
-	xlog("TASMOTA %06X requesting power state from relay %d", id, relay);
-
-	// publish and wait for updating state
-	publish(topic, 0, 0);
-	msleep(500);
-
-	tasmota_state_t *ss = get_state(id);
-	switch (relay) {
-	case 0:
-	case 1:
-		return ss->relay1;
-	case 2:
-		return ss->relay2;
-	case 3:
-		return ss->relay3;
-	case 4:
-		return ss->relay4;
-	default:
-		return -1;
-	}
-}
-
 // execute openbeken COLOR command via mqtt publish
 int openbeken_color(unsigned int id, int r, int g, int b) {
 	if (!id)
@@ -526,6 +494,21 @@ int openbeken_set(unsigned int id, int channel, int value) {
 
 	xlog("TASMOTA %08X channel %d value %s", id, channel, message);
 	return publish(topic, message, 0);
+}
+
+// execute tasmota POWER command to get POWER state
+int tasmota_power_ask(unsigned int id, int relay) {
+	if (!id)
+		return 0;
+
+	char topic[TOPIC_LEN];
+	if (relay)
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER%d", id, relay);
+	else
+		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
+	xlog("TASMOTA %06X asking power state of relay %d", id, relay);
+
+	return publish(topic, 0, 0);
 }
 
 // execute tasmota POWER ON/OFF command via mqtt publish

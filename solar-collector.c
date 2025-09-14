@@ -194,9 +194,9 @@ static void print_gstate() {
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
-	xlogl_percent10(line, "Success", gstate->success);
-	xlogl_percent10(line, "Survive", gstate->survive);
-	xlogl_percent10(line, "Heating", gstate->heating);
+	xlogl_percent10(line, "Succ", gstate->success);
+	xlogl_percent10(line, "Surv", gstate->survive);
+	xlogl_percent10(line, "Heat", gstate->heating);
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -356,7 +356,7 @@ static void calculate_gstate() {
 		if (gstate->temp_in > 250)
 			gstate->flags &= ~FLAG_HEATING;
 		// force heating
-		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 220) // may/sept begin 16 o'clock
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 240) // may/sept begin 16 o'clock
 			gstate->flags |= FLAG_HEATING;
 		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
 			gstate->flags |= FLAG_HEATING;

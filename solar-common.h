@@ -9,11 +9,6 @@
 #define EMERGENCY				1000
 #define ENOUGH					2000
 
-#define WAIT_INVALID			3
-#define WAIT_RESPONSE			5
-#define WAIT_BURNOUT			1800
-#define WAIT_AKKU_CHARGE		30
-
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
 
@@ -195,9 +190,10 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	"  ramp xload dload  lock flags"
+#define DSTATE_HEADER	"  ramp steal xload dload  lock flags"
 struct _dstate {
 	int ramp;
+	int steal;
 	int xload;
 	int dload;
 	int lock;

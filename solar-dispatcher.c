@@ -34,6 +34,11 @@
 
 #define STANDBY_NORESPONSE		5
 
+#define WAIT_INVALID			3
+#define WAIT_RESPONSE			5
+#define WAIT_AKKU_CHARGE		30
+#define WAIT_BURNOUT			1800
+
 // dstate access pointers
 #define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
 #define DSTATE_LAST1			(&dstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
@@ -126,7 +131,7 @@ static int check_override(device_t *d, int power) {
 }
 
 static int ramp_heater(device_t *heater, int power) {
-	if (!power || heater->state == Disabled || heater->state == Standby)
+	if (!power || heater->state == Disabled || heater->state == Standby || heater->power == -1)
 		return 0; // 0 - continue loop
 
 	// heating disabled except override
@@ -159,9 +164,7 @@ static int ramp_heater(device_t *heater, int power) {
 		xdebug("SOLAR switching %s OFF", heater->name);
 
 #if defined(TRON) || defined(ODROID)
-	int ret = tasmota_power(heater->id, heater->r, power ? 1 : 0);
-	if (ret < 0)
-		return ret;
+	tasmota_power(heater->id, heater->r, power ? 1 : 0);
 #endif
 
 	// update power values
@@ -283,7 +286,8 @@ static int ramp_akku(device_t *akku, int power) {
 		// start charging when flag is set
 		if (GSTATE_CHARGE_AKKU) {
 			int limit = GSTATE_SUMMER || gstate->today > akku_capacity() * 2 ? AKKU_LIMIT_CHARGE : 0;
-			return akku_charge(akku, limit);
+			akku_charge(akku, limit);
+			return WAIT_AKKU_CHARGE;
 		}
 	}
 
@@ -320,7 +324,6 @@ static void print_dstate(device_t *d) {
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
 	if (!PSTATE_OFFLINE) {
-		xlogl_int_noise(line, NOISE, 0, "Ramp", dstate->ramp);
 		xlogl_int(line, "XLoad", dstate->xload);
 		xlogl_int(line, "DLoad", dstate->dload);
 		strcat(line, "   ");
@@ -435,8 +438,8 @@ static int choose_program() {
 	if (GSTATE_WINTER && gstate->tomorrow < akku_capacity())
 		return select_program(&MODEST);
 
-	// quota not yet reached and akku not yet enough to survive
-	if (gstate->success < 1000 && gstate->akku < gstate->need_survive)
+	// forecast below 80% and akku not yet enough to survive
+	if (gstate->forecast < 800 && gstate->akku < gstate->need_survive)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -472,9 +475,9 @@ static int ramp_multi(device_t *d) {
 		int old_ramp = dstate->ramp;
 		dstate->ramp -= d->delta + d->delta / 2; // add 50%
 		// too less to forward
-		if (old_ramp > 0 && dstate->ramp < NOISE * 2)
+		if (old_ramp > 0 && dstate->ramp < RAMP)
 			dstate->ramp = 0;
-		if (old_ramp < 0 && dstate->ramp > NOISE * -2)
+		if (old_ramp < 0 && dstate->ramp > RAMP * -1)
 			dstate->ramp = 0;
 		if (dstate->ramp)
 			msleep(33);
@@ -483,7 +486,7 @@ static int ramp_multi(device_t *d) {
 }
 
 static device_t* rampup() {
-	if (DSTATE_ALL_UP || DSTATE_ALL_STANDBY || !PSTATE_VALID)
+	if (DSTATE_ALL_UP || DSTATE_ALL_STANDBY || !PSTATE_VALID || PSTATE_EMERGENCY)
 		return 0;
 
 	device_t *d = 0, **dd = potd->devices;
@@ -514,6 +517,7 @@ static device_t* rampdown() {
 }
 
 static device_t* ramp() {
+	dstate->ramp = 0;
 	if (PSTATE_OFFLINE)
 		return 0;
 
@@ -533,7 +537,7 @@ static device_t* ramp() {
 		dstate->ramp -= pstate->akku + pstate->akku / 2;
 
 	// 50% more ramp down when PV tendency falls
-	if (dstate->ramp < 0 && PSTATE_PV_FALLING)
+	if (dstate->ramp < 0 && (PSTATE_PV_FALLING || PSTATE_AKKU_DCHARGE || PSTATE_GRID_DLOAD))
 		dstate->ramp += dstate->ramp / 2;
 
 	// delay small ramp up when we just had akku discharge or grid download
@@ -563,6 +567,7 @@ static device_t* ramp() {
 }
 
 static device_t* steal() {
+	dstate->steal = 0;
 	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
@@ -575,27 +580,33 @@ static device_t* steal() {
 		if (DD->power == (DD->adj ? 100 : 1))
 			continue;
 
+		// initiate with available ramp power
+		dstate->steal = dstate->ramp;
+
 		// thief can steal akkus charge power or victims load when not in override mode and zero noresponse counter
-		int p = 0;
 		for (device_t **vv = dd + 1; *vv; vv++)
 			if (*vv == AKKU)
-				p += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
+				dstate->steal += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
 			else
-				p += !(*vv)->override && !(*vv)->noresponse ? (*vv)->load : 0;
+				dstate->steal += !(*vv)->override && !(*vv)->noresponse ? (*vv)->load : 0;
 
 		// adjustable: 1% of total, dumb: total
 		int min = DD->adj ? DD->total / 100 : DD->total;
 		min += min / 10; // add 10%
 
 		// not enough to steal
-		if (p < min)
+		if (dstate->steal < min)
 			continue;
 
-		// ramp up thief - victims gets automatically ramped down in next round
-		if (ramp_device(DD, p)) {
-			xdebug("SOLAR %s steal %d (min=%d)", DD->name, p, min);
-			return DD;
-		}
+		// ramp down victims with inverted power, then ramp up thief
+		xdebug("SOLAR %s steal %d min=%d", DD->name, dstate->steal, min);
+		dstate->ramp = dstate->steal * -1;
+		rampdown();
+		ramp_device(DD, dstate->steal);
+
+		// wait but expect no response as load should not or only minimal change
+		dstate->lock = WAIT_RESPONSE;
+		return 0;
 	}
 
 	// TODO akku cannot actively steal - only by ramping down victims
@@ -665,12 +676,10 @@ static device_t* response(device_t *d) {
 	d->delta = 0; // reset
 
 	// check if we got a response on any phase
-	int r1 = delta > 0 ? d1 > delta : d1 < delta;
-	int r2 = delta > 0 ? d2 > delta : d2 < delta;
-	int r3 = delta > 0 ? d3 > delta : d3 < delta;
-	int r = r1 || r2 || r3;
-	if (r)
-		xdebug("SOLAR response detected at phase %s %s %s", r1 ? "1" : "", r2 ? "2" : "", r3 ? "3" : "");
+	int l1 = delta > 0 ? d1 > delta : d1 < delta;
+	int l2 = delta > 0 ? d2 > delta : d2 < delta;
+	int l3 = delta > 0 ? d3 > delta : d3 < delta;
+	int r = l1 || l2 || l3;
 
 	// load is completely satisfied from secondary inverter
 	int extra = pstate->ac2 > pstate->load * -1;
@@ -680,7 +689,7 @@ static device_t* response(device_t *d) {
 
 	// response OK
 	if (r && (d->state == Active || d->state == Active_Checked)) {
-		xdebug("SOLAR response OK from %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
+		xdebug("SOLAR response for %s detected at %s%s%s, delta %d %d %d expexted %d", d->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
 		d->noresponse = 0;
 		dstate->lock = wait;
 		return dstate->lock ? d : 0;
@@ -728,6 +737,12 @@ static void calculate_dstate() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (DD->state == Disabled)
 			continue;
+
+		// ask POWER state if initial
+#if defined(TRON) || defined(ODROID)
+		if (DD->power == -1)
+			tasmota_power_ask(DD->id, DD->r);
+#endif
 
 		// calculated load
 		dstate->xload += DD->load;
@@ -778,11 +793,9 @@ static void hourly() {
 
 static void minly() {
 	// force off when offline
-	if (PSTATE_OFFLINE) {
-		dstate->ramp = 0;
+	if (PSTATE_OFFLINE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp_device(DD, DOWN);
-	}
 
 	// set akku to DISCHARGE if we have long term grid download
 	if (PSTATE_GRID_DLOAD) {
@@ -838,6 +851,10 @@ int solar_update(unsigned int id, int relay, int power) {
 			DD->state = Active;
 			DD->load = power ? DD->total : 0;
 			DD->power = power;
+			if (DD->adj)
+				DD->load = power * DD->total / 100;
+			else
+				DD->load = power ? DD->total : 0;
 			xlog("SOLAR update id=%06X relay=%d power=%d name=%s", DD->id, DD->r, DD->power, DD->name);
 			return 0;
 		}
@@ -892,8 +909,8 @@ static void loop() {
 			// prio4: check if higher prioritized device can steal from lower prioritized
 			if (!device)
 				device = steal();
-
 		}
+
 		// calculate device state
 		calculate_dstate();
 
@@ -940,14 +957,14 @@ static int init() {
 		DD->power = -1;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
-		if (DD->adj) {
-			if (DD->addr == 0)
-				// disable when we don't have an ip address to send UDP messages
-				DD->state = Disabled;
-			else
-				// initally ramp down boilers as we do not get state from mqtt
-				ramp_device(DD, DOWN);
-		}
+
+		// disable when we don't have an ip address to send UDP messages
+		if (DD->adj && DD->addr == 0)
+			DD->state = Disabled;
+
+		// ramp down boilers
+		if (DD->adj)
+			ramp_device(DD, DOWN);
 	}
 
 	// devices hard disabled
