@@ -46,7 +46,7 @@ function update_devices() {
 
 				var height = v.load * 100 / v.total;
 				var clazz;
-				if (v.state == 0) {
+				if (v.state == 0 || v.state == 1) {
 					dd.classList.add('d');
 					clazz = 'd';
 				} else if (v.state == 6) {

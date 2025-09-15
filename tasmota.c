@@ -280,15 +280,22 @@ static void dispatch_button(unsigned int id, int idx, const char *message, size_
 	}
 }
 
-static int dispatch_tele_sensor(unsigned int id, int idx, const char *message, size_t msize) {
+static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t msize) {
+	char *analog = NULL;
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
 	char *bmp085 = NULL;
 	char *sht31 = NULL;
 	char *htu21 = NULL;
-	char *analog = NULL;
+	char *gp8403 = NULL;
 
-	json_scanf(message, msize, "{BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, ANALOG:%Q}", &bh1750, &bmp280, &bmp085, &sht31, &htu21, &analog);
+	json_scanf(message, msize, "{ANALOG:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q}", &analog, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403);
+
+	if (analog != NULL) {
+		json_scanf(analog, strlen(analog), "{A0:%d}", &sensors->ml8511_uv);
+		// xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
+		free(analog);
+	}
 
 	if (bh1750 != NULL) {
 		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
@@ -320,10 +327,14 @@ static int dispatch_tele_sensor(unsigned int id, int idx, const char *message, s
 		free(sht31);
 	}
 
-	if (analog != NULL) {
-		json_scanf(analog, strlen(analog), "{A0:%d}", &sensors->ml8511_uv);
-		// xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
-		free(analog);
+	if (gp8403 != NULL) {
+		int vc0, vc1, pc0, pc1;
+		json_scanf(gp8403, strlen(gp8403), "{vc0:%d, vc1:%d, pc0:%d, pc1:%d}", &vc0, &vc1, &pc0, &pc1);
+		// xdebug("TASMOTA GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", vc0, vc1, pc0, pc1);
+#ifdef SOLAR
+		solar_update_power(id, 0, pc0);
+#endif
+		free(gp8403);
 	}
 
 	// TASMOTA 2FEFEE topic('tele/2FEFEE/SENSOR') = {"Time":"2024-05-24T14:09:31","Switch1":"OFF","Switch2":"ON","ANALOG":{"Temperature":40.3},"TempUnit":"C"}
@@ -333,7 +344,7 @@ static int dispatch_tele_sensor(unsigned int id, int idx, const char *message, s
 	return 0;
 }
 
-static int dispatch_tele_result(unsigned int id, int idx, const char *message, size_t msize) {
+static int dispatch_result(unsigned int id, int idx, const char *message, size_t msize) {
 	char *rf = NULL;
 
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
@@ -363,10 +374,10 @@ static int dispatch_tele_result(unsigned int id, int idx, const char *message, s
 
 static int dispatch_tele(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp(suffix, "SENSOR"))
-		return dispatch_tele_sensor(id, idx, message, msize);
+		return dispatch_sensor(id, idx, message, msize);
 
 	if (!strcmp(suffix, "RESULT"))
-		return dispatch_tele_result(id, idx, message, msize);
+		return dispatch_result(id, idx, message, msize);
 
 	return 0;
 }
@@ -376,6 +387,9 @@ static int dispatch_cmnd(unsigned int id, const char *suffix, int idx, const cha
 }
 
 static int dispatch_stat(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+	if (!strcmp(suffix, "STATUS10"))
+		return dispatch_sensor(id, idx, message, msize);
+
 	// power state results
 	if (!strcmp(suffix, "POWER"))
 		return update_power(id, idx, MESSAGE_ON);
@@ -497,7 +511,19 @@ int openbeken_set(unsigned int id, int channel, int value) {
 	return publish(topic, message, 0);
 }
 
-// execute tasmota POWER command to get POWER state
+// execute tasmota STATUS command to get actual status
+int tasmota_status_ask(unsigned int id, int status) {
+	if (!id)
+		return 0;
+
+	char topic[TOPIC_LEN], message[4];
+	snprintf(topic, TOPIC_LEN, "cmnd/%6X/STATUS", id);
+	snprintf(message, 4, "%d", status);
+	xlog("TASMOTA %06X asking status %d", id, status);
+	return publish(topic, message, 0);
+}
+
+// execute tasmota POWER command to get actual state
 int tasmota_power_ask(unsigned int id, int relay) {
 	if (!id)
 		return 0;
@@ -508,7 +534,6 @@ int tasmota_power_ask(unsigned int id, int relay) {
 	else
 		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
 	xlog("TASMOTA %06X asking power state of relay %d", id, relay);
-
 	return publish(topic, 0, 0);
 }
 

@@ -59,13 +59,13 @@ static int ramp_akku(device_t *device, int power);
 
 // devices
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .total = 2000, .ramp = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .total = 2000, .ramp = &ramp_boiler, .adj = 1, .from = 11, .to = 15, .min = 5 };
-static device_t h1 = { .name = "küche", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 1 };
-static device_t h2 = { .name = "wozi", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 2 };
-static device_t h3 = { .name = "schlaf", .total = 500, .ramp = &ramp_heater, .adj = 0, .host = "plug5", .id = PLUG5, .r = 0 };
-static device_t h4 = { .name = "tisch", .total = 200, .ramp = &ramp_heater, .adj = 0, .host = "switchbox", .id = SWITCHBOX, .r = 3, };
+static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0, .from = 11, .to = 15, .min = 5 };
+static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox" };
+static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox" };
+static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 0, .host = "plug5" };
+static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 200, .ramp = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox" };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
@@ -124,7 +124,7 @@ static void store_meter_power(device_t *d) {
 }
 
 static int ramp_heater(device_t *heater, int power) {
-	if (!power || heater->state == Disabled || heater->state == Standby)
+	if (!power || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return 0; // 0 - continue loop
 
 	// heating disabled
@@ -145,7 +145,7 @@ static int ramp_heater(device_t *heater, int power) {
 	power = power > 0 ? 1 : 0;
 
 	// check if update is necessary
-	if (heater->power == power && heater->state != Initial)
+	if (heater->power == power)
 		return 0;
 
 	if (power)
@@ -158,8 +158,6 @@ static int ramp_heater(device_t *heater, int power) {
 #endif
 
 	// update power values
-	if (heater->state == Initial)
-		heater->state = Auto;
 	heater->delta = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
 	heater->power = power;
@@ -170,7 +168,7 @@ static int ramp_heater(device_t *heater, int power) {
 // echo p:0:0 | socat - udp:boiler3:1975
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 static int ramp_boiler(device_t *boiler, int power) {
-	if (!power || boiler->state == Disabled || boiler->state == Standby)
+	if (!power || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
 		return 0; // 0 - continue loop
 
 	// cannot send UDP if we don't have an IP
@@ -210,7 +208,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 		return 0;
 
 	// check if update is necessary
-	if (boiler->power == power && boiler->state != Initial)
+	if (boiler->power == power)
 		return 0;
 
 	// send UDP message to device
@@ -239,8 +237,6 @@ static int ramp_boiler(device_t *boiler, int power) {
 	int wait = boiler->power == 0 ? WAIT_RESPONSE * 2 : WAIT_RESPONSE;
 
 	// update power values
-	if (boiler->state == Initial)
-		boiler->state = Auto;
 	boiler->delta = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
@@ -785,7 +781,7 @@ static void hourly() {
 		if (DD == AKKU)
 			continue;
 		DD->noresponse = 0;
-		if (DD->state == Standby || DD->state == Manual || DD->state == Auto_Checked)
+		if (DD->state == Manual || DD->state == Auto_Checked || DD->state == Standby || DD->state == Standby_Check)
 			DD->state = Auto;
 	}
 }
@@ -846,7 +842,7 @@ int solar_update_power(unsigned int id, int relay, int power) {
 		d->load = power * d->total / 100;
 	else
 		d->load = power ? d->total : 0;
-	xdebug("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
+	xlog("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
 	return 0;
 }
 
@@ -943,26 +939,22 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Initial;
-		if (!DD->id)
+
+		// get IP address of boilers and disable when failed
+		if (DD->adj) {
 			DD->addr = resolve_ip(DD->name);
+			if (DD->addr == 0)
+				DD->state = Disabled;
+		}
 
-		// disable when we don't have an ip address to send UDP messages
-		if (DD->adj && DD->addr == 0)
-			DD->state = Disabled;
-
-		// ramp down boilers, ask heaters for POWER state
-		if (DD->adj)
-			ramp_device(DD, DOWN);
-		else {
+		// get initial power state
 #if defined(TRON) || defined(ODROID)
+		if (DD->adj)
+			tasmota_status_ask(DD->id, 10);
+		else
 			tasmota_power_ask(DD->id, DD->r);
 #endif
-		}
 	}
-
-	// devices hard disabled
-	b2.state = Disabled;
-	h3.state = Disabled;
 
 	// initially select the program of the day
 	choose_program();

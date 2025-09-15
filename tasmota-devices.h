@@ -38,6 +38,9 @@
 // ESP32 Development Kits
 #define DEVKIT1			0x7ECDD0
 #define DEVKIT2			0x123456
+#define BOILER1			0x7A3FC4
+#define BOILER2			0xB2B2B2
+#define BOILER3			0x9A3374
 
 // 433MHz RF Transmitter ID
 #define	DOORBELL		0x670537

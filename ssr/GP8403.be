@@ -13,11 +13,15 @@ class GP8403: Driver
   var wire
   var vc0					# voltage channel 0
   var vc1					# voltage channel 1
+  var pc0					# percent channel 0
+  var pc1					# percent channel 1
   var flash
 
   def init()
     self.vc0 = -1
     self.vc1 = -1
+    self.pc0 = 0
+    self.pc1 = 0
     self.flash = 0
 
     gpio.digital_write(self.LED, 0)
@@ -71,7 +75,10 @@ class GP8403: Driver
     if percent < 0 percent = 0 end
     if percent > 100 percent = 100 end
     # print("channel "+str(channel).." percent "+str(percent))
-
+    
+    if channel == 0 self.pc0 = percent end
+	if channel == 1 self.pc1 = percent end
+	
     var volt = gp8403_phase_angles.SSR_PHASE_ANGLE[percent]
     self.set_volt(channel, volt)
   end
@@ -82,8 +89,8 @@ class GP8403: Driver
 
     import string
     var msg = string.format(
-             "{s}GP8403 channel0 %i mV {s}GP8403 channel1 %i mV",
-              self.vc0, self.vc1)
+             "{s}GP8403 channel0 %i mV %i %%{s}GP8403 channel1 %i mV %i %%",
+              self.vc0, self.pc0, self.vc1, self.pc1)
     tasmota.web_send_decimal(msg)
   end
 
@@ -92,8 +99,8 @@ class GP8403: Driver
     if !self.wire return end 
 
     import string
-    var msg = string.format(",\"GP8403\":{\"channel0\":%i,\"channel1\":%i}",
-              self.vc0, self.vc1)
+    var msg = string.format(",\"GP8403\":{\"vc0\":%i,\"pc0\":%i,\"vc1\":%i,\"pc1\":%i}",
+              self.vc0, self.pc0, self.vc1, self.pc1)
     tasmota.response_append(msg)
   end
 
