@@ -744,12 +744,6 @@ static void calculate_dstate() {
 		if (DD->state == Disabled)
 			continue;
 
-		// ask POWER state if initial
-#if defined(TRON) || defined(ODROID)
-		if (DD->state == Initial)
-			tasmota_power_ask(DD->id, DD->r);
-#endif
-
 		// calculated load
 		dstate->xload += DD->load;
 
@@ -906,13 +900,6 @@ static void loop() {
 				device = steal();
 		}
 
-		// calculate device state
-		calculate_dstate();
-
-		// print dstate once per minute / on device action
-		if (MINLY || device)
-			print_dstate(device);
-
 		// cron jobs
 		if (MINLY) {
 			minly();
@@ -924,6 +911,13 @@ static void loop() {
 					daily();
 			}
 		}
+
+		// calculate device state
+		calculate_dstate();
+
+		// print dstate once per minute / on device action
+		if (MINLY || device)
+			print_dstate(device);
 
 		// web output
 		create_dstate_json();
@@ -956,9 +950,14 @@ static int init() {
 		if (DD->adj && DD->addr == 0)
 			DD->state = Disabled;
 
-		// ramp down boilers
+		// ramp down boilers, ask heaters for POWER state
 		if (DD->adj)
 			ramp_device(DD, DOWN);
+		else {
+#if defined(TRON) || defined(ODROID)
+			tasmota_power_ask(DD->id, DD->r);
+#endif
+		}
 	}
 
 	// devices hard disabled

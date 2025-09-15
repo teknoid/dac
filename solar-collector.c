@@ -360,7 +360,7 @@ static void calculate_gstate() {
 	else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 
-	// allow akku charging
+	// start akku charging
 	if (WINTER)
 		// winter: always
 		gstate->flags |= FLAG_CHARGE_AKKU;

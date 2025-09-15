@@ -327,7 +327,8 @@ static int dispatch_tele_sensor(unsigned int id, int idx, const char *message, s
 	}
 
 	// TASMOTA 2FEFEE topic('tele/2FEFEE/SENSOR') = {"Time":"2024-05-24T14:09:31","Switch1":"OFF","Switch2":"ON","ANALOG":{"Temperature":40.3},"TempUnit":"C"}
-	dispatch_button(id, idx, message, msize);
+	// TODO ???
+	// dispatch_button(id, idx, message, msize);
 
 	return 0;
 }
