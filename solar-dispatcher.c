@@ -145,7 +145,7 @@ static int ramp_heater(device_t *heater, int power) {
 	power = power > 0 ? 1 : 0;
 
 	// check if update is necessary
-	if (heater->power == power)
+	if (heater->power == power && heater->state != Initial)
 		return 0;
 
 	if (power)
@@ -158,6 +158,8 @@ static int ramp_heater(device_t *heater, int power) {
 #endif
 
 	// update power values
+	if (heater->state == Initial)
+		heater->state = Auto;
 	heater->delta = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
 	heater->power = power;
@@ -208,7 +210,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 		return 0;
 
 	// check if update is necessary
-	if (boiler->power == power)
+	if (boiler->power == power && boiler->state != Initial)
 		return 0;
 
 	// send UDP message to device
@@ -237,6 +239,8 @@ static int ramp_boiler(device_t *boiler, int power) {
 	int wait = boiler->power == 0 ? WAIT_RESPONSE * 2 : WAIT_RESPONSE;
 
 	// update power values
+	if (boiler->state == Initial)
+		boiler->state = Auto;
 	boiler->delta = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
@@ -397,9 +401,6 @@ static int ramp_device(device_t *d, int power) {
 	int ret = (d->ramp)(d, power);
 	if (dstate->lock < ret)
 		dstate->lock = ret;
-
-	if (d->state == Initial)
-		d->state = Auto;
 
 	return ret;
 }
