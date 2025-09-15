@@ -834,14 +834,14 @@ int solar_toggle_id(unsigned int id, int relay) {
 	return 0;
 }
 
-int solar_tasmota(unsigned int id, int relay, int power) {
+int solar_update_power(unsigned int id, int relay, int power) {
 	device_t *d = get_by_id(id, relay);
 	if (!d)
 		return 0;
 
-	if (d->state != Manual)
-		d->state = Auto;
 	d->power = power;
+	if (d->state == Initial)
+		d->state = Auto;
 	if (d->adj)
 		d->load = power * d->total / 100;
 	else

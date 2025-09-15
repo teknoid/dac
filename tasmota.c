@@ -139,7 +139,7 @@ static int update_shutter(unsigned int id, unsigned int position) {
 }
 
 // update tasmota relay power state
-static int update_relay(unsigned int id, int relay, int power) {
+static int update_power(unsigned int id, int relay, int power) {
 	tasmota_state_t *ss = get_state(id);
 	if (relay == 0 || relay == 1) {
 		ss->relay1 = power;
@@ -158,7 +158,7 @@ static int update_relay(unsigned int id, int relay, int power) {
 
 #ifdef SOLAR
 	// forward to solar dispatcher
-	solar_tasmota(id, relay, power);
+	solar_update_power(id, relay, power);
 #endif
 
 	return 0;
@@ -378,7 +378,7 @@ static int dispatch_cmnd(unsigned int id, const char *suffix, int idx, const cha
 static int dispatch_stat(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
 	// power state results
 	if (!strcmp(suffix, "POWER"))
-		return update_relay(id, idx, MESSAGE_ON);
+		return update_power(id, idx, MESSAGE_ON);
 
 	// PIR motion detection sensors - tasmota configuration:
 	// SwitchMode1 1
