@@ -182,8 +182,8 @@ static int dispatch_solar(struct mqtt_response_publish *p) {
 	int r = 0;
 
 	json_scanf(p->application_message, p->application_message_size, "{id:%Q, r:%d, cmd:%Q}", &idc, &r, &cmd);
-	unsigned int id = (unsigned int) strtol(idc, NULL, 16);
 #ifdef SOLAR
+	unsigned int id = (unsigned int) strtol(idc, NULL, 16);
 	solar_toggle_id(id, r);
 #endif
 

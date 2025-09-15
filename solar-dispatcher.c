@@ -601,9 +601,10 @@ static device_t* steal() {
 			continue;
 
 		// ramp down victims with inverted power, then ramp up thief
-		xdebug("SOLAR %s steal %d min=%d", DD->name, dstate->steal, min);
-		dstate->ramp = dstate->steal * -1;
-		rampdown();
+		xlog("SOLAR %s steal %d min=%d", DD->name, dstate->steal, min);
+		// TODO schaukelt
+		// dstate->ramp = dstate->steal * -1;
+		// rampdown();
 		ramp_device(DD, dstate->steal);
 
 		// wait but expect no response as load should not or only minimal change
@@ -854,6 +855,9 @@ static void loop() {
 		xlog("Error setting pthread_setcancelstate");
 		return;
 	}
+
+	// wait for initial power state response
+	sleep(3);
 
 	// get initial akku state
 	AKKU->state = akku_state();

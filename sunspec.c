@@ -599,17 +599,17 @@ int sunspec_storage_state(sunspec_t *ss) {
 	// use enum e_state values
 	switch (storctl) {
 	case STORAGE_LIMIT_NONE:
-		// Active
-		return 2;
+		// Auto
+		return 5;
 	case STORAGE_LIMIT_BOTH:
-		// Standby / Active
-		return inwrte == 0 && outwrte == 0 ? 5 : 2;
+		// Standby / Auto
+		return inwrte == 0 && outwrte == 0 ? 4 : 5;
 	case STORAGE_LIMIT_CHARGE:
 		// Discharge / Charge
-		return inwrte == 0 ? 4 : 3;
+		return inwrte == 0 ? 3 : 2;
 	case STORAGE_LIMIT_DISCHARGE:
 		// Charge / Discharge
-		return outwrte == 0 ? 3 : 4;
+		return outwrte == 0 ? 2 : 3;
 	default:
 		return 0;
 	}

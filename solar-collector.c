@@ -353,7 +353,7 @@ static void calculate_gstate() {
 	if (gstate->temp_in > 250)
 		gstate->flags &= ~FLAG_HEATING;
 	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 240) // may/sept begin 16 o'clock
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 250) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
 	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
