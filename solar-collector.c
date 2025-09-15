@@ -360,19 +360,19 @@ static void calculate_gstate() {
 	else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 
-	// charging akku
+	// allow akku charging
 	if (WINTER)
 		// winter: always
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
-		// summer: between 9 and 15 o'clock when below 20%
-		if (gstate->soc < 200 && now->tm_hour >= 9 && now->tm_hour < 15)
+		// summer: between 9 and 12 o'clock when below 22%
+		if (gstate->soc < 222 && now->tm_hour >= 9 && now->tm_hour < 12)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: between 9 and 15 o'clock when below 35% or tomorrow not enough pv
-		if (gstate->soc < 350 && now->tm_hour >= 9 && now->tm_hour < 15)
+		// autumn/spring: between 9 and 12 o'clock when below 33% or tomorrow not enough pv
+		if (gstate->soc < 333 && now->tm_hour >= 9 && now->tm_hour < 12)
 			gstate->flags |= FLAG_CHARGE_AKKU;
-		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 15)
+		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 12)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
 
