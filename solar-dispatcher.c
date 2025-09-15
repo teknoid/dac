@@ -124,7 +124,7 @@ static void store_meter_power(device_t *d) {
 }
 
 static int ramp_heater(device_t *heater, int power) {
-	if (!power || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
+	if (!power || heater->state == Disabled || heater->state == Standby)
 		return 0; // 0 - continue loop
 
 	// heating disabled
@@ -397,6 +397,9 @@ static int ramp_device(device_t *d, int power) {
 	int ret = (d->ramp)(d, power);
 	if (dstate->lock < ret)
 		dstate->lock = ret;
+
+	if (d->state == Initial)
+		d->state = Auto;
 
 	return ret;
 }
@@ -945,7 +948,6 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Initial;
-		DD->power = DD->load = -1;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
 
