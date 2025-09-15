@@ -582,9 +582,6 @@ static device_t* steal() {
 		if (DD->power == (DD->adj ? 100 : 1))
 			continue;
 
-		// initiate with available ramp power
-		dstate->steal = dstate->ramp;
-
 		// thief can steal akkus charge power or victims load when not in Manual mode and zero noresponse counter
 		for (device_t **vv = dd + 1; *vv; vv++)
 			if (*vv == AKKU)
@@ -600,15 +597,18 @@ static device_t* steal() {
 		if (dstate->steal < min)
 			continue;
 
-		// ramp down victims with inverted power, then ramp up thief
+		// ramp down victims till we have enough to ramp up thief
 		xlog("SOLAR %s steal %d min=%d", DD->name, dstate->steal, min);
-		// TODO schaukelt
-		// dstate->ramp = dstate->steal * -1;
-		// rampdown();
+		int stolen = 0;
+		for (device_t **vv = dd + 1; *vv && (stolen < dstate->steal); vv++) {
+			stolen += (*vv)->load;
+			ramp_device(*vv, (*vv)->load * -1);
+		}
+
+		// ramp up thief
 		ramp_device(DD, dstate->steal);
 
-		// wait but expect no response as load should not or only minimal change
-		dstate->lock = WAIT_RESPONSE;
+		// expect no response as load should not or only minimal change
 		return 0;
 	}
 
