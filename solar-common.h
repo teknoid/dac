@@ -71,7 +71,7 @@
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
 enum e_state {
-	Disabled, Initial, Active, Charge, Discharge, Standby, Standby_Check, Active_Checked,
+	Disabled, Initial, Auto, Manual, Charge, Discharge, Standby, Standby_Check, Auto_Checked,
 };
 
 // device definitions
@@ -96,7 +96,6 @@ struct _device {
 	int p2;
 	int p3;
 	int noresponse;
-	time_t override;
 	ramp_function_t *ramp;
 };
 

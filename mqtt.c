@@ -139,7 +139,7 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	size_t msize = p->application_message_size;
 
 	char *title = NULL, *text = NULL, *sound = NULL;
-	json_scanf(message, msize, "{title: %Q, text: %Q, sound: %Q}", &title, &text, &sound);
+	json_scanf(message, msize, "{title:%Q, text:%Q, sound:%Q}", &title, &text, &sound);
 
 	notify(title, text, sound);
 
@@ -178,12 +178,17 @@ static int dispatch_sensor(struct mqtt_response_publish *p) {
 }
 
 static int dispatch_solar(struct mqtt_response_publish *p) {
-	if (ends_with("override", p->topic_name, p->topic_name_size)) {
+	char *idc = NULL, *cmd = NULL;
+	int r = 0;
+
+	json_scanf(p->application_message, p->application_message_size, "{id:%Q, r:%d, cmd:%Q}", &idc, &r, &cmd);
+	unsigned int id = (unsigned int) strtol(idc, NULL, 16);
 #ifdef SOLAR
-		char *device = make_string(p->application_message, p->application_message_size);
-		solar_override_seconds(device, 3600);
+	solar_toggle_id(id, r);
 #endif
-	}
+
+	free(idc);
+	free(cmd);
 	return 0;
 }
 

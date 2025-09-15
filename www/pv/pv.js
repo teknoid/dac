@@ -24,13 +24,10 @@ function toggle(e) {
 	var host = e.currentTarget.getAttribute('data-host');
 	var id = e.currentTarget.getAttribute('data-id');
 	var r = e.currentTarget.getAttribute('data-r');
-	if (r == 0)
-		var cm = '/' + host + '/cm?cmnd=Power%20TOGGLE';
-	else
-		var cm = '/' + host + '/cm?cmnd=Power' + r + '%20TOGGLE';
+	var x = '/pv/pv.php?id=' + id + '&r=' + r;
 	if (id != 0) {
 		var request = new XMLHttpRequest();
-		request.open("GET", cm);
+		request.open("GET", x);
 		request.send();
 	}
 }
@@ -52,7 +49,7 @@ function update_devices() {
 				if (v.state == 0) {
 					dd.classList.add('d');
 					clazz = 'd';
-				} else if (v.state == 5) {
+				} else if (v.state == 6) {
 					dd.classList.add('z');
 					clazz = 'z';
 				} else if (v.load < 0) {

@@ -109,33 +109,26 @@ static device_t* get_by_name(const char *name) {
 	return 0;
 }
 
+static device_t* get_by_id(unsigned int id, int relay) {
+	for (device_t **dd = potd->devices; *dd; dd++)
+		if (DD->id == id && DD->r == relay)
+			return DD;
+
+	return 0;
+}
+
 static void store_meter_power(device_t *d) {
 	d->p1 = pstate->p1;
 	d->p2 = pstate->p2;
 	d->p3 = pstate->p3;
 }
 
-static int check_override(device_t *d, int power) {
-	if (d->override) {
-		time_t t = time(NULL);
-		if (t > d->override) {
-			xdebug("SOLAR Override expired for %s", d->name);
-			d->override = 0;
-			power = 0;
-		} else {
-			xdebug("SOLAR Override active for %lu seconds on %s", d->override - t, d->name);
-			power = d->adj ? 100 : 1;
-		}
-	}
-	return power;
-}
-
 static int ramp_heater(device_t *heater, int power) {
 	if (!power || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return 0; // 0 - continue loop
 
-	// heating disabled except override
-	if (power > 0 && !GSTATE_HEATING && !heater->override) {
+	// heating disabled
+	if (power > 0 && !GSTATE_HEATING && heater->state != Manual) {
 		power = 0;
 		heater->state = Standby;
 	}
@@ -150,9 +143,6 @@ static int ramp_heater(device_t *heater, int power) {
 
 	// transform power into on/off
 	power = power > 0 ? 1 : 0;
-
-	// check if override is active
-	power = check_override(heater, power);
 
 	// check if update is necessary
 	if (heater->power == power)
@@ -216,9 +206,6 @@ static int ramp_boiler(device_t *boiler, int power) {
 	// not enough to start up - electronic thermostat struggles at too less power
 	if (boiler->power == 0 && boiler->min && power < boiler->min)
 		return 0;
-
-	// check if override is active
-	power = check_override(boiler, power);
 
 	// check if update is necessary
 	if (boiler->power == power)
@@ -336,13 +323,16 @@ static void print_dstate(device_t *d) {
 		case Initial:
 			snprintf(value, 5, " i");
 			break;
-		case Active:
+		case Manual:
+			snprintf(value, 5, " %c", DD->power ? 'M' : 'm');
+			break;
+		case Auto:
 			if (DD->adj)
 				snprintf(value, 5, " %3d", DD->power);
 			else
 				snprintf(value, 5, " %c", DD->power ? 'x' : '_');
 			break;
-		case Active_Checked:
+		case Auto_Checked:
 			if (DD->adj)
 				snprintf(value, 6, " %3d!", DD->power);
 			else
@@ -380,9 +370,22 @@ static void print_dstate(device_t *d) {
 		xlogl_int(line, "   Lock", dstate->lock);
 	xlogl_end(line, strlen(line), 0);
 }
+// set device into MANUAL mode and toggle power
+static int toggle_device(device_t *d) {
+	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
+
+	d->state = Manual;
+	if (!d->power)
+		return (d->ramp)(d, d->total);
+	else
+		return (d->ramp)(d, d->total * -1);
+}
 
 // call device specific ramp function
 static int ramp_device(device_t *d, int power) {
+	if (d->state == Manual)
+		return 0;
+
 	if (power < 0)
 		xdebug("SOLAR ramp↓ %d %s", power, d->name);
 	else if (power > 0)
@@ -462,8 +465,8 @@ static void emergency() {
 
 static void burnout() {
 	akku_discharge(AKKU, 0); // enable discharge no limit
-	solar_override_seconds("küche", WAIT_BURNOUT);
-	solar_override_seconds("wozi", WAIT_BURNOUT);
+//	solar_override_seconds("küche", WAIT_BURNOUT);
+//	solar_override_seconds("wozi", WAIT_BURNOUT);
 	xlog("SOLAR burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), FLOAT10(gstate->temp_in));
 }
 
@@ -582,12 +585,12 @@ static device_t* steal() {
 		// initiate with available ramp power
 		dstate->steal = dstate->ramp;
 
-		// thief can steal akkus charge power or victims load when not in override mode and zero noresponse counter
+		// thief can steal akkus charge power or victims load when not in Manual mode and zero noresponse counter
 		for (device_t **vv = dd + 1; *vv; vv++)
 			if (*vv == AKKU)
 				dstate->steal += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
 			else
-				dstate->steal += !(*vv)->override && !(*vv)->noresponse ? (*vv)->load : 0;
+				dstate->steal += (*vv)->state != Manual && !(*vv)->noresponse ? (*vv)->load : 0;
 
 		// adjustable: 1% of total, dumb: total
 		int min = DD->adj ? DD->total / 100 : DD->total;
@@ -630,22 +633,22 @@ static device_t* standby() {
 
 	// try first active powered adjustable device with noresponse counter > 0
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Active && DD->power && DD->adj && DD->noresponse > 0)
+		if (DD->state == Auto && DD->power && DD->adj && DD->noresponse > 0)
 			return perform_standby(DD);
 
 	// try first active powered device with noresponse counter > 0
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Active && DD->power && DD->noresponse > 0)
+		if (DD->state == Auto && DD->power && DD->noresponse > 0)
 			return perform_standby(DD);
 
 	// try first active powered adjustable device
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Active && DD->power && DD->adj)
+		if (DD->state == Auto && DD->power && DD->adj)
 			return perform_standby(DD);
 
 	// try first active powered device
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Active && DD->power)
+		if (DD->state == Auto && DD->power)
 			return perform_standby(DD);
 
 	return 0;
@@ -687,7 +690,7 @@ static device_t* response(device_t *d) {
 	int wait = AKKU_CHARGING && delta > 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
-	if (r && (d->state == Active || d->state == Active_Checked)) {
+	if (r && (d->state == Auto || d->state == Auto_Checked)) {
 		xdebug("SOLAR response for %s detected at %s%s%s, delta %d %d %d expexted %d", d->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
 		d->noresponse = 0;
 		dstate->lock = wait;
@@ -698,7 +701,7 @@ static device_t* response(device_t *d) {
 	if (d->state == Standby_Check && r) {
 		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->noresponse = 0;
-		d->state = Active_Checked; // mark Active with standby check performed
+		d->state = Auto_Checked; // mark Auto with standby check performed
 		dstate->lock = wait;
 		return d; // recalculate in next round
 	}
@@ -779,13 +782,13 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
 
-	// reset noresponse counters and set all devices back to active
+	// reset noresponse counters and set all devices back to automatic
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (DD == AKKU)
 			continue;
 		DD->noresponse = 0;
-		if (DD->state == Standby || DD->state == Active_Checked)
-			DD->state = Active;
+		if (DD->state == Standby || DD->state == Manual || DD->state == Auto_Checked)
+			DD->state = Auto;
 	}
 }
 
@@ -815,37 +818,37 @@ static void minly() {
 	choose_program();
 }
 
-int solar_override_seconds(const char *name, int seconds) {
+int solar_toggle_name(const char *name) {
 	device_t *d = get_by_name(name);
 	if (!d)
 		return 0;
-	if (d->override)
-		return 0;
 
-	xlog("SOLAR Activating Override on %s", d->name);
-	d->override = time(NULL) + seconds;
-	return ramp_device(d, d->total);
+	toggle_device(d);
+	return 0;
 }
 
-int solar_override(const char *name) {
-	return solar_override_seconds(name, OVERRIDE);
-}
-
-int solar_update(unsigned int id, int relay, int power) {
-	if (!potd)
+int solar_toggle_id(unsigned int id, int relay) {
+	device_t *d = get_by_id(id, relay);
+	if (!d)
 		return 0;
 
-	for (device_t **dd = potd->devices; *dd; dd++)
-		if (DD->id == id && DD->r == relay) {
-			DD->state = Active;
-			DD->power = power;
-			if (DD->adj)
-				DD->load = power * DD->total / 100;
-			else
-				DD->load = power ? DD->total : 0;
-			xlog("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", DD->id, DD->r, DD->power, DD->load, DD->name);
-			return 0;
-		}
+	toggle_device(d);
+	return 0;
+}
+
+int solar_tasmota(unsigned int id, int relay, int power) {
+	device_t *d = get_by_id(id, relay);
+	if (!d)
+		return 0;
+
+	if (d->state != Manual)
+		d->state = Auto;
+	d->power = power;
+	if (d->adj)
+		d->load = power * d->total / 100;
+	else
+		d->load = power ? d->total : 0;
+	xdebug("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
 	return 0;
 }
 
@@ -942,6 +945,7 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Initial;
+		DD->power = DD->load = -1;
 		if (!DD->id)
 			DD->addr = resolve_ip(DD->name);
 

@@ -348,7 +348,7 @@ static void calculate_gstate() {
 	// no need to heat
 	if (gstate->temp_in > 180 && SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (gstate->temp_in > 200 && gstate->temp_out > 150 && !SUMMER)
+	if (gstate->temp_in > 210 && gstate->temp_out > 150 && !SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
 	if (gstate->temp_in > 250)
 		gstate->flags &= ~FLAG_HEATING;

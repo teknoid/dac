@@ -58,10 +58,10 @@ static void handle_button(unsigned char c) {
 		break;
 #ifdef SOLAR
 	case 32:
-		solar_override_seconds("tisch", 3600);
+		solar_toggle_name("tisch");
 		break;
 	case 32 + SHIFT:
-		solar_override_seconds("wozi", 3600);
+		solar_toggle_name("wozi");
 		break;
 #endif
 	case 64:

@@ -158,7 +158,7 @@ static int update_relay(unsigned int id, int relay, int power) {
 
 #ifdef SOLAR
 	// forward to solar dispatcher
-	solar_update(id, relay, power);
+	solar_tasmota(id, relay, power);
 #endif
 
 	return 0;
@@ -176,7 +176,7 @@ static void trigger(unsigned int id, int button, int action) {
 	if (id == KUECHE && button == 2) {
 		// forcing first boiler to heat up for 10 minutes
 #ifdef SOLAR
-		solar_override("boiler1");
+		solar_toggle_name("boiler1");
 #endif
 		return;
 	}
