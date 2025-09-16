@@ -16,12 +16,14 @@
 #include "mcp.h"
 
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
+#define DISCOVERY			"discovery"
 #define ON					"ON"
 #define OFF					"OFF"
 
 #define TOPIC_LEN			32
 #define PREFIX_LEN			32
 #define SUFFIX_LEN			32
+#define BUF32				32
 
 static tasmota_t *tasmota = NULL;
 
@@ -98,12 +100,6 @@ static tasmota_t* get_by_id(unsigned int id) {
 
 	tasmota_t *tnew = malloc(sizeof(tasmota_t));
 	tnew->id = id;
-	tnew->relay1 = -1;
-	tnew->relay2 = -1;
-	tnew->relay3 = -1;
-	tnew->relay4 = -1;
-	tnew->position = -1;
-	tnew->timer = 0;
 	tnew->next = NULL;
 
 	if (tasmota == NULL)
@@ -117,7 +113,7 @@ static tasmota_t* get_by_id(unsigned int id) {
 		t->next = tnew;
 	}
 
-	xlog("TASMOTA %06X created new state", tnew->id);
+	xdebug("TASMOTA %06X created new state", tnew->id);
 	return tnew;
 }
 
@@ -140,6 +136,8 @@ static int update_shutter(unsigned int id, unsigned int position) {
 // update tasmota relay power state
 static int update_power(unsigned int id, int relay, int power) {
 	tasmota_t *t = get_by_id(id);
+	t->relay = relay;
+	t->power = power;
 	if (relay == 0 || relay == 1) {
 		t->relay1 = power;
 		xlog("TASMOTA %06X updated relay1 state to %d", t->id, power);
@@ -157,8 +155,7 @@ static int update_power(unsigned int id, int relay, int power) {
 
 #ifdef SOLAR
 	// forward to solar dispatcher
-	// TODO solar_tasmota(t);
-	solar_update_power(id, relay, power);
+	solar_tasmota(t);
 #endif
 
 	return 0;
@@ -293,8 +290,8 @@ static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t
 	char *htu21 = NULL;
 	char *gp8403 = NULL;
 
-#define PATTERN "{ANALOG:%Q, DS18B20:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q}"
-	json_scanf(message, msize, PATTERN, &analog, &ds18b20, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403);
+#define PATTERN_SENSORS "{ANALOG:%Q, DS18B20:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q}"
+	json_scanf(message, msize, PATTERN_SENSORS, &analog, &ds18b20, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403);
 
 	if (analog != NULL) {
 		json_scanf(analog, strlen(analog), "{A0:%d}", &t->ml8511_uv);
@@ -344,8 +341,8 @@ static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t
 		free(gp8403);
 		xdebug("TASMOTA sensor GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", t->gp8403_vc0, t->gp8403_vc1, t->gp8403_pc0, t->gp8403_pc1);
 #ifdef SOLAR
-		// TODO solar_tasmota(t);
-		solar_update_power(id, 0, t->gp8403_pc0);
+		// forward to solar dispatcher
+		solar_tasmota(t);
 #endif
 	}
 
@@ -431,6 +428,27 @@ static int dispatch_stat(unsigned int id, const char *suffix, int idx, const cha
 	return 0;
 }
 
+static int dispatch_discovery(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+	char c1[BUF32], c2[BUF32], c3[BUF32], c4[BUF32], *name = NULL, *sensors = NULL;
+
+	sscanf(topic, "%7s/%9s/%12s/%30s", c1, c2, c3, c4);
+	long int mac = strtol(c3, NULL, 16);
+	unsigned int id = mac & 0xFFFFFF;
+	tasmota_t *t = get_by_id(id);
+
+	// xdebug("TASMOTA discovery c1=%s c2=%s c3=%s c4=%s", c1, c2, c3, c4);
+	if (ends_with("config", topic, tsize)) {
+		json_scanf(message, msize, "{hn:%Q}", &name);
+		t->name = name;
+		xdebug("TASMOTA discovery id=%06X name=%s", t->id, t->name);
+		return 0;
+	} else if (ends_with("sensors", topic, tsize)) {
+		json_scanf(message, msize, "{sn:%Q}", &sensors);
+		return dispatch_sensor(t->id, 0, sensors, strlen(sensors));
+	} else
+		return 0; // unknown / ignore
+}
+
 // handle a subscribed mqtt message
 int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 	unsigned int id, idx;
@@ -444,6 +462,10 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 //		free(t);
 //		free(m);
 //	}
+
+	// discovery
+	if (starts_with(TOPIC_TASMOTA SLASH DISCOVERY, topic, tsize))
+		return dispatch_discovery(topic, tsize, message, msize);
 
 	split(topic, tsize, &id, prefix, suffix, &idx);
 	if (!id)

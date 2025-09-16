@@ -207,6 +207,10 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(TOPIC_SOLAR, p->topic_name, p->topic_name_size))
 		return dispatch_solar(p);
 
+	// tasmota TASMOTA
+	if (starts_with(TOPIC_TASMOTA, p->topic_name, p->topic_name_size))
+		return dispatch_tasmota(p);
+
 	// tasmota TELE
 	if (starts_with(TOPIC_TELE, p->topic_name, p->topic_name_size))
 		return dispatch_tasmota(p);
@@ -294,10 +298,13 @@ static int init() {
 	if (mqtt_subscribe(client_rx, TOPIC_SENSOR"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
+	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
 	if (mqtt_subscribe(client_rx, TOPIC_SOLAR"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
-	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
+	if (mqtt_subscribe(client_rx, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_subscribe(client_rx, TOPIC_TELE"/#", 0) != MQTT_OK)

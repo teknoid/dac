@@ -21,11 +21,17 @@ struct _tasmota {
 	char *name;
 	tasmota_t *next;
 
-	// power states
+	// actual event
+	unsigned int relay;
+	unsigned int power;
+
+	// saved power states
 	unsigned int relay1;
 	unsigned int relay2;
 	unsigned int relay3;
 	unsigned int relay4;
+
+	// shutter position
 	unsigned int position;
 	unsigned int timer;
 

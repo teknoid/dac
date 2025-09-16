@@ -15,7 +15,7 @@
 
 static void summer(struct tm *now, potd_t *potd) {
 	if (sensors->tout >= UINT16_MAX || sensors->lumi == UINT16_MAX) {
-		xlog("SHUTTER Error no sensor data");
+		xlog("SHUTTER Warning no sensor data");
 		return;
 	}
 
@@ -49,7 +49,7 @@ static void summer(struct tm *now, potd_t *potd) {
 
 static void winter(struct tm *now, potd_t *potd) {
 	if (sensors->tout >= UINT16_MAX || sensors->lumi == UINT16_MAX) {
-		xlog("SHUTTER Error no sensor data");
+		xlog("SHUTTER Warning no sensor data");
 		return;
 	}
 

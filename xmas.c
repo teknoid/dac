@@ -97,7 +97,7 @@ static void off_evening(const xmas_timing_t *timing) {
 
 static void process(int h, int m, const xmas_timing_t *timing) {
 	if (sensors->lumi == UINT16_MAX) {
-		xlog("XMAS Error no sensor data");
+		xlog("XMAS Warning no sensor data");
 		return;
 	}
 

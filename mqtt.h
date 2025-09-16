@@ -11,6 +11,7 @@
 #define DARKNESS			50
 
 #define TOPIC_NOTIFICATION	"notification"
+#define TOPIC_TASMOTA		"tasmota"
 #define TOPIC_SENSOR		"sensor"
 #define TOPIC_SOLAR			"solar"
 #define TOPIC_NETWORK		"network"

@@ -1,3 +1,4 @@
+#include "tasmota.h"
 #include "solar.h"
 
 #define HISTORY_SIZE			(24 * 7)

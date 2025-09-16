@@ -11,7 +11,6 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
-#include "tasmota.h"
 #include "sunspec.h"
 #include "utils.h"
 #include "mcp.h"
@@ -585,6 +584,7 @@ static device_t* steal() {
 		// TODO victims invers order
 
 		// thief can steal akkus charge power or victims load when not in Manual mode and zero noresponse counter
+		dstate->steal = 0;
 		for (device_t **vv = dd + 1; *vv; vv++)
 			if (*vv == AKKU)
 				dstate->steal += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
@@ -831,22 +831,21 @@ int solar_toggle_id(unsigned int id, int relay) {
 	return 0;
 }
 
-// TODO tasmota autodiscover
-// void solar_tasmota(tasmota_t *tasmota) {
-int solar_update_power(unsigned int id, int relay, int power) {
-	device_t *d = get_by_id(id, relay);
+void solar_tasmota(tasmota_t *t) {
+	device_t *d = get_by_id(t->id, t->relay);
 	if (!d)
-		return 0;
+		return;
 
-	d->power = power;
 	if (d->state == Initial)
 		d->state = Auto;
-	if (d->adj)
-		d->load = power * d->total / 100;
-	else
-		d->load = power ? d->total : 0;
+	if (d->adj) {
+		d->power = t->gp8403_pc0;
+		d->load = t->gp8403_pc0 * d->total / 100;
+	} else {
+		d->power = t->power;
+		d->load = t->power ? d->total : 0;
+	}
 	xlog("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
-	return 0;
 }
 
 static void loop() {
@@ -858,11 +857,21 @@ static void loop() {
 		return;
 	}
 
-	// wait for initial power state response
+	// wait for tasmota auto discovery
 	sleep(3);
 
 	// get initial akku state
 	AKKU->state = akku_state();
+
+	// ask for initial power states
+#if defined(TRON) || defined(ODROID)
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD->adj)
+			tasmota_status_ask(DD->id, 10);
+		else
+			tasmota_power_ask(DD->id, DD->r);
+	}
+#endif
 
 	// the SOLAR main loop
 	while (1) {
@@ -952,16 +961,6 @@ static int init() {
 			if (DD->addr == 0)
 				DD->state = Disabled;
 		}
-
-		// get initial power state
-#if defined(TRON) || defined(ODROID)
-		if (DD->adj)
-			// TODO autodiscover tasmota_get_by_id(DD->id)->sensors->gp8403_pc0
-			tasmota_status_ask(DD->id, 10);
-		else
-			// TODO autodiscover tasmota_get_by_id(DD->id)->relay1
-			tasmota_power_ask(DD->id, DD->r);
-#endif
 	}
 
 	// initially select the program of the day
