@@ -126,16 +126,14 @@ static int backlog(unsigned int id, const char *message) {
 }
 
 // update tasmota shutter position
-static int update_shutter(unsigned int id, unsigned int position) {
-	tasmota_t *t = get_by_id(id);
+static int update_shutter(tasmota_t *t, unsigned int position) {
 	t->position = position;
 	xlog("TASMOTA %06X updated shutter position to %d", t->id, position);
 	return 0;
 }
 
 // update tasmota relay power state
-static int update_power(unsigned int id, int relay, int power) {
-	tasmota_t *t = get_by_id(id);
+static int update_power(tasmota_t *t, int relay, int power) {
 	t->relay = relay;
 	t->power = power;
 	if (relay == 0 || relay == 1) {
@@ -162,15 +160,15 @@ static int update_power(unsigned int id, int relay, int power) {
 }
 
 // trigger a button press event
-static void trigger(unsigned int id, int button, int action) {
+static void trigger(tasmota_t *t, int button, int action) {
 
 	// we do not track button 'release', only button 'press'
 	if (!action)
 		return;
 
-	xlog("TASMOTA %06X trigger %d %d", id, button, action);
+	xlog("TASMOTA %06X trigger %d %d", t->id, button, action);
 
-	if (id == KUECHE && button == 2) {
+	if (t->id == KUECHE && button == 2) {
 		// forcing first boiler to heat up for 10 minutes
 #ifdef SOLAR
 		solar_toggle_name("boiler1");
@@ -180,44 +178,43 @@ static void trigger(unsigned int id, int button, int action) {
 
 	// check tasmota-config.h
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
-		tasmota_config_t sc = tasmota_config[i];
-		tasmota_t *t = get_by_id(sc.id);
+		tasmota_config_t tc = tasmota_config[i];
 		int power = 0;
-		if (sc.relay == 0 || sc.relay == 1)
+		if (tc.relay == 0 || tc.relay == 1)
 			power = t->relay1;
-		else if (sc.relay == 2)
+		else if (tc.relay == 2)
 			power = t->relay2;
-		else if (sc.relay == 3)
+		else if (tc.relay == 3)
 			power = t->relay3;
-		else if (sc.relay == 4)
+		else if (tc.relay == 4)
 			power = t->relay4;
 
-		if (sc.t1 == id && sc.t1b == button) {
+		if (tc.t1 == t->id && tc.t1b == button) {
 			if (power != 1)
-				tasmota_power(sc.id, sc.relay, 1);
+				tasmota_power(tc.id, tc.relay, 1);
 			else
-				tasmota_power(sc.id, sc.relay, 0);
+				tasmota_power(tc.id, tc.relay, 0);
 		}
 
-		if (sc.t2 == id && sc.t2b == button) {
+		if (tc.t2 == t->id && tc.t2b == button) {
 			if (power != 1)
-				tasmota_power(sc.id, sc.relay, 1);
+				tasmota_power(tc.id, tc.relay, 1);
 			else
-				tasmota_power(sc.id, sc.relay, 0);
+				tasmota_power(tc.id, tc.relay, 0);
 		}
 
-		if (sc.t3 == id && sc.t3b == button) {
+		if (tc.t3 == t->id && tc.t3b == button) {
 			if (power != 1)
-				tasmota_power(sc.id, sc.relay, 1);
+				tasmota_power(tc.id, tc.relay, 1);
 			else
-				tasmota_power(sc.id, sc.relay, 0);
+				tasmota_power(tc.id, tc.relay, 0);
 		}
 
-		if (sc.t4 == id && sc.t4b == button) {
+		if (tc.t4 == t->id && tc.t4b == button) {
 			if (power != 1)
-				tasmota_power(sc.id, sc.relay, 1);
+				tasmota_power(tc.id, tc.relay, 1);
 			else
-				tasmota_power(sc.id, sc.relay, 0);
+				tasmota_power(tc.id, tc.relay, 0);
 		}
 	}
 }
@@ -248,7 +245,7 @@ static int flamingo(unsigned int code) {
 	return 0;
 }
 
-static void dispatch_button(unsigned int id, int idx, const char *message, size_t msize) {
+static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t msize) {
 	char fmt[32], a[5];
 
 	for (int i = 0; i < 8; i++) {
@@ -259,17 +256,17 @@ static void dispatch_button(unsigned int id, int idx, const char *message, size_
 
 			// Shelly1+2
 			if (!strcmp(sw, ON))
-				trigger(id, i, 1);
+				trigger(t, i, 1);
 			else if (!strcmp(sw, OFF))
-				trigger(id, i, 0);
+				trigger(t, i, 0);
 			else {
 
 				// Shelly4
 				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
 					if (!strcmp(a, ON))
-						trigger(id, i, 1);
+						trigger(t, i, 1);
 					else
-						trigger(id, i, 0);
+						trigger(t, i, 0);
 				}
 			}
 			free(sw);
@@ -277,9 +274,7 @@ static void dispatch_button(unsigned int id, int idx, const char *message, size_
 	}
 }
 
-static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t msize) {
-	tasmota_t *t = get_by_id(id);
-
+static int dispatch_sensor(tasmota_t *t, int idx, const char *message, size_t msize) {
 	char buffer[BUFSIZE];
 	char *analog = NULL;
 	char *ds18b20 = NULL;
@@ -353,7 +348,7 @@ static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t
 	return 0;
 }
 
-static int dispatch_result(unsigned int id, int idx, const char *message, size_t msize) {
+static int dispatch_result(tasmota_t *t, int idx, const char *message, size_t msize) {
 	char *rf = NULL;
 
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
@@ -381,27 +376,27 @@ static int dispatch_result(unsigned int id, int idx, const char *message, size_t
 	return 0;
 }
 
-static int dispatch_tele(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+static int dispatch_tele(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp(suffix, "SENSOR"))
-		return dispatch_sensor(id, idx, message, msize);
+		return dispatch_sensor(t, idx, message, msize);
 
 	if (!strcmp(suffix, "RESULT"))
-		return dispatch_result(id, idx, message, msize);
+		return dispatch_result(t, idx, message, msize);
 
 	return 0;
 }
 
-static int dispatch_cmnd(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+static int dispatch_cmnd(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	return 0;
 }
 
-static int dispatch_stat(unsigned int id, const char *suffix, int idx, const char *message, size_t msize) {
+static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp(suffix, "STATUS10"))
-		return dispatch_sensor(id, idx, message, msize);
+		return dispatch_sensor(t, idx, message, msize);
 
 	// power state results
 	if (!strcmp(suffix, "POWER"))
-		return update_power(id, idx, MESSAGE_ON);
+		return update_power(t, idx, MESSAGE_ON);
 
 	// PIR motion detection sensors - tasmota configuration:
 	// SwitchMode1 1
@@ -410,7 +405,7 @@ static int dispatch_stat(unsigned int id, const char *suffix, int idx, const cha
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 //		return notify("motion", "devkit1", "au.wav");
-	if (id == CARPORT && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
+	if (t->id == CARPORT && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 		return notify("motion", "carport", "au.wav");
 
 	// scan for shutter position results
@@ -418,12 +413,12 @@ static int dispatch_stat(unsigned int id, const char *suffix, int idx, const cha
 	int i;
 	if (json_scanf(message, msize, "{Shutter1:%Q}", &sh)) {
 		if (json_scanf(sh, strlen(sh), "{Position:%d}", &i))
-			update_shutter(id, i);
+			update_shutter(t, i);
 		free(sh);
 	}
 
 	// TASMOTA B20670 topic('stat/B20670/RESULT') = {"Switch3":{"Action":"ON"}}
-	dispatch_button(id, idx, message, msize);
+	dispatch_button(t, idx, message, msize);
 
 	return 0;
 }
@@ -441,12 +436,12 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 		json_scanf(message, msize, "{hn:%Q}", &name);
 		t->name = name;
 		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
-		return 0;
 	} else if (ends_with("sensors", topic, tsize)) {
 		json_scanf(message, msize, "{sn:%Q}", &sensors);
-		return dispatch_sensor(t->id, 0, sensors, strlen(sensors));
-	} else
-		return 0; // unknown / ignore
+		dispatch_sensor(t, 0, sensors, strlen(sensors));
+		free(sensors);
+	}
+	return 0;
 }
 
 // handle a subscribed mqtt message
@@ -478,17 +473,19 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 		free(m);
 	}
 
+	tasmota_t *t = get_by_id(id);
+
 	// TELE
 	if (!strcmp(prefix, TOPIC_TELE))
-		return dispatch_tele(id, suffix, idx, message, msize);
+		return dispatch_tele(t, suffix, idx, message, msize);
 
 	// CMND
 	if (!strcmp(prefix, TOPIC_CMND))
-		return dispatch_cmnd(id, suffix, idx, message, msize);
+		return dispatch_cmnd(t, suffix, idx, message, msize);
 
 	// STAT
 	if (!strcmp(prefix, TOPIC_STAT))
-		return dispatch_stat(id, suffix, idx, message, msize);
+		return dispatch_stat(t, suffix, idx, message, msize);
 
 	return 0;
 }
@@ -606,6 +603,23 @@ int tasmota_power_off(unsigned int id) {
 	return tasmota_power(id, 0, 0);
 }
 
+// execute tasmota shutter up/down
+int tasmota_shutter(unsigned int id, unsigned int target) {
+	if (target == SHUTTER_POS)
+		return backlog(id, "ShutterPosition");
+
+	tasmota_t *t = get_by_id(id);
+	if (target == SHUTTER_DOWN && t->position != SHUTTER_DOWN)
+		return backlog(id, "ShutterClose");
+
+	if (target == SHUTTER_UP && t->position != SHUTTER_UP)
+		return backlog(id, "ShutterOpen");
+
+	char value[20];
+	snprintf(value, 20, "ShutterPosition %d", target);
+	return backlog(id, value);
+}
+
 tasmota_t* tasmota_get_by_id(unsigned int id) {
 	tasmota_t *t = tasmota;
 	while (t != NULL) {
@@ -624,23 +638,6 @@ tasmota_t* tasmota_get_by_name(const char *name) {
 		t = t->next;
 	}
 	return 0;
-}
-
-// execute tasmota shutter up/down
-int tasmota_shutter(unsigned int id, unsigned int target) {
-	if (target == SHUTTER_POS)
-		return backlog(id, "ShutterPosition");
-
-	tasmota_t *t = get_by_id(id);
-	if (target == SHUTTER_DOWN && t->position != SHUTTER_DOWN)
-		return backlog(id, "ShutterClose");
-
-	if (target == SHUTTER_UP && t->position != SHUTTER_UP)
-		return backlog(id, "ShutterOpen");
-
-	char value[20];
-	snprintf(value, 20, "ShutterPosition %d", target);
-	return backlog(id, value);
 }
 
 static void loop() {
