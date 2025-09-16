@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 #include "solar-common.h"
-#include "sensors.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "mcp.h"
 

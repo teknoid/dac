@@ -14,10 +14,6 @@
 #include "xmas.h"
 #include "mcp.h"
 
-#ifndef LUMI
-#define LUMI					6666
-#endif
-
 // light on: ↑earlier, ↓later
 #ifndef SUNDOWN
 #define SUNDOWN					50
@@ -72,7 +68,7 @@ static void xmas_off_flamingo(const xmas_timing_t *timing) {
 }
 
 static void on_sundown(const xmas_timing_t *timing) {
-	xlog("XMAS reached SUNDOWN at %d", LUMI);
+	xlog("XMAS reached SUNDOWN at %d", sensors->lumi);
 	xmas_on();
 	xmas_on_flamingo(timing);
 	power = 1;
@@ -86,7 +82,7 @@ static void on_morning(const xmas_timing_t *timing) {
 }
 
 static void off_sunrise(const xmas_timing_t *timing) {
-	xlog("XMAS reached SUNRISE at %d", LUMI);
+	xlog("XMAS reached SUNRISE at %d", sensors->lumi);
 	xmas_off();
 	xmas_off_flamingo(timing);
 	power = 0;
@@ -114,7 +110,7 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
-			if (LUMI < SUNDOWN)
+			if (sensors->lumi < SUNDOWN)
 				on_sundown(timing);
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
@@ -132,7 +128,7 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
-			if (LUMI > SUNRISE)
+			if (sensors->lumi > SUNRISE)
 				off_sunrise(timing);
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
@@ -158,7 +154,7 @@ static void xmas() {
 	}
 
 	sleep(3); // wait for sensors
-	if (LUMI == UINT16_MAX) {
+	if (sensors->lumi == UINT16_MAX) {
 		xlog("XMAS Error no sensor data");
 		return;
 	}

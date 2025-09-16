@@ -6,11 +6,28 @@
 #include <fcntl.h>
 #include <math.h>
 
+#include "tasmota.h"
 #include "sensors.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "i2c.h"
 #include "mcp.h"
+
+#ifndef TEMP_IN
+#define TEMP_IN					22.0
+#endif
+
+#ifndef TEMP_OUT
+#define TEMP_OUT				15.0
+#endif
+
+#ifndef HUMI
+#define HUMI					33
+#endif
+
+#ifndef LUMI
+#define LUMI					6666
+#endif
 
 #ifndef I2C
 #define I2C						"/dev/i2c-0"
@@ -235,6 +252,10 @@ static void write_sensors_json() {
 		return;
 
 	fprintf(fp, "\{");
+	fprintf(fp, JSON_FLOAT("tin") COMMA, sensors->tin);
+	fprintf(fp, JSON_FLOAT("tout") COMMA, sensors->tout);
+	fprintf(fp, JSON_FLOAT("humi") COMMA, sensors->humi);
+	fprintf(fp, JSON_INT("lumi") COMMA, sensors->lumi);
 	fprintf(fp, JSON_FLOAT(BMP085 "_TEMP") COMMA, sensors->bmp085_temp);
 	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensors->bmp085_baro);
 	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensors->bmp280_temp);
@@ -267,6 +288,12 @@ static void loop() {
 
 		publish_sensors_tasmotalike();
 		publish_sensors();
+
+		// update abstract sensors
+		sensors->tin = TEMP_IN;
+		sensors->tout = TEMP_OUT;
+		sensors->lumi = LUMI;
+		sensors->humi = HUMI;
 
 		if (write_files) {
 			if (WRITE_JSON)

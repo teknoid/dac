@@ -16,9 +16,10 @@
 #define LCD
 #define I2C						"/dev/i2c-7"
 #define MIXER					"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
-#define TEMP_IN					sensors->htu21_temp
-#define TEMP_OUT				sensors->sht31_temp
-#define LUMI					sensors->bh1750_lux
+#define TEMP_IN					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->htu21_temp : 0)
+#define TEMP_OUT				(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_temp : 0)
+#define HUMI					(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_humi : 0)
+#define LUMI					(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->bh1750_lux : 0)
 #define SUNDOWN					25
 #define SUNRISE					50
 #endif

@@ -23,6 +23,12 @@
 #define SHT31				"SHT31"
 
 typedef struct sensors_t {
+	// abtract sensors
+	float tin;
+	float tout;
+	float humi;
+	int lumi;
+
 	// DS18B20 temperature sensor
 	uint32_t ds18b20_id;
 	float ds18b20_temp;
@@ -57,12 +63,5 @@ typedef struct sensors_t {
 
 	// ML8511 UV
 	uint16_t ml8511_uv;
-
-	// GP8403 I2C DAC
-	int gp8403_vc0;
-	int gp8403_vc1;
-	int gp8403_pc0;
-	int gp8403_pc1;
-
 } sensors_t;
 extern sensors_t *sensors;

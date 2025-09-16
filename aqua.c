@@ -6,27 +6,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "tasmota.h"
 #include "sensors.h"
+#include "tasmota.h"
 #include "utils.h"
 #include "aqua.h"
 #include "mcp.h"
-
-#ifndef TEMP_IN
-#define TEMP_IN					22.0
-#endif
-
-#ifndef TEMP_OUT
-#define TEMP_OUT				15.0
-#endif
-
-#ifndef HUMI
-#define HUMI					33
-#endif
-
-#ifndef LUMI
-#define LUMI					35000
-#endif
 
 static void set_pump(int value) {
 	xdebug("AQUA set_pump %d", value);
@@ -52,9 +36,9 @@ static int get_rain(int valve, int hour) {
 		if (!h || !v)
 			continue; // valve not active for this hour
 
-		int temp_ok = TEMP_OUT >= a->t;
-		int humi_ok = HUMI <= a->h;
-		int lumi_ok = LUMI >= a->l;
+		int temp_ok = sensors->tout >= a->t;
+		int humi_ok = sensors->humi <= a->h;
+		int lumi_ok = sensors->lumi >= a->l;
 
 		if (a->l == 0 && a->t == 0) {
 			// check only humidity
@@ -86,8 +70,8 @@ static int get_rain(int valve, int hour) {
 }
 
 static void process(int hour) {
-	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", TEMP_OUT, HUMI, LUMI);
-	if (TEMP_OUT > 1000 || HUMI > 1000 || LUMI == UINT16_MAX) {
+	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", sensors->tout, sensors->humi, sensors->lumi);
+	if (sensors->tout > 1000 || sensors->humi > 1000 || sensors->lumi == UINT16_MAX) {
 		xlog("AQUA Error no sensor data");
 		return;
 	}

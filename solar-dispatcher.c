@@ -467,7 +467,7 @@ static void burnout() {
 	akku_discharge(AKKU, 0); // enable discharge no limit
 //	solar_override_seconds("küche", WAIT_BURNOUT);
 //	solar_override_seconds("wozi", WAIT_BURNOUT);
-	xlog("SOLAR burnout soc=%.1f temp=%.1f", FLOAT10(gstate->soc), FLOAT10(gstate->temp_in));
+	xlog("SOLAR burnout");
 }
 
 static int ramp_multi(device_t *d) {

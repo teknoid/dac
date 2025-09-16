@@ -7,19 +7,12 @@
 #include <time.h>
 
 #include "solar-common.h"
-#include "sunspec.h"
 #include "sensors.h"
+#include "tasmota.h"
+#include "sunspec.h"
 #include "mosmix.h"
 #include "utils.h"
 #include "mcp.h"
-
-#ifndef TEMP_IN
-#define TEMP_IN					22.0
-#endif
-
-#ifndef TEMP_OUT
-#define TEMP_OUT				15.0
-#endif
 
 #define COUNTER_METER
 
@@ -189,8 +182,8 @@ static void print_gstate() {
 //	xlogl_int(line, "Akku", gstate->akku);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-	xlogl_float(line, "Ti", FLOAT10(gstate->temp_in));
-	xlogl_float(line, "To", FLOAT10(gstate->temp_out));
+	xlogl_float(line, "Ti", sensors->tin);
+	xlogl_float(line, "To", sensors->tout);
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
@@ -339,25 +332,21 @@ static void calculate_gstate() {
 	CUT(gstate->survive, 2000);
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->need_survive, FLOAT10(gstate->survive));
 
-	// temperature / heating needed / possible
-	gstate->temp_in = TEMP_IN * 10; // scaled as x10
-	gstate->temp_out = TEMP_OUT * 10; // scaled as x10
-
 	// heating
 	gstate->flags |= FLAG_HEATING;
 	// no need to heat
-	if (gstate->temp_in > 180 && SUMMER)
+	if (sensors->tin > 18.0 && SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (gstate->temp_in > 210 && gstate->temp_out > 150 && !SUMMER)
+	if (sensors->tin > 21.0 && sensors->tout > 15.0 && !SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (gstate->temp_in > 250)
+	if (sensors->tin > 25.0)
 		gstate->flags &= ~FLAG_HEATING;
 	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && gstate->temp_in < 250) // may/sept begin 16 o'clock
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 25.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && gstate->temp_in < 250) // apr/oct begin 14 o'clock
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 25.0) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon < 3 || now->tm_mon > 9) && gstate->temp_in < 280) // nov-mar always
+	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 
 	// start akku charging
@@ -494,7 +483,7 @@ static void calculate_pstate() {
 	if (o2 && o1 && o0) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-		int burnout_possible = gstate->temp_in < 180 && pstate->soc > 150;
+		int burnout_possible = sensors->tin < 18.0 && pstate->soc > 150;
 		if (burnout_time && burnout_possible && AKKU_BURNOUT)
 			pstate->flags |= FLAG_BURNOUT; // burnout
 		else

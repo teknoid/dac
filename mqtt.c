@@ -17,7 +17,6 @@
 
 #include "ledstrip.h"
 #include "tasmota.h"
-#include "sensors.h"
 #include "frozen.h"
 #include "solar.h"
 #include "utils.h"

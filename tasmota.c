@@ -8,7 +8,6 @@
 #include "tasmota.h"
 #include "tasmota-config.h"
 #include "flamingo.h"
-#include "sensors.h"
 #include "frozen.h"
 #include "solar.h"
 #include "utils.h"
@@ -24,7 +23,7 @@
 #define PREFIX_LEN			32
 #define SUFFIX_LEN			32
 
-static tasmota_state_t *tasmota_state = NULL;
+static tasmota_t *tasmota = NULL;
 
 // topic('tele/7ECDD0/SENSOR1') = {"Time":"2024-05-24T10:23:02","Switch1":"OFF"}
 //        ^    ^      ^     ^
@@ -89,37 +88,37 @@ static const tasmota_config_t* get_config(unsigned int id) {
 }
 
 // find existing tasmota state or create a new one
-static tasmota_state_t* get_state(unsigned int id) {
-	tasmota_state_t *ts = tasmota_state;
-	while (ts != NULL) {
-		if (ts->id == id)
-			return ts;
-		ts = ts->next;
+static tasmota_t* get_by_id(unsigned int id) {
+	tasmota_t *t = tasmota;
+	while (t != NULL) {
+		if (t->id == id)
+			return t;
+		t = t->next;
 	}
 
-	tasmota_state_t *ts_new = malloc(sizeof(tasmota_state_t));
-	ts_new->id = id;
-	ts_new->relay1 = -1;
-	ts_new->relay2 = -1;
-	ts_new->relay3 = -1;
-	ts_new->relay4 = -1;
-	ts_new->position = -1;
-	ts_new->timer = 0;
-	ts_new->next = NULL;
+	tasmota_t *tnew = malloc(sizeof(tasmota_t));
+	tnew->id = id;
+	tnew->relay1 = -1;
+	tnew->relay2 = -1;
+	tnew->relay3 = -1;
+	tnew->relay4 = -1;
+	tnew->position = -1;
+	tnew->timer = 0;
+	tnew->next = NULL;
 
-	if (tasmota_state == NULL)
+	if (tasmota == NULL)
 		// this is the head
-		tasmota_state = ts_new;
+		tasmota = tnew;
 	else {
 		// append to last in chain
-		ts = tasmota_state;
-		while (ts->next != NULL)
-			ts = ts->next;
-		ts->next = ts_new;
+		t = tasmota;
+		while (t->next != NULL)
+			t = t->next;
+		t->next = tnew;
 	}
 
-	xlog("TASMOTA %06X created new state", ts_new->id);
-	return ts_new;
+	xlog("TASMOTA %06X created new state", tnew->id);
+	return tnew;
 }
 
 // execute tasmota BACKLOG command via mqtt publish
@@ -132,32 +131,33 @@ static int backlog(unsigned int id, const char *message) {
 
 // update tasmota shutter position
 static int update_shutter(unsigned int id, unsigned int position) {
-	tasmota_state_t *ss = get_state(id);
-	ss->position = position;
-	xlog("TASMOTA %06X updated shutter position to %d", ss->id, position);
+	tasmota_t *t = get_by_id(id);
+	t->position = position;
+	xlog("TASMOTA %06X updated shutter position to %d", t->id, position);
 	return 0;
 }
 
 // update tasmota relay power state
 static int update_power(unsigned int id, int relay, int power) {
-	tasmota_state_t *ss = get_state(id);
+	tasmota_t *t = get_by_id(id);
 	if (relay == 0 || relay == 1) {
-		ss->relay1 = power;
-		xlog("TASMOTA %06X updated relay1 state to %d", ss->id, power);
+		t->relay1 = power;
+		xlog("TASMOTA %06X updated relay1 state to %d", t->id, power);
 	} else if (relay == 2) {
-		ss->relay2 = power;
-		xlog("TASMOTA %06X updated relay2 state to %d", ss->id, power);
+		t->relay2 = power;
+		xlog("TASMOTA %06X updated relay2 state to %d", t->id, power);
 	} else if (relay == 3) {
-		ss->relay3 = power;
-		xlog("TASMOTA %06X updated relay3 state to %d", ss->id, power);
+		t->relay3 = power;
+		xlog("TASMOTA %06X updated relay3 state to %d", t->id, power);
 	} else if (relay == 4) {
-		ss->relay4 = power;
-		xlog("TASMOTA %06X updated relay4 state to %d", ss->id, power);
+		t->relay4 = power;
+		xlog("TASMOTA %06X updated relay4 state to %d", t->id, power);
 	} else
-		xlog("TASMOTA %06X no relay %d", ss->id, relay);
+		xlog("TASMOTA %06X no relay %d", t->id, relay);
 
 #ifdef SOLAR
 	// forward to solar dispatcher
+	// TODO solar_tasmota(t);
 	solar_update_power(id, relay, power);
 #endif
 
@@ -184,16 +184,16 @@ static void trigger(unsigned int id, int button, int action) {
 	// check tasmota-config.h
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t sc = tasmota_config[i];
-		tasmota_state_t *ss = get_state(sc.id);
+		tasmota_t *t = get_by_id(sc.id);
 		int power = 0;
 		if (sc.relay == 0 || sc.relay == 1)
-			power = ss->relay1;
+			power = t->relay1;
 		else if (sc.relay == 2)
-			power = ss->relay2;
+			power = t->relay2;
 		else if (sc.relay == 3)
-			power = ss->relay3;
+			power = t->relay3;
 		else if (sc.relay == 4)
-			power = ss->relay4;
+			power = t->relay4;
 
 		if (sc.t1 == id && sc.t1b == button) {
 			if (power != 1)
@@ -281,7 +281,11 @@ static void dispatch_button(unsigned int id, int idx, const char *message, size_
 }
 
 static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t msize) {
+	tasmota_t *t = get_by_id(id);
+
+	char buffer[BUFSIZE];
 	char *analog = NULL;
+	char *ds18b20 = NULL;
 	char *bh1750 = NULL;
 	char *bmp280 = NULL;
 	char *bmp085 = NULL;
@@ -289,52 +293,60 @@ static int dispatch_sensor(unsigned int id, int idx, const char *message, size_t
 	char *htu21 = NULL;
 	char *gp8403 = NULL;
 
-	json_scanf(message, msize, "{ANALOG:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q}", &analog, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403);
+#define PATTERN "{ANALOG:%Q, DS18B20:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q}"
+	json_scanf(message, msize, PATTERN, &analog, &ds18b20, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403);
 
 	if (analog != NULL) {
-		json_scanf(analog, strlen(analog), "{A0:%d}", &sensors->ml8511_uv);
-		// xdebug("TASMOTA ML8511 %d mV", sensors->ml8511_uv);
+		json_scanf(analog, strlen(analog), "{A0:%d}", &t->ml8511_uv);
 		free(analog);
+		xdebug("TASMOTA sensor ML8511 %d mV", t->ml8511_uv);
+	}
+
+	if (ds18b20 != NULL) {
+		json_scanf(ds18b20, strlen(ds18b20), "{Id:%s, Temperature:%f}", &buffer, &t->ds18b20_temp);
+		t->ds18b20_id = (unsigned int) strtol(buffer, NULL, 16);
+		free(ds18b20);
+		xdebug("TASMOTA sensor DS18B20 id %d, %.1f °C", t->ds18b20_id, t->ds18b20_temp);
 	}
 
 	if (bh1750 != NULL) {
-		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &sensors->bh1750_lux);
-		// xdebug("TASMOTA BH1750 %d lux, %d lux mean", sensors->bh1750_lux, sensors->bh1750_lux_mean);
+		json_scanf(bh1750, strlen(bh1750), "{Illuminance:%d}", &t->bh1750_lux);
 		free(bh1750);
+		xdebug("TASMOTA sensor BH1750 %d lux, %d lux mean", t->bh1750_lux, t->bh1750_lux_mean);
 	}
 
 	if (bmp280 != NULL) {
-		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &sensors->bmp280_temp, &sensors->bmp280_baro);
-		// xdebug("TASMOTA BMP280 %.1f °C, %.1f hPa", sensors->bmp280_temp, sensors->bmp280_baro);
+		json_scanf(bmp280, strlen(bmp280), "{Temperature:%f, Pressure:%f}", &t->bmp280_temp, &t->bmp280_baro);
 		free(bmp280);
+		xdebug("TASMOTA sensor BMP280 %.1f °C, %.1f hPa", t->bmp280_temp, t->bmp280_baro);
 	}
 
 	if (bmp085 != NULL) {
-		json_scanf(bmp085, strlen(bmp085), "{Temperature:%f, Pressure:%f}", &sensors->bmp085_temp, &sensors->bmp085_baro);
-		// xdebug("TASMOTA BMP085 %.1f °C, %.1f hPa", sensors->bmp085_temp, sensors->bmp085_baro);
+		json_scanf(bmp085, strlen(bmp085), "{Temperature:%f, Pressure:%f}", &t->bmp085_temp, &t->bmp085_baro);
 		free(bmp085);
+		xdebug("TASMOTA sensor BMP085 %.1f °C, %.1f hPa", t->bmp085_temp, t->bmp085_baro);
 	}
 
 	if (sht31 != NULL) {
-		json_scanf(sht31, strlen(sht31), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->sht31_temp, &sensors->sht31_humi, &sensors->sht31_dew);
-		// xdebug("TASMOTA SHT31 %.1f °C, humidity %.1f %, dewpoint %.1f °C", sensors->sht31_temp, sensors->sht31_humi, sensors->sht31_dew);
+		json_scanf(sht31, strlen(sht31), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &t->sht31_temp, &t->sht31_humi, &t->sht31_dew);
 		free(sht31);
+		xdebug("TASMOTA sensor SHT31 %.1f °C, humidity %.1f %, dewpoint %.1f °C", t->sht31_temp, t->sht31_humi, t->sht31_dew);
 	}
 
 	if (htu21 != NULL) {
-		json_scanf(htu21, strlen(htu21), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &sensors->htu21_temp, &sensors->htu21_humi, &sensors->htu21_dew);
-		// xdebug("TASMOTA HTU21 %.1f °C, humidity %.1f %, dewpoint %.1f °C", sensors->htu21_temp, sensors->htu21_humi, sensors->htu21_dew);
+		json_scanf(htu21, strlen(htu21), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &t->htu21_temp, &t->htu21_humi, &t->htu21_dew);
 		free(sht31);
+		xdebug("TASMOTA sensor HTU21 %.1f °C, humidity %.1f %, dewpoint %.1f °C", t->htu21_temp, t->htu21_humi, t->htu21_dew);
 	}
 
 	if (gp8403 != NULL) {
-		int vc0, vc1, pc0, pc1;
-		json_scanf(gp8403, strlen(gp8403), "{vc0:%d, vc1:%d, pc0:%d, pc1:%d}", &vc0, &vc1, &pc0, &pc1);
-		// xdebug("TASMOTA GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", vc0, vc1, pc0, pc1);
-#ifdef SOLAR
-		solar_update_power(id, 0, pc0);
-#endif
+		json_scanf(gp8403, strlen(gp8403), "{vc0:%d, vc1:%d, pc0:%d, pc1:%d}", &t->gp8403_vc0, &t->gp8403_vc1, &t->gp8403_pc0, &t->gp8403_pc1);
 		free(gp8403);
+		xdebug("TASMOTA sensor GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", t->gp8403_vc0, t->gp8403_vc1, t->gp8403_pc0, t->gp8403_pc1);
+#ifdef SOLAR
+		// TODO solar_tasmota(t);
+		solar_update_power(id, 0, t->gp8403_pc0);
+#endif
 	}
 
 	// TASMOTA 2FEFEE topic('tele/2FEFEE/SENSOR') = {"Time":"2024-05-24T14:09:31","Switch1":"OFF","Switch2":"ON","ANALOG":{"Temperature":40.3},"TempUnit":"C"}
@@ -548,13 +560,13 @@ int tasmota_power(unsigned int id, int relay, int power) {
 	else
 		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
 
-	tasmota_state_t *ss = get_state(id);
+	tasmota_t *t = get_by_id(id);
 	if (power) {
 		// start timer if configured
 		const tasmota_config_t *sc = get_config(id);
 		if (sc && sc->timer) {
-			ss->timer = sc->timer;
-			xlog("TASMOTA %06X started timer %d", ss->id, ss->timer);
+			t->timer = sc->timer;
+			xlog("TASMOTA %06X started timer %d", t->id, t->timer);
 		}
 		xlog("TASMOTA %06X switching relay %d %s", id, relay, ON);
 		return publish(topic, ON, 0);
@@ -572,16 +584,36 @@ int tasmota_power_off(unsigned int id) {
 	return tasmota_power(id, 0, 0);
 }
 
+tasmota_t* tasmota_get_by_id(unsigned int id) {
+	tasmota_t *t = tasmota;
+	while (t != NULL) {
+		if (t->id == id)
+			return t;
+		t = t->next;
+	}
+	return 0;
+}
+
+tasmota_t* tasmota_get_by_name(const char *name) {
+	tasmota_t *t = tasmota;
+	while (t != NULL) {
+		if (!strcmp(t->name, name))
+			return t;
+		t = t->next;
+	}
+	return 0;
+}
+
 // execute tasmota shutter up/down
 int tasmota_shutter(unsigned int id, unsigned int target) {
 	if (target == SHUTTER_POS)
 		return backlog(id, "ShutterPosition");
 
-	tasmota_state_t *ss = get_state(id);
-	if (target == SHUTTER_DOWN && ss->position != SHUTTER_DOWN)
+	tasmota_t *t = get_by_id(id);
+	if (target == SHUTTER_DOWN && t->position != SHUTTER_DOWN)
 		return backlog(id, "ShutterClose");
 
-	if (target == SHUTTER_UP && ss->position != SHUTTER_UP)
+	if (target == SHUTTER_UP && t->position != SHUTTER_UP)
 		return backlog(id, "ShutterOpen");
 
 	char value[20];
@@ -599,22 +631,22 @@ static void loop() {
 		sleep(1);
 
 		// decrease timers and switch off if timer reached 0
-		tasmota_state_t *ts = tasmota_state;
-		while (ts != NULL) {
-			if (ts->timer) {
-				ts->timer--;
-				if (ts->timer == 0) {
-					if (ts->relay1)
-						tasmota_power(ts->id, 1, 0);
-					if (ts->relay2)
-						tasmota_power(ts->id, 2, 0);
-					if (ts->relay3)
-						tasmota_power(ts->id, 3, 0);
-					if (ts->relay4)
-						tasmota_power(ts->id, 4, 0);
+		tasmota_t *t = tasmota;
+		while (t != NULL) {
+			if (t->timer) {
+				t->timer--;
+				if (t->timer == 0) {
+					if (t->relay1)
+						tasmota_power(t->id, 1, 0);
+					if (t->relay2)
+						tasmota_power(t->id, 2, 0);
+					if (t->relay3)
+						tasmota_power(t->id, 3, 0);
+					if (t->relay4)
+						tasmota_power(t->id, 4, 0);
 				}
 			}
-			ts = ts->next;
+			t = t->next;
 		}
 	}
 }

@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
-#include "sensors.h"
 #include "sunspec.h"
 #include "utils.h"
 #include "mcp.h"

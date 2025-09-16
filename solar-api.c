@@ -9,7 +9,6 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
-#include "sensors.h"
 #include "frozen.h"
 #include "utils.h"
 #include "curl.h"
