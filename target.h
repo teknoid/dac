@@ -53,3 +53,10 @@
 #define DISPLAY					"/dev/tty1"
 #define I2C						"/dev/i2c-0"
 #endif
+
+// run on tron12 - use sensors from picam
+#ifdef SIMULATOR
+#define TEMP_IN					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
+#define TEMP_OUT				(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
+#define LUMI					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bh1750_lux : UINT16_MAX)
+#endif
