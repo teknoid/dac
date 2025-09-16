@@ -294,6 +294,8 @@ static int init() {
 	mean = 0;
 
 	// initialize sensor data
+	sensors->ds18b20_id = UINT16_MAX;
+	sensors->ds18b20_temp = UINT16_MAX;
 	sensors->bh1750_lux = UINT16_MAX;
 	sensors->bmp085_temp = UINT16_MAX;
 	sensors->bmp085_baro = UINT16_MAX;

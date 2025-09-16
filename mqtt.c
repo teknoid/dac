@@ -223,6 +223,8 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(TOPIC_STAT, p->topic_name, p->topic_name_size))
 		return dispatch_tasmota(p);
 
+	// TODO tasmota/discovery
+
 	dump("MQTT no dispatcher for message", p);
 
 	return 0;

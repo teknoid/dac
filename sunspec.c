@@ -603,7 +603,12 @@ int sunspec_storage_state(sunspec_t *ss) {
 		return 5;
 	case STORAGE_LIMIT_BOTH:
 		// Standby / Auto
-		return inwrte == 0 && outwrte == 0 ? 4 : 5;
+		if (inwrte == 0)
+			return 3; // Discharge
+		else if (outwrte == 0)
+			return 2; // Charge
+		else
+			return 4; // Standby
 	case STORAGE_LIMIT_CHARGE:
 		// Discharge / Charge
 		return inwrte == 0 ? 3 : 2;

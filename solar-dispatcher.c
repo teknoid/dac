@@ -574,8 +574,8 @@ static device_t* steal() {
 		return 0;
 
 	for (device_t **dd = potd->devices; *dd; dd++) {
-		// thief not active or in standby
-		if (DD == AKKU || DD->state == Disabled || DD->state == Standby)
+		// only thiefs in AUTO mode can steal
+		if (DD->state != Auto)
 			continue;
 
 		// thief already (full) on
@@ -781,8 +781,6 @@ static void hourly() {
 
 	// reset noresponse counters and set all devices back to automatic
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		if (DD == AKKU)
-			continue;
 		DD->noresponse = 0;
 		if (DD->state == Manual || DD->state == Auto_Checked || DD->state == Standby || DD->state == Standby_Check)
 			DD->state = Auto;
@@ -833,6 +831,8 @@ int solar_toggle_id(unsigned int id, int relay) {
 	return 0;
 }
 
+// TODO tasmota autodiscover
+// void solar_tasmota(tasmota_t *tasmota) {
 int solar_update_power(unsigned int id, int relay, int power) {
 	device_t *d = get_by_id(id, relay);
 	if (!d)
@@ -956,8 +956,10 @@ static int init() {
 		// get initial power state
 #if defined(TRON) || defined(ODROID)
 		if (DD->adj)
+			// TODO autodiscover tasmota_get_by_id(DD->id)->sensors->gp8403_pc0
 			tasmota_status_ask(DD->id, 10);
 		else
+			// TODO autodiscover tasmota_get_by_id(DD->id)->relay1
 			tasmota_power_ask(DD->id, DD->r);
 #endif
 	}
