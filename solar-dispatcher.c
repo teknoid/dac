@@ -864,14 +864,12 @@ static void loop() {
 	AKKU->state = akku_state();
 
 	// ask for initial power states
-#if defined(TRON) || defined(ODROID)
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (DD->adj)
 			tasmota_status_ask(DD->id, 10);
 		else
 			tasmota_power_ask(DD->id, DD->r);
 	}
-#endif
 
 	// the SOLAR main loop
 	while (1) {

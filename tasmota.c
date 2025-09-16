@@ -440,7 +440,7 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 	if (ends_with("config", topic, tsize)) {
 		json_scanf(message, msize, "{hn:%Q}", &name);
 		t->name = name;
-		xdebug("TASMOTA discovery id=%06X name=%s", t->id, t->name);
+		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
 		return 0;
 	} else if (ends_with("sensors", topic, tsize)) {
 		json_scanf(message, msize, "{sn:%Q}", &sensors);
