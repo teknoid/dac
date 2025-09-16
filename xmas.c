@@ -95,7 +95,12 @@ static void off_evening(const xmas_timing_t *timing) {
 	power = 0;
 }
 
-static int process(int h, int m, const xmas_timing_t *timing) {
+static void process(int h, int m, const xmas_timing_t *timing) {
+	if (sensors->lumi == UINT16_MAX) {
+		xlog("XMAS Error no sensor data");
+		return;
+	}
+
 	int afternoon = h < 12 ? 0 : 1;
 	int curr = h * 60 + m;
 	int from = timing->on_h * 60 + timing->on_m;
@@ -106,7 +111,7 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 
 		// already on
 		if (power == 1)
-			return 0;
+			return;
 
 		if (afternoon) {
 			// evening: check if sundown is reached an switch on
@@ -114,7 +119,7 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 				on_sundown(timing);
 			else
 				// xlog("in ON time, waiting for XMAS_SUNDOWN(%d:%d) ", lumi, XMAS_SUNDOWN);
-				return 0;
+				return;
 		} else
 			// morning: switch on
 			on_morning(timing);
@@ -124,7 +129,7 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 
 		// already off
 		if (power == 0)
-			return 0;
+			return;
 
 		if (!afternoon)
 			// morning: check if sunrise is reached an switch off
@@ -132,13 +137,11 @@ static int process(int h, int m, const xmas_timing_t *timing) {
 				off_sunrise(timing);
 			else
 				// xlog("in OFF time, waiting for XMAS_SUNRISE(%d:%d)", lumi, XMAS_SUNRISE);
-				return 0;
+				return;
 		else
 			// evening: switch off
 			off_evening(timing);
 	}
-
-	return 0;
 }
 
 static void xmas() {
@@ -150,12 +153,6 @@ static void xmas() {
 	// elevate realtime priority for flamingo 433MHz transmit
 	if (elevate_realtime(1) < 0) {
 		xlog("XMAS Error elevating realtime");
-		return;
-	}
-
-	sleep(3); // wait for sensors
-	if (sensors->lumi == UINT16_MAX) {
-		xlog("XMAS Error no sensor data");
 		return;
 	}
 
