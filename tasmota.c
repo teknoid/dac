@@ -274,7 +274,7 @@ static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t m
 	}
 }
 
-static int dispatch_sensor(tasmota_t *t, int idx, const char *message, size_t msize) {
+static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
 	char buffer[BUFSIZE];
 	char *analog = NULL;
 	char *ds18b20 = NULL;
@@ -348,7 +348,7 @@ static int dispatch_sensor(tasmota_t *t, int idx, const char *message, size_t ms
 	return 0;
 }
 
-static int dispatch_result(tasmota_t *t, int idx, const char *message, size_t msize) {
+static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 	char *rf = NULL;
 
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
@@ -378,10 +378,10 @@ static int dispatch_result(tasmota_t *t, int idx, const char *message, size_t ms
 
 static int dispatch_tele(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp(suffix, "SENSOR"))
-		return dispatch_sensor(t, idx, message, msize);
+		return dispatch_sensor(t, message, msize);
 
 	if (!strcmp(suffix, "RESULT"))
-		return dispatch_result(t, idx, message, msize);
+		return dispatch_result(t, message, msize);
 
 	return 0;
 }
@@ -392,7 +392,7 @@ static int dispatch_cmnd(tasmota_t *t, const char *suffix, int idx, const char *
 
 static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp(suffix, "STATUS10"))
-		return dispatch_sensor(t, idx, message, msize);
+		return dispatch_sensor(t, message, msize);
 
 	// power state results
 	if (!strcmp(suffix, "POWER"))
@@ -438,7 +438,7 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
 	} else if (ends_with("sensors", topic, tsize)) {
 		json_scanf(message, msize, "{sn:%Q}", &sensors);
-		dispatch_sensor(t, 0, sensors, strlen(sensors));
+		dispatch_sensor(t, sensors, strlen(sensors));
 		free(sensors);
 	}
 	return 0;
