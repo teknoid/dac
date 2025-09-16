@@ -48,3 +48,6 @@
 // openbekens
 #define LICHT_DECKE		0x9412FC5B
 #define LICHT_TISCH		0x4263E59C
+
+// PICAM sensors tasmota emulation
+#define PICAM_SENSORS	0x5213D6

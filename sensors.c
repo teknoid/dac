@@ -260,11 +260,6 @@ static void write_sensors_json() {
 	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensors->bmp085_baro);
 	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensors->bmp280_temp);
 	fprintf(fp, JSON_FLOAT(BMP280 "_BARO") COMMA, sensors->bmp280_baro);
-	fprintf(fp, JSON_FLOAT(HTU21 "_TEMP") COMMA, sensors->htu21_temp);
-	fprintf(fp, JSON_FLOAT(HTU21 "_HUMI") COMMA, sensors->htu21_humi);
-	fprintf(fp, JSON_FLOAT(SHT31 "_TEMP") COMMA, sensors->sht31_temp);
-	fprintf(fp, JSON_FLOAT(SHT31 "_HUMI") COMMA, sensors->sht31_humi);
-	fprintf(fp, JSON_FLOAT(SHT31 "_DEW") COMMA, sensors->sht31_dew);
 	fprintf(fp, JSON_INT(BH1750 "_LUX"), sensors->bh1750_lux);
 	fprintf(fp, "}");
 	fflush(fp);
@@ -321,20 +316,16 @@ static int init() {
 	mean = 0;
 
 	// initialize sensor data
-	sensors->ds18b20_id = UINT16_MAX;
-	sensors->ds18b20_temp = UINT16_MAX;
+	sensors->tin = UINT16_MAX;
+	sensors->tout = UINT16_MAX;
+	sensors->lumi = UINT16_MAX;
+	sensors->humi = UINT16_MAX;
+
 	sensors->bh1750_lux = UINT16_MAX;
 	sensors->bmp085_temp = UINT16_MAX;
 	sensors->bmp085_baro = UINT16_MAX;
 	sensors->bmp280_temp = UINT16_MAX;
 	sensors->bmp280_baro = UINT16_MAX;
-	sensors->sht31_humi = UINT16_MAX;
-	sensors->sht31_temp = UINT16_MAX;
-	sensors->sht31_dew = UINT16_MAX;
-	sensors->htu21_humi = UINT16_MAX;
-	sensors->htu21_temp = UINT16_MAX;
-	sensors->htu21_dew = UINT16_MAX;
-	sensors->ml8511_uv = UINT16_MAX;
 
 	return 0;
 }

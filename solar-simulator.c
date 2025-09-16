@@ -5,19 +5,16 @@
 #include <unistd.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "tasmota.h"
 #include "utils.h"
 #include "mcp.h"
 
 // run on tron12 - use sensors from picam
 #ifdef MCP
-#define TEMP_IN					sensors->bmp085_temp
-#define TEMP_OUT				sensors->bmp085_temp
-#define LUMI					sensors->bh1750_lux
-#endif
-
-#ifndef LUMI
-#define LUMI					6666
+#define TEMP_IN					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
+#define TEMP_OUT				(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
+#define LUMI					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bh1750_lux : UINT16_MAX)
 #endif
 
 int akku_capacity() {
@@ -79,7 +76,7 @@ static void loop() {
 	while (1) {
 		WAIT_NEXT_SECOND
 
-		int mppt = LUMI / 10;
+		int mppt = sensors->lumi / 10;
 		int mppt1 = mppt;
 		int mppt2 = mppt;
 		int mppt3 = mppt / 2;

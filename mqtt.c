@@ -16,6 +16,7 @@
 #include <mqttc.h>
 
 #include "ledstrip.h"
+#include "sensors.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "solar.h"
@@ -23,10 +24,6 @@
 #include "mqtt.h"
 #include "lcd.h"
 #include "mcp.h"
-
-#ifndef LUMI
-#define LUMI					6666
-#endif
 
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
@@ -160,7 +157,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
 	if (mac == MAC_HANDY)
-		if (LUMI < DARKNESS)
+		if (sensors->lumi < DARKNESS)
 			tasmota_power(HOFLICHT, 0, 1);
 
 	return 0;
