@@ -28,12 +28,12 @@
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
 //
-static int mqttfd_tx;
+static int fd_tx;
 static struct mqtt_client *client_tx;
 static uint8_t sendbuf_tx[4096];
 static uint8_t recvbuf_tx[1024];
 
-static int mqttfd_rx;
+static int fd_rx;
 static struct mqtt_client *client_rx;
 static uint8_t sendbuf_rx[4096];
 static uint8_t recvbuf_rx[1024];
@@ -234,17 +234,23 @@ static void callback(void **unused, struct mqtt_response_publish *p) {
 	dispatch(p);
 }
 
-static void mqtt() {
+static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("MQTT Error setting pthread_setcancelstate");
 		return;
 	}
+
+	mqtt_sync(client_rx);
+	msleep(100);
+	mqtt_sync(client_tx);
+	msleep(100);
 
 	// Test
 	notify("Test", "test", "mau4.wav");
 
 	while (1) {
 		mqtt_sync(client_rx);
+		msleep(100);
 		mqtt_sync(client_tx);
 		msleep(100);
 	}
@@ -261,11 +267,11 @@ static int init() {
 	ZEROP(client_tx);
 
 	snprintf(client_id, 128, "%s-mcp-tx", hostname);
-	mqttfd_tx = open_nb_socket(HOST, PORT);
-	if (mqttfd_tx == -1)
+	fd_tx = open_nb_socket(HOST, PORT);
+	if (fd_tx == -1)
 		return xerr("MQTT Failed to open socket: ");
 
-	if (mqtt_init(client_tx, mqttfd_tx, sendbuf_tx, sizeof(sendbuf_tx), recvbuf_tx, sizeof(recvbuf_tx), NULL) != MQTT_OK)
+	if (mqtt_init(client_tx, fd_tx, sendbuf_tx, sizeof(sendbuf_tx), recvbuf_tx, sizeof(recvbuf_tx), NULL) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
 	if (mqtt_connect(client_tx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
@@ -279,11 +285,11 @@ static int init() {
 	ZEROP(client_rx);
 
 	snprintf(client_id, 128, "%s-mcp-rx", hostname);
-	mqttfd_rx = open_nb_socket(HOST, PORT);
-	if (mqttfd_rx == -1)
+	fd_rx = open_nb_socket(HOST, PORT);
+	if (fd_rx == -1)
 		return xerr("MQTT Failed to open socket: ");
 
-	if (mqtt_init(client_rx, mqttfd_rx, sendbuf_rx, sizeof(sendbuf_rx), recvbuf_rx, sizeof(recvbuf_rx), callback) != MQTT_OK)
+	if (mqtt_init(client_rx, fd_rx, sendbuf_rx, sizeof(sendbuf_rx), recvbuf_rx, sizeof(recvbuf_rx), callback) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
 
 	if (mqtt_connect(client_rx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
@@ -321,11 +327,11 @@ static int init() {
 }
 
 static void stop() {
-	if (mqttfd_tx > 0)
-		close(mqttfd_tx);
+	if (fd_tx > 0)
+		close(fd_tx);
 
-	if (mqttfd_rx > 0)
-		close(mqttfd_rx);
+	if (fd_rx > 0)
+		close(fd_rx);
 }
 
 int notify(const char *title, const char *text, const char *sound) {
@@ -378,4 +384,4 @@ int publish(const char *topic, const char *message, int retain) {
 	return 0;
 }
 
-MCP_REGISTER(mqtt, 2, &init, &stop, &mqtt);
+MCP_REGISTER(mqtt, 2, &init, &stop, &loop);

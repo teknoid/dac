@@ -596,19 +596,20 @@ static device_t* steal() {
 		min += min / 10; // add 10%
 
 		// not enough to steal
-		if (dstate->steal < min)
+		int total = dstate->ramp + dstate->steal;
+		if (total < min)
 			continue;
 
 		// ramp down victims till we have enough to ramp up thief
 		int to_steal = dstate->steal;
 		for (device_t **vv = dd + 1; *vv && (to_steal > 0); vv++) {
 			ramp_device(*vv, to_steal * -1);
-			xlog("SOLAR %s steal %d from %s given %d", DD->name, to_steal, (*vv)->name, (*vv)->delta);
+			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", DD->name, total, min, to_steal, (*vv)->name, (*vv)->delta);
 			to_steal += (*vv)->delta;
 		}
 
 		// ramp up thief
-		ramp_device(DD, dstate->steal);
+		ramp_device(DD, total);
 
 		// expect no response as load should not or only minimal change
 		return 0;
@@ -832,7 +833,9 @@ int solar_toggle_id(unsigned int id, int relay) {
 }
 
 void solar_tasmota(tasmota_t *t) {
-	device_t *d = get_by_id(t->id, d->adj ? 0 : t->relay);
+	device_t *d = get_by_id(t->id, t->relay);
+	if (!d)
+		d = get_by_id(t->id, 0);
 	if (!d)
 		return;
 
@@ -857,8 +860,8 @@ static void loop() {
 		return;
 	}
 
-	// wait for tasmota auto discovery
-	sleep(3);
+	// wait for tasmota auto discovery + sensor update
+	sleep(5);
 
 	// get initial akku state
 	AKKU->state = akku_state();
