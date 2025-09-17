@@ -832,7 +832,7 @@ int solar_toggle_id(unsigned int id, int relay) {
 }
 
 void solar_tasmota(tasmota_t *t) {
-	device_t *d = get_by_id(t->id, t->relay);
+	device_t *d = get_by_id(t->id, d->adj ? 0 : t->relay);
 	if (!d)
 		return;
 

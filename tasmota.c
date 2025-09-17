@@ -78,6 +78,8 @@ static void split(const char *topic, size_t size, unsigned int *id, char *prefix
 			*idx = suffix[len - 1] - '0';
 			suffix[len - 1] = '\0';
 		}
+		if (suffix[len - 2] >= '0' && suffix[len - 2] <= '9')
+			suffix[len - 2] = '\0';
 	}
 }
 
@@ -100,6 +102,8 @@ static tasmota_t* get_by_id(unsigned int id) {
 
 	tasmota_t *tnew = malloc(sizeof(tasmota_t));
 	tnew->id = id;
+	tnew->relay = 0;
+	tnew->power = 0;
 	tnew->next = NULL;
 
 	if (tasmota == NULL)
@@ -391,7 +395,7 @@ static int dispatch_cmnd(tasmota_t *t, const char *suffix, int idx, const char *
 }
 
 static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
-	if (!strcmp(suffix, "STATUS10"))
+	if (!strcmp(suffix, "STATUS"))
 		return dispatch_sensor(t, message, msize);
 
 	// power state results
@@ -424,7 +428,7 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 }
 
 static int dispatch_discovery(const char *topic, uint16_t tsize, const char *message, size_t msize) {
-	char c1[BUF32], c2[BUF32], c3[BUF32], c4[BUF32], *name = NULL, *sensors = NULL;
+	char c1[BUF32], c2[BUF32], c3[BUF32], c4[BUF32], *name = NULL;
 
 	sscanf(topic, "%7s/%9s/%12s/%30s", c1, c2, c3, c4);
 	long int mac = strtol(c3, NULL, 16);
@@ -436,11 +440,9 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 		json_scanf(message, msize, "{hn:%Q}", &name);
 		t->name = name;
 		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
-	} else if (ends_with("sensors", topic, tsize)) {
-		json_scanf(message, msize, "{sn:%Q}", &sensors);
-		dispatch_sensor(t, sensors, strlen(sensors));
-		free(sensors);
-	}
+	} else if (ends_with("sensors", topic, tsize))
+		dispatch_sensor(t, message, msize);
+
 	return 0;
 }
 
