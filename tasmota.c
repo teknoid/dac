@@ -516,12 +516,9 @@ int openbeken_color(unsigned int id, int r, int g, int b) {
 	if (!id)
 		return 0;
 
-	if (r > 0xff)
-		r = 0xff;
-	if (g > 0xff)
-		g = 0xff;
-	if (b > 0xff)
-		b = 0xff;
+	r &= 0xff;
+	g &= 0xff;
+	b &= 0xff;
 
 	char topic[TOPIC_LEN], message[12];
 	snprintf(topic, TOPIC_LEN, "cmnd/%08X/color", id);

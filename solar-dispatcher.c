@@ -25,7 +25,9 @@
 #define UP						(*dd)->total
 #define DOWN					(*dd)->total * -1
 
+#define AKKU_STANDBY			(AKKU->state == Standby)
 #define AKKU_CHARGING			(AKKU->state == Charge)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge)
 #define AKKU_LIMIT_CHARGE		1750
 #define AKKU_LIMIT_DISCHARGE	BASELOAD
 
@@ -152,7 +154,7 @@ static int ramp_heater(device_t *heater, int power) {
 	else
 		xdebug("SOLAR switching %s OFF", heater->name);
 
-#if defined(TRON) || defined(ODROID)
+#ifndef SOLAR_MAIN
 	tasmota_power(heater->id, heater->r, power ? 1 : 0);
 #endif
 
@@ -219,7 +221,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 	else
 		xdebug("SOLAR ramp↑ %s step +%d UDP %s", boiler->name, step, message);
 
-#if defined(TRON) || defined(ODROID)
+#ifndef SOLAR_MAIN
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };
 	sock_addr_in.sin_family = AF_INET;
@@ -250,8 +252,8 @@ static int ramp_akku(device_t *akku, int power) {
 		// consume ramp down up to current charging power
 		akku->delta = power < pstate->akku ? pstate->akku : power;
 
-		// akku ramps down itself when charging - loop is done as long as we have grid upload and akku charge
-		return pstate->grid < -NOISE && pstate->akku < -NOISE;
+		// akku ramps down itself when charging - loop is done as long as we have grid upload or akku charge
+		return pstate->grid < -NOISE || pstate->akku < -NOISE;
 	}
 
 	// ramp up request
@@ -501,6 +503,7 @@ static device_t* rampup() {
 }
 
 static device_t* rampdown() {
+	xdebug("SOLAR rampdown ramp=%d akku=%d grid=%d ", dstate->ramp, pstate->akku, pstate->grid);
 	if (DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
@@ -610,6 +613,7 @@ static device_t* steal() {
 
 		// ramp up thief
 		ramp_device(DD, total);
+		dstate->lock = AKKU_CHARGING ? WAIT_RESPONSE * 3 : WAIT_RESPONSE;
 
 		// expect no response as load should not or only minimal change
 		return 0;
@@ -794,8 +798,12 @@ static void minly() {
 		for (device_t **dd = DEVICES; *dd; dd++)
 			ramp_device(DD, DOWN);
 
+	// update akku state
+	AKKU->state = akku_state();
+
 	// set akku to DISCHARGE if we have long term grid download
-	if (PSTATE_GRID_DLOAD) {
+	// TODO verify
+	if ((PSTATE_GRID_DLOAD && PSTATE_OFFLINE && !AKKU_DISCHARGING) || (PSTATE_GRID_DLOAD && !PSTATE_OFFLINE && !AKKU_CHARGING)) {
 		int tiny_tomorrow = gstate->tomorrow < akku_capacity();
 
 		// winter: limit discharge and try to extend ttl as much as possible
@@ -806,9 +814,6 @@ static void minly() {
 		int min_soc = GSTATE_WINTER && tiny_tomorrow && gstate->soc > 111 ? 10 : 5;
 		akku_set_min_soc(min_soc);
 	}
-
-	// update akku state
-	AKKU->state = akku_state();
 
 	// choose potd
 	choose_program();
@@ -864,12 +869,14 @@ static void loop() {
 	sleep(1);
 
 	// ask for initial power states
+#ifndef SOLAR_MAIN
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (DD->adj)
 			tasmota_status_ask(DD->id, 10);
 		else
 			tasmota_power_ask(DD->id, DD->r);
 	}
+#endif
 
 	// wait for power state responses
 	sleep(1);

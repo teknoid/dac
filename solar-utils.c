@@ -113,6 +113,16 @@ static int migrate() {
 }
 
 static int test() {
+	int r = 1111;
+	int g = 0xffff;
+	int b = 32767;
+	xlog("TASMOTA r=%d g=%d b=%d", r, g, b);
+
+	r &= 0xff;
+	g &= 0xff;
+	b &= 0xff;
+	xlog("TASMOTA r=%d g=%d b=%d", r, g, b);
+
 	return 0;
 }
 

@@ -65,8 +65,8 @@ sabre28: clean $(COBJS-SABRE28)
 #
 
 solar: CFLAGS += -DSOLAR_MAIN -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DDEBUG
-solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o
-	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o -lmodbus -lmqttc -lm
+solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o
+	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o -lmodbus -lmqttc -lm
 
 simulator: CFLAGS += -DMCP -DSIMULATOR -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
 simulator: clean mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt.o sensors.o i2c.o frozen.o
