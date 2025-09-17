@@ -19,6 +19,8 @@
 #define DISCOVERY			"discovery"
 #define ON					"ON"
 #define OFF					"OFF"
+#define ONLINE				"Online"
+#define OFFLINE				"Offline"
 
 #define TOPIC_LEN			32
 #define PREFIX_LEN			32
@@ -104,6 +106,7 @@ static tasmota_t* get_by_id(unsigned int id) {
 	tnew->id = id;
 	tnew->relay = 0;
 	tnew->power = 0;
+	tnew->online = 0;
 	tnew->next = NULL;
 
 	if (tasmota == NULL)
@@ -259,15 +262,15 @@ static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t m
 		if (json_scanf(message, msize, fmt, &sw)) {
 
 			// Shelly1+2
-			if (!strcmp(sw, ON))
+			if (!strcmp(ON, sw))
 				trigger(t, i, 1);
-			else if (!strcmp(sw, OFF))
+			else if (!strcmp(OFF, sw))
 				trigger(t, i, 0);
 			else {
 
 				// Shelly4
 				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
-					if (!strcmp(a, ON))
+					if (!strcmp(ON, a))
 						trigger(t, i, 1);
 					else
 						trigger(t, i, 0);
@@ -380,12 +383,26 @@ static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 	return 0;
 }
 
+static int dispatch_lwt(tasmota_t *t, const char *message, size_t msize) {
+	if (!strcmp(ONLINE, message))
+		t->online = 1;
+
+	if (!strcmp(OFFLINE, message))
+		t->online = 0;
+
+	xlog("TASMOTA %06X lwt=%s", t->id, t->name);
+	return 0;
+}
+
 static int dispatch_tele(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
-	if (!strcmp(suffix, "SENSOR"))
+	if (!strcmp("SENSOR", suffix))
 		return dispatch_sensor(t, message, msize);
 
-	if (!strcmp(suffix, "RESULT"))
+	if (!strcmp("RESULT", suffix))
 		return dispatch_result(t, message, msize);
+
+	if (!strcmp("LWT", suffix))
+		return dispatch_lwt(t, message, msize);
 
 	return 0;
 }
@@ -395,11 +412,11 @@ static int dispatch_cmnd(tasmota_t *t, const char *suffix, int idx, const char *
 }
 
 static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
-	if (!strcmp(suffix, "STATUS"))
+	if (!strcmp("STATUS", suffix))
 		return dispatch_sensor(t, message, msize);
 
 	// power state results
-	if (!strcmp(suffix, "POWER"))
+	if (!strcmp("POWER", suffix))
 		return update_power(t, idx, MESSAGE_ON);
 
 	// PIR motion detection sensors - tasmota configuration:
@@ -409,7 +426,7 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 //		return notify("motion", "devkit1", "au.wav");
-	if (t->id == CARPORT && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
+	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON)
 		return notify("motion", "carport", "au.wav");
 
 	// scan for shutter position results
@@ -439,6 +456,7 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 	if (ends_with("config", topic, tsize)) {
 		json_scanf(message, msize, "{hn:%Q}", &name);
 		t->name = name;
+		t->online = 1;
 		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
 	} else if (ends_with("sensors", topic, tsize))
 		dispatch_sensor(t, message, msize);
@@ -468,7 +486,7 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	if (!id)
 		return 0;
 
-	// splitted topic + raw message
+	// split topic + raw message
 	if (is_debug()) {
 		char *m = make_string(message, msize);
 		xdebug("TASMOTA id=%06X prefix=%s suffix=%s index=%d message=%s", id, prefix, suffix, idx, m);
@@ -476,17 +494,18 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	}
 
 	tasmota_t *t = get_by_id(id);
+	t->online = 1;
 
 	// TELE
-	if (!strcmp(prefix, TOPIC_TELE))
+	if (!strcmp(TOPIC_TELE, prefix))
 		return dispatch_tele(t, suffix, idx, message, msize);
 
 	// CMND
-	if (!strcmp(prefix, TOPIC_CMND))
+	if (!strcmp(TOPIC_CMND, prefix))
 		return dispatch_cmnd(t, suffix, idx, message, msize);
 
 	// STAT
-	if (!strcmp(prefix, TOPIC_STAT))
+	if (!strcmp(TOPIC_STAT, prefix))
 		return dispatch_stat(t, suffix, idx, message, msize);
 
 	return 0;
@@ -582,6 +601,8 @@ int tasmota_power(unsigned int id, int relay, int power) {
 		snprintf(topic, TOPIC_LEN, "cmnd/%6X/POWER", id);
 
 	tasmota_t *t = get_by_id(id);
+	if (!t->online)
+		xlog("TASMOTA %06X offline? Try switching anyway", t->id);
 	if (power) {
 		// start timer if configured
 		const tasmota_config_t *sc = get_config(id);
@@ -635,7 +656,7 @@ tasmota_t* tasmota_get_by_id(unsigned int id) {
 tasmota_t* tasmota_get_by_name(const char *name) {
 	tasmota_t *t = tasmota;
 	while (t != NULL) {
-		if (!strcmp(t->name, name))
+		if (!strcmp(name, t->name))
 			return t;
 		t = t->next;
 	}

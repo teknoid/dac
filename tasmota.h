@@ -18,6 +18,7 @@ typedef struct _tasmota tasmota_t;
 
 struct _tasmota {
 	unsigned int id;
+	unsigned int online;
 	char *name;
 	tasmota_t *next;
 
