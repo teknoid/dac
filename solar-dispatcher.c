@@ -860,11 +860,8 @@ static void loop() {
 		return;
 	}
 
-	// wait for tasmota auto discovery + sensor update
-	sleep(5);
-
-	// get initial akku state
-	AKKU->state = akku_state();
+	// wait for tasmota discovery + sensor update
+	sleep(1);
 
 	// ask for initial power states
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -873,6 +870,12 @@ static void loop() {
 		else
 			tasmota_power_ask(DD->id, DD->r);
 	}
+
+	// wait for power state responses
+	sleep(1);
+
+	// get initial akku state
+	AKKU->state = akku_state();
 
 	// the SOLAR main loop
 	while (1) {

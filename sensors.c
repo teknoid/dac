@@ -272,8 +272,8 @@ static void loop() {
 		return;
 	}
 
-	// wait for tasmota auto discovery
-	sleep(3);
+	// wait for tasmota discovery
+	sleep(1);
 
 	// skip file generation in first round and wait for tasmota's next sensor transmission
 	int write_files = 0;

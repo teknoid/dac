@@ -678,6 +678,9 @@ static void loop() {
 		return;
 	}
 
+	// wait for tasmota discovery + sensor update
+	sleep(1);
+
 	// the SOLAR main loop
 	while (1) {
 
