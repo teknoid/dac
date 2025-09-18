@@ -511,6 +511,32 @@ int tasmota_dispatch(const char *topic, uint16_t tsize, const char *message, siz
 	return 0;
 }
 
+// execute openbeken POWER TOGGLE command via mqtt publish
+int openbeken_power_toggle(unsigned int id) {
+	if (!id)
+		return 0;
+
+	char topic[TOPIC_LEN], message[8];
+	snprintf(topic, TOPIC_LEN, "cmnd/%08X/power", id);
+	snprintf(message, 8, "TOGGLE");
+
+	xlog("TASMOTA %08X power TOGGLE", id);
+	return publish(topic, message, 0);
+}
+
+// execute openbeken POWER command via mqtt publish
+int openbeken_power(unsigned int id, int p) {
+	if (!id)
+		return 0;
+
+	char topic[TOPIC_LEN], message[8];
+	snprintf(topic, TOPIC_LEN, "cmnd/%08X/power", id);
+	snprintf(message, 8, "%s", p ? ON : OFF);
+
+	xlog("TASMOTA %08X power %s", id, message);
+	return publish(topic, message, 0);
+}
+
 // execute openbeken COLOR command via mqtt publish
 int openbeken_color(unsigned int id, int r, int g, int b) {
 	if (!id)

@@ -80,6 +80,8 @@ struct _tasmota {
 	int gp8403_pc1;
 };
 
+int openbeken_power_toggle(unsigned int id);
+int openbeken_power(unsigned int id, int p);
 int openbeken_color(unsigned int id, int r, int g, int b);
 int openbeken_dimmer(unsigned int id, int d);
 int openbeken_set(unsigned int id, int channel, int value);

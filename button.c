@@ -56,14 +56,12 @@ static void handle_button(unsigned char c) {
 	case 16:
 		system("/m/party.sh");
 		break;
-#ifdef SOLAR
 	case 32:
-		solar_toggle_name("tisch");
+		openbeken_power_toggle(LICHT_TISCH);
 		break;
 	case 32 + SHIFT:
-		solar_toggle_name("wozi");
+		openbeken_power_toggle(LICHT_DECKE);
 		break;
-#endif
 	case 64:
 		ledstrip_toggle();
 		break;
