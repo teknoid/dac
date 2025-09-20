@@ -476,7 +476,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
-	strcpy(line, "MOSMIX survive h:x:l");
+	strcpy(line, "MOSMIX survive h:l:x");
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
@@ -489,7 +489,7 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 
 		// night
 		if (l > x) {
-			snprintf(value, 48, " %d:%d:%d", h, x, l);
+			snprintf(value, 48, " %d:%d:%d", h, l, x);
 			strcat(line, value);
 			needed += l;
 			night = 1;

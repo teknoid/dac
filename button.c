@@ -72,7 +72,7 @@ static void handle_button(unsigned char c) {
 	}
 }
 
-static void button() {
+static void loop() {
 	unsigned char c, c_old, hold = 0;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
@@ -110,4 +110,4 @@ static void stop() {
 		close(i2cfd);
 }
 
-MCP_REGISTER(button, 5, &init, &stop, &button);
+MCP_REGISTER(button, 5, &init, &stop, &loop);

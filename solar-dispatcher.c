@@ -307,7 +307,7 @@ static void create_devices_json() {
 	fclose(fp);
 }
 
-static void print_dstate(device_t *d) {
+static void print_dstate() {
 	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
@@ -328,22 +328,23 @@ static void print_dstate(device_t *d) {
 			snprintf(value, 5, " %c", DD->power ? 'M' : 'm');
 			break;
 		case Auto:
-			if (DD->adj)
+			if (STANDBY_CHECK(DD)) {
+				snprintf(value, 5, " s");
+				break;
+			}
+			if (DD->adj) {
 				snprintf(value, 5, " %3d", DD->power);
+				if (ACTIVE_CHECKED(DD))
+					strcat(value, "!");
+				break;
+			}
+			if (ACTIVE_CHECKED(DD))
+				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
 			else
 				snprintf(value, 5, " %c", DD->power ? 'x' : '_');
 			break;
-		case Auto_Checked:
-			if (DD->adj)
-				snprintf(value, 6, " %3d!", DD->power);
-			else
-				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
-			break;
 		case Standby:
 			snprintf(value, 5, " S");
-			break;
-		case Standby_Check:
-			snprintf(value, 5, " s");
 			break;
 		case Charge:
 			snprintf(value, 5, " C");
@@ -371,6 +372,7 @@ static void print_dstate(device_t *d) {
 		xlogl_int(line, "   Lock", dstate->lock);
 	xlogl_end(line, strlen(line), 0);
 }
+
 // set device into MANUAL mode and toggle power
 static int toggle_device(device_t *d) {
 	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
@@ -607,7 +609,8 @@ static device_t* steal() {
 		int to_steal = dstate->steal;
 		for (device_t **vv = dd + 1; *vv && (to_steal > 0); vv++) {
 			ramp_device(*vv, to_steal * -1);
-			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", DD->name, total, min, to_steal, (*vv)->name, (*vv)->delta);
+			int given = *vv == AKKU ? pstate->akku : (*vv)->delta;
+			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", DD->name, total, min, to_steal, (*vv)->name, given);
 			to_steal += (*vv)->delta;
 		}
 
@@ -630,7 +633,7 @@ static device_t* steal() {
 static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xdebug("SOLAR starting standby check on %s with power=%d", d->name, power);
-	d->state = Standby_Check;
+	d->flags |= FLAG_STANDBY_CHECK;
 	ramp_device(d, power);
 	return d;
 }
@@ -641,22 +644,22 @@ static device_t* standby() {
 
 	// try first active powered adjustable device with noresponse counter > 0
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power && DD->adj && DD->noresponse > 0)
+		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj && DD->noresponse > 0)
 			return perform_standby(DD);
 
 	// try first active powered device with noresponse counter > 0
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power && DD->noresponse > 0)
+		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->noresponse > 0)
 			return perform_standby(DD);
 
 	// try first active powered adjustable device
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power && DD->adj)
+		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj)
 			return perform_standby(DD);
 
 	// try first active powered device
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power)
+		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power)
 			return perform_standby(DD);
 
 	return 0;
@@ -698,7 +701,7 @@ static device_t* response(device_t *d) {
 	int wait = AKKU_CHARGING && delta > 0 && !extra ? 3 * WAIT_RESPONSE : 0;
 
 	// response OK
-	if (r && (d->state == Auto || d->state == Auto_Checked)) {
+	if (r && (d->state == Auto)) {
 		xdebug("SOLAR response for %s detected at %s%s%s, delta %d %d %d expexted %d", d->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
 		d->noresponse = 0;
 		dstate->lock = wait;
@@ -706,19 +709,19 @@ static device_t* response(device_t *d) {
 	}
 
 	// standby check was negative - we got a response
-	if (d->state == Standby_Check && r) {
+	if (r && STANDBY_CHECK(d)) {
 		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
-		d->noresponse = 0;
-		d->state = Auto_Checked; // mark Auto with standby check performed
+		d->flags = d->noresponse = 0;
+		d->flags |= FLAG_ACTIVE_CHECKED; // flag with standby check performed
 		dstate->lock = wait;
 		return d; // recalculate in next round
 	}
 
 	// standby check was positive -> set device into standby
-	if (d->state == Standby_Check && !r) {
+	if (!r && STANDBY_CHECK(d)) {
 		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 		ramp_device(d, d->total * -1);
-		d->noresponse = d->delta = dstate->lock = 0; // no response from switch off expected
+		d->flags = d->noresponse = d->delta = dstate->lock = 0; // no response from switch off expected
 		d->state = Standby;
 		return d; // recalculate in next round
 	}
@@ -784,10 +787,10 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
 
-	// reset noresponse counters and set all devices back to automatic
+	// set all devices back to automatic and clear flags + noresponse
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		DD->noresponse = 0;
-		if (DD->state == Manual || DD->state == Auto_Checked || DD->state == Standby || DD->state == Standby_Check)
+		DD->flags = DD->noresponse = 0;
+		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
 	}
 }
@@ -823,18 +826,14 @@ int solar_toggle_name(const char *name) {
 	device_t *d = get_by_name(name);
 	if (!d)
 		return 0;
-
-	toggle_device(d);
-	return 0;
+	return toggle_device(d);
 }
 
 int solar_toggle_id(unsigned int id, int relay) {
 	device_t *d = get_by_id(id, relay);
 	if (!d)
 		return 0;
-
-	toggle_device(d);
-	return 0;
+	return toggle_device(d);
 }
 
 void solar_tasmota(tasmota_t *t) {
@@ -939,7 +938,7 @@ static void loop() {
 
 		// print dstate once per minute / on device action
 		if (MINLY || device)
-			print_dstate(device);
+			print_dstate();
 
 		// web output
 		create_dstate_json();

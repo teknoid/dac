@@ -71,8 +71,15 @@
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
 #define DSTATE_CHECK_STANDBY	(dstate->flags & FLAG_CHECK_STANDBY)
 
+// device flags
+#define FLAG_ACTIVE_CHECKED		(1 << 0)
+#define FLAG_STANDBY_CHECK		(1 << 1)
+
+#define ACTIVE_CHECKED(d)		(d->flags & FLAG_ACTIVE_CHECKED)
+#define STANDBY_CHECK(d)		(d->flags & FLAG_STANDBY_CHECK)
+
 enum e_state {
-	Disabled, Initial, Charge, Discharge, Standby, Auto, Manual, Standby_Check, Auto_Checked
+	Disabled, Initial, Charge, Discharge, Standby, Auto, Manual
 };
 
 // device definitions
@@ -89,6 +96,7 @@ struct _device {
 	const int from;
 	const int to;
 	enum e_state state;
+	int flags;
 	int power;
 	int delta;
 	int load;
