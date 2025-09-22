@@ -390,7 +390,7 @@ static int dispatch_lwt(tasmota_t *t, const char *message, size_t msize) {
 	if (!strcmp(OFFLINE, message))
 		t->online = 0;
 
-	xlog("TASMOTA %06X lwt=%s", t->id, t->name);
+	xlog("TASMOTA %06X name=%s lwt=%s", t->id, t->name, t->online ? ONLINE : OFFLINE);
 	return 0;
 }
 
@@ -625,7 +625,7 @@ int tasmota_power(unsigned int id, int relay, int power) {
 
 	tasmota_t *t = get_by_id(id);
 	if (!t->online)
-		xlog("TASMOTA %06X offline? Try switching anyway", t->id);
+		xlog("TASMOTA %06X offline? Try power anyway", t->id);
 	if (power) {
 		// start timer if configured
 		const tasmota_config_t *sc = get_config(id);
@@ -655,6 +655,8 @@ int tasmota_shutter(unsigned int id, unsigned int target) {
 		return backlog(id, "ShutterPosition");
 
 	tasmota_t *t = get_by_id(id);
+	if (!t->online)
+		xlog("TASMOTA %06X offline? Try shutter anyway", t->id);
 	if (target == SHUTTER_DOWN && t->position != SHUTTER_DOWN)
 		return backlog(id, "ShutterClose");
 

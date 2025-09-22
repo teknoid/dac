@@ -54,12 +54,14 @@ int akku_state() {
 	case STORAGE_LIMIT_NONE:
 		return Auto;
 	case STORAGE_LIMIT_BOTH:
-		if (INWRTE == 0)
+		if (INWRTE == 0 && OUTWRTE == 0)
+			return Standby;
+		else if (INWRTE == 0)
 			return Discharge;
 		else if (OUTWRTE == 0)
 			return Charge;
 		else
-			return Standby;
+			return Auto;
 	case STORAGE_LIMIT_CHARGE:
 		return INWRTE == 0 ? Discharge : Charge;
 	case STORAGE_LIMIT_DISCHARGE:

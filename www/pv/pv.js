@@ -49,7 +49,7 @@ function update_devices() {
 				if (v.state == 0 || v.state == 1) {
 					dd.classList.add('d');
 					clazz = 'd';
-				} else if (v.state == 4) {
+				} else if (v.state == 2) {
 					dd.classList.add('z');
 					clazz = 'z';
 				} else if (v.load < 0) {

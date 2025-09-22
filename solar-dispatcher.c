@@ -106,7 +106,6 @@ static device_t* get_by_name(const char *name) {
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (!strcmp(DD->name, name))
 			return DD;
-
 	return 0;
 }
 
@@ -114,7 +113,6 @@ static device_t* get_by_id(unsigned int id, int relay) {
 	for (device_t **dd = potd->devices; *dd; dd++)
 		if (DD->id == id && DD->r == relay)
 			return DD;
-
 	return 0;
 }
 
@@ -234,7 +232,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 		return xerrr(0, "Sendto failed on %s %s", boiler->addr, strerror(ret));
 #endif
 
-	// electronic thermostat takes more time to react on startup
+	// electronic thermostat takes more time to react at startup
 	int wait = boiler->power == 0 ? WAIT_RESPONSE * 2 : WAIT_RESPONSE;
 
 	// update power values
@@ -373,11 +371,8 @@ static void print_dstate() {
 	xlogl_end(line, strlen(line), 0);
 }
 
-// set device into MANUAL mode and toggle power
 static int toggle_device(device_t *d) {
-	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
-
-	d->state = Manual;
+	xdebug("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
 	if (!d->power)
 		return (d->ramp)(d, d->total);
 	else
@@ -669,7 +664,7 @@ static device_t* response(device_t *d) {
 	if (!PSTATE_VALID || PSTATE_OFFLINE)
 		return 0;
 
-	// akku or no expected delta load - no response to check
+	// no response from akku or when no delta expected
 	if (d == AKKU || !d->delta)
 		return 0;
 
@@ -822,20 +817,27 @@ static void minly() {
 	choose_program();
 }
 
+// set device into MANUAL mode and toggle power
 int solar_toggle_name(const char *name) {
 	device_t *d = get_by_name(name);
 	if (!d)
 		return 0;
+
+	d->state = Manual;
 	return toggle_device(d);
 }
 
+// set device into MANUAL mode and toggle power
 int solar_toggle_id(unsigned int id, int relay) {
 	device_t *d = get_by_id(id, relay);
 	if (!d)
 		return 0;
+
+	d->state = Manual;
 	return toggle_device(d);
 }
 
+// update device status from tasmota mqtt response
 void solar_tasmota(tasmota_t *t) {
 	device_t *d = get_by_id(t->id, t->relay);
 	if (!d)
