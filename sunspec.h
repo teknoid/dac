@@ -384,9 +384,7 @@ typedef struct sunspec_meter_t {
 #define SUNSPEC_METER_SIZE				(sizeof(sunspec_meter_t))
 
 typedef struct _sunspec sunspec_t;
-
 typedef void (*sunspec_callback_t)(sunspec_t *ss);
-
 struct _sunspec {
 	const char *name;
 	const char *ip;
@@ -458,5 +456,4 @@ int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte);
 int sunspec_storage_limit_charge(sunspec_t *ss, int wcha);
 int sunspec_storage_limit_discharge(sunspec_t *ss, int inWRte);
 int sunspec_storage_limit_reset(sunspec_t *ss);
-int sunspec_storage_state(sunspec_t *ss);
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc);

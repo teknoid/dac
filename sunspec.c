@@ -590,36 +590,6 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	return 0;
 }
 
-int sunspec_storage_state(sunspec_t *ss) {
-	if (!ss->storage)
-		return 0;
-
-	xdebug("SUNSPEC akku storctl=%d inwrte=%d outwrte=%d", storctl, inwrte, outwrte);
-
-	// use enum e_state values
-	switch (storctl) {
-	case STORAGE_LIMIT_NONE:
-		// Auto
-		return 5;
-	case STORAGE_LIMIT_BOTH:
-		// Standby / Auto
-		if (inwrte == 0)
-			return 3; // Discharge
-		else if (outwrte == 0)
-			return 2; // Charge
-		else
-			return 4; // Standby
-	case STORAGE_LIMIT_CHARGE:
-		// Discharge / Charge
-		return inwrte == 0 ? 3 : 2;
-	case STORAGE_LIMIT_DISCHARGE:
-		// Charge / Discharge
-		return outwrte == 0 ? 2 : 3;
-	default:
-		return 0;
-	}
-}
-
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (!ss->control)
 		return EPERM;

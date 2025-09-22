@@ -13,10 +13,14 @@
 #include "utils.h"
 #include "mcp.h"
 
-#define MIN_SOC					(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
 #define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
+
+#define MIN_SOC					(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
+#define STORCTL					(inverter1 && inverter1->storage ? inverter1->storage->StorCtl_Mod : 0)
+#define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
+#define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
@@ -44,7 +48,25 @@ int akku_discharge_max() {
 }
 
 int akku_state() {
-	return sunspec_storage_state(inverter1);
+	xdebug("SOLAR akku storctl=%d inwrte=%d outwrte=%d", STORCTL, INWRTE, OUTWRTE);
+
+	switch (STORCTL) {
+	case STORAGE_LIMIT_NONE:
+		return Auto;
+	case STORAGE_LIMIT_BOTH:
+		if (INWRTE == 0)
+			return Discharge;
+		else if (OUTWRTE == 0)
+			return Charge;
+		else
+			return Standby;
+	case STORAGE_LIMIT_CHARGE:
+		return INWRTE == 0 ? Discharge : Charge;
+	case STORAGE_LIMIT_DISCHARGE:
+		return OUTWRTE == 0 ? Charge : Discharge;
+	default:
+		return Disabled;
+	}
 }
 
 int akku_standby(device_t *akku) {

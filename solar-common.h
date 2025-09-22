@@ -79,7 +79,7 @@
 #define STANDBY_CHECK(d)		(d->flags & FLAG_STANDBY_CHECK)
 
 enum e_state {
-	Disabled, Initial, Charge, Discharge, Standby, Auto, Manual
+	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
 };
 
 // device definitions
