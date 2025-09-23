@@ -641,10 +641,8 @@ static int scan(int argc, char **argv) {
 	uint16_t *buffer = malloc(sizeof(uint16_t) * MODBUS_MAX_READ_REGISTERS);
 	modbus_read_registers(mb, addr, MODBUS_MAX_READ_REGISTERS, buffer);
 	uint16_t *p = buffer;
-	for (int i = 0; i < MODBUS_MAX_READ_REGISTERS; i++) {
-		xlog("%5d = %d", addr + i, *p);
-		p++;
-	}
+	for (int i = 0; i < MODBUS_MAX_READ_REGISTERS; i++)
+		xlog("%5d = %d", addr + i, *p++);
 
 	modbus_close(mb);
 	modbus_free(mb);
