@@ -19,7 +19,7 @@
 #define DSTATE_JSON				"dstate.json"
 #define DEVICES_JSON			"devices.json"
 
-#define DSTATE_TEMPLATE			"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"total\":%d, \"load\":%d}"
+#define DSTATE_TEMPLATE			"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"flags\":%d, \"total\":%d, \"load\":%d}"
 
 #define DD						(*dd)
 #define UP						(*dd)->total
@@ -295,9 +295,9 @@ static void create_devices_json() {
 		if (i++)
 			fprintf(fp, ",");
 		if (DD == AKKU)
-			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, akku_charge_max(), pstate->akku);
+			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, akku_charge_max(), pstate->akku);
 		else
-			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->total, DD->load);
+			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load);
 	}
 
 	fprintf(fp, "]");
@@ -455,17 +455,17 @@ static int choose_program() {
 }
 
 static void emergency() {
+	xlog("SOLAR emergency shutdown");
 	akku_discharge(AKKU, 0); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DOWN);
-	xlog("SOLAR emergency shutdown at akku=%d grid=%d", pstate->akku, pstate->grid);
 }
 
 static void burnout() {
+	xlog("SOLAR burnout");
 	akku_discharge(AKKU, 0); // enable discharge no limit
 //	solar_override_seconds("küche", WAIT_BURNOUT);
 //	solar_override_seconds("wozi", WAIT_BURNOUT);
-	xlog("SOLAR burnout");
 }
 
 static int ramp_multi(device_t *d) {
@@ -569,7 +569,7 @@ static device_t* ramp() {
 
 static device_t* steal() {
 	dstate->steal = 0;
-	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
+	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_CHECK_STANDBY || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
 	for (device_t **tt = potd->devices; *tt; tt++) {
@@ -577,6 +577,14 @@ static device_t* steal() {
 
 		// only thiefs in AUTO mode can steal
 		if (t->state != Auto)
+			continue;
+
+		// akku can only steal while charging
+		// TODO
+		// - nur wenn CHARGING ohne limit
+		// - stealable ist mppt1 + mppt2 - akku
+		// - wenn das > 0 victims hinter akku down rampen
+		if (t == AKKU && !AKKU_CHARGING)
 			continue;
 
 		// thief already (full) on
@@ -624,12 +632,6 @@ static device_t* steal() {
 		// expect no response as load should not or only minimal change
 		return 0;
 	}
-
-	// TODO akku cannot actively steal - only by ramping down victims
-	// - zweite runde und dann die victims down rampen
-	// - stealable ist mppt1 + mppt2 - akku
-	// - wenn das > 0 victims hinter akku down rampen
-
 	return 0;
 }
 

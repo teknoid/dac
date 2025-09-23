@@ -349,18 +349,20 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_HEATING;
 
 	// start akku charging
+	int soc6 = GSTATE_HOUR(6)->soc;
+	int time_window = now->tm_hour >= 9 && now->tm_hour < 15;
 	if (WINTER)
-		// winter: always
+		// winter: always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
-		// summer: between 9 and 12 o'clock when below 22%
-		if (gstate->soc < 222 && now->tm_hour >= 9 && now->tm_hour < 12)
+		// summer: between 9 and 15 o'clock when below 22%
+		if (time_window && soc6 < 222)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: between 9 and 12 o'clock when below 33% or tomorrow not enough pv
-		if (gstate->soc < 333 && now->tm_hour >= 9 && now->tm_hour < 12)
+		// autumn/spring: between 9 and 15 o'clock when below 33% or tomorrow not enough pv
+		if (time_window && soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
-		if (gstate->tomorrow < akku_capacity() * 2 && now->tm_hour >= 9 && now->tm_hour < 12)
+		if (time_window && gstate->tomorrow < akku_capacity() * 2)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
 
@@ -491,11 +493,14 @@ static void calculate_pstate() {
 	} else {
 		// online
 
-		// emergency shutdown when 3x extreme grid download or last minute big akku discharge or grid download
-		int e_short = EMERGENCY && pstate->grid > EMERGENCY * 2 && s1->grid > EMERGENCY * 2 && s2->grid > EMERGENCY * 2;
-		int e_long = EMERGENCY && (m0->akku > EMERGENCY || m0->grid > EMERGENCY);
-		if (e_short || e_long)
+		// emergency shutdown: extreme grid download or last minute big akku discharge / grid download
+		int E1 = EMERGENCY, E2 = E1 * 2;
+		int e1 = E1 && (m0->akku > E1 || m0->grid > E1);
+		int e2 = E2 && pstate->grid > E2 && s1->grid > E2 && s2->grid > E2 && s3->grid > E2;
+		if (e1 || e2) {
 			pstate->flags |= FLAG_EMERGENCY;
+			xlog("SOLAR set FLAG_EMERGENCY akku=%d grid=%d m0->akku=%d m0->grid=%d", pstate->akku, pstate->grid, m0->akku, m0->grid);
+		}
 
 		// first set and then clear VALID flag when values suspicious
 		pstate->flags |= FLAG_VALID;
