@@ -606,14 +606,15 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	return 0;
 }
 
-// ./sunspec -s -h 192.168.25.240 -p 502 -a 40000
+// inverter: ./sunspec -s -h 192.168.25.240 -p 502 -a 40000
+// meter:    ./sunspec -s -h 192.168.25.240 -p 502 -a 40000 -v 200
 static int scan(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	int c, port, addr;
 	char *host;
-	while ((c = getopt(argc, argv, "a:h:p:")) != -1) {
+	int c, port = 502, addr = 0, slave = 1;
+	while ((c = getopt(argc, argv, "a:h:p:v:")) != -1) {
 		switch (c) {
 		case 'a':
 			addr = atoi(optarg);
@@ -624,6 +625,9 @@ static int scan(int argc, char **argv) {
 		case 'p':
 			port = atoi(optarg);
 			break;
+		case 'v':
+			slave = atoi(optarg);
+			break;
 		default:
 			xlog("unknown getopt %c", c);
 		}
@@ -632,8 +636,7 @@ static int scan(int argc, char **argv) {
 	modbus_t *mb = modbus_new_tcp(host, port);
 	modbus_set_response_timeout(mb, 5, 0);
 	modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
-	modbus_set_slave(mb, 1);
-	// modbus_set_slave(mb, 2);
+	modbus_set_slave(mb, slave);
 	int rc = modbus_connect(mb);
 	if (rc != 0)
 		return xerrr(rc, "SUNSPEC modbus_connect returned %d", rc);
