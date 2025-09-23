@@ -458,7 +458,7 @@ static void emergency() {
 	akku_discharge(AKKU, 0); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DOWN);
-	xlog("SOLAR emergency shutdown at akku=%d grid=%d ", pstate->akku, pstate->grid);
+	xlog("SOLAR emergency shutdown at akku=%d grid=%d", pstate->akku, pstate->grid);
 }
 
 static void burnout() {
@@ -500,7 +500,7 @@ static device_t* rampup() {
 }
 
 static device_t* rampdown() {
-	xdebug("SOLAR rampdown ramp=%d akku=%d grid=%d ", dstate->ramp, pstate->akku, pstate->grid);
+	xdebug("SOLAR rampdown ramp=%d akku=%d grid=%d", dstate->ramp, pstate->akku, pstate->grid);
 	if (DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
@@ -572,27 +572,29 @@ static device_t* steal() {
 	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_ALL_UP || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
 		return 0;
 
-	for (device_t **dd = potd->devices; *dd; dd++) {
+	for (device_t **tt = potd->devices; *tt; tt++) {
+		device_t *t = *tt; // thief
+
 		// only thiefs in AUTO mode can steal
-		if (DD->state != Auto)
+		if (t->state != Auto)
 			continue;
 
 		// thief already (full) on
-		if (DD->power == (DD->adj ? 100 : 1))
+		if (t->power == (t->adj ? 100 : 1))
 			continue;
 
-		// TODO victims invers order
-
-		// thief can steal akkus charge power or victims load when not in Manual mode and zero noresponse counter
+		// collect steal power: akkus charge power or victims (load when not in MANUAL mode and zero noresponse counter)
 		dstate->steal = 0;
-		for (device_t **vv = dd + 1; *vv; vv++)
-			if (*vv == AKKU)
+		for (device_t **vv = tt + 1; *vv; vv++) {
+			device_t *v = *vv;
+			if (v == AKKU)
 				dstate->steal += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
 			else
-				dstate->steal += (*vv)->state != Manual && !(*vv)->noresponse ? (*vv)->load : 0;
+				dstate->steal += v->state != Manual && !v->noresponse ? v->load : 0;
+		}
 
-		// adjustable: 1% of total, dumb: total
-		int min = DD->adj ? DD->total / 100 : DD->total;
+		// minimum power to ramp up thief: adjustable: 1% of total, dumb: total
+		int min = t->adj ? t->total / 100 : t->total;
 		min += min / 10; // add 10%
 
 		// not enough to steal
@@ -600,17 +602,23 @@ static device_t* steal() {
 		if (total < min)
 			continue;
 
-		// ramp down victims till we have enough to ramp up thief
+		// jump to last entry
+		device_t **vv = potd->devices;
+		while (*vv)
+			vv++;
+
+		// ramp down victims in inverse order till we have enough to ramp up thief
 		int to_steal = dstate->steal;
-		for (device_t **vv = dd + 1; *vv && (to_steal > 0); vv++) {
-			ramp_device(*vv, to_steal * -1);
-			int given = *vv == AKKU ? pstate->akku : (*vv)->delta;
-			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", DD->name, total, min, to_steal, (*vv)->name, given);
-			to_steal += (*vv)->delta;
+		while (--vv != tt && to_steal > 0) {
+			device_t *v = *vv;
+			ramp_device(v, to_steal * -1);
+			int given = v == AKKU ? pstate->akku * -0.9 : v->delta * -1;
+			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", t->name, total, min, to_steal, v->name, given);
+			to_steal -= given;
 		}
 
 		// ramp up thief
-		ramp_device(DD, total);
+		ramp_device(t, total);
 		dstate->lock = AKKU_CHARGING ? WAIT_RESPONSE * 3 : WAIT_RESPONSE;
 
 		// expect no response as load should not or only minimal change
