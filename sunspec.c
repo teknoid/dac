@@ -606,6 +606,49 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	return 0;
 }
 
+// ./sunspec -s -h 192.168.25.240 -p 502 -a 40000
+static int scan(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
+	int c, port, addr;
+	char *host;
+	while ((c = getopt(argc, argv, "a:h:p:")) != -1) {
+		switch (c) {
+		case 'a':
+			addr = atoi(optarg);
+			break;
+		case 'h':
+			host = optarg;
+			break;
+		case 'p':
+			port = atoi(optarg);
+			break;
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+
+	modbus_t *mb = modbus_new_tcp(host, port);
+	modbus_set_response_timeout(mb, 5, 0);
+	modbus_set_error_recovery(mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
+	modbus_set_slave(mb, 1);
+	// modbus_set_slave(mb, 2);
+	int rc = modbus_connect(mb);
+	if (rc != 0)
+		return xerrr(rc, "SUNSPEC modbus_connect returned %d", rc);
+
+	uint16_t *buffer = malloc(sizeof(uint16_t) * MODBUS_MAX_READ_REGISTERS);
+	modbus_read_registers(mb, addr, MODBUS_MAX_READ_REGISTERS, buffer);
+	uint16_t *p = buffer;
+	for (int i = 0; i < MODBUS_MAX_READ_REGISTERS; i++) {
+		xlog("%5d = %d", addr + i, *p);
+		p++;
+	}
+
+	modbus_close(mb);
+	modbus_free(mb);
+}
 static int test1(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
@@ -698,12 +741,15 @@ static int test2(int argc, char **argv) {
 
 int sunspec_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "t")) != -1) {
+	while ((c = getopt(argc, argv, "st")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 't':
 			test1(argc, argv);
 			test2(argc, argv);
+			return 0;
+		case 's':
+			scan(argc, argv);
 			return 0;
 		default:
 			xlog("unknown getopt %c", c);
