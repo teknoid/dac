@@ -12,6 +12,7 @@
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
+#define SPIKE					(BASELOAD * 2)
 
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
@@ -99,6 +100,7 @@ struct _device {
 	int total;
 	int power;
 	int delta;
+	int steal;
 	int load;
 	int min;
 	int p1;

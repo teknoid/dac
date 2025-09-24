@@ -149,9 +149,8 @@ static void collect_loads() {
 	ZERO(loads);
 	for (int h = 0; h < 24; h++) {
 		for (int d = 0; d < 7; d++) {
-			int load = GSTATE_DAY_HOUR(d, h)->load * -1;
-			if (load == 0)
-				load = BASELOAD;
+			// TODO remove abs() after 1 week
+			int load = abs(GSTATE_DAY_HOUR(d, h)->load);
 			if (load < NOISE) {
 				xdebug("SOLAR suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
 				load = BASELOAD;
@@ -244,8 +243,8 @@ static void calculate_counter() {
 		CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 
 		// compare hourly self and meter counter
-		xlog("FRONIUS counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-		xlog("FRONIUS counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+		xlog("SOLAR counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+		xlog("SOLAR counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 
 		// copy to history
 #ifdef COUNTER_METER
@@ -262,8 +261,8 @@ static void calculate_counter() {
 
 		if (DAILY) {
 			// compare daily self and meter counter
-			xlog("FRONIUS counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
-			xlog("FRONIUS counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+			xlog("SOLAR counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+			xlog("SOLAR counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
 
 			// reset self counter and copy self/meter counter to NULL entry
 			memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
@@ -301,14 +300,14 @@ static void calculate_gstate() {
 	// take over pstate values
 	gstate->soc = pstate->soc;
 
-	// store average load in gstate history as inverted
-	gstate->load = PSTATE_HOUR_NOW->load * -1;
+	// store average load in gstate
+	gstate->load = PSTATE_HOUR_NOW->load;
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
 	int min = akku_get_min_soc();
 	int capa = akku_capacity();
 	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
-	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 25) * -1 : 0;
+	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - 25) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -350,17 +349,19 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_HEATING;
 
 	// start akku charging
+	int empty = gstate->soc < 100;
 	int soc6 = GSTATE_HOUR(6)->soc;
-	int time_window = now->tm_hour >= 9 && now->tm_hour < 15;
-	if (WINTER)
-		// winter: always at any time
+	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
+	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
+	if (empty || weekend || WINTER)
+		// empty or weekend or winter: always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
-		// summer: between 9 and 15 o'clock when below 22%
+		// summer: when below 22%
 		if (time_window && soc6 < 222)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
-		// autumn/spring: between 9 and 15 o'clock when below 33% or tomorrow not enough pv
+		// autumn/spring: when below 33% or tomorrow not enough pv
 		if (time_window && soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 		if (time_window && gstate->tomorrow < akku_capacity() * 2)
@@ -519,8 +520,8 @@ static void calculate_pstate() {
 			xdebug("SOLAR wasting power %d akku -> grid", waste);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->dgrid > BASELOAD * 2) { // e.g. refrigerator starts !!!
-			xdebug("SOLAR grid spike detected %d: %d -> %d", pstate->grid - s1->grid, s1->grid, pstate->grid);
+		if (abs(pstate->dgrid) > SPIKE) {
+			xlog("SOLAR grid spike detected dgrid=%d", pstate->dgrid);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv1 != I_STATUS_MPPT) {
@@ -532,8 +533,8 @@ static void calculate_pstate() {
 			// pstate->flags &= ~FLAG_VALID;
 		}
 
-		// state is stable when we have 3x no grid changes
-		if (!pstate->dgrid && !s1->dgrid && !s2->dgrid)
+		// state is stable when we have now and last 3s no grid changes
+		if (!pstate->dgrid && !s1->dgrid && !s2->dgrid && !s3->dgrid)
 			pstate->flags |= FLAG_STABLE;
 
 		// distortion when current sdpv is too big or aggregated last two sdpv's are too big
