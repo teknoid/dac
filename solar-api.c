@@ -130,7 +130,7 @@ int akku_discharge(device_t *akku, int limit) {
 }
 
 void inverter_status(int *inv1, int *inv2) {
-	// unimplemented
+	*inv1 = *inv2 = 0;
 }
 
 // inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
