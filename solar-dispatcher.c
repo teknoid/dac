@@ -26,8 +26,8 @@
 #define DOWN					(*dd)->total * -1
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			(AKKU->state == Charge && pstate->akku < -NOISE)
-#define AKKU_DISCHARGING		(AKKU->state == Discharge && pstate->akku > NOISE)
+#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load < -NOISE)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load >  NOISE)
 #define AKKU_LIMIT_CHARGE		1750
 #define AKKU_LIMIT_DISCHARGE	BASELOAD
 
@@ -250,14 +250,14 @@ static int ramp_akku(device_t *akku, int power) {
 	if (power < 0) {
 
 		// release up to current charging power
-		akku->delta = power < pstate->akku ? pstate->akku : power;
+		akku->delta = power < akku->load ? akku->load : power;
 
 		// forward to next device if akku is not charging
 		if (!AKKU_CHARGING)
 			return 0; // continue loop
 
 		// akku ramps down itself when charging - forward to next device if ramp down is greater than charge power
-		int wait = power < pstate->akku ? 0 : WAIT_AKKU;
+		int wait = power < akku->load ? 0 : WAIT_AKKU;
 		xlog("SOLAR akku ramp↓ power=%d delta=%d wait=%d", power, akku->delta, wait);
 		return wait;
 	}
@@ -285,7 +285,7 @@ static int ramp_akku(device_t *akku, int power) {
 				return WAIT_START_CHARGE;
 
 		// forward to next device if charging is nearly saturated
-		int wait = akku->power > 90 ? 0 : WAIT_AKKU;
+		int wait = akku->power > 95 ? 0 : WAIT_AKKU;
 		xlog("SOLAR akku ramp↑ power=%d akku->total=%d akku->delta=%d akku->power=%d wait=%d", power, akku->total, akku->delta, akku->power, wait);
 		return wait;
 	}
@@ -309,8 +309,8 @@ static void create_devices_json() {
 			fprintf(fp, ",");
 		fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load);
 	}
-
 	fprintf(fp, "]");
+
 	fflush(fp);
 	fclose(fp);
 }
@@ -543,8 +543,8 @@ static device_t* ramp() {
 		dstate->ramp = -RAMP;
 
 	// akku is discharging: subtract it's power + 50%
-	if (pstate->akku > NOISE)
-		dstate->ramp -= pstate->akku + pstate->akku / 2;
+	if (AKKU->load > NOISE)
+		dstate->ramp -= AKKU->load + AKKU->load / 2;
 
 	// 50% more ramp down when PV tendency falls
 	if (dstate->ramp < 0 && (PSTATE_PV_FALLING || PSTATE_AKKU_DCHARGE || PSTATE_GRID_DLOAD))
@@ -597,14 +597,11 @@ static device_t* steal() {
 		if (t->power == (t->adj ? 100 : 1))
 			continue;
 
-		// collect steal power: akkus charge power or victims (load when not in MANUAL mode and zero noresponse counter)
+		// collect steal power: akkus charge power or victims load (when not in MANUAL mode and zero noresponse counter)
 		dstate->steal = 0;
 		for (device_t **vv = tt + 1; *vv; vv++) {
 			device_t *v = *vv;
-			if (v == AKKU)
-				dstate->steal += pstate->akku < -MINIMUM ? pstate->akku * -0.9 : 0;
-			else
-				dstate->steal += v->state != Manual && !v->noresponse ? v->load : 0;
+			dstate->steal += v->state != Manual && !v->noresponse ? v->load : 0;
 		}
 
 		// nothing to steal
@@ -630,7 +627,7 @@ static device_t* steal() {
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
 			ramp_device(v, to_steal * -1);
-			int given = v == AKKU ? pstate->akku * -0.9 : v->delta * -1;
+			int given = v == AKKU ? AKKU->load * -0.9 : v->delta * -1;
 			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", t->name, total, min, to_steal, v->name, given);
 			to_steal -= given;
 		}
@@ -794,10 +791,6 @@ static void calculate_dstate() {
 		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
 	}
 
-	// akku saturation -100%..0..100%
-	AKKU->load = pstate->akku;
-	AKKU->power = AKKU->total ? pstate->akku * -100 / AKKU->total : 0;
-
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 }
@@ -926,6 +919,10 @@ static void loop() {
 		// burnout mode
 		if (PSTATE_BURNOUT)
 			burnout();
+
+		// update akku load and saturation -100%..0..100%
+		AKKU->load = pstate->akku;
+		AKKU->power = AKKU->total ? AKKU->load * -100 / AKKU->total : 0;
 
 		// no actions until lock is expired
 		if (dstate->lock)
