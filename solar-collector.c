@@ -137,7 +137,8 @@ static void create_powerflow_json() {
 	if (fp == NULL)
 		return;
 
-	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load, pstate->pv);
+	// Fronius expects negative load
+	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load * -1, pstate->pv);
 	fflush(fp);
 	fclose(fp);
 }
@@ -300,8 +301,8 @@ static void calculate_gstate() {
 	// take over pstate values
 	gstate->soc = pstate->soc;
 
-	// store average load in gstate history
-	gstate->load = PSTATE_HOUR_NOW->load;
+	// store average load in gstate history as inverted
+	gstate->load = PSTATE_HOUR_NOW->load * -1;
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +25 inverter dissipation
 	int min = akku_get_min_soc();
@@ -430,7 +431,7 @@ static void calculate_pstate() {
 	pstate->sdgrid += abs(pstate->dgrid);
 
 	// load, delta load + sum
-	pstate->load = (pstate->ac1 + pstate->ac2 + pstate->grid) * -1;
+	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 	pstate->dload = pstate->load - s1->load;
 	if (abs(pstate->dload) < NOISE)
 		pstate->dload = 0; // shape dload
@@ -478,9 +479,9 @@ static void calculate_pstate() {
 	}
 
 	// offline mode when average PV is below average load in last 3 minutes
-	int o2 = m2->pv < m2->load * -1 + NOISE;
-	int o1 = m1->pv < m1->load * -1 + NOISE;
-	int o0 = m0->pv < m0->load * -1 + NOISE;
+	int o2 = m2->pv < m2->load + NOISE;
+	int o1 = m1->pv < m1->load + NOISE;
+	int o0 = m0->pv < m0->load + NOISE;
 	if (o2 && o1 && o0) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -504,13 +505,13 @@ static void calculate_pstate() {
 
 		// first set and then clear VALID flag when values suspicious
 		pstate->flags |= FLAG_VALID;
-		int sum = pstate->grid + pstate->akku + pstate->load + pstate->pv;
+		int sum = pstate->pv + pstate->grid + pstate->akku + (pstate->load * -1);
 		if (abs(sum) > SUSPICIOUS) { // probably inverter power dissipations (?)
 			xdebug("SOLAR suspicious values detected: sum=%d", sum);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->load > 0) {
-			xdebug("SOLAR positive load detected");
+		if (pstate->load < 0) {
+			xdebug("SOLAR negative load detected");
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (pstate->grid < -NOISE && pstate->akku > NOISE) {

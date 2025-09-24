@@ -24,8 +24,8 @@ dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
 dl .p						{ background:skyblue }
 
-dl dd.akku .m				{ background:palegreen }
-dl dd.akku .p				{ background:orangered }
+dl dd.akku .p				{ background:palegreen }
+dl dd.akku .m				{ background:#FEAD00 }
 
 dl dd						{ float:left; margin: 0 5px 0 0; border:1px solid lightgrey; cursor:pointer }
 dl dd.d						{ cursor:default }
@@ -89,14 +89,13 @@ dl dd.d						{ cursor:default }
 .akku-m						{ background-color:palegreen }
 .load-p, .load-m			{ background-color:skyblue }
 .xload-p, .xload-m			{ background-color:skyblue }
-.dxlod-p, .dxlod-m			{ background-color:skyblue }
+.dload-p, .dload-m			{ background-color:skyblue }
 .mppt1-p					{ background-color:#FAD967 }
 .mppt2-p					{ background-color:#FAD967 }
 .mppt3-p					{ background-color:#FAD967 }
 .mppt4-p					{ background-color:#FAD967 }
 .ramp-p, .steal-p			{ background-color:orchid }
 .ramp-m						{ background-color:deepskyblue }
-.flags-p	 				{ background-color:peru }
 
 .↓grid-p					{ background-color:lightsalmon }
 .↑grid-p					{ background-color:palegreen }

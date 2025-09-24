@@ -26,8 +26,8 @@
 #define DOWN					(*dd)->total * -1
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load < -NOISE)
-#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load >  NOISE)
+#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load >  NOISE)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < -NOISE)
 #define AKKU_LIMIT_CHARGE		1750
 #define AKKU_LIMIT_DISCHARGE	BASELOAD
 
@@ -249,15 +249,19 @@ static int ramp_akku(device_t *akku, int power) {
 	// ramp down request
 	if (power < 0) {
 
-		// release up to current charging power
-		akku->delta = power < akku->load ? akku->load : power;
-
 		// forward to next device if akku is not charging
 		if (!AKKU_CHARGING)
 			return 0; // continue loop
 
-		// akku ramps down itself when charging - forward to next device if ramp down is greater than charge power
-		int wait = power < akku->load ? 0 : WAIT_AKKU;
+		// akku ramps down itself when charging
+		// if ramp down is smaller than actual charge power we can fully consume it
+		int consumed = power * -1 < akku->load;
+
+		// release up to current charging power
+		akku->delta = consumed ? power : akku->load * -1;
+
+		// wait if we fully consumed it, otherwise forward to next device
+		int wait = consumed ? WAIT_AKKU : 0;
 		xlog("SOLAR akku ramp↓ power=%d delta=%d wait=%d", power, akku->delta, wait);
 		return wait;
 	}
@@ -543,8 +547,8 @@ static device_t* ramp() {
 		dstate->ramp = -RAMP;
 
 	// akku is discharging: subtract it's power + 50%
-	if (AKKU->load > NOISE)
-		dstate->ramp -= AKKU->load + AKKU->load / 2;
+	if (AKKU->load < -NOISE)
+		dstate->ramp += AKKU->load + AKKU->load / 2;
 
 	// 50% more ramp down when PV tendency falls
 	if (dstate->ramp < 0 && (PSTATE_PV_FALLING || PSTATE_AKKU_DCHARGE || PSTATE_GRID_DLOAD))
@@ -627,7 +631,7 @@ static device_t* steal() {
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
 			ramp_device(v, to_steal * -1);
-			int given = v == AKKU ? AKKU->load * -0.9 : v->delta * -1;
+			int given = v == AKKU ? AKKU->load * 0.9 : v->delta * -1;
 			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", t->name, total, min, to_steal, v->name, given);
 			to_steal -= given;
 		}
@@ -707,7 +711,7 @@ static device_t* response(device_t *d) {
 	int r = l1 || l2 || l3;
 
 	// load is completely satisfied from secondary inverter
-	int extra = pstate->ac2 > pstate->load * -1;
+	int extra = pstate->ac2 > pstate->load;
 
 	// wait more to give akku time to release power when ramped up
 	int wait = AKKU_CHARGING && delta > 0 && !extra ? WAIT_RESPONSE : 0;
@@ -778,11 +782,10 @@ static void calculate_dstate() {
 	}
 
 	// delta between actual load an calculated load
-	int load = pstate->load * -1;
+	int load = pstate->load < BASELOAD ? pstate->load : BASELOAD;
 	CUT_LOW(load, 0);
 	if (!DSTATE_ALL_DOWN)
-		// add load or BASELOAD
-		dstate->xload += load < BASELOAD ? load : BASELOAD;
+		dstate->xload += load;
 	dstate->dload = dstate->xload ? load * 100 / dstate->xload : 0;
 
 	// indicate standby check when actual load is 3x below EXEC_STANDBY (%) of calculated load
@@ -921,8 +924,8 @@ static void loop() {
 			burnout();
 
 		// update akku load and saturation -100%..0..100%
-		AKKU->load = pstate->akku;
-		AKKU->power = AKKU->total ? AKKU->load * -100 / AKKU->total : 0;
+		AKKU->load = pstate->akku * -1;
+		AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0;
 
 		// no actions until lock is expired
 		if (dstate->lock)
