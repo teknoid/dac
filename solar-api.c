@@ -15,8 +15,6 @@
 #include "mcp.h"
 
 #define MIN_SOC					50
-#define AKKU_CHARGE_MAX			4500
-#define AKKU_DISCHARGE_MAX		4500
 #define AKKU_CAPACITY			11000
 
 #define URL_READABLE_INVERTER1	"http://fronius10/components/readable"
@@ -100,30 +98,26 @@ void akku_set_min_soc(int min) {
 	// unimplemented
 }
 
-int akku_charge_max() {
-	return AKKU_CHARGE_MAX;
-}
-
-int akku_discharge_max() {
-	return AKKU_DISCHARGE_MAX;
-}
-
-int akku_state() {
-	// unimplemented
-	return 0;
+void akku_state(device_t *akku) {
+	// dummy implementation
+	akku->state = Auto;
+	akku->power = 0;
+	akku->total = 0;
 }
 
 int akku_standby(device_t *akku) {
 	// dummy implementation
 	akku->state = Standby;
 	akku->power = 0;
+	akku->total = 0;
 	return 0;
 }
 
 int akku_charge(device_t *akku, int limit) {
 	// dummy implementation
 	akku->state = Charge;
-	akku->power = 1;
+	akku->power = 0;
+	akku->total = 0;
 	return 0;
 }
 
@@ -131,6 +125,7 @@ int akku_discharge(device_t *akku, int limit) {
 	// dummy implementation
 	akku->state = Discharge;
 	akku->power = 0;
+	akku->total = 0;
 	return 0;
 }
 

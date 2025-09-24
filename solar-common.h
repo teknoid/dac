@@ -92,15 +92,14 @@ struct _device {
 	const char *addr;
 	const char *host;
 	const int adj;
-	const int total;
 	const int from;
 	const int to;
 	enum e_state state;
 	int flags;
+	int total;
 	int power;
 	int delta;
 	int load;
-	int limit;
 	int min;
 	int p1;
 	int p2;
@@ -218,11 +217,9 @@ extern pthread_mutex_t collector_lock;
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 
 int akku_capacity();
-int akku_charge_max();
-int akku_discharge_max();
-int akku_state();
 int akku_get_min_soc();
 void akku_set_min_soc();
+void akku_state(device_t *akku);
 int akku_standby(device_t *akku);
 int akku_charge(device_t *akku, int limit);
 int akku_discharge(device_t *akku, int limit);

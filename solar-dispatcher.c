@@ -276,8 +276,7 @@ static int ramp_akku(device_t *akku, int power) {
 			return 0; // continue loop
 
 		// expect to consume all DC power up to either battery's charge maximum or limit when set
-		int max = akku->limit ? akku->limit : akku_charge_max();
-		akku->delta = (pstate->mppt1 + pstate->mppt2) < max ? (pstate->mppt1 + pstate->mppt2) : max;
+		akku->delta = (pstate->mppt1 + pstate->mppt2) < akku->total ? (pstate->mppt1 + pstate->mppt2) : akku->total;
 
 		// start charging when flag is set
 		int limit = GSTATE_SUMMER || gstate->today > akku_capacity() * 2 ? AKKU_LIMIT_CHARGE : 0;
@@ -285,10 +284,9 @@ static int ramp_akku(device_t *akku, int power) {
 			if (!akku_charge(akku, limit))
 				return WAIT_START_CHARGE;
 
-		// forward to next device if charging is nearly satisfied
-		int satisfied = max ? pstate->akku * -100 / max : 0;
-		int wait = satisfied > 90 ? 0 : WAIT_AKKU;
-		xlog("SOLAR akku ramp↑ power=%d max=%d delta=%d satisfied=%d wait=%d", power, max, akku->delta, satisfied, wait);
+		// forward to next device if charging is nearly saturated
+		int wait = akku->power > 90 ? 0 : WAIT_AKKU;
+		xlog("SOLAR akku ramp↑ power=%d akku->total=%d akku->delta=%d akku->power=%d wait=%d", power, akku->total, akku->delta, akku->power, wait);
 		return wait;
 	}
 
@@ -309,10 +307,7 @@ static void create_devices_json() {
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (i++)
 			fprintf(fp, ",");
-		if (DD == AKKU)
-			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, akku_charge_max(), pstate->akku);
-		else
-			fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load);
+		fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load);
 	}
 
 	fprintf(fp, "]");
@@ -337,6 +332,9 @@ static void print_dstate() {
 		case Initial:
 			snprintf(value, 5, " i");
 			break;
+		case Standby:
+			snprintf(value, 5, " S");
+			break;
 		case Manual:
 			snprintf(value, 5, " %c", DD->power ? 'M' : 'm');
 			break;
@@ -356,20 +354,11 @@ static void print_dstate() {
 			else
 				snprintf(value, 5, " %c", DD->power ? 'x' : '_');
 			break;
-		case Standby:
-			snprintf(value, 5, " S");
-			break;
 		case Charge:
-			if (DD->limit)
-				snprintf(value, 8, " C%d", DD->limit);
-			else
-				snprintf(value, 5, " C");
+			snprintf(value, 5, " C");
 			break;
 		case Discharge:
-			if (DD->limit)
-				snprintf(value, 8, " D%d", DD->limit);
-			else
-				snprintf(value, 5, " D");
+			snprintf(value, 5, " D");
 			break;
 		default:
 			snprintf(value, 5, " ?");
@@ -774,7 +763,9 @@ static void calculate_dstate() {
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
-		if (DD->state == Disabled)
+		// check only devices in AUTO or MANUAL mode
+		int ok = DD->state == Auto || DD->state == Manual;
+		if (!ok)
 			continue;
 
 		// calculated load
@@ -803,6 +794,10 @@ static void calculate_dstate() {
 		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
 	}
 
+	// akku saturation -100%..0..100%
+	AKKU->load = pstate->akku;
+	AKKU->power = AKKU->total ? pstate->akku * -100 / AKKU->total : 0;
+
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 }
@@ -829,7 +824,7 @@ static void minly() {
 			ramp_device(DD, DOWN);
 
 	// update akku state
-	AKKU->state = akku_state();
+	akku_state(AKKU);
 
 	// set akku to DISCHARGE if we have long term grid download
 	// TODO verify
@@ -915,7 +910,7 @@ static void loop() {
 	sleep(1);
 
 	// get initial akku state
-	AKKU->state = akku_state();
+	akku_state(AKKU);
 
 	// the SOLAR main loop
 	while (1) {
