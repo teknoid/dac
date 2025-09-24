@@ -100,6 +100,7 @@ struct _device {
 	int power;
 	int delta;
 	int load;
+	int limit;
 	int min;
 	int p1;
 	int p2;

@@ -649,6 +649,7 @@ static int scan(int argc, char **argv) {
 
 	modbus_close(mb);
 	modbus_free(mb);
+	return 0;
 }
 static int test1(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
