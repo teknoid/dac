@@ -749,7 +749,7 @@ static void calculate_dstate() {
 	// update akku
 	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
-	AKKU->steal = AKKU->load > MINIMUM ? (AKKU->load - MINIMUM) * 0.8 : 0; // steal only 80% due to DC-AC dissipation
+	AKKU->steal = AKKU->load > MINIMUM ? (AKKU->load - MINIMUM) * 0.8 : 0; // leave akku charging and steal only 80% due to DC-AC dissipation
 
 	// get history states
 	dstate_t *s1 = DSTATE_LAST1;
