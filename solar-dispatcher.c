@@ -490,6 +490,7 @@ static device_t* rampup() {
 		if (ramp_device(DD, dstate->ramp)) {
 			int power = dstate->ramp;
 			dstate->ramp -= DD->delta;
+			CUT_LOW(dstate->ramp, 0);
 			xlog("SOLAR ramped↑ %s power=%d delta=%d ramp=%d akku->power=%d wait=%d", DD->name, power, DD->delta, dstate->ramp, dstate->lock);
 			d = DD;
 			msleep(66);
@@ -514,6 +515,7 @@ static device_t* rampdown() {
 		if (ramp_device(DD, dstate->ramp)) {
 			int power = dstate->ramp;
 			dstate->ramp -= DD->delta;
+			CUT(dstate->ramp, 0);
 			xlog("SOLAR ramped↓ %s power=%d delta=%d ramp=%d wait=%d", DD->name, power, DD->delta, dstate->ramp, dstate->lock);
 			d = DD;
 			msleep(66);
@@ -623,7 +625,7 @@ static device_t* steal() {
 
 		// ramp up thief
 		ramp_device(t, total);
-		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RESPONSE;
+		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER ? WAIT_AKKU : 0;
 
 		// do response check only for adjustable devices as normally no delta is expected when transferring power from one to another device
 		return t->adj ? t : 0;
@@ -695,8 +697,8 @@ static device_t* response(device_t *d) {
 	int l3 = delta > 0 ? d3 > delta : d3 < delta;
 	int r = l1 || l2 || l3;
 
-	// wait more to give akku time to release power when ramped up
-	int wait = AKKU_CHARGING && delta > 0 && !PSTATE_EXTRAPOWER ? WAIT_RESPONSE : 0;
+	// wait again to give akku time to release power when ramped up
+	int wait = AKKU_CHARGING && !PSTATE_EXTRAPOWER && delta > 0 ? WAIT_RESPONSE : 0;
 
 	// response OK
 	if (r && (d->state == Auto)) {

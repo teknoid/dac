@@ -563,9 +563,10 @@ static void calculate_pstate() {
 		}
 
 		// load is completely satisfied from secondary inverter
-		xdebug("SOLAR ac1=%d ac2=%d", pstate->ac1, pstate->ac2);
-		if (pstate->ac2 > pstate->load)
+		if (pstate->ac2 > pstate->load) {
 			pstate->flags |= FLAG_EXTRAPOWER;
+			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
+		}
 	}
 
 	pthread_mutex_unlock(&collector_lock);
