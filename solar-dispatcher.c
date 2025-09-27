@@ -695,11 +695,8 @@ static device_t* response(device_t *d) {
 	int l3 = delta > 0 ? d3 > delta : d3 < delta;
 	int r = l1 || l2 || l3;
 
-	// load is completely satisfied from secondary inverter
-	int extra = pstate->ac2 > pstate->load;
-
 	// wait more to give akku time to release power when ramped up
-	int wait = AKKU_CHARGING && delta > 0 && !extra ? WAIT_RESPONSE : 0;
+	int wait = AKKU_CHARGING && delta > 0 && !PSTATE_EXTRAPOWER ? WAIT_RESPONSE : 0;
 
 	// response OK
 	if (r && (d->state == Auto)) {

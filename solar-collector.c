@@ -561,6 +561,11 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_PV_FALLING;
 			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
 		}
+
+		// load is completely satisfied from secondary inverter
+		xdebug("SOLAR ac1=%d ac2=%d", pstate->ac1, pstate->ac2);
+		if (pstate->ac2 > pstate->load)
+			pstate->flags |= FLAG_EXTRAPOWER;
 	}
 
 	pthread_mutex_unlock(&collector_lock);

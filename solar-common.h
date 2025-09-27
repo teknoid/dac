@@ -42,6 +42,7 @@
 #define FLAG_BURNOUT			(1 << 6)
 #define FLAG_EMERGENCY			(1 << 7)
 
+#define FLAG_EXTRAPOWER			(1 << 11)
 #define FLAG_GRID_ULOAD			(1 << 12)
 #define FLAG_GRID_DLOAD			(1 << 13)
 #define FLAG_AKKU_DCHARGE		(1 << 14)
@@ -56,6 +57,7 @@
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 
+#define PSTATE_EXTRAPOWER		(pstate->flags & FLAG_EXTRAPOWER)
 #define PSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
