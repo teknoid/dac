@@ -575,6 +575,10 @@ static device_t* steal() {
 	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_CHECK_STANDBY || DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
 		return 0;
 
+	// steal only power which is really consumed
+	if (dstate->dload < 80)
+		return 0;
+
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
@@ -623,12 +627,10 @@ static device_t* steal() {
 			to_steal -= given;
 		}
 
-		// ramp up thief
+		// ramp up thief and always wait even if no response is expected when transferring power from one to another device
 		ramp_device(t, total);
-		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER ? WAIT_AKKU : 0;
-
-		// do response check only for adjustable devices as normally no delta is expected when transferring power from one to another device
-		return t->adj ? t : 0;
+		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER ? WAIT_AKKU : WAIT_RESPONSE;
+		return 0;
 	}
 	return 0;
 }
@@ -650,17 +652,17 @@ static device_t* standby() {
 		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj && DD->noresponse > 0)
 			return perform_standby(DD);
 
-	// try first active powered device with noresponse counter > 0
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->noresponse > 0)
-			return perform_standby(DD);
-
 	// try first active powered adjustable device
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj)
 			return perform_standby(DD);
 
-	// try first active powered device
+	// try first active powered dumb device with noresponse counter > 0
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->noresponse > 0)
+			return perform_standby(DD);
+
+	// try first active powered dumb device
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power)
 			return perform_standby(DD);
