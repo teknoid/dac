@@ -26,7 +26,8 @@
 #define AKKU_STANDBY			(AKKU->state == Standby)
 #define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load >  NOISE)
 #define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < -NOISE)
-#define AKKU_LIMIT_CHARGE		1750
+#define AKKU_LIMIT_CHARGE3X		1750
+#define AKKU_LIMIT_CHARGE2X		2500
 #define AKKU_LIMIT_DISCHARGE	BASELOAD
 
 #define OVERRIDE				600
@@ -279,7 +280,11 @@ static int ramp_akku(device_t *akku, int power) {
 			return 0; // continue loop
 
 		// start charging
-		int limit = GSTATE_SUMMER || gstate->today > akku_capacity() * 3 ? AKKU_LIMIT_CHARGE : 0;
+		int limit = 0;
+		if (GSTATE_SUMMER || gstate->today > akku_capacity() * 2)
+			limit = AKKU_LIMIT_CHARGE2X;
+		if (GSTATE_SUMMER || gstate->today > akku_capacity() * 3)
+			limit = AKKU_LIMIT_CHARGE3X;
 		if (!akku_charge(akku, limit))
 			return WAIT_START_CHARGE;
 
