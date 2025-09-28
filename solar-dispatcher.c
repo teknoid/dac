@@ -31,7 +31,7 @@
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
-#define EXEC_STANDBY			50
+#define EXEC_STANDBY			66
 
 #define WAIT_INVALID			3
 #define WAIT_RESPONSE			5
@@ -160,7 +160,6 @@ static int ramp_heater(device_t *heater, int power) {
 	heater->delta = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
 	heater->power = power;
-	heater->steal = !heater->noresponse && heater->state == Auto ? heater->load : 0;
 	store_meter_power(heater);
 	return WAIT_RESPONSE; // loop done
 }
@@ -242,7 +241,6 @@ static int ramp_boiler(device_t *boiler, int power) {
 	boiler->delta = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
-	boiler->steal = !boiler->noresponse && boiler->state == Auto && boiler->load > MINIMUM ? boiler->load - MINIMUM : 0; // leave boiler alive
 	store_meter_power(boiler);
 	return wait; // loop done
 }
@@ -575,10 +573,34 @@ static device_t* steal() {
 	if (!PSTATE_VALID || PSTATE_OFFLINE || !PSTATE_STABLE || PSTATE_DISTORTION || DSTATE_CHECK_STANDBY || DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
 		return 0;
 
-	// steal only power which is really consumed
+	// steal only power that is really consumed
 	if (dstate->dload < 80)
 		return 0;
 
+	// calculate steal power for any device in AUTO mode and empty noresponse counter
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD == AKKU) {
+			// leave akku charging and steal only 80% due to DC-AC dissipation
+			DD->steal = DD->load > MINIMUM ? (DD->load - MINIMUM) * 0.8 : 0;
+			dstate->steal += DD->steal;
+			continue;
+		}
+		if (DD->state != Auto || DD->noresponse)
+			continue;
+		if (DD->adj)
+			// thermostat: steal only when we sure that power is really consumed but leave boiler alive
+			DD->steal = dstate->dload > 80 && DD->load > MINIMUM ? DD->load - MINIMUM : 0;
+		else
+			// dumb: steal all
+			DD->steal = DD->load;
+		dstate->steal += DD->steal;
+	}
+
+	// nothing to steal
+	if (dstate->steal < NOISE)
+		return 0;
+
+	// check if we can steal from lower prioritized devices
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
@@ -704,7 +726,7 @@ static device_t* response(device_t *d) {
 
 	// response OK
 	if (r && (d->state == Auto)) {
-		xdebug("SOLAR response for %s detected at %s%s%s, delta %d %d %d expexted %d", d->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
+		xlog("SOLAR response for %s detected at %s%s%s, delta %d %d %d expexted %d", d->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
 		d->noresponse = 0;
 		dstate->lock = wait;
 		return dstate->lock ? d : 0;
@@ -712,7 +734,7 @@ static device_t* response(device_t *d) {
 
 	// standby check was negative - we got a response
 	if (r && STANDBY_CHECK(d)) {
-		xdebug("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
+		xlog("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 		d->flags = d->noresponse = 0;
 		d->flags &= ~FLAG_CHECK_STANDBY; // remove check flag
 		d->flags |= FLAG_ACTIVE_CHECKED; // flag with standby check performed
@@ -722,7 +744,7 @@ static device_t* response(device_t *d) {
 
 	// standby check was positive -> set device into standby
 	if (!r && STANDBY_CHECK(d)) {
-		xdebug("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
+		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 		ramp_device(d, d->total * -1);
 		d->flags &= ~FLAG_CHECK_STANDBY; // remove check flag
 		d->noresponse = d->delta = dstate->lock = 0; // no response expected as device did not ramp
@@ -738,7 +760,7 @@ static device_t* response(device_t *d) {
 	if (++d->noresponse >= STANDBY_NORESPONSE)
 		return perform_standby(d);
 
-	xdebug("SOLAR no response from %s count %d/%d", d->name, d->noresponse, STANDBY_NORESPONSE);
+	xlog("SOLAR no response from %s count %d/%d", d->name, d->noresponse, STANDBY_NORESPONSE);
 	return 0;
 }
 
@@ -749,11 +771,11 @@ static void calculate_dstate() {
 	// update akku
 	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
-	AKKU->steal = AKKU->load > MINIMUM ? (AKKU->load - MINIMUM) * 0.8 : 0; // leave akku charging and steal only 80% due to DC-AC dissipation
 
 	// get history states
 	dstate_t *s1 = DSTATE_LAST1;
 	dstate_t *s2 = DSTATE_LAST2;
+	dstate_t *s3 = DSTATE_LAST3;
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -782,8 +804,8 @@ static void calculate_dstate() {
 	// delta between actual load an calculated load
 	dstate->dload = dstate->xload ? pstate->load * 100 / dstate->xload : 0;
 
-	// indicate standby check when actual load is 3x below EXEC_STANDBY (%) of calculated load
-	if (dstate->xload && dstate->dload < EXEC_STANDBY && s1->dload < EXEC_STANDBY && s2->dload < EXEC_STANDBY) {
+	// indicate standby check when actual load is now and last 3s below EXEC_STANDBY (%) of calculated load
+	if (dstate->xload && dstate->dload < EXEC_STANDBY && s1->dload < EXEC_STANDBY && s2->dload < EXEC_STANDBY && s3->dload < EXEC_STANDBY) {
 		dstate->flags |= FLAG_CHECK_STANDBY;
 		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d xload=%d dxload=%d", pstate->load, dstate->xload, dstate->dload);
 	}
