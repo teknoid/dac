@@ -448,9 +448,9 @@ static void calculate_pstate() {
 
 	// grid upload in last 3 minutes
 	if (pstate->grid < -NOISE) {
-		int g2 = m0->grid < -25 && m1->grid < -25 && m2->grid < -25;
-		int g1 = m0->grid < -50 && m1->grid < -50;
-		int g0 = m0->grid < -75;
+		int g2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
+		int g1 = m0->grid < -75 && m1->grid < -75;
+		int g0 = m0->grid < -100;
 		if (g2 || g1 || g0) {
 			pstate->flags |= FLAG_GRID_ULOAD;
 			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
@@ -459,9 +459,9 @@ static void calculate_pstate() {
 
 	// grid download in last 3 minutes
 	if (pstate->grid > NOISE) {
-		int g2 = m0->grid > 25 && m1->grid > 25 && m2->grid > 25;
-		int g1 = m0->grid > 50 && m1->grid > 50;
-		int g0 = m0->grid > 75;
+		int g2 = m0->grid > 50 && m1->grid > 50 && m2->grid > 50;
+		int g1 = m0->grid > 75 && m1->grid > 75;
+		int g0 = m0->grid > 100;
 		if (g2 || g1 || g0) {
 			pstate->flags |= FLAG_GRID_DLOAD;
 			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
@@ -470,9 +470,9 @@ static void calculate_pstate() {
 
 	// akku discharge in last 3 minutes
 	if (pstate->akku > NOISE) {
-		int a2 = m0->akku > 25 && m1->akku > 25 && m2->akku > 25;
-		int a1 = m0->akku > 50 && m1->akku > 50;
-		int a0 = m0->akku > 75;
+		int a2 = m0->akku > 50 && m1->akku > 50 && m2->akku > 50;
+		int a1 = m0->akku > 75 && m1->akku > 75;
+		int a0 = m0->akku > 100;
 		if (a2 || a1 || a0) {
 			pstate->flags |= FLAG_AKKU_DCHARGE;
 			xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);

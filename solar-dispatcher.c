@@ -543,9 +543,9 @@ static device_t* ramp() {
 	if (NOISE < pstate->grid && pstate->grid < RAMP)
 		dstate->ramp = -RAMP;
 
-	// 50% more ramp down when PV tendency falls
+	// 20% more ramp down when PV tendency falls
 	if (dstate->ramp < 0 && (PSTATE_PV_FALLING || PSTATE_AKKU_DCHARGE || PSTATE_GRID_DLOAD))
-		dstate->ramp += dstate->ramp / 2;
+		dstate->ramp += dstate->ramp / 5;
 
 	// delay small ramp up when we just had akku discharge or grid download
 	if (0 < dstate->ramp && dstate->ramp < MINIMUM) {
