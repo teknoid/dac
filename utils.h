@@ -52,6 +52,10 @@
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
 
+#define SHAPE(x, y) \
+		if (-y < x && x < y) \
+			x = 0;
+
 #define CUT(x, y) \
 		if (x > y) \
 			x = y;

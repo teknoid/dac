@@ -21,6 +21,7 @@
 #include "button.h"
 #include "solar.h"
 #include "utils.h"
+#include "curl.h"
 #include "dac.h"
 #include "i2c.h"
 #include "mcp.h"
@@ -33,6 +34,15 @@
 #define SHIFT			128
 
 static int i2cfd;
+
+// execute tasmota POWER TOGGLE command via http backlog command (workaround for buggy mqtt command)
+int power_toggle_http(const char *ip) {
+	char url[128];
+	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+TOGGLE", ip);
+	curl_oneshot(url);
+	xlog("BUTTON power toggle %s", ip);
+	return 0;
+}
 
 static void handle_button(unsigned char c) {
 	if (c == 128)
@@ -57,10 +67,10 @@ static void handle_button(unsigned char c) {
 		system("/m/party.sh");
 		break;
 	case 32:
-		openbeken_power_toggle(LICHT_TISCH);
+		power_toggle_http("192.168.25.228");
 		break;
 	case 32 + SHIFT:
-		openbeken_power_toggle(LICHT_DECKE);
+		power_toggle_http("192.168.25.227");
 		break;
 	case 64:
 		ledstrip_toggle();
