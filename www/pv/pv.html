@@ -12,7 +12,6 @@
 	<div>
 		<div class="powerflow">
 			<iframe frameBorder="0" src="fronius.html"></iframe>
-			
 
 			<div class="state">
 				<div class="pstate">
@@ -73,13 +72,13 @@
 						<div class="u">&nbsp;W</div>
 						<div class="v"></div>
 					</div>
-					<div class="lv xload">
-						<div class="l">XLoad</div>
+					<div class="lv cload">
+						<div class="l">CLoad</div>
 						<div class="u">&nbsp;W</div>
 						<div class="v"></div>
 					</div>
-					<div class="lv dload">
-						<div class="l">DLoad</div>
+					<div class="lv rload">
+						<div class="l">RLoad</div>
 						<div class="u" style="margin-right:2px">&nbsp;%</div>
 						<div class="v"></div>
 					</div>
@@ -166,6 +165,7 @@
 		</div>
 
 		<div class="mosmix">
+			<img class="svg" src="/pv/data/pstate-seconds.svg" />
 			<img class="svg" src="/pv/data/pstate.svg" />
 			<img class="svg" src="/pv/data/gstate.svg" />
 			<img class="svg" src="/pv/data/loads.svg" />

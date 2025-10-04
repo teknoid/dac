@@ -850,7 +850,7 @@ void store_csv_header(const char *header, const char *filename) {
 		return;
 	}
 
-	fprintf(fp, " i%s\n", header);
+	fprintf(fp, "   i%s\n", header);
 	fflush(fp);
 	fclose(fp);
 	xlog("UTILS stored header %s", filename);
@@ -927,7 +927,7 @@ void append_table_csv(int *table, int cols, int rows, int offset, const char *fi
 	}
 
 	for (int y = 0; y < rows; y++) {
-		snprintf(v, 16, "%02d ", offset + y);
+		snprintf(v, 16, "%04d ", offset + y);
 		strcpy(c, v);
 		for (int x = 0; x < cols; x++) {
 			snprintf(v, 8, "%5d ", *table++);

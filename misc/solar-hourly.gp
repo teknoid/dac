@@ -1,4 +1,4 @@
-# /usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar.gp
+# /usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-hourly.gp
 
 pstate="/run/mcp/pstate-minutes.csv"
 gstate="/run/mcp/gstate-minutes.csv"
@@ -29,8 +29,6 @@ set style line 9 linecolor "orange-red" lw 12			# Rad1h over SunD1
 set style fill solid 1.0
 set boxwidth 0.33 relative
 
-set grid xtics ytics mytics
-set mytics 2
 set grid
 set xtics nomirror
 set ytics nomirror
@@ -106,7 +104,7 @@ p tomorrow u 1:"SunD1" t "SunD1" w boxes fillcolor "orange" axes x1y2,\
 
 
 # pstate
-set ylabel "PState"
+set ylabel "PState Day"
 set xrange [0:1440]
 set yrange [*:*] 
 set xtics time 60 format "%tM"

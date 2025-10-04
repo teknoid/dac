@@ -137,14 +137,6 @@ void inverter_status(int *inv1, int *inv2) {
 static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
-	pstate->f = ss->inverter->Hz - 5000; // store only the diff
-	pstate->ac1 = SFI(ss->inverter->W, ss->inverter->W_SF);
-	pstate->dc1 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-	pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-	pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-	pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
-	pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
-
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
@@ -156,6 +148,14 @@ static void update_inverter1(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_MPPT:
+		pstate->f = ss->inverter->Hz - 5000; // store only the diff
+		pstate->ac1 = SFI(ss->inverter->W, ss->inverter->W_SF);
+		pstate->dc1 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+		pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+		pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+		pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
+		pstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10;
+
 		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
@@ -191,7 +191,6 @@ static void update_inverter1(sunspec_t *ss) {
 		uint16_t active_state_code;
 		sunspec_read_reg(ss, 214, &active_state_code);
 		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
-		pstate->mppt1 = pstate->mppt2 = 0;
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt3 < NOISE)
 			ss->sleep = SLEEP_TIME_SLEEPING;
@@ -209,12 +208,9 @@ static void update_inverter1(sunspec_t *ss) {
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
-	pstate->ac2 = SFI(ss->inverter->W, ss->inverter->W_SF);
-	pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;
 		break;
 
 	case I_STATUS_STARTING:
@@ -223,6 +219,9 @@ static void update_inverter2(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_MPPT:
+		pstate->ac2 = SFI(ss->inverter->W, ss->inverter->W_SF);
+		pstate->dc2 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
+
 		pstate->mppt3 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
@@ -252,7 +251,6 @@ static void update_inverter2(sunspec_t *ss) {
 		uint16_t active_state_code;
 		sunspec_read_reg(ss, 214, &active_state_code);
 		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
-		pstate->mppt3 = pstate->mppt4 = 0;
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt1 < NOISE)
 			ss->sleep = SLEEP_TIME_SLEEPING;

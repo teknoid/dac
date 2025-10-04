@@ -2,10 +2,12 @@
 #include "solar.h"
 
 #define HISTORY_SIZE			(24 * 7)
+#define AVERAGE					5
 
 #define NOISE					10
-#define DELTA					15
-#define RAMP					35
+#define DELTA					25
+#define RAMP					25
+#define DISSIPATION				50
 #define SUSPICIOUS				500
 #define EMERGENCY				1000
 #define ENOUGH					2000
@@ -36,6 +38,7 @@
 #define FLAG_DELTA				(1 << 0)
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
+// TODO not calculated anymore
 #define FLAG_DISTORTION			(1 << 3)
 #define FLAG_PV_FALLING			(1 << 4)
 #define FLAG_PV_RISING			(1 << 5)
@@ -76,10 +79,10 @@
 
 // device flags
 #define FLAG_ACTIVE_CHECKED		(1 << 0)
-#define FLAG_STANDBY_CHECK		(1 << 1)
+#define FLAG_FORCE_OFF			(1 << 1)
 
 #define ACTIVE_CHECKED(d)		(d->flags & FLAG_ACTIVE_CHECKED)
-#define STANDBY_CHECK(d)		(d->flags & FLAG_STANDBY_CHECK)
+#define FORCE_OFF(d)			(d->flags & FLAG_FORCE_OFF)
 
 enum e_state {
 	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
@@ -105,10 +108,6 @@ struct _device {
 	int steal;
 	int load;
 	int min;
-	int p1;
-	int p2;
-	int p3;
-	int noresponse;
 	ramp_function_t *ramp;
 };
 
@@ -164,26 +163,27 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv   ∑pv  grid Δgrid ∑grid  akku   ac1   ac2  load Δload ∑load   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
+#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load Δload  akku   ac1  aac1   ac2  aac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
 struct _pstate {
 	int pv;
 	int dpv;
-	int sdpv;
 	int grid;
 	int dgrid;
-	int sdgrid;
-	int akku;
-	int ac1;
-	int ac2;
+	int agrid;
 	int load;
 	int dload;
-	int sdload;
+	int akku;
+	int ac1;
+	int aac1;
+	int ac2;
+	int aac2;
 	int dc1;
 	int dc2;
 	int mppt1;
 	int mppt2;
 	int mppt3;
 	int mppt4;
+	int surplus;
 	int p1;
 	int p2;
 	int p3;
@@ -199,13 +199,13 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	"  ramp steal xload dload  lock flags"
+#define DSTATE_HEADER	"  lock  ramp steal cload rload flags"
 struct _dstate {
+	int lock;
 	int ramp;
 	int steal;
-	int xload;
-	int dload;
-	int lock;
+	int cload;
+	int rload;
 	int flags;
 };
 
