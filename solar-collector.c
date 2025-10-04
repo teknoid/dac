@@ -31,7 +31,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '28 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '27 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -398,18 +398,14 @@ static void calculate_pstate() {
 	pstate->flags = 0;
 
 	// calculate average values for last AVERAGE seconds
-	pstate->agrid = pstate->aac1 = pstate->aac2 = 0;
+	pstate->agrid = 0;
 	int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59;
 	for (int i = 0; i < AVERAGE; i++) {
 		pstate->agrid += pstate_seconds[sec].grid;
-		pstate->aac1 += pstate_seconds[sec].ac1;
-		pstate->aac2 += pstate_seconds[sec].ac2;
 		if (sec-- == 0)
 			sec = 59;
 	}
 	pstate->agrid /= AVERAGE;
-	pstate->aac1 /= AVERAGE;
-	pstate->aac2 /= AVERAGE;
 
 	// update self counter before shaping
 	if (pstate->grid > 0)
@@ -448,15 +444,9 @@ static void calculate_pstate() {
 	pstate->dgrid = pstate->grid - s1->grid;
 	ZSHAPE(pstate->dgrid, DELTA);
 
-	// load and delta load - use grid values 1 second ago due to inverter action after meter change
-	int aload = pstate->aac1 + pstate->aac2 + s1->agrid; // average load
-	int cload = pstate->ac1 + pstate->ac2 + s1->grid; // current load
-	// use average load but limit to min/max current load
-	int load = aload;
-	HICUT(load, cload)
-	LOCUT(load, cload)
-	if (cload > 0 && aload > 0)
-		pstate->load = aload; // take over when not negative
+	// load and delta load
+	int load = pstate->ac1 + pstate->ac2 + pstate->agrid;
+	pstate->load = (s1->load + load) / 2; // suppress spikes
 	pstate->dload = pstate->load - s1->load;
 	ZSHAPE(pstate->dload, DELTA);
 
@@ -593,7 +583,7 @@ static void calculate_pstate() {
 		// surplus is inverted grid
 		pstate->surplus = grid * -1;
 
-		// set to zero when both opposed
+		// both should be same direction - set to zero when opposed
 		if ((pstate->grid > 0 && pstate->agrid < 0) || (pstate->grid < 0 && pstate->agrid > 0))
 			pstate->surplus = 0;
 
