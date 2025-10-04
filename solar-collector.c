@@ -406,6 +406,7 @@ static void calculate_pstate() {
 			sec = 59;
 	}
 	pstate->agrid /= AVERAGE;
+	SHAPE(pstate->agrid, pstate->grid)
 
 	// update self counter before shaping
 	if (pstate->grid > 0)
@@ -575,17 +576,8 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
 		}
 
-		// use average grid but limit to min/max current grid
-		int grid = pstate->agrid;
-		HICUT(grid, pstate->grid)
-		LOCUT(grid, pstate->grid)
-
-		// surplus is inverted grid
-		pstate->surplus = grid * -1;
-
-		// both should be same direction - set to zero when opposed
-		if ((pstate->grid > 0 && pstate->agrid < 0) || (pstate->grid < 0 && pstate->agrid > 0))
-			pstate->surplus = 0;
+		// surplus is average grid inverted
+		pstate->surplus = pstate->agrid * -1;
 
 		// push average grid slowly into negative
 		if (0 < pstate->agrid && pstate->agrid < RAMP)
