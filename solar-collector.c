@@ -406,7 +406,7 @@ static void calculate_pstate() {
 			sec = 59;
 	}
 	pstate->agrid /= AVERAGE;
-	SHAPE(pstate->agrid, pstate->grid)
+	CUT(pstate->agrid, pstate->grid)
 
 	// update self counter before shaping
 	if (pstate->grid > 0)

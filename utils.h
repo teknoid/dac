@@ -52,18 +52,6 @@
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
 
-#define SHAPE(x, y) \
-		if (x < y || x > y) \
-			x = y;
-
-#define ZSHAPE(x, y) \
-		if (-y < x && x < y) \
-			x = 0;
-
-#define CUT(x, y) \
-		if (-y < x && x < y) \
-			x = y;
-
 #define HICUT(x, y) \
 		if (x > y) \
 			x = y;
@@ -71,6 +59,20 @@
 #define LOCUT(x, y) \
 		if (x < y) \
 			x = y;
+
+#define CUT(x, y) \
+		if (x > 0 && x > y) \
+			x = y; \
+		if (x < 0 && x < y) \
+			x = y;
+
+#define SHAPE(x, y) \
+		if (-y < x && x < y) \
+			x = y;
+
+#define ZSHAPE(x, y) \
+		if (-y < x && x < y) \
+			x = 0;
 
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
