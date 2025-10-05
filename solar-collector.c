@@ -79,6 +79,7 @@
 //#define PSTATE_HOUR_LAST1		(&pstate_hours[now->tm_hour > 0 ? now->tm_hour - 1 : 23])
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 #define PSTATE_MIN(m)			(&pstate_minutes[m])
+#define PSTATE_SEC(s)			(&pstate_seconds[s])
 
 // average loads over 24/7
 static int loads[24];
@@ -317,10 +318,10 @@ static void calculate_gstate() {
 	gstate->pvmin = UINT16_MAX;
 	gstate->pvmax = 0, gstate->pvavg = 0;
 	for (int i = 0; i < 60; i++) {
-		int pv = PSTATE_MIN(i)->pv;
-		HICUT(gstate->pvmin, pv)
-		LOCUT(gstate->pvmax, pv)
-		gstate->pvavg += pv;
+		pstate_t *p = PSTATE_MIN(i);
+		HICUT(gstate->pvmin, p->pv)
+		LOCUT(gstate->pvmax, p->pv)
+		gstate->pvavg += p->pv;
 	}
 	gstate->pvavg /= 60;
 	gstate->pvmin += gstate->pvmin / 10; // +10%
@@ -414,17 +415,6 @@ static void calculate_pstate() {
 	// clear state flags and values
 	pstate->flags = 0;
 
-	// calculate average values for last AVERAGE seconds
-	pstate->agrid = 0;
-	int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59;
-	for (int i = 0; i < AVERAGE; i++) {
-		pstate->agrid += pstate_seconds[sec].grid;
-		if (sec-- == 0)
-			sec = 59;
-	}
-	pstate->agrid /= AVERAGE;
-	CUT(pstate->agrid, pstate->grid)
-
 	// update self counter before shaping
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;
@@ -435,7 +425,7 @@ static void calculate_pstate() {
 	CS_NOW->mppt3 += pstate->mppt3;
 	CS_NOW->mppt4 += pstate->mppt4;
 
-	// get history states
+	// history states
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
 	pstate_t *s3 = PSTATE_SEC_LAST3;
@@ -459,12 +449,13 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dpv, DELTA);
 
 	// grid and delta grid
+	pstate->grid = (pstate->grid + s1->grid) / 2; // suppress spikes
 	pstate->dgrid = pstate->grid - s1->grid;
 	ZSHAPE(pstate->dgrid, DELTA);
 
 	// load and pv/load ratio
-	int load = pstate->ac1 + pstate->ac2 + pstate->agrid;
-	pstate->load = (s1->load + load) / 2; // suppress spikes
+	pstate->load = pstate->ac1 + pstate->ac2 + s1->grid; // use grid 1 second ago when inverter regulated after meter change
+	pstate->load = (pstate->load + s1->load) / 2; // suppress spikes
 	pstate->pload = pstate->load ? pstate->pv * 100 / pstate->load : 0;
 
 	// check if we have delta ac power anywhere
@@ -476,7 +467,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_DELTA;
 
 	// grid upload in last 3 minutes
-	if (pstate->agrid < -50) {
+	if (pstate->grid < -50) {
 		int g2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
 		int g1 = m0->grid < -75 && m1->grid < -75;
 		int g0 = m0->grid < -100;
@@ -487,7 +478,7 @@ static void calculate_pstate() {
 	}
 
 	// grid download in last 3 minutes
-	if (pstate->agrid > 50) {
+	if (pstate->grid > 50) {
 		int g2 = m0->grid > 50 && m1->grid > 50 && m2->grid > 50;
 		int g1 = m0->grid > 75 && m1->grid > 75;
 		int g0 = m0->grid > 100;
@@ -525,9 +516,9 @@ static void calculate_pstate() {
 	} else {
 		// online
 
-		// emergency shutdown: permanent high grid download or akku discharge
-		int egrid = pstate->grid > EMERGENCY && s5->grid > EMERGENCY;
-		int eakku = pstate->akku > EMERGENCY && s5->akku > EMERGENCY && s10->akku > EMERGENCY;
+		// emergency shutdown: grid download at all states or akku discharge at one of them
+		int egrid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY && s3->grid > EMERGENCY;
+		int eakku = pstate->akku > EMERGENCY || s5->akku > EMERGENCY || s10->akku > EMERGENCY;
 		if (egrid || eakku) {
 			pstate->flags |= FLAG_EMERGENCY;
 			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
@@ -537,7 +528,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_VALID;
 
 		// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
-		// TODO anpassen nach korrigierter Berechnung
+		// TODO anpassen nach korrigierter Berechnung - s1->grid nehmen?
 		int sum = pstate->pv + pstate->grid + pstate->akku + (pstate->load * -1);
 		if (abs(sum) > SUSPICIOUS) {
 			xlog("SOLAR suspicious values detected: sum=%d", sum);
@@ -598,9 +589,10 @@ static void calculate_pstate() {
 
 		// TODO maximalen surplus basierend auf pvmin/pvmax/pvavg setzen z.B. wenn delta pvmin/pvmax zu groß -> ersetzt DISTORTION logik
 
+		// calculate surplus power
 		if (pstate->pload >= 110) {
-			// surplus is average grid inverted
-			pstate->surplus = pstate->agrid * -1;
+			// surplus is grid inverted
+			pstate->surplus = pstate->grid * -1;
 			// minus akku when discharging
 			if (pstate->akku > NOISE)
 				pstate->surplus -= pstate->akku;
@@ -758,7 +750,7 @@ static void loop() {
 	// wait for tasmota discovery + sensor update
 	sleep(1);
 
-	// the SOLAR main loop
+	// collector main loop
 	while (1) {
 
 		// get actual time and store global

@@ -2,7 +2,6 @@
 #include "solar.h"
 
 #define HISTORY_SIZE			(24 * 7)
-#define AVERAGE					5
 
 #define NOISE					10
 #define DELTA					20
@@ -162,13 +161,12 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load pload  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
+#define PSTATE_HEADER	"    pv   dpv  grid dgrid  load pload  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
 struct _pstate {
 	int pv;
 	int dpv;
 	int grid;
 	int dgrid;
-	int agrid;
 	int load;
 	int pload;
 	int akku;

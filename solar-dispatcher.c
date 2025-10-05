@@ -840,7 +840,7 @@ static void loop() {
 	// initially select the program of the day
 	choose_program();
 
-	// the SOLAR main loop
+	// dispatcher main loop
 	while (1) {
 
 		// get actual time and store global
