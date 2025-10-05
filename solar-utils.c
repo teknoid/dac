@@ -14,14 +14,15 @@
 
 typedef struct gstate_old_t {
 	int pv;
+	int pvmin;
+	int pvmax;
+	int pvavg;
 	int produced;
 	int consumed;
 	int today;
 	int tomorrow;
 	int sod;
 	int eod;
-	int need_survive;
-	int need_heating;
 	int load;
 	int soc;
 	int akku;
@@ -29,9 +30,7 @@ typedef struct gstate_old_t {
 	int success;
 	int forecast;
 	int survive;
-	int heating;
-	int temp_in;
-	int temp_out;
+	int nsurvive;
 	int flags;
 } gstate_old_t;
 

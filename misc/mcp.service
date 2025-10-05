@@ -1,6 +1,6 @@
 [Unit]
 Description=DAC Master Control Program
-After=mpd.service network-online.target
+After=mosquitto.service mpd.service network-online.target
 
 [Service]
 Type=simple

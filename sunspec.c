@@ -310,7 +310,7 @@ static void* poll(void *arg) {
 			xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
 
 		if (modbus_connect(ss->mb) == -1) {
-			xlog("SUNSPEC connection to %s failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+			xlog("SUNSPEC %s connection failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
@@ -318,7 +318,7 @@ static void* poll(void *arg) {
 		}
 
 		if (collect_models(ss) == -1) {
-			xlog("SUNSPEC collect_models() error: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+			xlog("SUNSPEC %s collect_models() error: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);

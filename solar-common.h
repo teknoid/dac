@@ -9,12 +9,11 @@
 #define RAMP					25
 #define DISSIPATION				50
 #define SUSPICIOUS				500
+#define SPIKE					500
 #define EMERGENCY				1000
-#define ENOUGH					2000
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
-#define SPIKE					(BASELOAD * 2)
 
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
@@ -38,8 +37,6 @@
 #define FLAG_DELTA				(1 << 0)
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
-// TODO not calculated anymore
-#define FLAG_DISTORTION			(1 << 3)
 #define FLAG_PV_FALLING			(1 << 4)
 #define FLAG_PV_RISING			(1 << 5)
 #define FLAG_BURNOUT			(1 << 6)
@@ -54,7 +51,6 @@
 #define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
-#define PSTATE_DISTORTION		(pstate->flags & FLAG_DISTORTION)
 #define PSTATE_PV_RISING		(pstate->flags & FLAG_PV_RISING)
 #define PSTATE_PV_FALLING		(pstate->flags & FLAG_PV_FALLING)
 #define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
@@ -139,17 +135,19 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv ↑grid ↓grid today  tomo   sod   eod nsurv nheat  load   soc  akku   ttl  succ  foca  surv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load   soc  akku   ttl  succ  foca  surv nsurv flags"
 struct _gstate {
 	int pv;
+	int pvmin;
+	int pvmax;
+	int pvavg;
+	int baseload;
 	int produced;
 	int consumed;
 	int today;
 	int tomorrow;
 	int sod;
 	int eod;
-	int need_survive;
-	int need_heating;
 	int load;
 	int soc;
 	int akku;
@@ -157,13 +155,14 @@ struct _gstate {
 	int success;
 	int forecast;
 	int survive;
+	int nsurvive;
 	int flags;
 };
 
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
+#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load pload  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -171,6 +170,7 @@ struct _pstate {
 	int dgrid;
 	int agrid;
 	int load;
+	int pload;
 	int akku;
 	int ac1;
 	int ac2;

@@ -31,7 +31,7 @@
 
 #define OVERLOAD_STANDBY_FORCE	1000
 #define OVERLOAD_STANDBY		150
-#define OVERLOAD				100
+#define OVERLOAD				110
 
 #define WAIT_RESPONSE			6
 #define WAIT_THERMOSTAT			12
@@ -249,8 +249,8 @@ static int ramp_akku(device_t *akku, int power) {
 	// ramp down request
 	if (power < 0) {
 
-		// forward to next device if akku is not charging
-		if (!AKKU_CHARGING)
+		// leave akku charging to avoid grid load - forward to next device if akku is discharging or not in CHARGE mode
+		if (akku->load < MINIMUM || !AKKU_CHARGING)
 			return 0; // continue loop
 
 		// akku ramps down itself when charging
@@ -278,7 +278,7 @@ static int ramp_akku(device_t *akku, int power) {
 			return 0; // continue loop
 
 		// start charging
-		// TODO limit auf das pv minimum der letzen stunde setzen
+		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
 		int limit = 0;
 		if (GSTATE_SUMMER || gstate->today > akku_capacity() * 2)
 			limit = AKKU_LIMIT_CHARGE2X;
@@ -453,7 +453,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
-	if (GSTATE_CHARGE_AKKU && gstate->forecast < 500 && gstate->akku < gstate->need_survive)
+	if (GSTATE_CHARGE_AKKU && gstate->forecast < 500 && gstate->akku < gstate->nsurvive)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -479,8 +479,8 @@ static void burnout() {
 }
 
 static void rampup() {
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || DSTATE_ALL_UP || DSTATE_ALL_STANDBY || dstate->lock)
-		return; // up only when !locked
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
+		return;
 
 	device_t **dd = potd->devices;
 	while (*dd && dstate->ramp > 0) {
@@ -496,7 +496,7 @@ static void rampup() {
 
 static void rampdown() {
 	if (!PSTATE_VALID || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
-		return; // down always
+		return;
 
 	// jump to last entry
 	device_t **dd = potd->devices;
@@ -514,14 +514,19 @@ static void rampdown() {
 }
 
 static void ramp() {
+	if (dstate->lock)
+		return; // no action when locked
+
 	dstate->ramp = pstate->surplus;
 	if (!dstate->ramp)
 		return; // nothing to ramp
 
-	if (dstate->ramp < -RAMP)
+	if (dstate->ramp <= -RAMP)
 		rampdown();
 
-	if (dstate->ramp > -RAMP)
+	// allow rampup after rampdown if power was released
+
+	if (dstate->ramp >= -RAMP)
 		rampup();
 }
 
@@ -600,8 +605,8 @@ static void steal() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		if (DD == AKKU) {
-			// steal half of charging power
-			DD->steal = DD->load / 2;
+			// steal max 75% of charging power
+			DD->steal = DD->load * 0.75;
 			dstate->steal += DD->steal;
 			continue;
 		}
@@ -701,9 +706,9 @@ static void calculate_dstate() {
 			dstate->flags &= ~FLAG_ALL_STANDBY;
 	}
 
-	// add load (max BASELOAD) when devices active
+	// add load (max baseload) when devices active
 	if (!DSTATE_ALL_DOWN)
-		dstate->cload += pstate->load < BASELOAD ? pstate->load : BASELOAD;
+		dstate->cload += pstate->load < gstate->baseload ? pstate->load : gstate->baseload;
 
 	// ratio between calculated load and actual load
 	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;

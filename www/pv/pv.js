@@ -110,11 +110,21 @@ function update_state(file, selector) {
 							item.classList.add('noise');
 						}
 					}
+
 					var n = Number(v);
-					if (k == 'ttl')
-						n = Number(v/60).toFixed(1);
 					if (item.classList.contains('percent'))
 						n = Number(v/10).toFixed(1);
+					if (k == 'ttl')
+						n = Number(v/60).toFixed(1);
+					if (k == 'pload') {
+						if (v < 100)
+							item.style.backgroundColor = "coral";
+						else if (v < 110)
+							item.style.backgroundColor = "orange";
+						else
+							item.style.backgroundColor = "palegreen";
+					}
+
 					var value = item.querySelector('.v');
 					value.innerHTML = Number(n).toLocaleString('de-DE');
 				}
