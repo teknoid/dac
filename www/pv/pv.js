@@ -117,7 +117,9 @@ function update_state(file, selector) {
 					if (k == 'ttl')
 						n = Number(v/60).toFixed(1);
 					if (k == 'pload') {
-						if (v < 100)
+						if (v == 0)
+							item.style.backgroundColor = "lightgrey";
+						else if (v < 100)
 							item.style.backgroundColor = "coral";
 						else if (v < 110)
 							item.style.backgroundColor = "orange";

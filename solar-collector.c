@@ -26,7 +26,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
