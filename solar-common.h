@@ -5,7 +5,7 @@
 #define AVERAGE					5
 
 #define NOISE					10
-#define DELTA					25
+#define DELTA					20
 #define RAMP					25
 #define DISSIPATION				50
 #define SUSPICIOUS				500
@@ -163,7 +163,7 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load Δload  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
+#define PSTATE_HEADER	"    pv   Δpv  grid Δgrid agrid  load  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
 struct _pstate {
 	int pv;
 	int dpv;
@@ -171,7 +171,6 @@ struct _pstate {
 	int dgrid;
 	int agrid;
 	int load;
-	int dload;
 	int akku;
 	int ac1;
 	int ac2;

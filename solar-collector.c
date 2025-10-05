@@ -35,7 +35,6 @@
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
-#define PSTATE_FILE				"solar-pstate.bin"
 
 // CSV files for gnuplot
 #define GSTATE_TODAY_CSV		"gstate-today.csv"
@@ -109,7 +108,6 @@ static void load_state() {
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
-	load_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 }
 
 static void store_state() {
@@ -123,7 +121,6 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
-	store_blob(STATE SLASH PSTATE_FILE, pstate, sizeof(pstate_current));
 }
 
 static void create_pstate_json() {
@@ -445,11 +442,9 @@ static void calculate_pstate() {
 	pstate->dgrid = pstate->grid - s1->grid;
 	ZSHAPE(pstate->dgrid, DELTA);
 
-	// load and delta load
+	// load
 	int load = pstate->ac1 + pstate->ac2 + pstate->agrid;
 	pstate->load = (s1->load + load) / 2; // suppress spikes
-	pstate->dload = pstate->load - s1->load;
-	ZSHAPE(pstate->dload, DELTA);
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -522,7 +517,8 @@ static void calculate_pstate() {
 		// first set and then clear VALID flag when values suspicious
 		pstate->flags |= FLAG_VALID;
 
-		// meter latency /  mppt tracking /  too fast pv delta / grid spikes / etc.
+		// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
+		// TODO anpassen nach korrigierter Berechnung
 		int sum = pstate->pv + pstate->grid + pstate->akku + (pstate->load * -1);
 		if (abs(sum) > SUSPICIOUS) {
 			xdebug("SOLAR suspicious values detected: sum=%d", sum);
@@ -783,6 +779,9 @@ static int init() {
 	localtime_r(&now_ts, &now_tm);
 
 	pthread_mutex_init(&collector_lock, NULL);
+
+	// clear pstate
+	ZERO(pstate_current);
 
 	load_state();
 	mosmix_load_state(now);
