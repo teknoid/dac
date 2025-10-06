@@ -174,6 +174,8 @@ static void collect_loads() {
 	// calculate nightly baseload
 	gstate->baseload = (loads[3] + loads[4] + loads[5]) / 3;
 	gstate->baseload = round10(gstate->baseload);
+	// TODO remove after 1week
+	gstate->baseload = BASELOAD;
 }
 
 static void print_gstate() {
@@ -454,7 +456,7 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dgrid, DELTA);
 
 	// load and pv/load ratio
-	pstate->load = pstate->grid + s2->ac1 + s2->ac2; // use ac values 2 seconds ago due to inverter balancing after grid change
+	pstate->load = pstate->grid + s3->ac1 + s3->ac2; // use ac values 3 seconds ago due to inverter balancing after grid change
 	pstate->load = (pstate->load + s1->load) / 2; // suppress spikes
 	pstate->pload = pstate->load ? pstate->pv * 100 / pstate->load : 0;
 
