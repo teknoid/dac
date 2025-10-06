@@ -454,7 +454,7 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dgrid, DELTA);
 
 	// load and pv/load ratio
-	pstate->load = pstate->ac1 + pstate->ac2 + s3->grid; // use grid 3 second ago when inverter regulated after meter change
+	pstate->load = pstate->grid + s2->ac1 + s2->ac2; // use ac values 2 seconds ago due to inverter balancing after grid change
 	pstate->load = (pstate->load + s1->load) / 2; // suppress spikes
 	pstate->pload = pstate->load ? pstate->pv * 100 / pstate->load : 0;
 
@@ -537,7 +537,7 @@ static void calculate_pstate() {
 		int dp1 = pstate->p1 - s1->p1;
 		int dp2 = pstate->p2 - s1->p2;
 		int dp3 = pstate->p3 - s1->p3;
-		if (abs(dp1) > SPIKE || abs(dp2) || abs(dp3)) {
+		if (abs(dp1) > SPIKE || abs(dp2) > SPIKE || abs(dp3) > SPIKE) {
 			xlog("SOLAR grid spike detected dp1=%d dp2=%d dp3=%d", dp1, dp2, dp3);
 			pstate->flags &= ~FLAG_VALID;
 		}
