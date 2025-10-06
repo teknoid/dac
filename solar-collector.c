@@ -438,27 +438,27 @@ static void calculate_pstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
 	// total PV produced by all strings
-	if (pstate->mppt1 == 1)
-		pstate->mppt1 = 0; // noise
-	if (pstate->mppt2 == 1)
-		pstate->mppt2 = 0; // noise
-	if (pstate->mppt3 == 1)
-		pstate->mppt3 = 0; // noise
-	if (pstate->mppt4 == 1)
-		pstate->mppt4 = 0; // noise
+	ZSHAPE(pstate->mppt1, NOISE)
+	ZSHAPE(pstate->mppt2, NOISE)
+	ZSHAPE(pstate->mppt3, NOISE)
+	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
 	ZSHAPE(pstate->dpv, DELTA);
+	int apv = (pstate->pv + s1->pv) / 2; // suppress spikes
 
-	// grid and delta grid
-	pstate->grid = (pstate->grid + s1->grid) / 2; // suppress spikes
+	// grid, delta grid and average grid (only local)
 	pstate->dgrid = pstate->grid - s1->grid;
 	ZSHAPE(pstate->dgrid, DELTA);
+	int agrid = (pstate->grid + s1->grid) / 2; // suppress spikes
 
 	// load and pv/load ratio
-	pstate->load = pstate->grid + s3->ac1 + s3->ac2; // use ac values 3 seconds ago due to inverter balancing after grid change
-	pstate->load = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = pstate->load ? pstate->pv * 100 / pstate->load : 0;
+	pstate->load = agrid + s3->ac1 + s3->ac2; // use ac values 3 seconds ago due to inverter balancing after grid change
+	int aload = (pstate->load + s1->load) / 2; // suppress spikes
+	pstate->pload = aload ? apv * 100 / aload : 0;
+
+	// average akku
+	int aakku = (pstate->akku + s1->akku) / 2; // suppress spikes
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -530,25 +530,30 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_VALID;
 
 		// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
-		// TODO anpassen nach korrigierter Berechnung - s1->grid nehmen?
-		int sum = pstate->pv + pstate->grid + pstate->akku + (pstate->load * -1);
+		// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
+		int sum = apv + agrid + aakku + aload * -1;
 		if (abs(sum) > SUSPICIOUS) {
-			xlog("SOLAR suspicious values detected: sum=%d", sum);
+			xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		int psum = pstate->p1 + pstate->p2 + pstate->p3;
+		if (psum < pstate->grid - NOISE || psum > pstate->grid + NOISE) {
+			xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		int dp1 = pstate->p1 - s1->p1;
 		int dp2 = pstate->p2 - s1->p2;
 		int dp3 = pstate->p3 - s1->p3;
-		if (abs(dp1) > SPIKE || abs(dp2) > SPIKE || abs(dp3) > SPIKE) {
-			xlog("SOLAR grid spike detected dp1=%d dp2=%d dp3=%d", dp1, dp2, dp3);
+		if (abs(pstate->dgrid) > SPIKE || abs(dp1) > SPIKE || abs(dp2) > SPIKE || abs(dp3) > SPIKE) {
+			xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", pstate->dgrid, dp1, dp2, dp3);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->load < 0) {
-			xlog("SOLAR negative load detected");
+		if (aload < 0) {
+			xlog("SOLAR negative load detected %d", aload);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->grid < -NOISE && pstate->akku > NOISE) {
-			int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
+		if (agrid < -NOISE && aakku > NOISE) {
+			int waste = abs(agrid) < aakku ? abs(agrid) : aakku;
 			xlog("SOLAR wasting power %d akku -> grid", waste);
 			pstate->flags &= ~FLAG_VALID;
 		}
@@ -582,9 +587,9 @@ static void calculate_pstate() {
 		}
 
 		// load is completely satisfied from secondary inverter
-		if (pstate->ac2 > pstate->load) {
+		if (pstate->ac2 > aload) {
 			pstate->flags |= FLAG_EXTRAPOWER;
-			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
+			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", aload, pstate->ac1, pstate->ac2);
 		}
 
 		// TODO mppt tracking erkennen und ramping verhindern, zuerst geht ac runter, dann dc und mpptx, 1-2 sekunden später grid rückmeldung
@@ -597,10 +602,10 @@ static void calculate_pstate() {
 		// calculate surplus power
 		if (pstate->pload >= 110) {
 			// surplus is grid inverted
-			pstate->surplus = pstate->grid * -1;
+			pstate->surplus = agrid * -1;
 			// minus akku when discharging
-			if (pstate->akku > NOISE)
-				pstate->surplus -= pstate->akku;
+			if (aakku > NOISE)
+				pstate->surplus -= aakku;
 			// suppress when below 0 as we still have enough
 			if (pstate->surplus < 0)
 				pstate->surplus = 0;
@@ -609,10 +614,10 @@ static void calculate_pstate() {
 			pstate->surplus = -RAMP;
 		} else {
 			// surplus is the missing power
-			pstate->surplus = pstate->pv - pstate->load;
+			pstate->surplus = apv - aload;
 			// surplus is the inverted discharging power
-			if (pstate->akku > NOISE)
-				pstate->surplus = pstate->akku * -1;
+			if (aakku > NOISE)
+				pstate->surplus = aakku * -1;
 		}
 
 		ZSHAPE(pstate->surplus, RAMP)
@@ -624,7 +629,7 @@ static void calculate_pstate() {
 	memcpy(PSTATE_SEC_NOW, (void*) pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when delta / on grid load
-	if (MINLY || PSTATE_DELTA || pstate->grid > NOISE)
+	if (MINLY || PSTATE_DELTA || agrid > NOISE)
 		print_pstate();
 }
 

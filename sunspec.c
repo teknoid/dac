@@ -336,10 +336,10 @@ static void* poll(void *arg) {
 			errors_now = 0;
 			errors_now += read_inverter(ss);
 			errors_now += read_mppt(ss);
+			errors_now += read_meter(ss);
 			// storage at startup and then once per minute
 			if (wchamax == 0 || ss->ts % 60 == 0)
 				errors_now += read_storage(ss);
-			errors_now += read_meter(ss);
 			errors_all += errors_now;
 
 			// PROFILING_LOG(ss->name)
