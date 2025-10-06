@@ -12,8 +12,8 @@
 
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm
 
-// track storage state and limits
-static int wchamax, storctl, inwrte, outwrte, inoutwrte_sf, minrsvpct, minrsvpct_sf;
+// store fixed values and scaling factors internally
+static int wchamax, inoutwrte_sf, minrsvpct_sf;
 
 static void swap_string(char *string, int size) {
 	uint16_t *x = (uint16_t*) string;
@@ -272,11 +272,7 @@ static int read_storage(sunspec_t *ss) {
 
 	int rc = read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
 	wchamax = SFI(ss->storage->WChaMax, ss->storage->WChaMax_SF);
-	storctl = ss->storage->StorCtl_Mod;
-	inwrte = ss->storage->InWRte;
-	outwrte = ss->storage->OutWRte;
 	inoutwrte_sf = ss->storage->InOutWRte_SF;
-	minrsvpct = ss->storage->MinRsvPct;
 	minrsvpct_sf = ss->storage->MinRsvPct_SF;
 	return rc;
 }
@@ -509,17 +505,17 @@ int sunspec_storage_limit_both(sunspec_t *ss, int in, int out) {
 	if (out > wchamax)
 		out = wchamax;
 
-	int inwrte_new = SFOUT(in, inoutwrte_sf) * 100 / wchamax;
-	int outwrte_new = SFOUT(out, inoutwrte_sf) * 100 / wchamax;
+	int inwrte = SFOUT(in, inoutwrte_sf) * 100 / wchamax;
+	int outwrte = SFOUT(out, inoutwrte_sf) * 100 / wchamax;
 
-	if (storctl == STORAGE_LIMIT_BOTH && inwrte == inwrte_new && outwrte == outwrte_new)
+	if (ss->storage->StorCtl_Mod == STORAGE_LIMIT_BOTH && ss->storage->InWRte == inwrte && ss->storage->OutWRte == outwrte)
 		return EALREADY; // already set
 
 	xlog("SUNSPEC set charge limit to %d, W discharge limit to %d W", in, out);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), STORAGE_LIMIT_BOTH);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte_new);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte_new);
-	return 0;
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte);
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte);
+	return read_storage(ss);
 }
 
 int sunspec_storage_limit_charge(sunspec_t *ss, int in) {
@@ -537,14 +533,14 @@ int sunspec_storage_limit_charge(sunspec_t *ss, int in) {
 	if (in > wchamax)
 		in = wchamax;
 
-	int inwrte_new = SFOUT(in, inoutwrte_sf) * 100 / wchamax;
-	if (storctl == STORAGE_LIMIT_CHARGE && inwrte == inwrte_new)
+	int inwrte = SFOUT(in, inoutwrte_sf) * 100 / wchamax;
+	if (ss->storage->StorCtl_Mod == STORAGE_LIMIT_CHARGE && ss->storage->InWRte == inwrte)
 		return EALREADY; // already set
 
 	xlog("SUNSPEC set charge limit to %d W", in);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), STORAGE_LIMIT_CHARGE);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte_new);
-	return 0;
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte);
+	return read_storage(ss);
 }
 
 int sunspec_storage_limit_discharge(sunspec_t *ss, int out) {
@@ -562,14 +558,14 @@ int sunspec_storage_limit_discharge(sunspec_t *ss, int out) {
 	if (out > wchamax)
 		out = wchamax;
 
-	int outwrte_new = SFOUT(out, inoutwrte_sf) * 100 / wchamax;
-	if (storctl == STORAGE_LIMIT_DISCHARGE && outwrte == outwrte_new)
+	int outwrte = SFOUT(out, inoutwrte_sf) * 100 / wchamax;
+	if (ss->storage->StorCtl_Mod == STORAGE_LIMIT_DISCHARGE && ss->storage->OutWRte == outwrte)
 		return EALREADY; // already set
 
 	xlog("SUNSPEC set discharge limit to %d W", out);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), STORAGE_LIMIT_DISCHARGE);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte_new);
-	return 0;
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte);
+	return read_storage(ss);
 }
 
 int sunspec_storage_limit_reset(sunspec_t *ss) {
@@ -579,15 +575,15 @@ int sunspec_storage_limit_reset(sunspec_t *ss) {
 	if (!ss->storage)
 		return ENOENT;
 
-	if (storctl == STORAGE_LIMIT_NONE)
+	if (ss->storage->StorCtl_Mod == STORAGE_LIMIT_NONE)
 		return EALREADY; // already set
 
-	int limit_sf = SFOUT(100, inoutwrte_sf);
+	int inoutwrte = SFOUT(100, inoutwrte_sf);
 	xlog("SUNSPEC reset charge/discharge limits");
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), STORAGE_LIMIT_NONE);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), limit_sf);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), limit_sf);
-	return 0;
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inoutwrte);
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), inoutwrte);
+	return read_storage(ss);
 }
 
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
@@ -597,13 +593,13 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (!ss->storage)
 		return ENOENT;
 
-	int soc_new = SFOUT(soc, minrsvpct_sf);
-	if (minrsvpct == soc_new)
+	int minrsvpct = SFOUT(soc, minrsvpct_sf);
+	if (ss->storage->MinRsvPct == minrsvpct)
 		return EALREADY; // already set
 
 	xlog("SUNSPEC setting minimum SoC to %d%%", soc);
-	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->MinRsvPct), soc_new);
-	return 0;
+	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->MinRsvPct), minrsvpct);
+	return read_storage(ss);
 }
 
 // inverter: ./sunspec -s -h 192.168.25.240 -p 502 -a 40000

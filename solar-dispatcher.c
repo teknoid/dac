@@ -580,7 +580,7 @@ static int perform_standby(device_t *d) {
 }
 
 static int standby() {
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || !DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || dstate->lock || pstate->surplus < 0)
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || !DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || dstate->lock || pstate->pload < 120)
 		return 0; // only when !locked and surplus is not negative
 
 	// try first active powered adjustable device
@@ -598,7 +598,7 @@ static int standby() {
 
 static void steal() {
 	dstate->steal = 0;
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || DSTATE_ALL_UP || dstate->lock || pstate->surplus < 0)
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || DSTATE_ALL_UP || dstate->lock || pstate->pload < 120)
 		return; // only when !locked and surplus is not negative
 
 	// calculate steal power for any device in AUTO mode
@@ -739,10 +739,11 @@ static void hourly() {
 }
 
 static void minly() {
-	// force off when offline
+	// force off when offline - except manual
 	if (PSTATE_OFFLINE)
 		for (device_t **dd = DEVICES; *dd; dd++)
-			ramp_device_down(DD);
+			if (DD->state != Manual)
+				ramp_device_down(DD);
 
 	// reset ACTIVE_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)

@@ -454,7 +454,7 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dgrid, DELTA);
 
 	// load and pv/load ratio
-	pstate->load = pstate->ac1 + pstate->ac2 + s1->grid; // use grid 1 second ago when inverter regulated after meter change
+	pstate->load = pstate->ac1 + pstate->ac2 + s3->grid; // use grid 3 second ago when inverter regulated after meter change
 	pstate->load = (pstate->load + s1->load) / 2; // suppress spikes
 	pstate->pload = pstate->load ? pstate->pv * 100 / pstate->load : 0;
 
