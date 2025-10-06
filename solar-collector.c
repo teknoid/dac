@@ -534,8 +534,11 @@ static void calculate_pstate() {
 			xlog("SOLAR suspicious values detected: sum=%d", sum);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (abs(pstate->dgrid) > SPIKE) {
-			xlog("SOLAR grid spike detected dgrid=%d", pstate->dgrid);
+		int dp1 = pstate->p1 - s1->p1;
+		int dp2 = pstate->p2 - s1->p2;
+		int dp3 = pstate->p3 - s1->p3;
+		if (abs(dp1) > SPIKE || abs(dp2) || abs(dp3)) {
+			xlog("SOLAR grid spike detected dp1=%d dp2=%d dp3=%d", dp1, dp2, dp3);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (pstate->load < 0) {
