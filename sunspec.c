@@ -356,7 +356,7 @@ static void* poll(void *arg) {
 
 			// wait for new second
 			while (ss->ts == time(NULL))
-				msleep(100);
+				msleep(111);
 
 			// pause when set
 			if (ss->sleep)

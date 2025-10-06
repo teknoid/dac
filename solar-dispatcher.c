@@ -844,6 +844,8 @@ static void loop() {
 	// dispatcher main loop
 	while (1) {
 
+		// PROFILING_START
+
 		// get actual time and store global
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
@@ -893,6 +895,8 @@ static void loop() {
 		// web output
 		create_dstate_json();
 		create_devices_json();
+
+		// PROFILING_LOG("dispatcher main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))

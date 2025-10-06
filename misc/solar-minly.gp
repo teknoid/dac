@@ -2,8 +2,6 @@
 
 pstates="/run/mcp/pstate-seconds.csv"
 
-#set terminal wxt size 1200,400
-#set terminal pngcairo size 1000,400
 set terminal svg size 1920,800
 set datafile separator whitespace
 set key autotitle columnhead
@@ -17,9 +15,6 @@ set style line 6 linecolor "olive" lw 1					# SoC
 set style line 7 linecolor "magenta" lw 1				# 
 set style line 8 linecolor "black" lw 1					# 
 set style line 9 linecolor "orange-red" lw 12			# Rad1h over SunD1
-
-set style fill solid 1.0
-set boxwidth 0.33 relative
 
 set grid
 set xtics nomirror
@@ -40,7 +35,7 @@ p pstates u 1:"pv"     t "pv"    w lines ls 1,\
        '' u 1:"load"   t "load"  w lines ls 5,\
        '' u 1:"surp"   t "surp"  w lines lt 1
 
-set terminal svg size 3700,800
+set terminal svg size 4000,800
 set output "/run/mcp/pstate-seconds-wide.svg"
 p pstates u 1:"pv"     t "pv"    w lines ls 1,\
        '' u 1:"akku"   t "akku"  w lines ls 2,\

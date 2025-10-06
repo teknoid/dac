@@ -20,8 +20,6 @@
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-hourly.gp"
 
-#define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
-
 // hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
@@ -69,6 +67,7 @@
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec >  0 ? now->tm_sec -  1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec >  1 ? now->tm_sec -  2 : (now->tm_sec -  2 + 60)])
 #define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec >  2 ? now->tm_sec -  3 : (now->tm_sec -  3 + 60)])
+#define PSTATE_SEC_LAST4		(&pstate_seconds[now->tm_sec >  3 ? now->tm_sec -  4 : (now->tm_sec -  4 + 60)])
 #define PSTATE_SEC_LAST5		(&pstate_seconds[now->tm_sec >  4 ? now->tm_sec -  5 : (now->tm_sec -  5 + 60)])
 #define PSTATE_SEC_LAST10		(&pstate_seconds[now->tm_sec >  9 ? now->tm_sec - 10 : (now->tm_sec - 10 + 60)])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
@@ -140,7 +139,10 @@ static void create_powerflow_json() {
 		return;
 
 	// Fronius expects negative load
-	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, pstate->load * -1, pstate->pv);
+	int load = pstate->load * -1;
+
+#define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"BatteryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
+	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(pstate->soc), pstate->akku, pstate->grid, load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
 }
@@ -188,18 +190,20 @@ static void print_gstate() {
 	xlogl_percent10(line, "Succ", gstate->success);
 	xlogl_percent10(line, "Surv", gstate->survive);
 	xlogl_int(line, "BLoad", gstate->baseload);
-	xlogl_int(line, "PVmin", gstate->pvmin);
-	xlogl_int(line, "PVmax", gstate->pvmax);
-	xlogl_int(line, "PVavg", gstate->pvavg);
-//	xlogl_int(line, "Today", gstate->today);
-//	xlogl_int(line, "Tomo", gstate->tomorrow);
-//	xlogl_int(line, "SoD", gstate->sod);
-//	xlogl_int(line, "EoD", gstate->eod);
 	xlogl_int(line, "Akku", gstate->akku);
 //	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 //	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 //	xlogl_float(line, "Ti", sensors->tin);
 //	xlogl_float(line, "To", sensors->tout);
+//	xlogl_int(line, "Today", gstate->today);
+//	xlogl_int(line, "Tomo", gstate->tomorrow);
+//	xlogl_int(line, "SoD", gstate->sod);
+//	xlogl_int(line, "EoD", gstate->eod);
+	if (!PSTATE_OFFLINE) {
+		xlogl_int(line, "PVmin", gstate->pvmin);
+		xlogl_int(line, "PVavg", gstate->pvavg);
+		xlogl_int(line, "PVmax", gstate->pvmax);
+	}
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -431,13 +435,14 @@ static void calculate_pstate() {
 	pstate_t *s1 = PSTATE_SEC_LAST1;
 	pstate_t *s2 = PSTATE_SEC_LAST2;
 	pstate_t *s3 = PSTATE_SEC_LAST3;
+	pstate_t *s4 = PSTATE_SEC_LAST4;
 	pstate_t *s5 = PSTATE_SEC_LAST5;
 	pstate_t *s10 = PSTATE_SEC_LAST10;
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
-	// total PV produced by all strings
+	// pv
 	ZSHAPE(pstate->mppt1, NOISE)
 	ZSHAPE(pstate->mppt2, NOISE)
 	ZSHAPE(pstate->mppt3, NOISE)
@@ -447,17 +452,17 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dpv, DELTA);
 	int apv = (pstate->pv + s1->pv) / 2; // suppress spikes
 
-	// grid, delta grid and average grid (only local)
+	// grid
 	pstate->dgrid = pstate->grid - s1->grid;
 	ZSHAPE(pstate->dgrid, DELTA);
 	int agrid = (pstate->grid + s1->grid) / 2; // suppress spikes
 
-	// load and pv/load ratio
-	pstate->load = agrid + s3->ac1 + s3->ac2; // use ac values 3 seconds ago due to inverter balancing after grid change
+	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
+	pstate->load = agrid + s5->ac1 + s5->ac2;
 	int aload = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = aload ? apv * 100 / aload : 0;
+	pstate->pload = aload && apv > DISSIPATION ? (apv - DISSIPATION) * 100 / aload : 0;
 
-	// average akku
+	// akku
 	int aakku = (pstate->akku + s1->akku) / 2; // suppress spikes
 
 	// check if we have delta ac power anywhere
@@ -614,7 +619,7 @@ static void calculate_pstate() {
 			pstate->surplus = -RAMP;
 		} else {
 			// surplus is the missing power
-			pstate->surplus = apv - aload;
+			pstate->surplus = apv - DISSIPATION - aload;
 			// surplus is the inverted discharging power
 			if (aakku > NOISE)
 				pstate->surplus = aakku * -1;
@@ -763,6 +768,8 @@ static void loop() {
 	// collector main loop
 	while (1) {
 
+		// PROFILING_START
+
 		// get actual time and store global
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
@@ -790,9 +797,11 @@ static void loop() {
 		create_gstate_json();
 		create_powerflow_json();
 
+		// PROFILING_LOG("collector main loop")
+
 		// wait for next second
 		while (now_ts == time(NULL))
-			msleep(111);
+			msleep(222);
 	}
 }
 
