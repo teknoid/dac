@@ -24,7 +24,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+// hexdump -v -e '21 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -317,8 +317,9 @@ static void calculate_gstate() {
 	// take over pstate values
 	gstate->soc = pstate->soc;
 
-	// store average load in gstate
+	// store average values in gstate
 	gstate->load = PSTATE_HOUR_NOW->load;
+	gstate->diss = PSTATE_HOUR_NOW->diss;
 
 	// calculate pv minimum, maximum, average
 	gstate->pvmin = UINT16_MAX;
@@ -340,7 +341,7 @@ static void calculate_gstate() {
 	int min = akku_get_min_soc();
 	int capa = akku_capacity();
 	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
-	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - pstate->diss) : 0;
+	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -682,7 +683,7 @@ static void hourly() {
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
 
 	// collect power to survive overnight
-	gstate->nsurvive = mosmix_survive(now, loads, gstate->baseload, pstate->diss); // +inverter dissipation
+	gstate->nsurvive = mosmix_survive(now, loads, gstate->baseload, gstate->diss);
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;

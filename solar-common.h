@@ -133,13 +133,12 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvmax pvavg bload ↑grid ↓grid today  tomo   sod   eod  load   soc  akku   ttl  succ  foca  surv nsurv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load bload  diss   soc  akku   ttl  succ  foca  surv nsurv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
 	int pvmax;
 	int pvavg;
-	int baseload;
 	int produced;
 	int consumed;
 	int today;
@@ -147,6 +146,8 @@ struct _gstate {
 	int sod;
 	int eod;
 	int load;
+	int baseload;
+	int diss;
 	int soc;
 	int akku;
 	int ttl;
