@@ -138,6 +138,7 @@ static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	switch (ss->inverter->St) {
+	case 0:
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		break;
@@ -167,10 +168,6 @@ static void update_inverter1(sunspec_t *ss) {
 
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
-
-		// dissipation
-		// int dissipation = pstate->dc1 - pstate->akku - pstate->ac1;
-		// xdebug("SOLAR Inverter1 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
@@ -209,6 +206,7 @@ static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	switch (ss->inverter->St) {
+	case 0:
 	case I_STATUS_OFF:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;
 		break;
@@ -227,10 +225,6 @@ static void update_inverter2(sunspec_t *ss) {
 
 		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
-
-		// dissipation
-		// int dissipation = pstate->dc1 - pstate->ac1;
-		// xdebug("SOLAR Inverter2 dissipation=%d", dissipation);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt3 == 0)

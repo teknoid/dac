@@ -32,6 +32,7 @@ set output "/run/mcp/pstate-seconds.svg"
 p pstates u 1:"pv"     t "pv"    w lines ls 1,\
        '' u 1:"akku"   t "akku"  w lines ls 2,\
        '' u 1:"grid"   t "grid"  w lines ls 3,\
+       '' u 1:"diss"   t "diss"  w lines ls 4,\
        '' u 1:"load"   t "load"  w lines ls 5,\
        '' u 1:"surp"   t "surp"  w lines lt 1
 
@@ -40,5 +41,6 @@ set output "/run/mcp/pstate-seconds-wide.svg"
 p pstates u 1:"pv"     t "pv"    w lines ls 1,\
        '' u 1:"akku"   t "akku"  w lines ls 2,\
        '' u 1:"grid"   t "grid"  w lines ls 3,\
+       '' u 1:"diss"   t "diss"  w lines ls 4,\
        '' u 1:"load"   t "load"  w lines ls 5,\
        '' u 1:"surp"   t "surp"  w lines lt 1

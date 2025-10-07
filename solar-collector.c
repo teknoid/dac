@@ -340,7 +340,7 @@ static void calculate_gstate() {
 	int min = akku_get_min_soc();
 	int capa = akku_capacity();
 	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
-	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - DISSIPATION) : 0;
+	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 - pstate->diss) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -442,6 +442,13 @@ static void calculate_pstate() {
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
+	// dissipation
+	int diss1 = pstate->dc1 - pstate->ac1;
+	int diss2 = pstate->dc2 - pstate->ac2;
+	pstate->diss = diss1 + diss2;
+	int adiss = (pstate->diss + s1->diss) / 2; // suppress spikes
+	xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, adiss);
+
 	// pv
 	ZSHAPE(pstate->mppt1, NOISE)
 	ZSHAPE(pstate->mppt2, NOISE)
@@ -460,7 +467,7 @@ static void calculate_pstate() {
 	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = agrid + s5->ac1 + s5->ac2;
 	int aload = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = aload && apv > DISSIPATION ? (apv - DISSIPATION) * 100 / aload : 0;
+	pstate->pload = aload && apv > adiss ? (apv - adiss) * 100 / aload : 0;
 
 	// akku
 	int aakku = (pstate->akku + s1->akku) / 2; // suppress spikes
@@ -619,7 +626,7 @@ static void calculate_pstate() {
 			pstate->surplus = -RAMP;
 		} else {
 			// surplus is the missing power
-			pstate->surplus = apv - DISSIPATION - aload;
+			pstate->surplus = apv - adiss - aload;
 			// surplus is the inverted discharging power
 			if (aakku > NOISE)
 				pstate->surplus = aakku * -1;
@@ -675,7 +682,7 @@ static void hourly() {
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
 
 	// collect power to survive overnight
-	gstate->nsurvive = mosmix_survive(now, loads, gstate->baseload, DISSIPATION); // +inverter dissipation
+	gstate->nsurvive = mosmix_survive(now, loads, gstate->baseload, pstate->diss); // +inverter dissipation
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
