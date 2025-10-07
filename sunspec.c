@@ -327,6 +327,7 @@ static void* poll(void *arg) {
 		errors_all += read_settings(ss);
 		errors_all += read_status(ss);
 		errors_all += read_controls(ss);
+		errors_all += read_storage(ss);
 
 		while (errors_all > -10) {
 
@@ -337,8 +338,8 @@ static void* poll(void *arg) {
 			errors_now += read_inverter(ss);
 			errors_now += read_mppt(ss);
 			errors_now += read_meter(ss);
-			// storage at startup and then once per minute
-			if (wchamax == 0 || ss->ts % 60 == 0)
+			// storage once per minute
+			if (ss->ts % 60 == 0)
 				errors_now += read_storage(ss);
 			errors_all += errors_now;
 
@@ -357,6 +358,9 @@ static void* poll(void *arg) {
 			// wait for new second
 			while (ss->ts == time(NULL))
 				msleep(111);
+
+			// middle of second
+			msleep(555);
 
 			// pause when set
 			if (ss->sleep)

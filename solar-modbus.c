@@ -506,12 +506,11 @@ static int init() {
 	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 
-	// disable storage control in loop mode
-	if (!control)
-		inverter1->control = 0;
-
 	// use the same lock as both run against same IP address
 	meter->lock = inverter1->lock;
+
+	// allow storage control
+	inverter1->control = control;
 
 	// stop if Fronius10 is not available
 	if (!inverter1)
@@ -557,7 +556,7 @@ int solar_main(int argc, char **argv) {
 		case 'g':
 			return grid();
 		case 'l':
-			control = 0;
+			control = 0; // disable storage control in loop mode
 			return mcp_main(argc, argv);
 		case 't':
 			return test();
