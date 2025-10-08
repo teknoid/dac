@@ -20,6 +20,8 @@
 #define HOURLY					(now->tm_min == 0)
 #define DAILY					(now->tm_hour == 0)
 
+#define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
+
 // gstate flags
 #define FLAG_CHARGE_AKKU		(1 << 12)
 #define FLAG_HEATING			(1 << 13)
@@ -144,7 +146,7 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load   soc  akku   ttl  succ  foca  surv nsurv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load   soc  batt   ttl  succ  foca  surv nsurv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
@@ -158,7 +160,7 @@ struct _gstate {
 	int eod;
 	int load;
 	int soc;
-	int akku;
+	int batt;
 	int ttl;
 	int success;
 	int forecast;
@@ -170,25 +172,24 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   dpv  grid dgrid  load pload  akku   ac1   ac2   dc1   dc2  diss mppt1 mppt2 mppt3 mppt4  surp    p1    p2    p3    v1    v2    v3     f   soc   inv flags"
+#define PSTATE_HEADER	"    pv   dpv   apv  grid dgrid agrid  batt abatt   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   inv  load aload pload  surp  diss flags"
 struct _pstate {
 	int pv;
 	int dpv;
+	int apv;
 	int grid;
 	int dgrid;
-	int load;
-	int pload;
-	int akku;
+	int agrid;
+	int batt;
+	int abatt;
 	int ac1;
 	int ac2;
 	int dc1;
 	int dc2;
-	int diss;
 	int mppt1;
 	int mppt2;
 	int mppt3;
 	int mppt4;
-	int surplus;
 	int p1;
 	int p2;
 	int p3;
@@ -196,8 +197,12 @@ struct _pstate {
 	int v2;
 	int v3;
 	int f;
-	int soc;
 	int inv;
+	int load;
+	int aload;
+	int pload;
+	int surp;
+	int diss;
 	int flags;
 };
 

@@ -453,7 +453,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
-	if (GSTATE_CHARGE_AKKU && gstate->forecast < 500 && gstate->akku < gstate->nsurvive)
+	if (GSTATE_CHARGE_AKKU && gstate->forecast < 500 && AKKU_AVAILABLE < gstate->nsurvive)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -517,7 +517,7 @@ static void ramp() {
 	if (dstate->lock)
 		return; // no action when locked
 
-	dstate->ramp = pstate->surplus;
+	dstate->ramp = pstate->surp;
 	if (!dstate->ramp)
 		return; // nothing to ramp
 
@@ -683,7 +683,7 @@ static void calculate_dstate() {
 	dstate->flags = dstate->cload = dstate->rload = 0;
 
 	// update akku
-	AKKU->load = pstate->akku * -1;
+	AKKU->load = pstate->batt * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;

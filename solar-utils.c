@@ -26,7 +26,7 @@ typedef struct gstate_old_t {
 	int load;
 	int baseload;
 	int soc;
-	int akku;
+	int batt;
 	int ttl;
 	int success;
 	int forecast;
@@ -95,7 +95,7 @@ static int migrate() {
 		n->eod = o->eod;
 		n->load = o->load;
 		n->soc = o->soc;
-		n->akku = o->akku;
+		n->batt = o->batt;
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->survive = o->survive;

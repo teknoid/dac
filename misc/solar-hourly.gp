@@ -113,8 +113,8 @@ set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate.svg"
 p pstate u 1:(0):"pv"        w filledc below ls 1 t "pv",\
       '' u 1:(0):"pv"        w filledc above ls 1,\
-      '' u 1:(0):"akku"      w filledc below ls 2 t "akku",\
-      '' u 1:(0):"akku"      w filledc above ls 2,\
+      '' u 1:(0):"batt"      w filledc below ls 2 t "batt",\
+      '' u 1:(0):"batt"      w filledc above ls 2,\
       '' u 1:(0):"grid"      w filledc below ls 3 t "grid",\
       '' u 1:(0):"grid"      w filledc above ls 4,\
       '' u 1:"load" t "load" w lines ls 5

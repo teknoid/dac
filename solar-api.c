@@ -58,7 +58,7 @@
 
 typedef struct _raw raw_t;
 struct _raw {
-	float akku;
+	float batt;
 	float grid;
 	float mppt1;
 	float mppt2;
@@ -139,7 +139,7 @@ static int parse_inverter1(response_t *resp) {
 	// workaround for accessing inverter number as key: "0" : {
 	p = strstr(resp->buffer, "\"0\"") + 8 + 2;
 	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10MPPT1SUM JF10MPPT2SUM JF10AC JF10F JF10BAT END, &r->mppt1, &r->mppt2, &r->mppt1_total, &r->mppt2_total, &r->ac1,
-			&r->f, &r->akku);
+			&r->f, &r->batt);
 	if (ret != 7)
 		return xerr("SOLAR parse_inverter1() warning! parsing 0: expected 7 values but got %d", ret);
 
@@ -211,8 +211,10 @@ static void loop() {
 
 		pthread_mutex_lock(&collector_lock);
 
+		gstate->soc = r->soc * 10.0; // store x10 scaled
+
 		pstate->ac1 = r->ac1;
-		pstate->dc1 = r->mppt1 + r->mppt2 + r->akku;
+		pstate->dc1 = r->mppt1 + r->mppt2 + r->batt;
 		pstate->mppt1 = r->mppt1;
 		pstate->mppt2 = r->mppt2;
 
@@ -222,8 +224,7 @@ static void loop() {
 		pstate->mppt4 = r->mppt4;
 
 		pstate->grid = r->grid;
-		pstate->akku = r->akku;
-		pstate->soc = r->soc * 10.0; // store x10 scaled
+		pstate->batt = r->batt;
 		pstate->p1 = r->p1;
 		pstate->p2 = r->p2;
 		pstate->p3 = r->p3;

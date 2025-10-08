@@ -80,6 +80,8 @@ static void loop() {
 
 		pthread_mutex_lock(&collector_lock);
 
+		gstate->soc = 500;
+
 		pstate->ac1 = mppt1 + mppt2;
 		pstate->dc1 = mppt1 + mppt2;
 		pstate->mppt1 = mppt1;
@@ -91,8 +93,7 @@ static void loop() {
 		pstate->mppt4 = mppt4;
 
 		pstate->grid = grid;
-		pstate->akku = 0;
-		pstate->soc = 500;
+		pstate->batt = 0;
 		pstate->p1 = 0;
 		pstate->p2 = 0;
 		pstate->p3 = 0;
