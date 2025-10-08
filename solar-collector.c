@@ -29,7 +29,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '30 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '31 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -449,8 +449,8 @@ static void calculate_pstate() {
 	int diss1 = pstate->dc1 - pstate->ac1;
 	int diss2 = pstate->dc2 - pstate->ac2;
 	pstate->diss = diss1 + diss2;
-	int adiss = (pstate->diss + s1->diss) / 2; // suppress spikes
-	xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, adiss);
+	pstate->adiss = (pstate->diss + s1->diss) / 2; // suppress spikes
+	xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
 	// pv
 	ZSHAPE(pstate->mppt1, NOISE)
@@ -470,7 +470,7 @@ static void calculate_pstate() {
 	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = pstate->agrid + s5->ac1 + s5->ac2;
 	pstate->aload = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = pstate->aload && pstate->apv > adiss ? (pstate->apv - adiss) * 100 / pstate->aload : 0;
+	pstate->pload = pstate->aload && pstate->apv > pstate->adiss ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
 
 	// akku
 	pstate->abatt = (pstate->batt + s1->batt) / 2; // suppress spikes
@@ -629,7 +629,7 @@ static void calculate_pstate() {
 			pstate->surp = -RAMP;
 		} else {
 			// surplus is the missing power
-			pstate->surp = pstate->apv - adiss - pstate->aload;
+			pstate->surp = pstate->apv - pstate->adiss - pstate->aload;
 			// surplus is the inverted discharging power
 			if (pstate->abatt > NOISE)
 				pstate->surp = pstate->abatt * -1;

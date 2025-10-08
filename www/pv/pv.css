@@ -81,7 +81,6 @@ dl dd.d						{ cursor:default }
 .dstate						{ width:33% }
 .devices					{ margin:0 10px }
 
-.noise						{ background-color:lightgrey }
 .apv-p						{ background-color:#FAD967 }
 .agrid-p					{ background-color:orangered }
 .agrid-m					{ background-color:palegreen }
@@ -97,9 +96,12 @@ dl dd.d						{ cursor:default }
 .ramp-p, .steal-p			{ background-color:orchid }
 .ramp-m						{ background-color:deepskyblue }
 
+.pv-p						{ background-color:#FAD967 }
 .↓grid-p					{ background-color:lightsalmon }
 .↑grid-p					{ background-color:palegreen }
 .today-p					{ background-color:lightgrey }
 .tomo-p						{ background-color:lightgrey }
 .eod-p						{ background-color:lightgrey }
 .ttl-p						{ background-color:olive }
+
+.noise						{ background-color:lightgrey }
