@@ -11,6 +11,7 @@
 #include "solar-common.h"
 #include "sunspec.h"
 #include "utils.h"
+#include "mqtt.h"
 #include "mcp.h"
 
 #define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
@@ -293,7 +294,7 @@ static int calibrate(char *name) {
 	int offset_start = 0, offset_end = 0;
 	int measure[1000], raster[101];
 
-	// create a sunspec handle and remove models not needed
+	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
@@ -531,6 +532,79 @@ static int init() {
 	return 0;
 }
 
+static int latency() {
+	int count;
+	pstate_t x, y;
+
+#define DEVICE	0x9D01FD
+#define RELAY	3
+
+	char topic[LINEBUF];
+	snprintf(topic, LINEBUF, "cmnd/%6X/POWER%d", DEVICE, RELAY);
+
+	// create a sunspec handle for meter and remove models not needed
+	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_read(ss);
+	ss->common = 0;
+	ss->storage = 0;
+
+	// read initial phase power
+	x.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+	x.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+	x.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+
+	count = 0;
+	publish_oneshot(topic, "ON", 0); // switch on
+	while (1) {
+		msleep(100);
+		count++;
+		sunspec_read(ss);
+
+		// wait for delta phase power
+		y.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		y.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		y.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+
+		printf("%3d  %4d W  %4d W  %4d W \n", count, y.p1, y.p2, y.p3);
+
+		int dp1 = abs(x.p1 - y.p1);
+		int dp2 = abs(x.p2 - y.p2);
+		int dp3 = abs(x.p3 - y.p3);
+		if (dp1 > DELTA || dp2 > DELTA || dp3 > DELTA)
+			break;
+	}
+	printf("detected ON meter response after %dms\n", count * 100);
+
+	// update initial phase power
+	x.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+	x.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+	x.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+
+	count = 0;
+	publish_oneshot(topic, "OFF", 0); // switch off
+	while (1) {
+		msleep(100);
+		count++;
+		sunspec_read(ss);
+
+		// wait for delta phase power
+		y.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
+		y.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
+		y.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+
+		printf("%3d  %4d W  %4d W  %4d W \n", count, y.p1, y.p2, y.p3);
+
+		int dp1 = abs(x.p1 - y.p1);
+		int dp2 = abs(x.p2 - y.p2);
+		int dp3 = abs(x.p3 - y.p3);
+		if (dp1 > DELTA || dp2 > DELTA || dp3 > DELTA)
+			break;
+	}
+	printf("detected OFF meter response after %dms\n", count * 100);
+
+	return 0;
+}
+
 static void stop() {
 	sunspec_stop(inverter1);
 	sunspec_stop(inverter2);
@@ -543,9 +617,11 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "b:c:s:glt")) != -1) {
+	while ((c = getopt(argc, argv, "ab:c:s:glt")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
+		case 'a':
+			return latency();
 		case 'b':
 			// -X: limit charge, +X: limit discharge, 0: no limits
 			return battery(optarg);

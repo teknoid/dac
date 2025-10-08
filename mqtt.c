@@ -256,13 +256,13 @@ static void loop() {
 	}
 }
 
-static int init() {
+// init publisher client
+static int init_tx() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
 	char hostname[64], client_id[128];
 	gethostname(hostname, 64);
 
-	// publisher client
 	client_tx = malloc(sizeof(*client_tx));
 	ZEROP(client_tx);
 
@@ -280,7 +280,16 @@ static int init() {
 	if (client_tx->error != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
-	// subscriber client
+	return 0;
+}
+
+// init subscriber client
+static int init_rx() {
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+
+	char hostname[64], client_id[128];
+	gethostname(hostname, 64);
+
 	client_rx = malloc(sizeof(*client_rx));
 	ZEROP(client_rx);
 
@@ -321,6 +330,16 @@ static int init() {
 
 	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
+
+	return 0;
+}
+
+static int init() {
+	if (init_tx())
+		return -1;
+
+	if (init_rx())
+		return -1;
 
 	ready = 1;
 	return 0;
@@ -382,6 +401,14 @@ int publish(const char *topic, const char *message, int retain) {
 		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
 
 	return 0;
+}
+
+int publish_oneshot(const char *topic, const char *message, int retain) {
+	if (init())
+		return -1;
+	ready = 1;
+	publish(topic, message, retain);
+	return mqtt_sync(client_tx);
 }
 
 MCP_REGISTER(mqtt, 2, &init, &stop, &loop);

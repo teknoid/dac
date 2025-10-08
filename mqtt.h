@@ -23,3 +23,4 @@ int notify(const char *title, const char *text, const char *sound);
 int notify_red(const char *title, const char *text, const char *sound);
 
 int publish(const char *topic, const char *message, int retain);
+int publish_oneshot(const char *topic, const char *message, int retain);
