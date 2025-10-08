@@ -182,8 +182,7 @@ static void collect_averages() {
 	store_array_csv(abatts, 24, 1, "  akku", RUN SLASH AKKUS_CSV);
 
 	// calculate nightly baseload
-	params->baseload = (aloads[3] + aloads[4] + aloads[5]) / 3;
-	params->baseload = round10(params->baseload);
+	params->baseload = round10((aloads[3] + aloads[4] + aloads[5]) / 3);
 	// TODO remove after 1week
 	params->baseload = BASELOAD;
 }
@@ -324,11 +323,11 @@ static void calculate_gstate() {
 	gstate->load = PSTATE_HOUR_NOW->load;
 	gstate->batt = PSTATE_HOUR_NOW->batt;
 
-	// calculate pv minimum, maximum, average
+	// calculate pv minimum, maximum and average
 	gstate->pvmin = UINT16_MAX;
 	gstate->pvmax = 0, gstate->pvavg = 0;
-	for (int i = 0; i < 60; i++) {
-		pstate_t *p = PSTATE_MIN(i);
+	for (int m = 0; m < 60; m++) {
+		pstate_t *p = PSTATE_MIN(m);
 		HICUT(gstate->pvmin, p->pv)
 		LOCUT(gstate->pvmax, p->pv)
 		gstate->pvavg += p->pv;
@@ -343,7 +342,7 @@ static void calculate_gstate() {
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +inverter dissipation
 	int min = akku_get_min_soc();
 	int akku = AKKU_AVAILABLE;
-	gstate->ttl = gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
+	gstate->ttl = gstate->load && gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -384,7 +383,7 @@ static void calculate_gstate() {
 	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 
-	// start akku charging
+	// akku charging
 	int empty = gstate->soc < 100;
 	int soc6 = GSTATE_HOUR(6)->soc;
 	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
@@ -470,7 +469,9 @@ static void calculate_pstate() {
 	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = pstate->agrid + s5->ac1 + s5->ac2;
 	pstate->aload = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
+
+	// ratio pv / load - only when we have pv and load
+	pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
 	LOCUT(pstate->pload, 0)
 
 	// akku

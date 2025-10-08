@@ -36,7 +36,7 @@ p pstates u 1:"apv"    t "pv"    w lines ls 1,\
        '' u 1:"aload"  t "load"  w lines ls 5,\
        '' u 1:"surp"   t "surp"  w lines lt 1
 
-set terminal svg size 4000,800
+set terminal svg size 4320,1080
 set output "/run/mcp/pstate-seconds-wide.svg"
 p pstates u 1:"apv"    t "pv"    w lines ls 1,\
        '' u 1:"abatt"  t "batt"  w lines ls 2,\
