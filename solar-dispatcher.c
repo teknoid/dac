@@ -280,9 +280,9 @@ static int ramp_akku(device_t *akku, int power) {
 		// start charging
 		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
 		int limit = 0;
-		if (GSTATE_SUMMER || gstate->today > akku_capacity() * 2)
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
 			limit = AKKU_LIMIT_CHARGE2X;
-		if (GSTATE_SUMMER || gstate->today > akku_capacity() * 3)
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
 			limit = AKKU_LIMIT_CHARGE3X;
 		if (!akku_charge(akku, limit)) {
 			dstate->lock = WAIT_START_CHARGE;
@@ -449,7 +449,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// survive but tomorrow not enough PV - charging akku has priority
-	if (GSTATE_CHARGE_AKKU && GSTATE_WINTER && gstate->tomorrow < akku_capacity())
+	if (GSTATE_CHARGE_AKKU && GSTATE_WINTER && gstate->tomorrow < params->akku_capacity)
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
@@ -708,7 +708,7 @@ static void calculate_dstate() {
 
 	// add load (max baseload) when devices active
 	if (!DSTATE_ALL_DOWN)
-		dstate->cload += pstate->load < gstate->baseload ? pstate->load : gstate->baseload;
+		dstate->cload += pstate->load < params->baseload ? pstate->load : params->baseload;
 
 	// ratio between calculated load and actual load
 	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
@@ -756,7 +756,7 @@ static void minly() {
 	// set akku to DISCHARGE if we have long term grid download
 	// TODO verify
 	if ((PSTATE_GRID_DLOAD && PSTATE_OFFLINE && !AKKU_DISCHARGING) || (PSTATE_GRID_DLOAD && !PSTATE_OFFLINE && !AKKU_CHARGING)) {
-		int tiny_tomorrow = gstate->tomorrow < akku_capacity();
+		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
 		// winter: limit discharge and try to extend ttl as much as possible
 		int limit = GSTATE_WINTER && (tiny_tomorrow || gstate->survive < 0) ? AKKU_LIMIT_DISCHARGE : 0;

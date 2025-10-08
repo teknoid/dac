@@ -27,10 +27,6 @@ static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 static int control = 1;
 
-int akku_capacity() {
-	return AKKU_CAPACITY;
-}
-
 int akku_get_min_soc() {
 	return MIN_SOC;
 }
@@ -45,7 +41,7 @@ void akku_state(device_t *akku) {
 	switch (STORCTL) {
 	case STORAGE_LIMIT_NONE:
 		akku->state = Auto;
-		akku->total = AKKU_CHARGE_MAX;
+		akku->total = params->akku_cmax;
 		break;
 
 	case STORAGE_LIMIT_BOTH:
@@ -67,7 +63,7 @@ void akku_state(device_t *akku) {
 	case STORAGE_LIMIT_CHARGE:
 		if (INWRTE == 0) {
 			akku->state = Discharge;
-			akku->total = AKKU_DISCHARGE_MAX;
+			akku->total = params->akku_dmax;
 		} else {
 			akku->state = Charge;
 			akku->total = INWRTE;
@@ -77,7 +73,7 @@ void akku_state(device_t *akku) {
 	case STORAGE_LIMIT_DISCHARGE:
 		if (OUTWRTE == 0) {
 			akku->state = Charge;
-			akku->total = AKKU_CHARGE_MAX;
+			akku->total = params->akku_cmax;
 		} else {
 			akku->state = Discharge;
 			akku->total = OUTWRTE;
@@ -105,7 +101,7 @@ int akku_charge(device_t *akku, int limit) {
 		xdebug("SOLAR set akku CHARGE limit %d", limit);
 		return sunspec_storage_limit_both(inverter1, limit, 0);
 	} else {
-		akku->total = AKKU_CHARGE_MAX;
+		akku->total = params->akku_cmax;
 		xdebug("SOLAR set akku CHARGE");
 		return sunspec_storage_limit_discharge(inverter1, 0);
 	}
@@ -119,7 +115,7 @@ int akku_discharge(device_t *akku, int limit) {
 		xdebug("SOLAR set akku DISCHARGE limit %d", limit);
 		return sunspec_storage_limit_both(inverter1, 0, limit);
 	} else {
-		akku->total = AKKU_DISCHARGE_MAX;
+		akku->total = params->akku_dmax;
 		xdebug("SOLAR set akku DISCHARGE");
 		return sunspec_storage_limit_charge(inverter1, 0);
 	}
@@ -514,7 +510,7 @@ static int init() {
 
 	// stop if Fronius10 is not available
 	if (!inverter1)
-		return xerr("No connection to Fronius10");
+		return xerr("No connection to inverter1");
 
 	// do not continue before we have SoC value from Fronius10
 	int retry = 100;
@@ -524,8 +520,12 @@ static int init() {
 			break;
 	}
 	if (!retry)
-		return xerr("No SoC from Fronius10");
-	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
+		return xerr("No SoC from %d", inverter1->name);
+
+	params->akku_capacity = AKKU_CAPACITY;
+	params->akku_cmax = AKKU_CHARGE_MAX;
+	params->akku_dmax = AKKU_DISCHARGE_MAX;
+	xlog("SOLAR modbus %s ready retry=%d Akku capacity=%d cmax=%d dmax=%d", inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax);
 
 	return 0;
 }

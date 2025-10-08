@@ -36,8 +36,6 @@
 #define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
-#define BASELOAD				80
-#define EXTRA					55
 #define NOISE					10
 
 #define HISTORY_SIZE			(24 * 7)
@@ -57,7 +55,7 @@ static mosmix_t today[24], tomorrow[24], history[HISTORY_SIZE];
 static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
-// fake dummy average loads over 24/7
+// fake dummy average akkus over 24/7
 static int fake_loads[24] = { 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173 };
 
 static void sum(mosmix_t *to, mosmix_t *from) {
@@ -471,8 +469,8 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 
-// night: collect load power where pv cannot satisfy this
-int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
+// night: collect akku power when pv is not enough
+int mosmix_survive(struct tm *now, int aload[], int aakku[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
@@ -480,18 +478,22 @@ int mosmix_survive(struct tm *now, int loads[], int baseload, int extra) {
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
-		int load = loads[h] > baseload * 2 ? baseload : loads[h]; // limit to 2 x BASELOAD max
-		load += extra; // add extra
+// TODO remove
+#define BASELOAD 200
+#define DISSIPATION 25
+
+		int load = aload[h] > BASELOAD * 2 ? BASELOAD : aload[h]; // limit to 2 x BASELOAD max
+		load += DISSIPATION; // add dissipation
 
 		// current hour -> partly, remaining hours -> full
-		int l = h == ch ? load * (60 - now->tm_min) / 60 : load;
+		int l = h == ch ? aload[h] * (60 - now->tm_min) / 60 : aload[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
 		// night
 		if (l > x) {
 			snprintf(value, 48, " %d:%d:%d", h, l, x);
 			strcat(line, value);
-			needed += l;
+			needed += l; // TODO nach einer Woche auf aakku[h] setzen
 			night = 1;
 			hours++;
 		}
@@ -714,7 +716,7 @@ static int test() {
 	now->tm_hour = 16;
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
-	mosmix_survive(now, fake_loads, BASELOAD, EXTRA);
+	mosmix_survive(now, fake_loads, fake_loads);
 	mosmix_heating(now, 1500);
 	return 0;
 }

@@ -41,6 +41,7 @@
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define PSTATE_S_CSV			"pstate-seconds.csv"
 #define LOADS_CSV				"loads.csv"
+#define AKKUS_CSV				"akkus.csv"
 
 // JSON files for webui
 #define PSTATE_JSON				"pstate.json"
@@ -80,20 +81,22 @@
 #define PSTATE_MIN(m)			(&pstate_minutes[m])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
 
-// average loads over 24/7
-static int loads[24];
+// load and akku over 24/7
+static int aload[24], aakku[24];
 
 static struct tm now_tm, *now = &now_tm;
 
-// local counter/pstate/gstate memory
+// local counter/pstate/gstate/params memory
 static counter_t counter_history[HISTORY_SIZE];
 static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
+static params_t params_current;
 
-// global counter/pstate/gstate pointer
+// global counter/pstate/gstate/params pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstate_current;
+params_t *params = &params_current;
 
 // mutex for updating / calculating pstate and counter
 pthread_mutex_t collector_lock;
@@ -147,37 +150,42 @@ static void create_powerflow_json() {
 	fclose(fp);
 }
 
-static void collect_loads() {
+static void collect_averages() {
 	char line[LINEBUF], value[10];
 
-	ZERO(loads);
+	ZERO(aload);
 	for (int h = 0; h < 24; h++) {
 		for (int d = 0; d < 7; d++) {
-			// TODO remove abs() after 1 week
-			int load = abs(GSTATE_DAY_HOUR(d, h)->load);
-			if (load < NOISE) {
-				xdebug("SOLAR suspicious collect_loads day=%d hour=%d load=%d --> using BASELOAD", d, h, load);
-				load = BASELOAD;
-			}
-			loads[h] += load;
+			gstate_t *g = GSTATE_DAY_HOUR(d, h);
+			aload[h] += g->load;
+			aakku[h] += g->akku;
 		}
-		loads[h] /= 7;
+		aload[h] /= 7;
+		aakku[h] /= 7;
 	}
 
-	strcpy(line, "SOLAR average 24/7 loads:");
+	strcpy(line, "SOLAR average 24/7 load:");
 	for (int h = 0; h < 24; h++) {
-		snprintf(value, 10, " %d", loads[h]);
+		snprintf(value, 10, " %d", aload[h]);
 		strcat(line, value);
 	}
 	xlog(line);
 
-	store_array_csv(loads, 24, 1, "  load", RUN SLASH LOADS_CSV);
+	strcpy(line, "SOLAR average 24/7 akku:");
+	for (int h = 0; h < 24; h++) {
+		snprintf(value, 10, " %d", aakku[h]);
+		strcat(line, value);
+	}
+	xlog(line);
+
+	store_array_csv(aload, 24, 1, "  load", RUN SLASH LOADS_CSV);
+	store_array_csv(aakku, 24, 1, "  akku", RUN SLASH AKKUS_CSV);
 
 	// calculate nightly baseload
-	gstate->baseload = (loads[3] + loads[4] + loads[5]) / 3;
-	gstate->baseload = round10(gstate->baseload);
+	params->baseload = (aload[3] + aload[4] + aload[5]) / 3;
+	params->baseload = round10(params->baseload);
 	// TODO remove after 1week
-	gstate->baseload = BASELOAD;
+	params->baseload = BASELOAD;
 }
 
 static void print_gstate() {
@@ -189,8 +197,6 @@ static void print_gstate() {
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
 	xlogl_percent10(line, "Succ", gstate->success);
 	xlogl_percent10(line, "Surv", gstate->survive);
-	xlogl_int(line, "BLoad", gstate->baseload);
-	xlogl_int(line, "Akku", gstate->akku);
 //	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 //	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 //	xlogl_float(line, "Ti", sensors->tin);
@@ -317,9 +323,9 @@ static void calculate_gstate() {
 	// take over pstate values
 	gstate->soc = pstate->soc;
 
-	// store average values in gstate
+	// store values in gstate for 24/7 average calculation
 	gstate->load = PSTATE_HOUR_NOW->load;
-	gstate->diss = PSTATE_HOUR_NOW->diss;
+	gstate->akku = PSTATE_HOUR_NOW->akku;
 
 	// calculate pv minimum, maximum, average
 	gstate->pvmin = UINT16_MAX;
@@ -339,9 +345,8 @@ static void calculate_gstate() {
 
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +inverter dissipation
 	int min = akku_get_min_soc();
-	int capa = akku_capacity();
-	gstate->akku = gstate->soc > min ? capa * (gstate->soc - min) / 1000 : 0;
-	gstate->ttl = gstate->soc > min ? gstate->akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
+	int akku = gstate->soc > min ? params->akku_capacity * (gstate->soc - min) / 1000 : 0;
+	gstate->ttl = gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -355,15 +360,15 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
-	int tocharge = gstate->nsurvive - gstate->akku;
+	int tocharge = gstate->nsurvive - akku;
 	LOCUT(tocharge, 0);
 	int available = gstate->eod - tocharge;
 	LOCUT(available, 0);
 	if (gstate->sod == 0)
 		available = 0; // pv not yet started - we only have akku
-	gstate->survive = gstate->nsurvive ? (available + gstate->akku) * 1000 / gstate->nsurvive : 0;
+	gstate->survive = gstate->nsurvive ? (available + akku) * 1000 / gstate->nsurvive : 0;
 	HICUT(gstate->survive, 2000);
-	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->nsurvive, FLOAT10(gstate->survive));
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku, gstate->nsurvive, FLOAT10(gstate->survive));
 
 	// heating
 	gstate->flags |= FLAG_HEATING;
@@ -398,7 +403,7 @@ static void calculate_gstate() {
 		// autumn/spring: when below 33% or tomorrow not enough pv
 		if (time_window && soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
-		if (time_window && gstate->tomorrow < akku_capacity() * 2)
+		if (time_window && gstate->tomorrow < params->akku_capacity * 2)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
 
@@ -659,8 +664,8 @@ static void daily() {
 	int e1 = fc1 ? gstate->pv * 100 / fc1 : 0;
 	xlog("SOLAR     todays 07:00 forecast for today %d, actual %d, strike %d%%", fc1, gstate->pv, e1);
 
-	// recalculate average 24/7 loads
-	collect_loads();
+	// recalculate average 24/7 values
+	collect_averages();
 
 	// store state at least once per day
 	store_state();
@@ -683,7 +688,7 @@ static void hourly() {
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
 
 	// collect power to survive overnight
-	gstate->nsurvive = mosmix_survive(now, loads, gstate->baseload, gstate->diss);
+	gstate->nsurvive = mosmix_survive(now, aload, aakku);
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
@@ -826,7 +831,7 @@ static int init() {
 	load_state();
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
-	collect_loads();
+	collect_averages();
 
 	return 0;
 }

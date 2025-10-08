@@ -17,7 +17,6 @@ typedef struct gstate_old_t {
 	int pvmin;
 	int pvmax;
 	int pvavg;
-	int baseload;
 	int produced;
 	int consumed;
 	int today;
@@ -25,6 +24,7 @@ typedef struct gstate_old_t {
 	int sod;
 	int eod;
 	int load;
+	int baseload;
 	int soc;
 	int akku;
 	int ttl;
@@ -34,10 +34,6 @@ typedef struct gstate_old_t {
 	int nsurvive;
 	int flags;
 } gstate_old_t;
-
-int akku_capacity() {
-	return 0;
-}
 
 int akku_get_min_soc() {
 	return 0;

@@ -15,7 +15,9 @@
 #include "mcp.h"
 
 #define MIN_SOC					50
-#define AKKU_CAPACITY			11000
+#define AKKU_CAPACITY			11059
+#define	AKKU_CHARGE_MAX			5120
+#define AKKU_DISCHARGE_MAX		5120
 
 #define URL_READABLE_INVERTER1	"http://fronius10/components/readable"
 #define URL_READABLE_INVERTER2	"http://fronius7/components/readable"
@@ -85,10 +87,6 @@ static raw_t raw, *r = &raw;
 // reading Inverter API: CURL handles, response memory, raw date, error counter
 static CURL *curl1, *curl2;
 static response_t memory = { 0 };
-
-int akku_capacity() {
-	return AKKU_CAPACITY;
-}
 
 int akku_get_min_soc() {
 	return MIN_SOC;
@@ -462,6 +460,10 @@ static int init() {
 	if (!retry)
 		return xerr("No SoC from Fronius10");
 	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
+
+	params->akku_capacity = AKKU_CAPACITY;
+	params->akku_cmax = AKKU_CHARGE_MAX;
+	params->akku_dmax = AKKU_DISCHARGE_MAX;
 
 	return 0;
 }

@@ -14,10 +14,6 @@
 #define TEMP_OUT				(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
 #define LUMI					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bh1750_lux : UINT16_MAX)
 
-int akku_capacity() {
-	return 0;
-}
-
 int akku_get_min_soc() {
 	return 0;
 }

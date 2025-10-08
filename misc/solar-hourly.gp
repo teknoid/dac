@@ -9,6 +9,7 @@ factors="/run/mcp/mosmix-factors.csv"
 today="/run/mcp/mosmix-today.csv"
 tomorrow="/run/mcp/mosmix-tomorrow.csv"
 loads="/run/mcp/loads.csv"
+akkus="/run/mcp/akkus.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -156,10 +157,13 @@ set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
 
 
-# loads
+# loads + akkus
 set ylabel "Average Load 24/7"
 set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"
 set output "/run/mcp/loads.svg"
 p loads   u 1:"load"  t "load"     w fsteps ls 5
+set ylabel "Average Akku 24/7"
+set output "/run/mcp/akkus.svg"
+p akkus   u 1:"akku"  t "akku"     w fsteps ls 2

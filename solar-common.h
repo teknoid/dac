@@ -82,6 +82,17 @@ enum e_state {
 	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
 };
 
+// parameters
+typedef struct _params params_t;
+#define PARAMS_SIZE		(sizeof(params_t) / sizeof(int))
+#define PARAMS_HEADER	" bload"
+struct _params {
+	int akku_capacity;
+	int akku_cmax;
+	int akku_dmax;
+	int baseload;
+};
+
 // device definitions
 typedef struct _device device_t;
 typedef int (ramp_function_t)(device_t*, int);
@@ -133,7 +144,7 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load bload  diss   soc  akku   ttl  succ  foca  surv nsurv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load   soc  akku   ttl  succ  foca  surv nsurv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
@@ -146,8 +157,6 @@ struct _gstate {
 	int sod;
 	int eod;
 	int load;
-	int baseload;
-	int diss;
 	int soc;
 	int akku;
 	int ttl;
@@ -205,20 +214,20 @@ struct _dstate {
 	int flags;
 };
 
-// global counter and state pointer
+// global counter, state and parameter pointer
 extern counter_t counter[10];
 extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;
+extern params_t *params;
 
 // mutex for updating / calculating pstate and counter
 extern pthread_mutex_t collector_lock;
 
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 
-int akku_capacity();
 int akku_get_min_soc();
-void akku_set_min_soc();
+void akku_set_min_soc(int min);
 void akku_state(device_t *akku);
 int akku_standby(device_t *akku);
 int akku_charge(device_t *akku, int limit);
