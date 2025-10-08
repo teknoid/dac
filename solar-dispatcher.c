@@ -194,19 +194,16 @@ static int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power < 5 && 1 < step && step < 5)
 		step = 1;
 
+	// electronic thermostat - leave boiler alive when in AUTO mode
+	int min = boiler->min && boiler->state == Auto ? boiler->min : 0;
+
 	// transform power into 0..100%
 	power = boiler->power + step;
 	HICUT(power, 100);
-	LOCUT(power, boiler->min); // electronic thermostat - leave boiler alive
-
-	// total shutdown
-	if (FORCE_OFF(boiler)) {
-		boiler->flags &= ~ FLAG_FORCE_OFF; // reset
-		power = 0;
-	}
+	LOCUT(power, min);
 
 	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->power == 0 && boiler->min && power < boiler->min)
+	if (boiler->power == 0 && power < min)
 		return 0;
 
 	// check if update is necessary
@@ -389,11 +386,6 @@ static int toggle_device(device_t *d) {
 		return (d->ramp)(d, d->total * -1);
 }
 
-static int ramp_device_down(device_t *d) {
-	d->flags |= FLAG_FORCE_OFF;
-	return (d->ramp)(d, d->total * -1);
-}
-
 static int ramp_device(device_t *d, int power) {
 	if (d->state == Manual)
 		return 0;
@@ -417,7 +409,7 @@ static int select_program(const potd_t *p) {
 	if (potd != 0) {
 		// reset all devices
 		for (device_t **dd = DEVICES; *dd; dd++)
-			ramp_device_down(DD);
+			ramp_device(DD, DD->total * -1);
 
 		// set AKKU to standby when charging
 		if (AKKU_CHARGING)
@@ -468,7 +460,7 @@ static void emergency() {
 	xlog("SOLAR emergency shutdown");
 	akku_discharge(AKKU, 0); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp_device_down(DD);
+		ramp_device(DD, DD->total * -1);
 }
 
 static void burnout() {
@@ -572,7 +564,7 @@ static int perform_standby(device_t *d) {
 	} else {
 		// standby check was positive -> set device into standby
 		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
-		ramp_device_down(d);
+		ramp_device(d, d->total * -1);
 		d->state = Standby;
 	}
 
@@ -743,7 +735,7 @@ static void minly() {
 	if (PSTATE_OFFLINE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			if (DD->state != Manual)
-				ramp_device_down(DD);
+				ramp_device(DD, DD->total * -1);
 
 	// reset ACTIVE_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)

@@ -20,11 +20,11 @@
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-hourly.gp"
 
-// hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter.bin
+// hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter*.bin
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '21 "%6d ""\n"' /var/lib/mcp/solar-gstate.bin
+// hexdump -v -e '21 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -142,7 +142,7 @@ static void create_powerflow_json() {
 		return;
 
 	// Fronius expects negative load
-	int load = pstate->load * -1;
+	int load = pstate->aload * -1;
 
 #define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"storeryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(gstate->soc), pstate->abatt, pstate->agrid, load, pstate->apv);

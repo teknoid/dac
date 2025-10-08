@@ -75,10 +75,8 @@
 
 // device flags
 #define FLAG_ACTIVE_CHECKED		(1 << 0)
-#define FLAG_FORCE_OFF			(1 << 1)
 
 #define ACTIVE_CHECKED(d)		(d->flags & FLAG_ACTIVE_CHECKED)
-#define FORCE_OFF(d)			(d->flags & FLAG_FORCE_OFF)
 
 enum e_state {
 	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
