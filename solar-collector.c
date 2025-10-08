@@ -353,18 +353,18 @@ static void calculate_gstate() {
 	gstate->sod = sod;
 	gstate->eod = eod;
 	gstate->success = sod > MINIMUM && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
-	HICUT(gstate->success, 2000);
+	HICUT(gstate->success, 2000)
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
 	int tocharge = gstate->nsurvive - akku;
-	LOCUT(tocharge, 0);
+	LOCUT(tocharge, 0)
 	int available = gstate->eod - tocharge;
-	LOCUT(available, 0);
+	LOCUT(available, 0)
 	if (gstate->sod == 0)
 		available = 0; // pv not yet started - we only have akku
 	gstate->survive = gstate->nsurvive ? (available + akku) * 1000 / gstate->nsurvive : 0;
-	HICUT(gstate->survive, 2000);
+	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku, gstate->nsurvive, FLOAT10(gstate->survive));
 
 	// heating
@@ -459,7 +459,7 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	pstate->dpv = pstate->pv - s1->pv;
-	ZSHAPE(pstate->dpv, DELTA);
+	ZSHAPE(pstate->dpv, DELTA)
 	pstate->apv = (pstate->pv + s1->pv) / 2; // suppress spikes
 
 	// grid
@@ -470,7 +470,8 @@ static void calculate_pstate() {
 	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = pstate->agrid + s5->ac1 + s5->ac2;
 	pstate->aload = (pstate->load + s1->load) / 2; // suppress spikes
-	pstate->pload = pstate->aload && pstate->apv > pstate->adiss ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
+	pstate->pload = pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
+	LOCUT(pstate->pload, 0)
 
 	// akku
 	pstate->abatt = (pstate->batt + s1->batt) / 2; // suppress spikes
@@ -615,9 +616,10 @@ static void calculate_pstate() {
 		// TODO maximalen surplus basierend auf pvmin/pvmax/pvavg setzen z.B. wenn delta pvmin/pvmax zu groß -> ersetzt DISTORTION logik
 
 		// calculate surplus power - here we use average values
+		int igrid = pstate->agrid * -1;
 		if (pstate->pload >= 110) {
 			// surplus is grid inverted
-			pstate->surp = pstate->agrid * -1;
+			pstate->surp = igrid;
 			// minus akku when discharging
 			if (pstate->abatt > NOISE)
 				pstate->surp -= pstate->abatt;
@@ -625,8 +627,8 @@ static void calculate_pstate() {
 			if (pstate->surp < 0)
 				pstate->surp = 0;
 		} else if (pstate->pload >= 100 && pstate->pload < 110) {
-			// one step down to avoid grid download
-			pstate->surp = -RAMP;
+			// one step down to avoid grid download or grid download itself
+			pstate->surp = igrid < -RAMP ? igrid : -RAMP;
 		} else {
 			// surplus is the missing power
 			pstate->surp = pstate->apv - pstate->adiss - pstate->aload;

@@ -82,7 +82,7 @@
 #define WAIT_NEXT_SECOND	\
 		time_t ts_now = time(NULL); \
 		while (ts_now == time(NULL)) \
-			msleep(100);
+			msleep(111);
 
 #define PROFILING_START \
 		struct timespec ts_profiling; \
