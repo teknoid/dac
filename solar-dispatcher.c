@@ -61,7 +61,7 @@ static int ramp_akku(device_t *device, int power);
 static device_t a1 = { .name = "akku", .total = 0, .ramp = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0, .from = 11, .to = 15, .min = 5 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .ramp = &ramp_boiler, .adj = 1, .r = 0, .from = 11, .to = 15, .min = 100 };
 static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox" };
 static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox" };
 static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 500, .ramp = &ramp_heater, .adj = 0, .r = 0, .host = "plug5" };
@@ -183,6 +183,10 @@ static int ramp_boiler(device_t *boiler, int power) {
 		return 0;
 	}
 
+	// not enough to start up - electronic thermostat struggles at too less power
+	if (boiler->state == Auto && boiler->power == 0 && power < boiler->min)
+		return 0;
+
 	// power steps
 	int step = power * 100 / boiler->total;
 	if (power < 0 && (power < step * boiler->total / 100))
@@ -194,17 +198,14 @@ static int ramp_boiler(device_t *boiler, int power) {
 	if (boiler->power < 5 && 1 < step && step < 5)
 		step = 1;
 
-	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->min && boiler->state == Auto ? boiler->min : 0;
-
 	// transform power into 0..100%
 	power = boiler->power + step;
+
+	// electronic thermostat - leave boiler alive when in AUTO mode
+	int min = boiler->state == Auto && boiler->min ? boiler->min * 100 / boiler->total : 0;
+
 	HICUT(power, 100);
 	LOCUT(power, min);
-
-	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->power == 0 && power < min)
-		return 0;
 
 	// check if update is necessary
 	if (boiler->power == power)
@@ -312,8 +313,8 @@ static void create_devices_json() {
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (i++)
 			fprintf(fp, ",");
-#define DSTATE_TEMPLATE	"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"flags\":%d, \"total\":%d, \"load\":%d, \"steal\":%d}"
-		fprintf(fp, DSTATE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load, DD->steal);
+#define DEVICE_TEMPLATE	"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"flags\":%d, \"total\":%d, \"load\":%d, \"steal\":%d}"
+		fprintf(fp, DEVICE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load, DD->steal);
 	}
 	fprintf(fp, "]");
 
@@ -602,9 +603,12 @@ static void steal() {
 			dstate->steal += DD->steal;
 			continue;
 		}
-		// steal all when in AUTO mode and no OVERLOAD (we cannot be sure if the power is really consumed)
+		// only when in AUTO mode and no OVERLOAD (we cannot be sure if the power is really consumed)
 		if (DD->state == Auto && dstate->rload < OVERLOAD) {
-			DD->steal = DD->load;
+			if (DD->min)
+				DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // all above minimum
+			else
+				DD->steal = DD->load; // all
 			dstate->steal += DD->steal;
 		}
 	}
@@ -617,10 +621,26 @@ static void steal() {
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// TODO akku can only steal while charging
-		// - nur wenn CHARGING ohne limit
-		// - stealable ist mppt1 + mppt2 - akku
-		// - wenn das > 0 victims hinter akku down rampen
+		// akku can only steal inverters ac output when charging and not saturated
+		if (t == AKKU && AKKU_CHARGING && AKKU->power < 95 && pstate->ac1 > NOISE) {
+			dstate->steal = pstate->ac1;
+
+			// jump to last entry
+			device_t **vv = potd->devices;
+			while (*vv)
+				vv++;
+
+			// ramp down victims in inverse order
+			int to_steal = dstate->steal;
+			while (--vv != tt && to_steal > 0) {
+				device_t *v = *vv;
+				ramp_device(v, v->steal * -1);
+				int given = v->delta * -1;
+				xlog("SOLAR steal thief=AKKU to_steal=%d victim=%s given=%d", to_steal, v->name, given);
+				to_steal -= given;
+			}
+			return;
+		}
 
 		// only thiefs in AUTO mode can steal
 		if (t->state != Auto)
