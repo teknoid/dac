@@ -604,7 +604,7 @@ static void calculate_pstate() {
 		}
 
 		// load is completely satisfied from secondary inverter
-		if (pstate->ac2 > pstate->load) {
+		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2) {
 			pstate->flags |= FLAG_EXTRAPOWER;
 			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
 		}
