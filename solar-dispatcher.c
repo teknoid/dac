@@ -406,16 +406,9 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0; // no change
 
-	// potd has changed
-	if (potd != 0) {
-		// reset all devices
-		for (device_t **dd = DEVICES; *dd; dd++)
-			ramp_device(DD, DD->total * -1);
-
-		// set AKKU to standby when charging
-		if (AKKU_CHARGING)
-			akku_standby(AKKU);
-	}
+	// potd has changed - set AKKU to standby when charging
+	if (potd != 0 && AKKU_CHARGING)
+		akku_standby(AKKU);
 
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
@@ -621,8 +614,8 @@ static void steal() {
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// akku can only steal inverters ac output when charging and not saturated
-		if (t == AKKU && AKKU_CHARGING && AKKU->power < 95 && pstate->ac1 > NOISE) {
+		// akku can only steal inverters ac output when charging and not saturated (limited or maximum charge power reached)
+		if (t == AKKU && AKKU_CHARGING && pstate->ac1 > NOISE && AKKU->power < 95) {
 			dstate->steal = pstate->ac1;
 
 			// jump to last entry
