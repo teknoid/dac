@@ -75,8 +75,10 @@
 
 // device flags
 #define FLAG_ACTIVE_CHECKED		(1 << 0)
+#define FLAG_FORCE_OFF			(1 << 1)
 
 #define ACTIVE_CHECKED(d)		(d->flags & FLAG_ACTIVE_CHECKED)
+#define FORCE_OFF(d)			(d->flags & FLAG_FORCE_OFF)
 
 enum e_state {
 	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
@@ -105,6 +107,7 @@ struct _device {
 	const int adj;
 	const int from;
 	const int to;
+	const int min;
 	enum e_state state;
 	int flags;
 	int total;
@@ -112,7 +115,6 @@ struct _device {
 	int delta;
 	int steal;
 	int load;
-	int min;
 	ramp_function_t *ramp;
 };
 

@@ -202,7 +202,7 @@ static int ramp_boiler(device_t *boiler, int power) {
 	power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->state == Auto && boiler->min ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->state == Auto && boiler->min && !FORCE_OFF(boiler) && !PSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
 
 	HICUT(power, 100);
 	LOCUT(power, min);
@@ -558,6 +558,7 @@ static int perform_standby(device_t *d) {
 	} else {
 		// standby check was positive -> set device into standby
 		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
+		d->flags |= FLAG_FORCE_OFF;
 		ramp_device(d, d->total * -1);
 		d->state = Standby;
 	}
