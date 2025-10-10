@@ -23,6 +23,13 @@
 #define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
+#define PX(x, y)				(x == 1 ? y.p1 : (x == 2 ? y.p2 : y.p3))
+#define SAMPLE(x)				x.p1  = SFI(ss->meter->WphA, ss->meter->W_SF); x.p2  = SFI(ss->meter->WphB, ss->meter->W_SF); x.p3  = SFI(ss->meter->WphC, ss->meter->W_SF);
+#define SAMPLE_ADD(x)			x.p1 += SFI(ss->meter->WphA, ss->meter->W_SF); x.p2 += SFI(ss->meter->WphB, ss->meter->W_SF); x.p3 += SFI(ss->meter->WphC, ss->meter->W_SF);
+#define SUBTRACT(x, y)			x.p1 -= y.p1; x.p2 -= y.p2; x.p3 -= y.p3;
+#define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W\n", i, x.p1, x.p2, x.p3);
+#define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W\n", s, x.p1, x.p2, x.p3);
+
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
@@ -135,9 +142,13 @@ static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	switch (ss->inverter->St) {
-	case 0:
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
+		break;
+
+	case I_STATUS_SLEEPING:
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
+		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
 		break;
 
 	case I_STATUS_STARTING:
@@ -176,12 +187,6 @@ static void update_inverter1(sunspec_t *ss) {
 		ss->sleep = 0;
 		break;
 
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING;
-		break;
-
 	case I_STATUS_FAULT:
 		uint16_t active_state_code;
 		sunspec_read_reg(ss, 214, &active_state_code);
@@ -204,9 +209,13 @@ static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	switch (ss->inverter->St) {
-	case 0:
 	case I_STATUS_OFF:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;
+		break;
+
+	case I_STATUS_SLEEPING:
+		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
+		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
 		break;
 
 	case I_STATUS_STARTING:
@@ -231,12 +240,6 @@ static void update_inverter2(sunspec_t *ss) {
 			CM_NULL->mppt4 = CM_NOW->mppt4;
 
 		ss->sleep = 0;
-		break;
-
-	case I_STATUS_SLEEPING:
-		// let the inverter sleep
-		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING;
 		break;
 
 	case I_STATUS_FAULT:
@@ -534,6 +537,7 @@ static int init() {
 
 static int latency() {
 	int count;
+	time_t ts;
 	pstate_t x, y;
 
 #define DEVICE	0x9D01FD
@@ -548,56 +552,53 @@ static int latency() {
 	ss->common = 0;
 	ss->storage = 0;
 
-	// read initial phase power
-	x.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	x.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	x.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+	// middle of second
+	ts = time(NULL);
+	while (ts == time(NULL))
+		msleep(111);
+	msleep(500);
 
+	// switch on
 	count = 0;
-	publish_oneshot(topic, "ON", 0); // switch on
+	SAMPLE(x)
+	PRINTI(count, x)
+	publish_oneshot(topic, "ON", 0);
 	while (1) {
 		msleep(100);
 		count++;
 		sunspec_read(ss);
-
-		// wait for delta phase power
-		y.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		y.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		y.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-
-		printf("%3d  %4d W  %4d W  %4d W \n", count, y.p1, y.p2, y.p3);
-
+		SAMPLE(y)
+		PRINTI(count, y)
 		int dp1 = abs(x.p1 - y.p1);
 		int dp2 = abs(x.p2 - y.p2);
 		int dp3 = abs(x.p3 - y.p3);
-		if (dp1 > DELTA || dp2 > DELTA || dp3 > DELTA)
+		if (dp1 > 100 || dp2 > 100 || dp3 > 100)
 			break;
 	}
 	printf("detected ON meter response after %dms\n", count * 100);
 
-	// update initial phase power
-	x.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	x.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	x.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
+	// middle of second
+	sleep(5);
+	ts = time(NULL);
+	while (ts == time(NULL))
+		msleep(111);
+	msleep(500);
 
+	// switch off
 	count = 0;
-	publish_oneshot(topic, "OFF", 0); // switch off
+	SAMPLE(x)
+	PRINTI(count, x)
+	publish_oneshot(topic, "OFF", 0);
 	while (1) {
 		msleep(100);
 		count++;
 		sunspec_read(ss);
-
-		// wait for delta phase power
-		y.p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		y.p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		y.p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-
-		printf("%3d  %4d W  %4d W  %4d W \n", count, y.p1, y.p2, y.p3);
-
+		SAMPLE(y)
+		PRINTI(count, y)
 		int dp1 = abs(x.p1 - y.p1);
 		int dp2 = abs(x.p2 - y.p2);
 		int dp3 = abs(x.p3 - y.p3);
-		if (dp1 > DELTA || dp2 > DELTA || dp3 > DELTA)
+		if (dp1 > 100 || dp2 > 100 || dp3 > 100)
 			break;
 	}
 	printf("detected OFF meter response after %dms\n", count * 100);

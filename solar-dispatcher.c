@@ -506,6 +506,7 @@ static int perform_standby(device_t *d) {
 	ramp_device(d, power);
 
 	// wait for response
+	// TODO cron jobs
 	sleep(WAIT_RESPONSE);
 
 	// calculate delta power per phase
@@ -650,7 +651,7 @@ static void steal() {
 	}
 }
 
-static void calculate_dstate(time_t now_ts) {
+static void calculate_dstate(time_t ts) {
 	// clear state flags and values
 	dstate->flags = dstate->cload = dstate->rload = 0;
 
@@ -708,11 +709,11 @@ static void calculate_dstate(time_t now_ts) {
 
 	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-	if (now_ts % 10 == 1 && overload)
+	if (ts % 10 == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (3, 13, 23, ...) when not STANDBY
-	if (now_ts % 10 == 3 && !DSTATE_ACTION_STANDBY)
+	if (ts % 10 == 3 && !DSTATE_ACTION_STANDBY)
 		dstate->flags |= FLAG_ACTION_STEAL;
 }
 
