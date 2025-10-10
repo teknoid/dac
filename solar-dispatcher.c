@@ -253,8 +253,12 @@ static void ramp_akku(device_t *akku) {
 	// ramp down request
 	if (power < 0) {
 
-		// all up to it's current charging power
-		akku->ramp = power * -1 < akku->load ? power : akku->load * -1;
+		if (AKKU_CHARGING && akku->load < MINIMUM)
+			// leave akku a little bit charging to avoid grid load
+			akku->ramp = -MINIMUM;
+		else
+			// all up to it's current charging power
+			akku->ramp = power * -1 < akku->load ? power : akku->load * -1;
 
 	}
 
@@ -283,9 +287,9 @@ static void ramp_akku(device_t *akku) {
 
 		if (AKKU_CHARGING && akku->load < MINIMUM) {
 			// leave akku a little bit charging to avoid grid load
-			akku->ramp = -MINIMUM;
+			akku->ramp = MINIMUM;
 		} else {
-			// expect to consume all available DC power up to either charge maximum or charge limit
+			// all available DC power up to either charge maximum or charge limit
 			akku->ramp = pstate->mppt1 + pstate->mppt2 - akku->load;
 			HICUT(power, akku->total)
 		}
@@ -455,11 +459,11 @@ static void rampup() {
 		return;
 
 	device_t **dd = potd->devices;
-	while (*dd && dstate->ramp > 0) {
+	while (*dd && dstate->ramp > RAMP) {
 		int ramp_in = dstate->ramp;
 		ramp_device(DD, ramp_in);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramped↑ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
+		xlog("SOLAR ramp↑ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
 		if (DD->ramp)
 			msleep(111);
 		dd++;
@@ -477,11 +481,11 @@ static void rampdown() {
 		dd++;
 
 	// now go backward - this gives reverse order
-	while (dd-- != potd->devices && dstate->ramp < 0) {
+	while (dd-- != potd->devices && dstate->ramp < RAMP) {
 		int ramp_in = dstate->ramp;
 		ramp_device(DD, ramp_in);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramped↓ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
+		xlog("SOLAR ramp↓ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
 		if (DD->ramp)
 			msleep(111);
 	}
@@ -614,7 +618,7 @@ static void steal() {
 				device_t *v = *vv;
 				ramp_device(v, v->steal * -1);
 				int given = v->ramp * -1;
-				xlog("SOLAR steal thief=AKKU to_steal=%d victim=%s given=%d", to_steal, v->name, given);
+				xlog("SOLAR AKKU steal %d/%d from %s", given, to_steal, v->name);
 				to_steal -= given;
 			}
 			return;
@@ -657,7 +661,7 @@ static void steal() {
 			device_t *v = *vv;
 			ramp_device(v, v->steal * -1);
 			int given = v->ramp * -1;
-			xlog("SOLAR steal thief=%s ramp=%d min=%d to_steal=%d victim=%s given=%d", t->name, total, min, to_steal, v->name, given);
+			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, min, total);
 			to_steal -= given;
 		}
 
