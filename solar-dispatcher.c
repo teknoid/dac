@@ -253,12 +253,8 @@ static void ramp_akku(device_t *akku) {
 	// ramp down request
 	if (power < 0) {
 
-		if (AKKU_CHARGING && akku->load < MINIMUM)
-			// leave akku a little bit charging to avoid grid load
-			akku->ramp = -MINIMUM;
-		else
-			// all up to it's current charging power
-			akku->ramp = power * -1 < akku->load ? power : akku->load * -1;
+		// leave akku a little bit charging, otherwise it's current charging power
+		akku->ramp = (akku->load < MINIMUM) || (power * -1 < akku->load) ? power : akku->load * -1;
 
 	}
 
