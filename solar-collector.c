@@ -470,8 +470,8 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->dgrid, DELTA);
 	pstate->agrid = (pstate->grid + s1->grid) / 2; // suppress spikes
 
-	// load - use ac values 5 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
-	pstate->load = pstate->agrid + s5->ac1 + s5->ac2;
+	// load - use ac values 4 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
+	pstate->load = pstate->agrid + s4->ac1 + s4->ac2;
 	pstate->aload = (pstate->load + s1->load) / 2; // suppress spikes
 
 	// ratio pv / load - only when we have pv and load
@@ -623,31 +623,33 @@ static void calculate_pstate() {
 		// calculate surplus power - here we use average values
 
 		// surplus is grid inverted minus akku when discharging
-		pstate->surp = pstate->agrid * -1;
+		int surp = pstate->agrid * -1;
 		if (pstate->abatt > NOISE)
-			pstate->surp -= pstate->abatt * -1;
+			surp -= pstate->abatt * -1;
 
 		if (pstate->pload >= 110) {
 
 			// enough - suppress when below 0
-			LOCUT(pstate->surp, 0)
+			LOCUT(surp, 0)
 
 		} else if (100 <= pstate->pload && pstate->pload < 110) {
 
 			// nearly equal - one step down to avoid grid download
 			if (0 < pstate->agrid && pstate->agrid < RAMP)
-				pstate->surp = -RAMP;
+				surp = -RAMP;
 			// limit to +RAMP
-			HICUT(pstate->surp, RAMP)
+			HICUT(surp, RAMP)
 
 		} else {
 
 			// not enough - suppress when above 0
-			HICUT(pstate->surp, 0)
+			HICUT(surp, 0)
 
 		}
 
-		ZSHAPE(pstate->surp, RAMP)
+		// shape + suppress spikes
+		ZSHAPE(surp, RAMP)
+		pstate->surp = (surp + s1->surp) / 2;
 	}
 
 	pthread_mutex_unlock(&collector_lock);
