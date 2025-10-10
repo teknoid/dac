@@ -157,23 +157,11 @@ static void update_inverter1(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_MPPT:
-		gstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10; // store x10 scaled
-
-		pstate->f = ss->inverter->Hz - 5000; // store only the diff
 		pstate->ac1 = SFI(ss->inverter->W, ss->inverter->W_SF);
 		pstate->dc1 = SFI(ss->inverter->DCW, ss->inverter->DCW_SF);
-		pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-		pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-		pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 
 		pstate->mppt1 = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt2 = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
-
-		// pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
-		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
-		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
-		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d", ss->name, mppt3, mppt4);
-		pstate->batt = mppt3 > 0 ? mppt3 * -1 : mppt4;
 
 		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
@@ -183,6 +171,18 @@ static void update_inverter1(sunspec_t *ss) {
 			CM_NULL->mppt1 = CM_NOW->mppt1;
 		if (CM_NULL->mppt2 == 0)
 			CM_NULL->mppt2 = CM_NOW->mppt2;
+
+		// pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
+		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
+		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
+		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d", ss->name, mppt3, mppt4);
+		pstate->batt = mppt3 > 0 ? mppt3 * -1 : mppt4;
+		gstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10; // store x10 scaled
+
+		// pstate->f = ss->inverter->Hz - 5000; // store only the diff
+		// pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+		// pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+		// pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 
 		ss->sleep = 0;
 		break;
@@ -267,10 +267,10 @@ static void update_meter(sunspec_t *ss) {
 	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-//	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-//	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-//	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
-//	pstate->f = ss->meter->Hz - 5000; // store only the diff
+	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+	pstate->f = ss->meter->Hz - 5000; // store only the diff
 
 	CM_NOW->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	CM_NOW->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);

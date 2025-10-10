@@ -419,6 +419,10 @@ static void calculate_pstate() {
 	int inv1, inv2;
 	inverter_status(&inv1, &inv2);
 	pstate->inv = inv1 * 10 + inv2;
+	if (!inv1)
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
+	if (!inv2)
+		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;
 
 	// clear state flags and values
 	pstate->flags = 0;
