@@ -617,25 +617,30 @@ static void calculate_pstate() {
 		// TODO maximalen surplus basierend auf pvmin/pvmax/pvavg setzen z.B. wenn delta pvmin/pvmax zu groß -> ersetzt DISTORTION logik
 
 		// calculate surplus power - here we use average values
-		int igrid = pstate->agrid * -1;
+
+		// surplus is grid inverted minus akku when discharging
+		pstate->surp = pstate->agrid * -1;
+		if (pstate->abatt > NOISE)
+			pstate->surp -= pstate->abatt * -1;
+
 		if (pstate->pload >= 110) {
-			// surplus is grid inverted
-			pstate->surp = igrid;
-			// minus akku when discharging
-			if (pstate->abatt > NOISE)
-				pstate->surp -= pstate->abatt;
-			// suppress when below 0 as we still have enough
-			if (pstate->surp < 0)
-				pstate->surp = 0;
-		} else if (pstate->pload >= 100 && pstate->pload < 110) {
-			// one step down to avoid grid download or grid download itself
-			pstate->surp = igrid < -RAMP ? igrid : -RAMP;
+
+			// enough - suppress when below 0
+			LOCUT(pstate->surp, 0)
+
+		} else if (100 <= pstate->pload && pstate->pload < 110) {
+
+			// nearly equal - one step down to avoid grid download
+			if (0 < pstate->agrid && pstate->agrid < RAMP)
+				pstate->surp = -RAMP;
+			// limit to +RAMP
+			HICUT(pstate->surp, RAMP)
+
 		} else {
-			// surplus is the missing power
-			pstate->surp = pstate->apv - pstate->adiss - pstate->aload;
-			// surplus is the inverted discharging power
-			if (pstate->abatt > NOISE)
-				pstate->surp = pstate->abatt * -1;
+
+			// not enough - suppress when above 0
+			HICUT(pstate->surp, 0)
+
 		}
 
 		ZSHAPE(pstate->surp, RAMP)

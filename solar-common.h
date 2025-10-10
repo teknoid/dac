@@ -97,7 +97,7 @@ struct _params {
 
 // device definitions
 typedef struct _device device_t;
-typedef int (ramp_function_t)(device_t*, int);
+typedef void (ramp_function_t)(device_t*);
 struct _device {
 	const unsigned int id;
 	const unsigned int r;
@@ -112,10 +112,10 @@ struct _device {
 	int flags;
 	int total;
 	int power;
-	int delta;
 	int steal;
 	int load;
-	ramp_function_t *ramp;
+	int ramp;
+	ramp_function_t *rf;
 };
 
 // self and meter counter with access pointers
@@ -210,14 +210,15 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	"  lock  ramp steal cload rload flags"
+#define DSTATE_HEADER	" flags  lock  surp  ramp steal cload rload"
 struct _dstate {
+	int flags;
 	int lock;
+	int surp;
 	int ramp;
 	int steal;
 	int cload;
 	int rload;
-	int flags;
 };
 
 // global counter, state and parameter pointer
