@@ -253,7 +253,7 @@ static void ramp_akku(device_t *akku) {
 	// ramp down request
 	if (power < 0) {
 
-		// leave akku a little bit charging, otherwise it's current charging power
+		// leave akku a little bit charging, otherwise up to it's current charging power
 		akku->ramp = (akku->load < MINIMUM) || (power * -1 < akku->load) ? power : akku->load * -1;
 
 	}
@@ -451,9 +451,6 @@ static void burnout() {
 
 // ramp up in POTD order
 static void rampup() {
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || DSTATE_ALL_UP || DSTATE_ALL_STANDBY)
-		return;
-
 	device_t **dd = potd->devices;
 	while (*dd && dstate->ramp > RAMP) {
 		int ramp_in = dstate->ramp;
@@ -468,9 +465,6 @@ static void rampup() {
 
 // ramp down inverse POTD order
 static void rampdown() {
-	if (!PSTATE_VALID || DSTATE_ALL_DOWN || DSTATE_ALL_STANDBY)
-		return;
-
 	// jump to last entry
 	device_t **dd = potd->devices;
 	while (*dd)
@@ -488,19 +482,14 @@ static void rampdown() {
 }
 
 static void ramp() {
-	if (dstate->lock)
-		return; // no action when locked
+	dstate->ramp = dstate->surp;
 
-	dstate->ramp = dstate->surp = pstate->surp;
-	if (!dstate->ramp)
-		return; // nothing to ramp
-
-	if (dstate->ramp <= -RAMP)
+	if (dstate->ramp <= -RAMP && !DSTATE_ALL_DOWN)
 		rampdown();
 
 	// allow rampup after rampdown if power was released
 
-	if (dstate->ramp >= -RAMP)
+	if (dstate->ramp >= -RAMP && !DSTATE_ALL_UP)
 		rampup();
 }
 
@@ -551,9 +540,6 @@ static int perform_standby(device_t *d) {
 }
 
 static int standby() {
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || !DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || dstate->lock || pstate->pload < 120)
-		return 0; // only when !locked and surplus is not negative
-
 	// try first active powered adjustable device
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj)
@@ -568,10 +554,6 @@ static int standby() {
 }
 
 static void steal() {
-	dstate->steal = 0;
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_CHECK_STANDBY || DSTATE_ALL_STANDBY || DSTATE_ALL_UP || dstate->lock || pstate->pload < 120)
-		return; // only when !locked and surplus is not negative
-
 	// calculate steal power for any device in AUTO mode
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
@@ -668,9 +650,16 @@ static void steal() {
 	}
 }
 
-static void calculate_dstate() {
+static void calculate_dstate(time_t now_ts) {
 	// clear state flags and values
 	dstate->flags = dstate->cload = dstate->rload = 0;
+
+	// take over surplus
+	dstate->surp = pstate->surp;
+
+	// clear values when offline
+	if (PSTATE_OFFLINE)
+		dstate->surp = dstate->ramp = dstate->steal = 0;
 
 	// update akku
 	AKKU->load = pstate->batt * -1;
@@ -703,14 +692,28 @@ static void calculate_dstate() {
 	// ratio between calculated load and actual load
 	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
 
-	// indicate standby check on permanent OVERLOAD_STANDBY
-	if (dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY) {
-		dstate->flags |= FLAG_CHECK_STANDBY;
-		xdebug("SOLAR set FLAG_CHECK_STANDBY load=%d cload=%d rload=%d", pstate->load, dstate->cload, dstate->rload);
-	}
-
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
+
+	// no further actions
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_ALL_STANDBY || dstate->lock)
+		return;
+
+	// ramp always
+	dstate->flags |= FLAG_ACTION_RAMP;
+
+	// no further actions
+	if (DSTATE_ALL_DOWN || pstate->pload < 120)
+		return;
+
+	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
+	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
+	if (now_ts % 10 == 1 && overload)
+		dstate->flags |= FLAG_ACTION_STANDBY;
+
+	// steal logic each 10 seconds (3, 13, 23, ...) when not STANDBY
+	if (now_ts % 10 == 3 && !DSTATE_ACTION_STANDBY)
+		dstate->flags |= FLAG_ACTION_STEAL;
 }
 
 static void daily() {
@@ -840,27 +843,26 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
-		// emergency mode
-		if (PSTATE_EMERGENCY)
-			emergency();
-
-		// burnout mode
-		if (PSTATE_BURNOUT)
-			burnout();
-
 		// count down lock
 		if (dstate->lock)
 			dstate->lock--;
 
-		// ramp
-		ramp();
+		if (PSTATE_EMERGENCY)
+			emergency();
 
-		// standby logic each 10 seconds (1, 11, 21, ...)
-		if (now_ts % 10 == 1)
+		if (PSTATE_BURNOUT)
+			burnout();
+
+		// calculate device state and actions
+		calculate_dstate(now_ts);
+
+		if (DSTATE_ACTION_RAMP)
+			ramp();
+
+		if (DSTATE_ACTION_STANDBY)
 			standby();
 
-		// steal logic each 10 seconds (3, 13, 23, ...)
-		if (now_ts % 10 == 3)
+		if (DSTATE_ACTION_STEAL)
 			steal();
 
 		// cron jobs
@@ -874,9 +876,6 @@ static void loop() {
 					daily();
 			}
 		}
-
-		// calculate device state
-		calculate_dstate();
 
 		// print dstate once per minute / on device action
 		if (MINLY || dstate->lock == WAIT_RESPONSE)
