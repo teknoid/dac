@@ -248,10 +248,12 @@ static void ramp_akku(device_t *akku) {
 	int power = akku->ramp;
 	akku->ramp = 0;
 
+	// akku ramps up and down itself - emulating ramp behavior
+
 	// ramp down request
 	if (power < 0) {
 
-		// akku ramps down itself up to it's current charging power
+		// all up to it's current charging power
 		akku->ramp = power * -1 < akku->load ? power : akku->load * -1;
 
 	}
