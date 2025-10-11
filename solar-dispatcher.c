@@ -150,6 +150,7 @@ static void ramp_heater(device_t *heater) {
 #endif
 
 	// update power values
+	dstate->flags |= FLAG_ACTION;
 	dstate->lock = WAIT_RESPONSE;
 	heater->power = power;
 	heater->ramp = power ? heater->total : heater->total * -1;
@@ -237,6 +238,7 @@ static void ramp_boiler(device_t *boiler) {
 #endif
 
 	// update power values
+	dstate->flags |= FLAG_ACTION;
 	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->power = power;
 	boiler->ramp = step * boiler->total / 100;
@@ -263,7 +265,8 @@ static void ramp_akku(device_t *akku) {
 
 		// set into standby when full
 		if (gstate->soc == 1000) {
-			akku_standby(akku);
+			if (!akku_standby(akku))
+				dstate->flags |= FLAG_ACTION;
 			return;
 		}
 
@@ -278,8 +281,10 @@ static void ramp_akku(device_t *akku) {
 			limit = AKKU_LIMIT_CHARGE2X;
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
 			limit = AKKU_LIMIT_CHARGE3X;
-		if (!akku_charge(akku, limit))
+		if (!akku_charge(akku, limit)) {
+			dstate->flags |= FLAG_ACTION;
 			dstate->lock = WAIT_START_CHARGE;
+		}
 
 		if (AKKU_CHARGING && akku->load < MINIMUM) {
 			// leave akku a little bit charging to avoid grid load
@@ -879,8 +884,7 @@ static void loop() {
 		}
 
 		// print dstate once per minute / on device action
-		int action = dstate->surp && dstate->ramp != dstate->surp;
-		if (MINLY || action)
+		if (MINLY || DSTATE_ACTION)
 			print_dstate();
 
 		// web output

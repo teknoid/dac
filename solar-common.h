@@ -67,9 +67,10 @@
 #define FLAG_ALL_STANDBY		(1 << 1)
 #define FLAG_ALL_UP				(1 << 2)
 
-#define FLAG_ACTION_STEAL		(1 << 13)
-#define FLAG_ACTION_STANDBY		(1 << 14)
-#define FLAG_ACTION_RAMP		(1 << 15)
+#define FLAG_ACTION_STEAL		(1 << 12)
+#define FLAG_ACTION_STANDBY		(1 << 13)
+#define FLAG_ACTION_RAMP		(1 << 14)
+#define FLAG_ACTION				(1 << 15)
 
 #define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
 #define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
@@ -78,7 +79,7 @@
 #define DSTATE_ACTION_STEAL		(dstate->flags & FLAG_ACTION_STEAL)
 #define DSTATE_ACTION_STANDBY	(dstate->flags & FLAG_ACTION_STANDBY)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)
-#define DSTATE_ACTION			(dstate->flags & (FLAG_ACTION_RAMP | FLAG_ACTION_STANDBY | FLAG_ACTION_STEAL))
+#define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 
 // device flags
 #define FLAG_ACTIVE_CHECKED		(1 << 0)
