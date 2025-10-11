@@ -25,6 +25,23 @@
 #include "lcd.h"
 #include "mcp.h"
 
+#ifndef MQTT_HOST
+#define	MQTT_HOST			"mqtt"
+#endif
+
+#ifndef MQTT_PORT
+#define MQTT_PORT			"1883"
+#endif
+
+#define APLAY_OPTIONS		"-q -D hw:CARD=Device"
+#define APLAY_DIRECTORY 	"/home/hje/sounds/16"
+
+#define DBUS				"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+#define NOTIFY_SEND			"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
+
+#define MAC_HANDY			0xfc539ea93ac5
+#define DARKNESS			50
+
 //
 // MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
 //
@@ -267,7 +284,7 @@ static int init_tx() {
 	ZEROP(client_tx);
 
 	snprintf(client_id, 128, "%s-mcp-tx", hostname);
-	fd_tx = open_nb_socket(HOST, PORT);
+	fd_tx = open_nb_socket(MQTT_HOST, MQTT_PORT);
 	if (fd_tx == -1)
 		return xerr("MQTT Failed to open socket: ");
 
@@ -294,7 +311,7 @@ static int init_rx() {
 	ZEROP(client_rx);
 
 	snprintf(client_id, 128, "%s-mcp-rx", hostname);
-	fd_rx = open_nb_socket(HOST, PORT);
+	fd_rx = open_nb_socket(MQTT_HOST, MQTT_PORT);
 	if (fd_rx == -1)
 		return xerr("MQTT Failed to open socket: ");
 

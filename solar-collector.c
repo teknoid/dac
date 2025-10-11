@@ -17,8 +17,8 @@
 
 #define AKKU_BURNOUT			1
 
-#define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-minly.gp"
-#define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /home/hje/workspace-cpp/dac/misc/solar-hourly.gp"
+#define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
+#define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
 
 // hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter*.bin
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
