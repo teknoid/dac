@@ -78,6 +78,7 @@
 #define DSTATE_ACTION_STEAL		(dstate->flags & FLAG_ACTION_STEAL)
 #define DSTATE_ACTION_STANDBY	(dstate->flags & FLAG_ACTION_STANDBY)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)
+#define DSTATE_ACTION			(dstate->flags & (FLAG_ACTION_RAMP | FLAG_ACTION_STANDBY | FLAG_ACTION_STEAL))
 
 // device flags
 #define FLAG_ACTIVE_CHECKED		(1 << 0)

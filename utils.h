@@ -74,6 +74,18 @@
 		if (-y < x && x < y) \
 			x = 0;
 
+#define AVERAGE(z, x, y) \
+		z = (x + y) / 2; \
+		if (z > 0 && z > x) \
+			z = x; \
+		if (z < 0 && z < x) \
+			z = x;
+
+#define DELTAZ(z, x, y, d) \
+		z = x - y; \
+		if (-d < z && z < d) \
+			z = 0;
+
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
 		struct tm tm_now, *now = &tm_now; \

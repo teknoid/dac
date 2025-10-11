@@ -452,7 +452,7 @@ static void calculate_pstate() {
 	int diss1 = pstate->dc1 - pstate->ac1;
 	int diss2 = pstate->dc2 - pstate->ac2;
 	pstate->diss = diss1 + diss2;
-	pstate->adiss = (pstate->diss + s1->diss) / 2; // suppress spikes
+	AVERAGE(pstate->adiss, pstate->diss, s1->diss)
 	xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
 	// pv
@@ -461,25 +461,23 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt3, NOISE)
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
-	pstate->dpv = pstate->pv - s1->pv;
-	ZSHAPE(pstate->dpv, DELTA)
-	pstate->apv = (pstate->pv + s1->pv) / 2; // suppress spikes
+	DELTAZ(pstate->dpv, pstate->pv, s1->pv, DELTA)
+	AVERAGE(pstate->apv, pstate->pv, s1->pv)
 
 	// grid
-	pstate->dgrid = pstate->grid - s1->grid;
-	ZSHAPE(pstate->dgrid, DELTA);
-	pstate->agrid = (pstate->grid + s1->grid) / 2; // suppress spikes
+	DELTAZ(pstate->dgrid, pstate->grid, s1->grid, DELTA)
+	AVERAGE(pstate->agrid, pstate->grid, s1->grid)
 
 	// load - use ac values 4 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = pstate->agrid + s4->ac1 + s4->ac2;
-	pstate->aload = (pstate->load + s1->load) / 2; // suppress spikes
+	AVERAGE(pstate->aload, pstate->load, s1->load)
 
 	// ratio pv / load - only when we have pv and load
 	pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
 	LOCUT(pstate->pload, 0)
 
 	// akku
-	pstate->abatt = (pstate->batt + s1->batt) / 2; // suppress spikes
+	AVERAGE(pstate->abatt, pstate->batt, s1->batt)
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -649,7 +647,7 @@ static void calculate_pstate() {
 
 		// shape + suppress spikes
 		ZSHAPE(surp, RAMP)
-		pstate->surp = (surp + s1->surp) / 2;
+		AVERAGE(pstate->surp, surp, s1->surp)
 	}
 
 	pthread_mutex_unlock(&collector_lock);

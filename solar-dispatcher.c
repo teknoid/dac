@@ -879,7 +879,8 @@ static void loop() {
 		}
 
 		// print dstate once per minute / on device action
-		if (MINLY || dstate->lock == WAIT_RESPONSE)
+		int action = dstate->surp && dstate->ramp != dstate->surp;
+		if (MINLY || action)
 			print_dstate();
 
 		// web output
