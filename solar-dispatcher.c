@@ -98,6 +98,9 @@ static int sock = 0;
 // local dstate memory
 static dstate_t dstate_seconds[60], dstate_current;
 
+// current ramped device
+static device_t *device = 0;
+
 // global dstate pointer
 dstate_t *dstate = &dstate_current;
 
@@ -155,6 +158,13 @@ static void ramp_heater(device_t *heater) {
 	heater->power = power;
 	heater->ramp = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
+
+	// store phase power to detect response
+	dstate->p1 = pstate->p1;
+	dstate->p1 = pstate->p2;
+	dstate->p1 = pstate->p3;
+	device = heater;
+
 	return;
 }
 
@@ -204,7 +214,7 @@ static void ramp_boiler(device_t *boiler) {
 	power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->state == Auto && boiler->min && !FORCE_OFF(boiler) && !PSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) && !PSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
 
 	HICUT(power, 100);
 	LOCUT(power, min);
@@ -243,6 +253,13 @@ static void ramp_boiler(device_t *boiler) {
 	boiler->power = power;
 	boiler->ramp = step * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
+
+	// store phase power to detect response
+	dstate->p1 = pstate->p1;
+	dstate->p1 = pstate->p2;
+	dstate->p1 = pstate->p3;
+	device = boiler;
+
 	return;
 }
 
@@ -321,7 +338,7 @@ static void create_devices_json() {
 }
 
 static void print_dstate() {
-	char line[512], value[16]; // 256 is not enough due to color escape sequences!!!
+	char line[512], value[6]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
 	if (!PSTATE_OFFLINE) {
@@ -332,37 +349,38 @@ static void print_dstate() {
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
 		case Disabled:
-			snprintf(value, 5, " .");
+			snprintf(value, 6, " .");
 			break;
 		case Initial:
-			snprintf(value, 5, " i");
+			snprintf(value, 6, " i");
 			break;
 		case Standby:
-			snprintf(value, 5, " S");
+			snprintf(value, 6, " S");
 			break;
 		case Manual:
-			snprintf(value, 5, " %c", DD->power ? 'M' : 'm');
+			snprintf(value, 6, " %c", DD->power ? 'M' : 'm');
 			break;
 		case Auto:
 			if (DD->adj) {
-				snprintf(value, 5, " %3d", DD->power);
-				if (ACTIVE_CHECKED(DD))
-					strcat(value, "!");
-				break;
+				if (DEV_RESPONSE(DD))
+					snprintf(value, 6, " %3d!", DD->power);
+				else
+					snprintf(value, 6, " %3d", DD->power);
+			} else {
+				if (DEV_RESPONSE(DD))
+					snprintf(value, 6, " %c", DD->power ? 'X' : '_');
+				else
+					snprintf(value, 6, " %c", DD->power ? 'x' : '_');
 			}
-			if (ACTIVE_CHECKED(DD))
-				snprintf(value, 5, " %c", DD->power ? 'X' : '_');
-			else
-				snprintf(value, 5, " %c", DD->power ? 'x' : '_');
 			break;
 		case Charge:
-			snprintf(value, 5, " C");
+			snprintf(value, 6, " C");
 			break;
 		case Discharge:
-			snprintf(value, 5, " D");
+			snprintf(value, 6, " D");
 			break;
 		default:
-			snprintf(value, 5, " ?");
+			snprintf(value, 6, " ?");
 			break;
 		}
 		strcat(line, value);
@@ -498,62 +516,33 @@ static void ramp() {
 		rampup();
 }
 
-static int perform_standby(device_t *d) {
-	// store meter power
-	int p1 = pstate->p1;
-	int p2 = pstate->p2;
-	int p3 = pstate->p3;
-
+static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
-	xlog("SOLAR starting standby check on %s with power=%d p1=%d p2=%d p3=%d", d->name, power, p1, p2, p3);
-
-	// ramp
+	xlog("SOLAR starting standby check on %s with power=%d", d->name, power);
+	d->flags |= FLAG_STANDBY_CHECK; // set check flag
 	ramp_device(d, power);
-
-	// wait for response
-	// TODO cron jobs
-	sleep(WAIT_RESPONSE);
-
-	// calculate delta power per phase
-	int d1 = pstate->p1 - p1;
-	int d2 = pstate->p2 - p2;
-	int d3 = pstate->p3 - p3;
-	ZSHAPE(d1, NOISE)
-	ZSHAPE(d2, NOISE)
-	ZSHAPE(d3, NOISE)
-
-	// valid response is at least 2/3 of ramp power
-	int delta = d->ramp - d->ramp / 3;
-
-	// check if we got a response on any phase
-	int l1 = delta > 0 ? d1 > delta : d1 < delta;
-	int l2 = delta > 0 ? d2 > delta : d2 < delta;
-	int l3 = delta > 0 ? d3 > delta : d3 < delta;
-
-	if (l1 || l2 || l3) {
-		// standby check was negative - we got a response
-		xlog("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
-		d->flags |= FLAG_ACTIVE_CHECKED; // flag with standby check performed
-	} else {
-		// standby check was positive -> set device into standby
-		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
-		d->flags |= FLAG_FORCE_OFF;
-		ramp_device(d, d->total * -1);
-		d->state = Standby;
-	}
-
-	return 0;
+	return d;
 }
 
-static int standby() {
-	// try first active powered adjustable device
+static device_t* standby() {
+	// try first powered adjustable device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power && DD->adj)
+		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj && !DEV_RESPONSE(DD))
 			return perform_standby(DD);
 
-	// try first active powered dumb device
+	// try first powered adjustable device
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !ACTIVE_CHECKED(DD) && DD->power)
+		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
+			return perform_standby(DD);
+
+	// try first powered dumb device without RESPONSE flag
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && !DEV_RESPONSE(DD))
+			return perform_standby(DD);
+
+	// try first powered dumb device
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power)
 			return perform_standby(DD);
 
 	return 0;
@@ -652,8 +641,63 @@ static void steal() {
 		// ramp up thief
 		ramp_device(t, total);
 		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER ? WAIT_AKKU : WAIT_RESPONSE;
+		device = 0; // expect no response when power is transferred from one to another
 		return;
 	}
+}
+
+static void response() {
+	if (!device)
+		return; // no response expected
+
+	// valid response is at least 2/3 of last ramp
+	int delta = device->ramp - device->ramp / 3;
+
+	// check if we got a response on any phase
+	int d1 = pstate->p1 - dstate->p1;
+	int d2 = pstate->p2 - dstate->p2;
+	int d3 = pstate->p3 - dstate->p3;
+	int l1 = delta > 0 ? d1 > delta : d1 < delta;
+	int l2 = delta > 0 ? d2 > delta : d2 < delta;
+	int l3 = delta > 0 ? d3 > delta : d3 < delta;
+
+	// is the device currently in standby check?
+	int standby_check = DEV_STANDBY_CHECK(device);
+
+	// response OK
+	if (l1 || l2 || l3) {
+		if (standby_check) {
+			xlog("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", device->name, delta, d1, d2, d3);
+			device->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
+			device->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
+		} else
+			xlog("SOLAR response from %s detected at %s%s%s, delta %d %d %d expected %d", device->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
+
+		// wait more to give akku time to release power when ramped up
+		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER && delta > 0 ? WAIT_RESPONSE : 0;
+		device->flags |= FLAG_RESPONSE; // flag with response OK
+		device = 0;
+		return;
+	}
+
+	// still awaiting response
+	if (dstate->lock > 0)
+		return;
+
+	// no response during lock
+	if (standby_check) {
+		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", device->name, delta, d1, d2, d3);
+		device->flags |= FLAG_FORCE_OFF;
+		ramp_device(device, device->total * -1);
+		device->state = Standby;
+	} else
+		xlog("SOLAR no response from %s", device->name);
+
+	// remove flag when ramped up, otherwise ignore
+	if (delta > 0)
+		device->flags &= ~FLAG_RESPONSE;
+
+	device = 0;
 }
 
 static void calculate_dstate(time_t ts) {
@@ -744,10 +788,10 @@ static void minly() {
 			if (DD->state != Manual)
 				ramp_device(DD, DD->total * -1);
 
-	// reset ACTIVE_CHECKED on permanent OVERLOAD_STANDBY_FORCE
+	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
 		for (device_t **dd = DEVICES; *dd; dd++)
-			DD->flags &= ~FLAG_ACTIVE_CHECKED;
+			DD->flags &= ~FLAG_STANDBY_CHECKED;
 
 	// update akku state
 	akku_state(AKKU);
@@ -852,6 +896,9 @@ static void loop() {
 		// count down lock
 		if (dstate->lock)
 			dstate->lock--;
+
+		// check response
+		response();
 
 		if (PSTATE_EMERGENCY)
 			emergency();

@@ -20,6 +20,8 @@ body, html {
 	float: left
 }
 
+dl { margin: 10px 0 0 0 }
+
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
 dl .p						{ background:skyblue }
@@ -79,7 +81,7 @@ dl dd.d						{ cursor:default }
 .pstate						{ width:33% }
 .gstate						{ width:33% }
 .dstate						{ width:33% }
-.devices					{ margin:0 10px }
+.devices					{ margin:10px 0 0 0 }
 
 .apv-p						{ background-color:#FAD967 }
 .agrid-p					{ background-color:orangered }

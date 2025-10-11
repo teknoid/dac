@@ -82,11 +82,15 @@
 #define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 
 // device flags
-#define FLAG_ACTIVE_CHECKED		(1 << 0)
+#define FLAG_RESPONSE			(1 << 0)
 #define FLAG_FORCE_OFF			(1 << 1)
+#define FLAG_STANDBY_CHECK		(1 << 2)
+#define FLAG_STANDBY_CHECKED	(1 << 3)
 
-#define ACTIVE_CHECKED(d)		(d->flags & FLAG_ACTIVE_CHECKED)
-#define FORCE_OFF(d)			(d->flags & FLAG_FORCE_OFF)
+#define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE)
+#define DEV_FORCE_OFF(d)		(d->flags & FLAG_FORCE_OFF)
+#define DEV_STANDBY_CHECK(d)	(d->flags & FLAG_STANDBY_CHECK)
+#define DEV_STANDBY_CHECKED(d)	(d->flags & FLAG_STANDBY_CHECKED)
 
 enum e_state {
 	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
@@ -218,7 +222,7 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags  lock  surp  ramp steal cload rload"
+#define DSTATE_HEADER	" flags  lock  surp  ramp steal cload rload    p1    p2    p3"
 struct _dstate {
 	int flags;
 	int lock;
@@ -227,6 +231,9 @@ struct _dstate {
 	int steal;
 	int cload;
 	int rload;
+	int p1;
+	int p2;
+	int p3;
 };
 
 // global counter, state and parameter pointer
