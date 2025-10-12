@@ -150,6 +150,23 @@ static void create_powerflow_json() {
 	fclose(fp);
 }
 
+// paint new diagrams
+static void gnuplot() {
+#ifdef GNUPLOT_MINLY
+	if (MINLY || access(RUN SLASH "pstate-seconds.svg", F_OK))
+		system(GNUPLOT_MINLY);
+#endif
+#ifdef GNUPLOT_HOURLY
+	// TODO sensors plot
+	if (HOURLY || access(RUN SLASH "pstate.svg", F_OK)) {
+		store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
+		store_table_csv((int*) gstate_history, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
+		mosmix_store_csv();
+		system(GNUPLOT_HOURLY);
+	}
+#endif
+}
+
 static void collect_averages() {
 	char line[LINEBUF], value[10];
 
@@ -704,26 +721,12 @@ static void hourly() {
 	mosmix_scale(now, &succ1, &succ2);
 	gstate->forecast = succ1;
 	HICUT(gstate->forecast, 2000);
-
-#ifdef GNUPLOT_HOURLY
-	// TODO sensors plot
-	// create fresh csv files and paint new diagrams
-	store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
-	store_table_csv((int*) gstate_history, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
-	mosmix_store_csv();
-	system(GNUPLOT_HOURLY);
-#endif
 }
 
 static void minly() {
 	// calculate counter and global state
 	calculate_counter();
 	calculate_gstate();
-
-#ifdef GNUPLOT_MINLY
-	// paint new diagrams
-	system(GNUPLOT_MINLY);
-#endif
 }
 
 static void aggregate_state() {
@@ -818,6 +821,7 @@ static void loop() {
 		create_pstate_json();
 		create_gstate_json();
 		create_powerflow_json();
+		gnuplot();
 
 		// PROFILING_LOG("collector main loop")
 
