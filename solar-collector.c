@@ -453,7 +453,7 @@ static void calculate_pstate() {
 	int diss2 = pstate->dc2 - pstate->ac2;
 	pstate->diss = diss1 + diss2;
 	AVERAGE(pstate->adiss, pstate->diss, s1->diss)
-	xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
+	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
 	// pv
 	ZSHAPE(pstate->mppt1, NOISE)
