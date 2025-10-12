@@ -61,7 +61,7 @@ static void ramp_akku(device_t *device);
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0, .from = 11, .to = 15, .min = 100 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0, .from = 10, .to = 15, .min = 100 };
 static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox" };
 static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox" };
 static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5" };
@@ -161,8 +161,8 @@ static void ramp_heater(device_t *heater) {
 
 	// store phase power to detect response
 	dstate->p1 = pstate->p1;
-	dstate->p1 = pstate->p2;
-	dstate->p1 = pstate->p3;
+	dstate->p2 = pstate->p2;
+	dstate->p3 = pstate->p3;
 	device = heater;
 
 	return;
@@ -256,8 +256,8 @@ static void ramp_boiler(device_t *boiler) {
 
 	// store phase power to detect response
 	dstate->p1 = pstate->p1;
-	dstate->p1 = pstate->p2;
-	dstate->p1 = pstate->p3;
+	dstate->p2 = pstate->p2;
+	dstate->p3 = pstate->p3;
 	device = boiler;
 
 	return;
@@ -589,7 +589,7 @@ static void steal() {
 			int to_steal = dstate->steal;
 			while (--vv != tt && to_steal > 0) {
 				device_t *v = *vv;
-				ramp_device(v, v->steal * -1);
+				ramp_device(v, to_steal * -1);
 				int given = v->ramp * -1;
 				xlog("SOLAR AKKU steal %d/%d from %s", given, to_steal, v->name);
 				to_steal -= given;
@@ -632,7 +632,7 @@ static void steal() {
 		int to_steal = min;
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
-			ramp_device(v, v->steal * -1);
+			ramp_device(v, to_steal * -1);
 			int given = v->ramp * -1;
 			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, min, total);
 			to_steal -= given;
@@ -667,11 +667,11 @@ static void response() {
 	// response OK
 	if (l1 || l2 || l3) {
 		if (standby_check) {
-			xlog("SOLAR standby check negative for %s, delta expected %d actual %d %d %d", device->name, delta, d1, d2, d3);
+			xlog("SOLAR %s standby check negative for, delta expected %d actual %d %d %d lock=%d", device->name, delta, d1, d2, d3, dstate->lock);
 			device->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
 			device->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
 		} else
-			xlog("SOLAR response from %s detected at %s%s%s, delta %d %d %d expected %d", device->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta);
+			xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d lock=%d", device->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta, dstate->lock);
 
 		// wait more to give akku time to release power when ramped up
 		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER && delta > 0 ? WAIT_RESPONSE : 0;
