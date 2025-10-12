@@ -703,11 +703,9 @@ static void response() {
 }
 
 static void calculate_dstate(time_t ts) {
-	// clear values when offline
-	if (GSTATE_OFFLINE) {
-		dstate->surp = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
+	// skip when offline
+	if (GSTATE_OFFLINE)
 		return;
-	}
 
 	// take over surplus
 	dstate->surp = pstate->surp;
@@ -822,6 +820,10 @@ static void minly() {
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			DD->flags &= ~FLAG_STANDBY_CHECKED;
+
+	// clear values when offline
+	if (GSTATE_OFFLINE)
+		dstate->surp = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
 }
 
 // set device into MANUAL mode and toggle power
