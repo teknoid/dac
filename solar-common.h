@@ -36,12 +36,12 @@
 #define GSTATE_SUMMER			(gstate->flags & FLAG_SUMMER)
 #define GSTATE_WINTER			(gstate->flags & FLAG_WINTER)
 #define GSTATE_HEATING			(gstate->flags & FLAG_HEATING)
-#define GSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
-#define GSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
-#define GSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
+#define GSTATE_GRID_ULOAD		(gstate->flags & FLAG_GRID_ULOAD)
+#define GSTATE_GRID_DLOAD		(gstate->flags & FLAG_GRID_DLOAD)
+#define GSTATE_AKKU_DCHARGE		(gstate->flags & FLAG_AKKU_DCHARGE)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
-#define GSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
-#define GSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
+#define GSTATE_BURNOUT			(gstate->flags & FLAG_BURNOUT)
+#define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 
 // pstate flags
 #define FLAG_DELTA				(1 << 0)
