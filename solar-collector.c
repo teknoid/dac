@@ -334,6 +334,38 @@ static void calculate_gstate() {
 	// clear state flags and values
 	gstate->flags = 0;
 
+	// history states
+	pstate_t *m0 = PSTATE_MIN_NOW;
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	pstate_t *m2 = PSTATE_MIN_LAST2;
+
+	// grid upload in last 3 minutes
+	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
+	int gu1 = m0->grid < -75 && m1->grid < -75;
+	int gu0 = m0->grid < -100;
+	if (gu2 || gu1 || gu0) {
+		dstate->flags |= FLAG_GRID_ULOAD;
+		xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
+	}
+
+	// grid download in last 3 minutes
+	int gd2 = m0->grid > 50 && m1->grid > 50 && m2->grid > 50;
+	int gd1 = m0->grid > 75 && m1->grid > 75;
+	int gd0 = m0->grid > 100;
+	if (gd2 || gd1 || gd0) {
+		dstate->flags |= FLAG_GRID_DLOAD;
+		xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
+	}
+
+	// akku discharge in last 3 minutes
+	int a2 = m0->batt > 50 && m1->batt > 50 && m2->batt > 50;
+	int a1 = m0->batt > 75 && m1->batt > 75;
+	int a0 = m0->batt > 100;
+	if (a2 || a1 || a0) {
+		dstate->flags |= FLAG_AKKU_DCHARGE;
+		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->batt, m1->batt, m0->batt);
+	}
+
 	// summer / winter mode
 	if (SUMMER)
 		gstate->flags |= FLAG_SUMMER;
@@ -477,9 +509,6 @@ static void calculate_pstate() {
 	pstate_t *s4 = PSTATE_SEC_LAST4;
 	pstate_t *s5 = PSTATE_SEC_LAST5;
 	pstate_t *s10 = PSTATE_SEC_LAST10;
-	pstate_t *m0 = PSTATE_MIN_NOW;
-	pstate_t *m1 = PSTATE_MIN_LAST1;
-	pstate_t *m2 = PSTATE_MIN_LAST2;
 
 	// dissipation
 	int diss1 = pstate->dc1 - pstate->ac1;
@@ -520,41 +549,8 @@ static void calculate_pstate() {
 	if (abs(pstate->ac2 - s1->ac2) > DELTA)
 		pstate->flags |= FLAG_DELTA;
 
-	// grid upload in last 3 minutes
-	if (pstate->grid < -50) {
-		int g2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
-		int g1 = m0->grid < -75 && m1->grid < -75;
-		int g0 = m0->grid < -100;
-		if (g2 || g1 || g0) {
-			pstate->flags |= FLAG_GRID_ULOAD;
-			xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
-		}
-	}
-
-	// grid download in last 3 minutes
-	if (pstate->grid > 50) {
-		int g2 = m0->grid > 50 && m1->grid > 50 && m2->grid > 50;
-		int g1 = m0->grid > 75 && m1->grid > 75;
-		int g0 = m0->grid > 100;
-		if (g2 || g1 || g0) {
-			pstate->flags |= FLAG_GRID_DLOAD;
-			xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
-		}
-	}
-
-	// akku discharge in last 3 minutes
-	if (pstate->batt > NOISE) {
-		int a2 = m0->batt > 50 && m1->batt > 50 && m2->batt > 50;
-		int a1 = m0->batt > 75 && m1->batt > 75;
-		int a0 = m0->batt > 100;
-		if (a2 || a1 || a0) {
-			pstate->flags |= FLAG_AKKU_DCHARGE;
-			xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->batt, m1->batt, m0->batt);
-		}
-	}
-
 	// offline mode when PV / load ratio is last 3 minutes below 100%
-	int offline = m0->pload < 100 && m1->pload < 100 && m2->pload < 100;
+	int offline = PSTATE_MIN_NOW->pload < 100 && PSTATE_MIN_LAST1->pload < 100 && PSTATE_MIN_LAST2->pload < 100;
 	if (offline) {
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
