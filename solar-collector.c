@@ -468,6 +468,9 @@ static void calculate_pstate() {
 	DELTAZ(pstate->dgrid, pstate->grid, s1->grid, DELTA)
 	AVERAGE(pstate->agrid, pstate->grid, s1->grid)
 
+	// akku
+	AVERAGE(pstate->abatt, pstate->batt, s1->batt)
+
 	// load - use ac values 4 seconds ago due to inverter balancing after grid change - check nightly akku service interval -> nearly no load change
 	pstate->load = pstate->agrid + s4->ac1 + s4->ac2;
 	AVERAGE(pstate->aload, pstate->load, s1->load)
@@ -475,9 +478,6 @@ static void calculate_pstate() {
 	// ratio pv / load - only when we have pv and load
 	pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
 	LOCUT(pstate->pload, 0)
-
-	// akku
-	AVERAGE(pstate->abatt, pstate->batt, s1->batt)
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -577,11 +577,11 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv1 != I_STATUS_MPPT) {
-			xdebug("SOLAR Inverter1 state %d != %d", inv1, I_STATUS_MPPT);
+			xlog("SOLAR Inverter1 state %d expected %d", inv1, I_STATUS_MPPT);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv2 != I_STATUS_MPPT) {
-			xdebug("SOLAR Inverter2 state %d != %d ", inv2, I_STATUS_MPPT);
+			xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
 			pstate->flags &= ~FLAG_VALID;
 		}
 

@@ -273,7 +273,8 @@ static void ramp_akku(device_t *akku) {
 	if (power < 0) {
 
 		// leave akku a little bit charging, otherwise up to it's current charging power
-		akku->ramp = (akku->load < MINIMUM) || (power * -1 < akku->load) ? power : akku->load * -1;
+		if (AKKU_CHARGING)
+			akku->ramp = (akku->load < MINIMUM) || (power * -1 < akku->load) ? power : akku->load * -1;
 
 	}
 
@@ -287,29 +288,35 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// forward to next device if we have grid upload - either on limited akku charging or extra power
-		if (PSTATE_GRID_ULOAD)
+		// aku is charging but we still have grid upload - either on limited akku charging or extra power
+		if (akku->state == Charge && PSTATE_GRID_ULOAD)
 			return;
+
+		// akku is really charging
+		if (AKKU->state == Charge && AKKU->load > NOISE) {
+			if (akku->load < MINIMUM) {
+				// leave akku a little bit charging to avoid grid load
+				akku->ramp = MINIMUM;
+			} else {
+				// all available DC power up to either charge maximum or charge limit
+				akku->ramp = pstate->mppt1 + pstate->mppt2 - akku->load;
+				HICUT(power, akku->total)
+			}
+			return;
+		}
 
 		// start charging
 		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
-		int limit = 0;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			limit = AKKU_LIMIT_CHARGE2X;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			limit = AKKU_LIMIT_CHARGE3X;
-		if (!akku_charge(akku, limit)) {
-			dstate->flags |= FLAG_ACTION;
-			dstate->lock = WAIT_START_CHARGE;
-		}
-
-		if (AKKU_CHARGING && akku->load < MINIMUM) {
-			// leave akku a little bit charging to avoid grid load
-			akku->ramp = MINIMUM;
-		} else {
-			// all available DC power up to either charge maximum or charge limit
-			akku->ramp = pstate->mppt1 + pstate->mppt2 - akku->load;
-			HICUT(power, akku->total)
+		if (GSTATE_CHARGE_AKKU) {
+			int limit = 0;
+			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+				limit = AKKU_LIMIT_CHARGE2X;
+			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+				limit = AKKU_LIMIT_CHARGE3X;
+			if (!akku_charge(akku, limit)) {
+				dstate->flags |= FLAG_ACTION;
+				dstate->lock = WAIT_START_CHARGE;
+			}
 		}
 	}
 }
@@ -435,19 +442,19 @@ static int choose_program() {
 		return select_program(&PLENTY);
 
 	// akku is empty - charging akku has priority
-	if (GSTATE_CHARGE_AKKU && gstate->soc < 100)
+	if (gstate->soc < 100)
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (GSTATE_CHARGE_AKKU && gstate->survive < 1000)
+	if (gstate->survive < 1000)
 		return select_program(&MODEST);
 
 	// survive but tomorrow not enough PV - charging akku has priority
-	if (GSTATE_CHARGE_AKKU && GSTATE_WINTER && gstate->tomorrow < params->akku_capacity)
+	if (GSTATE_WINTER && gstate->tomorrow < params->akku_capacity)
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
-	if (GSTATE_CHARGE_AKKU && gstate->forecast < 500 && AKKU_AVAILABLE < gstate->nsurvive)
+	if (gstate->forecast < 500 && AKKU_AVAILABLE < gstate->nsurvive)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -477,7 +484,7 @@ static void rampup() {
 	device_t **dd = potd->devices;
 	while (*dd && dstate->ramp > RAMP) {
 		int ramp_in = dstate->ramp;
-		ramp_device(DD, ramp_in);
+		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
 		xlog("SOLAR ramp↑ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
 		if (DD->ramp)
@@ -494,9 +501,9 @@ static void rampdown() {
 		dd++;
 
 	// now go backward - this gives reverse order
-	while (dd-- != potd->devices && dstate->ramp < RAMP) {
+	while (dd-- != potd->devices && dstate->ramp < -RAMP) {
 		int ramp_in = dstate->ramp;
-		ramp_device(DD, ramp_in);
+		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
 		xlog("SOLAR ramp↓ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
 		if (DD->ramp)
@@ -569,16 +576,18 @@ static void steal() {
 	}
 
 	// nothing to steal
-	if (dstate->steal < NOISE)
+	if (dstate->steal < RAMP)
 		return;
 
 	// check if we can steal from lower prioritized devices
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// akku can only steal inverters ac output when charging and not saturated (limited or maximum charge power reached)
-		if (t == AKKU && AKKU_CHARGING && pstate->ac1 > NOISE && AKKU->power < 95) {
-			dstate->steal = pstate->ac1;
+		//  when inverter produces ac output and akku is charging and not saturated (limited or maximum charge power reached)
+		if (t == AKKU && pstate->ac1 > RAMP && AKKU_CHARGING && AKKU->power < 95) {
+			// akku can not steal more than inverters ac output
+			if (pstate->ac1 < dstate->steal)
+				dstate->steal = pstate->ac1;
 
 			// jump to last entry
 			device_t **vv = potd->devices;
@@ -611,7 +620,7 @@ static void steal() {
 			dstate->steal += (*vv)->steal;
 
 		// nothing to steal
-		if (dstate->steal < NOISE)
+		if (dstate->steal < RAMP)
 			continue;
 
 		// minimum power to ramp up thief: adjustable = 5% of total, dumb = total +10%
@@ -640,7 +649,7 @@ static void steal() {
 
 		// ramp up thief
 		ramp_device(t, total);
-		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER ? WAIT_AKKU : WAIT_RESPONSE;
+		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RESPONSE;
 		device = 0; // expect no response when power is transferred from one to another
 		return;
 	}
@@ -673,8 +682,8 @@ static void response() {
 		} else
 			xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d lock=%d", device->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta, dstate->lock);
 
-		// wait more to give akku time to release power when ramped up
-		dstate->lock = AKKU_CHARGING && !PSTATE_EXTRAPOWER && delta > 0 ? WAIT_RESPONSE : 0;
+		// wait more to give akku time to release power when ramped up or consume when stolen
+		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0;
 		device->flags |= FLAG_RESPONSE; // flag with response OK
 		device = 0;
 		return;
@@ -746,7 +755,7 @@ static void calculate_dstate(time_t ts) {
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
 	// no further actions
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_ALL_STANDBY || dstate->lock)
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_ALL_STANDBY || device || dstate->lock)
 		return;
 
 	// ramp always
