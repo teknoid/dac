@@ -153,7 +153,7 @@ static void create_powerflow_json() {
 // paint new diagrams
 static void gnuplot() {
 #ifdef GNUPLOT_MINLY
-	if (MINLY || access(RUN SLASH "pstate-seconds.svg", F_OK)) {
+	if (MINLY || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
 		// pstate seconds
 		int offset = 60 * (now->tm_min > 0 ? now->tm_min - 1 : 59);
 		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
@@ -163,7 +163,7 @@ static void gnuplot() {
 	}
 #endif
 #ifdef GNUPLOT_HOURLY
-	if (HOURLY || access(RUN SLASH "pstate.svg", F_OK)) {
+	if (HOURLY || access(RUN SLASH PSTATE_M_CSV, F_OK)) {
 		// gstate and pstate minutes
 		int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
 		if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
