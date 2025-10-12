@@ -791,15 +791,15 @@ static void hourly() {
 		DD->flags = 0;
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
+		// force off when offline
+		if (PSTATE_OFFLINE)
+			ramp_device(DD, DD->total * -1);
 	}
 }
 
 static void minly() {
-	// force off when offline - except manual
 	if (PSTATE_OFFLINE)
-		for (device_t **dd = DEVICES; *dd; dd++)
-			if (DD->state != Manual)
-				ramp_device(DD, DD->total * -1);
+		return;
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
