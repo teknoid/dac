@@ -284,6 +284,22 @@ static void update_meter(sunspec_t *ss) {
 	pthread_mutex_unlock(&collector_lock);
 }
 
+static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t poffset, int voffset, int delay) {
+	char message[16];
+	int voltage, index;
+
+	for (int i = 0; i < 100; i++) {
+		voltage = (voffset + i) * 10;
+		snprintf(message, 16, "v:%d:%d", voltage, 0);
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		index = (voffset + i) - (3000 / delay - 1) > 0 ? 3000 / delay - 1 : 0;
+		msleep(delay);
+		sunspec_read(ss);
+		SAMPLE(measure[index])
+		SUBTRACT(measure[index], poffset)
+		PRINTI(voltage, measure[index])
+	}
+}
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
 // - Nur Nachts
 // - Akku aus
@@ -293,9 +309,9 @@ static void update_meter(sunspec_t *ss) {
 static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
 	char message[16];
-	int grid, voltage, closest, target;
-	int offset_start = 0, offset_end = 0;
-	int measure[1000], raster[101];
+	int closest, target;
+	pstate_t offset_start, offset_end, measure[1000];
+	int raster[101];
 
 	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("fronius10", 200);
@@ -331,30 +347,32 @@ static int calibrate(char *name) {
 	int onepercent = max_power / 100;
 
 	// average offset power at start
-	printf("calculating offset start");
+	printf("calculating offset start\n");
+	ZERO(offset_start);
 	for (int i = 0; i < 10; i++) {
 		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF);
-		printf(" %d", grid);
-		offset_start += grid;
+		SAMPLE_ADD(offset_start)
+		PRINTI(i, offset_start)
 		sleep(1);
 	}
-	offset_start = offset_start / 10 + (offset_start % 10 < 5 ? 0 : 1);
-	printf(" --> average %d\n", offset_start);
+	offset_start.p1 = offset_start.p1 / 10 + (offset_start.p1 % 10 < 5 ? 0 : 1);
+	offset_start.p2 = offset_start.p2 / 10 + (offset_start.p2 % 10 < 5 ? 0 : 1);
+	offset_start.p3 = offset_start.p3 / 10 + (offset_start.p3 % 10 < 5 ? 0 : 1);
+	PRINTS("average offset_start --> ", offset_start);
 	sleep(5);
 
 	// do a full drive over SSR characteristic load curve from cold to hot and capture power
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
-	for (int i = 0; i < 1000; i++) {
-		voltage = i * 10;
-		snprintf(message, 16, "v:%d:%d", voltage, 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		int ms = 200 < i && i < 800 ? 1000 : 100; // slower between 2 and 8 volt
-		msleep(ms);
-		sunspec_read(ss);
-		measure[i] = SFI(ss->meter->W, ss->meter->W_SF) - offset_start;
-		printf("%5d %5d\n", voltage, measure[i]);
-	}
+	drive(sock, sa, ss, measure, offset_start, 0, 100);
+	drive(sock, sa, ss, measure, offset_start, 100, 100);
+	drive(sock, sa, ss, measure, offset_start, 200, 3000);
+	drive(sock, sa, ss, measure, offset_start, 300, 500);
+	drive(sock, sa, ss, measure, offset_start, 400, 500);
+	drive(sock, sa, ss, measure, offset_start, 500, 500);
+	drive(sock, sa, ss, measure, offset_start, 600, 500);
+	drive(sock, sa, ss, measure, offset_start, 700, 500);
+	drive(sock, sa, ss, measure, offset_start, 800, 100);
+	drive(sock, sa, ss, measure, offset_start, 900, 100);
 
 	// switch off
 	snprintf(message, 16, "v:0:0");
@@ -362,17 +380,31 @@ static int calibrate(char *name) {
 	sleep(5);
 
 	// average offset power at end
-	printf("calculating offset end");
+	printf("calculating offset end\n");
+	ZERO(offset_end);
 	for (int i = 0; i < 10; i++) {
 		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF);
-		printf(" %d", grid);
-		offset_end += grid;
+		SAMPLE_ADD(offset_end)
+		PRINTI(i, offset_end)
 		sleep(1);
 	}
-	offset_end = offset_end / 10 + (offset_end % 10 < 5 ? 0 : 1);
-	printf(" --> average %d\n", offset_end);
-	sleep(1);
+	offset_end.p1 = offset_end.p1 / 10 + (offset_end.p1 % 10 < 5 ? 0 : 1);
+	offset_end.p2 = offset_end.p2 / 10 + (offset_end.p2 % 10 < 5 ? 0 : 1);
+	offset_end.p3 = offset_end.p3 / 10 + (offset_end.p3 % 10 < 5 ? 0 : 1);
+	PRINTS("average offset_end --> ", offset_end);
+
+	// find phase
+	int p = 0;
+	if (measure[666].p1 > max_power / 2)
+		p = 1;
+	if (measure[666].p2 > max_power / 2)
+		p = 2;
+	if (measure[666].p3 > max_power / 2)
+		p = 3;
+	if (!p)
+		printf("unable to detect phase\n");
+	else
+		printf("detected phase %d\n", p);
 
 	// build raster table
 	raster[0] = 0;
@@ -385,22 +417,25 @@ static int calibrate(char *name) {
 		// find closest power to target power
 		int min_diff = max_power;
 		for (int j = 0; j < 1000; j++) {
-			int diff = abs(measure[j] - target);
+			int diff = abs(PX(p, measure[j]) - target);
 			if (diff < min_diff) {
 				min_diff = diff;
 				closest = j;
 			}
 		}
+		int mc = PX(p, measure[closest]);
 
 		// find all closest voltages that match target power +/- 5 watt
 		int sum = 0, count = 0;
-		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, measure[closest]);
-		for (int j = 0; j < 1000; j++)
-			if (measure[closest] - 5 < measure[j] && measure[j] < measure[closest] + 5) {
-				printf(" %d:%d", measure[j], j * 10);
+		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, mc);
+		for (int j = 0; j < 1000; j++) {
+			int mj = PX(p, measure[j]);
+			if (mc - 5 < mj && mj < mc + 5) {
+				printf(" %d:%d", mj, j * 10);
 				sum += j * 10;
 				count++;
 			}
+		}
 
 		// average of all closest voltages
 		if (count) {
@@ -410,17 +445,10 @@ static int calibrate(char *name) {
 		printf(" --> %dW %dmV\n", target, raster[i]);
 	}
 
-	// validate - values in measure table should grow, not shrink
-	for (int i = 1; i < 1000; i++)
-		if (measure[i - 1] > measure[i]) {
-			int v_x = i * 10;
-			int m_x = measure[i - 1];
-			int v_y = (i - 1) * 10;
-			int m_y = measure[i];
-			printf("!!! WARNING !!! measuring tainted with parasitic power at voltage %d:%d > %d:%d\n", v_x, m_x, v_y, m_y);
-		}
-	if (offset_start != offset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", offset_start, offset_end);
+	int poffset_start = PX(p, offset_start);
+	int poffset_end = PX(p, offset_end);
+	if (poffset_start != poffset_end)
+		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", poffset_start, poffset_end);
 
 	// dump table
 	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
@@ -430,24 +458,6 @@ static int calibrate(char *name) {
 		if (i % 10 == 0)
 			printf("\\\n   ");
 	}
-
-	// validate
-	printf("\nwaiting 60s for cool down\n");
-	sleep(60);
-	for (int i = 0; i <= 100; i++) {
-		snprintf(message, 16, "v:%d:%d", raster[i], 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		msleep(2000);
-		sunspec_read(ss);
-		grid = SFI(ss->meter->W, ss->meter->W_SF) - offset_end;
-		int expected = onepercent * i;
-		float error = grid ? 100.0 - expected * 100.0 / (float) grid : 0;
-		printf("%3d%% %5dmV expected %4dW actual %4dW error %.2f\n", i, raster[i], expected, grid, error);
-	}
-
-	// switch off
-	snprintf(message, 16, "v:0:0");
-	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 
 	// cleanup
 	close(sock);
@@ -562,7 +572,8 @@ static int latency() {
 	count = 0;
 	SAMPLE(x)
 	PRINTI(count, x)
-	publish_oneshot(topic, "ON", 0);
+//  add to Makefile: tasmota.o mqtt.o frozen.o
+//	publish_oneshot(topic, "ON", 0);
 	while (1) {
 		msleep(100);
 		count++;
@@ -588,7 +599,8 @@ static int latency() {
 	count = 0;
 	SAMPLE(x)
 	PRINTI(count, x)
-	publish_oneshot(topic, "OFF", 0);
+//  add to Makefile: tasmota.o mqtt.o frozen.o
+//	publish_oneshot(topic, "OFF", 0);
 	while (1) {
 		msleep(100);
 		count++;
