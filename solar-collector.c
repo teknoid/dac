@@ -747,33 +747,33 @@ static void minly() {
 
 static void aggregate_state() {
 	// reverse order: first aggregate hours, then minutes, then seconds
+
+	// aggregate 24 pstate hours into one day
+	if (DAILY) {
+		pstate_t pda, pdc;
+		aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
+		cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
+		dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
+		dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
+		dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
+		// aggregate 24 gstate hours into one day
+		gstate_t gda, gdc;
+		aggregate((int*) &gda, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+		cumulate((int*) &gdc, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
+		dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
+		dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
+		dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
+	}
+
+	// aggregate 60 minutes into one hour
+	if (HOURLY) {
+		aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
+		// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+		// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
+	}
+
+	// aggregate 60 seconds into one minute
 	if (MINLY) {
-		if (HOURLY) {
-			if (DAILY) {
-
-				// aggregate 24 pstate hours into one day
-				pstate_t pda, pdc;
-				aggregate((int*) &pda, (int*) pstate_hours, PSTATE_SIZE, 24);
-				cumulate((int*) &pdc, (int*) pstate_hours, PSTATE_SIZE, 24);
-				dump_table((int*) pstate_hours, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
-				dump_struct((int*) &pda, PSTATE_SIZE, "[ØØ]", 0);
-				dump_struct((int*) &pdc, PSTATE_SIZE, "[++]", 0);
-				// aggregate 24 gstate hours into one day
-				gstate_t gda, gdc;
-				aggregate((int*) &gda, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
-				cumulate((int*) &gdc, (int*) GSTATE_YDAY, GSTATE_SIZE, 24);
-				dump_table((int*) GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
-				dump_struct((int*) &gda, GSTATE_SIZE, "[ØØ]", 0);
-				dump_struct((int*) &gdc, GSTATE_SIZE, "[++]", 0);
-			}
-
-			// aggregate 60 minutes into one hour
-			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
-			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
-			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
-		}
-
-		// aggregate 60 seconds into one minute
 		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
 		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
@@ -807,16 +807,12 @@ static void loop() {
 		calculate_pstate();
 
 		// cron jobs
-		if (MINLY) {
+		if (MINLY)
 			minly();
-
-			if (HOURLY) {
-				hourly();
-
-				if (DAILY)
-					daily();
-			}
-		}
+		if (HOURLY)
+			hourly();
+		if (DAILY)
+			daily();
 
 		// web output
 		create_pstate_json();

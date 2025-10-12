@@ -930,16 +930,12 @@ static void loop() {
 			steal();
 
 		// cron jobs
-		if (MINLY) {
+		if (MINLY)
 			minly();
-
-			if (HOURLY) {
-				hourly();
-
-				if (DAILY)
-					daily();
-			}
-		}
+		if (HOURLY)
+			hourly();
+		if (DAILY)
+			daily();
 
 		// print dstate once per minute / on device action
 		if (MINLY || DSTATE_ACTION)
