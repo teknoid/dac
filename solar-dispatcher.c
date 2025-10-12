@@ -154,7 +154,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = WAIT_RESPONSE;
+	dstate->lock = WAIT_RESPONSE; // TODO abhängig von ramp power, je größer desto länger
 	heater->power = power;
 	heater->ramp = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
@@ -249,7 +249,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
+	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup // TODO abhängig von ramp power, je größer desto länger
 	boiler->power = power;
 	boiler->ramp = step * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -482,11 +482,11 @@ static void burnout() {
 // ramp up in POTD order
 static void rampup() {
 	device_t **dd = potd->devices;
-	while (*dd && dstate->ramp > RAMP) {
-		int ramp_in = dstate->ramp;
+	while (*dd && dstate->ramp >= RAMP) {
+		int oldramp = dstate->ramp;
 		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↑ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
+		xlog("SOLAR ramp↑ %3d --> %s=%3d --> %3d", oldramp, DD->name, DD->ramp, dstate->ramp);
 		if (DD->ramp)
 			msleep(111);
 		dd++;
@@ -501,11 +501,11 @@ static void rampdown() {
 		dd++;
 
 	// now go backward - this gives reverse order
-	while (dd-- != potd->devices && dstate->ramp < -RAMP) {
-		int ramp_in = dstate->ramp;
+	while (dd-- != potd->devices && dstate->ramp <= -RAMP) {
+		int oldramp = dstate->ramp;
 		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↓ in=%d %s=%d out=%d", ramp_in, DD->name, DD->ramp, dstate->ramp);
+		xlog("SOLAR ramp↓ %3d <-- %s=%3d <-- %3d", dstate->ramp, DD->name, DD->ramp, oldramp);
 		if (DD->ramp)
 			msleep(111);
 	}
@@ -519,7 +519,7 @@ static void ramp() {
 
 	// allow rampup after rampdown if power was released
 
-	if (dstate->ramp >= -RAMP && !DSTATE_ALL_UP)
+	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP)
 		rampup();
 }
 
@@ -676,7 +676,7 @@ static void response() {
 	// response OK
 	if (l1 || l2 || l3) {
 		if (standby_check) {
-			xlog("SOLAR %s standby check negative for, delta expected %d actual %d %d %d lock=%d", device->name, delta, d1, d2, d3, dstate->lock);
+			xlog("SOLAR %s standby check negative, delta expected %d actual %d %d %d lock=%d", device->name, delta, d1, d2, d3, dstate->lock);
 			device->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
 			device->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
 		} else
@@ -706,7 +706,7 @@ static void response() {
 	if (delta > 0)
 		device->flags &= ~FLAG_RESPONSE;
 
-	device = 0;
+	device = 0; // next action
 }
 
 static void calculate_dstate(time_t ts) {
@@ -758,8 +758,10 @@ static void calculate_dstate(time_t ts) {
 	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_ALL_STANDBY || device || dstate->lock)
 		return;
 
-	// ramp always
-	dstate->flags |= FLAG_ACTION_RAMP;
+	// ramp logic each 10 seconds (0, 10, 20, ...)
+	// TODO oder wenn surplus < -MINUMUM irgendsowas...
+	if (ts % 10 == 0)
+		dstate->flags |= FLAG_ACTION_RAMP;
 
 	// no further actions
 	if (DSTATE_ALL_DOWN || pstate->pload < 120)
@@ -770,8 +772,8 @@ static void calculate_dstate(time_t ts) {
 	if (ts % 10 == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
-	// steal logic each 10 seconds (3, 13, 23, ...) when not STANDBY
-	if (ts % 10 == 3 && !DSTATE_ACTION_STANDBY)
+	// steal logic each 10 seconds (2, 12, 22, ...)
+	if (ts % 10 == 2 && !overload)
 		dstate->flags |= FLAG_ACTION_STEAL;
 }
 
