@@ -710,15 +710,17 @@ static void response() {
 }
 
 static void calculate_dstate(time_t ts) {
-	// clear state flags and values
-	dstate->flags = dstate->cload = dstate->rload = 0;
+	// clear values when offline
+	if (PSTATE_OFFLINE) {
+		dstate->surp = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
+		return;
+	}
 
 	// take over surplus
 	dstate->surp = pstate->surp;
 
-	// clear values when offline
-	if (PSTATE_OFFLINE)
-		dstate->surp = dstate->ramp = dstate->steal = 0;
+	// clear state flags and values
+	dstate->flags = dstate->cload = dstate->rload = 0;
 
 	// update akku
 	AKKU->load = pstate->batt * -1;
