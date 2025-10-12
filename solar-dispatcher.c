@@ -289,7 +289,7 @@ static void ramp_akku(device_t *akku) {
 		}
 
 		// aku is charging but we still have grid upload - either on limited akku charging or extra power
-		if (akku->state == Charge && PSTATE_GRID_ULOAD)
+		if (akku->state == Charge && GSTATE_GRID_ULOAD)
 			return;
 
 		// akku is really charging
@@ -811,7 +811,7 @@ static void minly() {
 
 	// set akku to DISCHARGE if we have long term grid download
 	// TODO verify
-	if ((PSTATE_GRID_DLOAD && PSTATE_OFFLINE && !AKKU_DISCHARGING) || (PSTATE_GRID_DLOAD && !PSTATE_OFFLINE && !AKKU_CHARGING)) {
+	if ((GSTATE_GRID_DLOAD && PSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !PSTATE_OFFLINE && !AKKU_CHARGING)) {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
 		// winter: limit discharge and try to extend ttl as much as possible

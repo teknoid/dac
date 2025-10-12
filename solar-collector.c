@@ -344,7 +344,7 @@ static void calculate_gstate() {
 	int gu1 = m0->grid < -75 && m1->grid < -75;
 	int gu0 = m0->grid < -100;
 	if (gu2 || gu1 || gu0) {
-		dstate->flags |= FLAG_GRID_ULOAD;
+		gstate->flags |= FLAG_GRID_ULOAD;
 		xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
 	}
 
@@ -353,7 +353,7 @@ static void calculate_gstate() {
 	int gd1 = m0->grid > 75 && m1->grid > 75;
 	int gd0 = m0->grid > 100;
 	if (gd2 || gd1 || gd0) {
-		dstate->flags |= FLAG_GRID_DLOAD;
+		gstate->flags |= FLAG_GRID_DLOAD;
 		xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
 	}
 
@@ -362,7 +362,7 @@ static void calculate_gstate() {
 	int a1 = m0->batt > 75 && m1->batt > 75;
 	int a0 = m0->batt > 100;
 	if (a2 || a1 || a0) {
-		dstate->flags |= FLAG_AKKU_DCHARGE;
+		gstate->flags |= FLAG_AKKU_DCHARGE;
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->batt, m1->batt, m0->batt);
 	}
 
