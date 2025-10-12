@@ -72,6 +72,8 @@ dl dd.d						{ cursor:default }
 	dl dd .name				{ position:relative; left:32px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
+.mosmix						{ display:flex; flex-direction:column }
+
 .lv							{ margin:5px 2px; padding:4px 6px; background-color:lightgrey }
 .l							{ display:inline-flex }
 .v							{ display:block; float:right }
