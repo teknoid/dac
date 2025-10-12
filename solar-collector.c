@@ -153,18 +153,34 @@ static void create_powerflow_json() {
 // paint new diagrams
 static void gnuplot() {
 #ifdef GNUPLOT_MINLY
-	if (MINLY || access(RUN SLASH "pstate-seconds.svg", F_OK))
+	if (MINLY || access(RUN SLASH "pstate-seconds.svg", F_OK)) {
+		// pstate seconds
+		int offset = 60 * (now->tm_min > 0 ? now->tm_min - 1 : 59);
+		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
+			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
+		append_table_csv((int*) pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
 		system(GNUPLOT_MINLY);
+	}
 #endif
 #ifdef GNUPLOT_HOURLY
-	// TODO sensors plot
 	if (HOURLY || access(RUN SLASH "pstate.svg", F_OK)) {
+		// gstate and pstate minutes
+		int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
+		if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+			store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+		if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+		append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
+		append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
+		// gstate today and week
 		store_table_csv((int*) GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_TODAY_CSV);
 		store_table_csv((int*) gstate_history, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_WEEK_CSV);
+		// mosmix today and tomorrow
 		mosmix_store_csv();
 		system(GNUPLOT_HOURLY);
 	}
 #endif
+	// TODO sensors plot
 }
 
 static void collect_averages() {
@@ -755,27 +771,12 @@ static void aggregate_state() {
 			aggregate((int*) PSTATE_HOUR_NOW, (int*) pstate_minutes, PSTATE_SIZE, 60);
 			// dump_table((int*) pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
 			// dump_struct((int*) PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
-
-			// create/append gstate and pstate minutes to csv
-			int offset = 60 * (now->tm_hour > 0 ? now->tm_hour - 1 : 23);
-			if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
-				store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
-			if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
-				store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
-			append_table_csv((int*) gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
-			append_table_csv((int*) pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
 		}
 
 		// aggregate 60 seconds into one minute
 		aggregate((int*) PSTATE_MIN_NOW, (int*) pstate_seconds, PSTATE_SIZE, 60);
 		// dump_table((int*) pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
 		// dump_struct((int*) PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
-
-		// create/append pstate seconds to csv
-		int offset = 60 * (now->tm_min > 0 ? now->tm_min - 1 : 59);
-		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
-			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
-		append_table_csv((int*) pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
 	}
 }
 
