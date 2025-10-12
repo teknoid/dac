@@ -30,6 +30,8 @@
 #define FLAG_GRID_DLOAD			(1 << 4)
 #define FLAG_AKKU_DCHARGE		(1 << 5)
 #define FLAG_CHARGE_AKKU		(1 << 6)
+#define FLAG_BURNOUT			(1 << 7)
+#define FLAG_OFFLINE			(1 << 15)
 
 #define GSTATE_SUMMER			(gstate->flags & FLAG_SUMMER)
 #define GSTATE_WINTER			(gstate->flags & FLAG_WINTER)
@@ -38,6 +40,8 @@
 #define GSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
 #define GSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
+#define GSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
+#define GSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 // pstate flags
 #define FLAG_DELTA				(1 << 0)
@@ -45,20 +49,16 @@
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_PV_FALLING			(1 << 3)
 #define FLAG_PV_RISING			(1 << 4)
-#define FLAG_BURNOUT			(1 << 5)
-#define FLAG_EMERGENCY			(1 << 6)
-#define FLAG_EXTRAPOWER			(1 << 7)
-#define FLAG_OFFLINE			(1 << 15)
+#define FLAG_EMERGENCY			(1 << 5)
+#define FLAG_EXTRAPOWER			(1 << 6)
 
 #define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_PV_FALLING		(pstate->flags & FLAG_PV_FALLING)
 #define PSTATE_PV_RISING		(pstate->flags & FLAG_PV_RISING)
-#define PSTATE_BURNOUT			(pstate->flags & FLAG_BURNOUT)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_EXTRAPOWER		(pstate->flags & FLAG_EXTRAPOWER)
-#define PSTATE_OFFLINE			(pstate->flags & FLAG_OFFLINE)
 
 // dstate flags
 #define FLAG_ACTION				(1 << 0)

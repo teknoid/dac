@@ -237,7 +237,7 @@ static void print_gstate() {
 //	xlogl_int(line, "Tomo", gstate->tomorrow);
 //	xlogl_int(line, "SoD", gstate->sod);
 //	xlogl_int(line, "EoD", gstate->eod);
-	if (!PSTATE_OFFLINE) {
+	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PVmin", gstate->pvmin);
 		xlogl_int(line, "PVavg", gstate->pvavg);
 		xlogl_int(line, "PVmax", gstate->pvmax);
@@ -253,7 +253,7 @@ static void print_pstate() {
 	xlogl_int(line, "Load", pstate->load);
 	xlogl_int_noise(line, NOISE, 1, "Batt", pstate->batt);
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
-	if (!PSTATE_OFFLINE) {
+	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
 		xlogl_int_noise(line, NOISE, 0, "Surp", pstate->surp);
@@ -338,6 +338,18 @@ static void calculate_gstate() {
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
+
+	// offline mode when PV / load ratio is last 3 minutes below 100%
+	int offline = m0->pload < 100 && m1->pload < 100 && m2->pload < 100;
+	if (offline) {
+		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
+		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
+		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
+		if (burnout_time && burnout_possible && AKKU_BURNOUT)
+			gstate->flags |= FLAG_BURNOUT; // burnout
+		else
+			gstate->flags |= FLAG_OFFLINE; // offline
+	}
 
 	// grid upload in last 3 minutes
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
@@ -549,21 +561,12 @@ static void calculate_pstate() {
 	if (abs(pstate->ac2 - s1->ac2) > DELTA)
 		pstate->flags |= FLAG_DELTA;
 
-	// offline mode when PV / load ratio is last 3 minutes below 100%
-	int offline = PSTATE_MIN_NOW->pload < 100 && PSTATE_MIN_LAST1->pload < 100 && PSTATE_MIN_LAST2->pload < 100;
-	if (offline) {
-
-		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
-		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
-		if (burnout_time && burnout_possible && AKKU_BURNOUT)
-			pstate->flags |= FLAG_BURNOUT; // burnout
-		else
-			pstate->flags |= FLAG_OFFLINE; // offline
+	// skip calculations when offline
+	if (GSTATE_OFFLINE)
 
 		pstate->surp = 0;
 
-	} else {
+	else {
 		// online
 
 		// emergency shutdown: grid download at all states or akku discharge at one of them

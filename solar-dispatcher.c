@@ -214,7 +214,7 @@ static void ramp_boiler(device_t *boiler) {
 	power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) && !PSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) && !GSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
 
 	HICUT(power, 100);
 	LOCUT(power, min);
@@ -348,7 +348,7 @@ static void print_dstate() {
 	char line[512], value[6]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
-	if (!PSTATE_OFFLINE) {
+	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
 		strcat(line, "   ");
@@ -470,13 +470,6 @@ static void emergency() {
 	akku_discharge(AKKU, 0); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DD->total * -1);
-}
-
-static void burnout() {
-	xlog("SOLAR burnout");
-	akku_discharge(AKKU, 0); // enable discharge no limit
-//	solar_override_seconds("küche", WAIT_BURNOUT);
-//	solar_override_seconds("wozi", WAIT_BURNOUT);
 }
 
 // ramp up in POTD order
@@ -711,7 +704,7 @@ static void response() {
 
 static void calculate_dstate(time_t ts) {
 	// clear values when offline
-	if (PSTATE_OFFLINE) {
+	if (GSTATE_OFFLINE) {
 		dstate->surp = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
 		return;
 	}
@@ -757,7 +750,7 @@ static void calculate_dstate(time_t ts) {
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
 	// no further actions
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || PSTATE_OFFLINE || DSTATE_ALL_STANDBY || device || dstate->lock)
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || device || dstate->lock)
 		return;
 
 	// ramp logic each 10 seconds (0, 10, 20, ...)
@@ -792,26 +785,28 @@ static void hourly() {
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
 		// force off when offline
-		if (PSTATE_OFFLINE)
+		if (GSTATE_OFFLINE)
 			ramp_device(DD, DD->total * -1);
 	}
 }
 
 static void minly() {
-	if (PSTATE_OFFLINE)
-		return;
-
-	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
-	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
-		for (device_t **dd = DEVICES; *dd; dd++)
-			DD->flags &= ~FLAG_STANDBY_CHECKED;
-
 	// update akku state
 	akku_state(AKKU);
 
+	// choose potd
+	choose_program();
+
+	if (GSTATE_BURNOUT) {
+		xlog("SOLAR burnout");
+		akku_discharge(AKKU, 0); // enable discharge no limit
+		//	solar_override_seconds("küche", WAIT_BURNOUT);
+		//	solar_override_seconds("wozi", WAIT_BURNOUT);
+	}
+
 	// set akku to DISCHARGE if we have long term grid download
 	// TODO verify
-	if ((GSTATE_GRID_DLOAD && PSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !PSTATE_OFFLINE && !AKKU_CHARGING)) {
+	if ((GSTATE_GRID_DLOAD && GSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE && !AKKU_CHARGING)) {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
 		// winter: limit discharge and try to extend ttl as much as possible
@@ -823,8 +818,10 @@ static void minly() {
 		akku_set_min_soc(min_soc);
 	}
 
-	// choose potd
-	choose_program();
+	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
+	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
+		for (device_t **dd = DEVICES; *dd; dd++)
+			DD->flags &= ~FLAG_STANDBY_CHECKED;
 }
 
 // set device into MANUAL mode and toggle power
@@ -915,9 +912,6 @@ static void loop() {
 
 		if (PSTATE_EMERGENCY)
 			emergency();
-
-		if (PSTATE_BURNOUT)
-			burnout();
 
 		// calculate device state and actions
 		calculate_dstate(now_ts);
