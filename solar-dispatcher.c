@@ -707,7 +707,7 @@ static void response() {
 	device = 0; // next action
 }
 
-static void calculate_dstate(time_t ts) {
+static void calculate_dstate() {
 	// skip when offline
 	if (GSTATE_OFFLINE)
 		return;
@@ -715,8 +715,8 @@ static void calculate_dstate(time_t ts) {
 	// take over surplus
 	dstate->surp = pstate->surp;
 
-	// clear state flags and values
-	dstate->flags = dstate->cload = dstate->rload = 0;
+	// clear values
+	dstate->cload = dstate->rload = 0;
 
 	// update akku
 	AKKU->load = pstate->batt * -1;
@@ -753,17 +753,10 @@ static void calculate_dstate(time_t ts) {
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
 	// no further actions
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || device || dstate->lock)
+	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ACTION_RAMP || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN || device || dstate->lock)
 		return;
 
-	// ramp logic each 10 seconds (0, 10, 20, ...)
-	// TODO oder wenn surplus < -MINUMUM irgendsowas...
-	if (ts % 10 == 0)
-		dstate->flags |= FLAG_ACTION_RAMP;
-
-	// no further actions
-	if (DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
-		return;
+	int ts = time(NULL);
 
 	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
@@ -771,7 +764,7 @@ static void calculate_dstate(time_t ts) {
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// no further actions
-	if (DSTATE_ALL_STANDBY || DSTATE_ALL_UP)
+	if (DSTATE_ALL_UP)
 		return;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
@@ -928,8 +921,9 @@ static void loop() {
 			emergency();
 
 		// calculate device state and actions
-		calculate_dstate(now_ts);
+		calculate_dstate();
 
+		// ramp flag is set by collector
 		if (DSTATE_ACTION_RAMP)
 			ramp();
 
@@ -954,6 +948,9 @@ static void loop() {
 		// web output
 		create_dstate_json();
 		create_devices_json();
+
+		// clear flags
+		dstate->flags = 0;
 
 		// PROFILING_LOG("dispatcher main loop")
 

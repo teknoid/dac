@@ -256,6 +256,7 @@ static void print_pstate() {
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
+		xlogl_int(line, "PLoad", pstate->pload);
 		xlogl_int_noise(line, NOISE, 0, "Surp", pstate->surp);
 	}
 	xlogl_end(line, strlen(line), 0);
@@ -536,6 +537,7 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 	DELTAZ(pstate->dpv, pstate->pv, s1->pv, DELTA)
+	// suppress mppt tracking (!)
 	AVERAGE(pstate->apv, pstate->pv, s1->pv)
 
 	// grid
@@ -613,7 +615,7 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv2 != I_STATUS_MPPT) {
-			xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
+			// xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
 			pstate->flags &= ~FLAG_VALID;
 		}
 
@@ -650,45 +652,57 @@ static void calculate_pstate() {
 
 		// TODO maximalen surplus basierend auf pvmin/pvmax/pvavg setzen z.B. wenn delta pvmin/pvmax zu groß -> ersetzt DISTORTION logik
 
-		// calculate surplus power - here we use average values
+		// TODO oder delta ac verwenden?
 
-		// surplus is grid inverted minus akku when discharging
-		int surp = pstate->agrid * -1;
-		if (pstate->abatt > NOISE)
-			surp -= pstate->abatt * -1;
+		if (pstate->dpv < -MINIMUM || pstate->dpv > MINIMUM) {
 
-		if (pstate->pload >= 110) {
+			// relative pv driven fast ramp
+			pstate->surp = pstate->dpv;
 
-			// enough - suppress when below 0
-			LOCUT(surp, 0)
+			// suppress when below 0 as long as we have enough
+			if (pstate->pload > 110)
+				LOCUT(pstate->surp, 0)
 
-			// add 20% more when pv is rising
-			if (PSTATE_PV_RISING)
-				surp += surp / 5;
+			// suppress when above 0 as long as not enough
+			if (pstate->pload < 100)
+				HICUT(pstate->surp, 0)
 
-		} else if (100 <= pstate->pload && pstate->pload < 110) {
-
-			// nearly equal - full step down when below 0
-			if (-RAMP < pstate->agrid && pstate->agrid < 0)
-				surp = -RAMP;
-
-			// limit to +RAMP
-			HICUT(surp, RAMP)
+			// ramp immediately
+			if (pstate->surp) {
+				dstate->flags |= FLAG_ACTION_RAMP;
+				xlog("fast ramp surp=%d", pstate->surp);
+			}
 
 		} else {
 
-			// not enough - suppress when above 0
-			HICUT(surp, 0)
+			// absolute grid driven 50% inverted slow ramp (meter latency)
+			pstate->surp = pstate->agrid / -2;
 
-			// add 20% more when pv is falling
-			if (PSTATE_PV_FALLING)
-				surp += surp / 5;
+			// minus akku when discharging
+			if (pstate->abatt > NOISE)
+				pstate->surp -= pstate->abatt * -1;
 
+			// suppress when below 0 as long as we have enough
+			if (pstate->pload > 110)
+				LOCUT(pstate->surp, 0)
+
+			// suppress when above 0 as long as not enough
+			if (pstate->pload < 100)
+				HICUT(pstate->surp, 0)
+
+			// nearly equal - full step down when below 0, max. one step up
+			if (100 <= pstate->pload && pstate->pload <= 110) {
+				if (-RAMP < pstate->agrid && pstate->agrid < 0)
+					pstate->surp = -RAMP;
+				HICUT(pstate->surp, RAMP)
+			}
+
+			// ramp every 5 seconds
+			if (pstate->surp && time(NULL) % 5 == 0) {
+				dstate->flags |= FLAG_ACTION_RAMP;
+				xlog("slow ramp surp=%d", pstate->surp);
+			}
 		}
-
-		// shape + suppress spikes
-		ZSHAPE(surp, RAMP)
-		AVERAGE(pstate->surp, surp, s1->surp)
 	}
 
 	pthread_mutex_unlock(&collector_lock);
