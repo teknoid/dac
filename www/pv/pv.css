@@ -38,11 +38,11 @@ dl dd.d						{ cursor:default }
 
 /* desktop */
 @media (max-width: 2000px) {
-	iframe					{ width:420px; height:420px }
-	.powerflow				{ width:420px; position:fixed }
+	iframe					{ width:400px; height:400px }
+	.powerflow				{ width:400px; position:fixed }
 	.svg					{ max-width:1500px }
 	.page					{ display:flex; flex-direction:row; padding-left:5px }
-	.mosmix					{ overflow:scroll; position:relative; left:420px }
+	.mosmix					{ overflow:scroll; position:relative; left:410px }
 	
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -53,11 +53,11 @@ dl dd.d						{ cursor:default }
 
 /* laptop */
 @media (max-width: 1400px) {
-	iframe					{ width:420px; height:420px }
-	.powerflow				{ width:420px; position:fixed }
+	iframe					{ width:400px; height:400px }
+	.powerflow				{ width:400px; position:fixed }
 	.svg					{ max-width:940px }
 	.page					{ display:flex; flex-direction:row; padding-left:5px }
-	.mosmix					{ overflow:scroll; position:relative; left:420px }
+	.mosmix					{ overflow:scroll; position:relative; left:410px }
 
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -68,9 +68,10 @@ dl dd.d						{ cursor:default }
 
 /* mobile */
 @media (max-width: 1000px) {
-	iframe					{ width:980px; height:940px }
-	.powerflow				{ width:940px; position:relative }
-	.state					{ font-size:32px }
+	iframe					{ width:100%; height: 940px }
+	.powerflow				{ width:100%; position:relative }
+	.state					{ font-size:32px; margin: 10px 0 0 8px }
+	.devices				{ margin:10px 0 0 10px }
 	.svg					{ max-width:980px }
 	.page					{ display:flex; flex-direction:column; padding-left:0; align-items:center }
 	.mosmix					{ position:relative; left:0 }
@@ -87,10 +88,9 @@ dl dd.d						{ cursor:default }
 .v							{ display:block; float:right }
 .u							{ display:block; float:right }
 
-.pstate						{ width:33% }
-.gstate						{ width:33% }
-.dstate						{ width:33% }
-.devices					{ margin:10px 0 0 2px }
+.pstate						{ width:33.3% }
+.gstate						{ width:33.3% }
+.dstate						{ width:33.3% }
 
 .apv-p						{ background-color:#FAD967 }
 .agrid-p					{ background-color:orangered }
