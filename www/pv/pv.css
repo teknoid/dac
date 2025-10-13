@@ -10,21 +10,13 @@ body, html {
 	font-style: normal;
 	font-size: 14px;
 	line-height: 1.0;
-	bottom: 0;
-	top: 0;
-	left: 0;
 	padding: 0;
 	margin: 0;
 	color: #3b3b3d;
-	display: flex;
-	float: left
 }
 
 .flex-row	 				{ display:flex; flex-direction:row }
 .flex-column 				{ display:flex; flex-direction:column }
-
-
-dl							{ margin: 10px 0 0 0 }
 
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
@@ -33,16 +25,17 @@ dl .p						{ background:skyblue }
 dl dd.akku .p				{ background:palegreen }
 dl dd.akku .m				{ background:orangered }
 
-dl dd						{ float:left; margin: 0 5px 0 0; border:1px solid lightgrey; cursor:pointer }
+dl dd						{ margin:0 3px 0 0; border:1px solid lightgrey; cursor:pointer }
 dl dd.d						{ cursor:default }
 
 /* desktop */
 @media (max-width: 2000px) {
-	iframe					{ width:400px; height:400px }
-	.powerflow				{ width:400px; position:fixed }
-	.svg					{ max-width:1500px }
-	.page					{ display:flex; flex-direction:row; padding-left:5px }
-	.mosmix					{ overflow:scroll; position:relative; left:410px }
+	.page					{ display:flex; flex-direction:row; margin-left:5px }
+	.powerflow				{ width:480px; position:fixed }
+	iframe					{ width:100%; height:480px }
+	.devices				{ margin: 0 0 0 2px }
+	.mosmix					{ overflow:scroll; position:relative; left:490px }
+	.svg					{ max-width:1420px }
 	
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -53,11 +46,12 @@ dl dd.d						{ cursor:default }
 
 /* laptop */
 @media (max-width: 1400px) {
-	iframe					{ width:400px; height:400px }
-	.powerflow				{ width:400px; position:fixed }
-	.svg					{ max-width:940px }
-	.page					{ display:flex; flex-direction:row; padding-left:5px }
+	.page					{ display:flex; flex-direction:row; margin-left:5px }
+	.powerflow				{ width:480px; position:fixed }
+	iframe					{ width:100%; height:480px }
+	.devices				{ margin: 0 0 0 2px }
 	.mosmix					{ overflow:scroll; position:relative; left:410px }
+	.svg					{ max-width:940px }
 
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -68,16 +62,16 @@ dl dd.d						{ cursor:default }
 
 /* mobile */
 @media (max-width: 1000px) {
+	.page					{ display:flex; flex-direction:column; margin-left:0; align-items:center }
 	iframe					{ width:100%; height: 940px }
 	.powerflow				{ width:100%; position:relative }
-	.state					{ font-size:32px; margin: 10px 0 0 8px }
-	.devices				{ margin:10px 0 0 10px }
-	.svg					{ max-width:980px }
-	.page					{ display:flex; flex-direction:column; padding-left:0; align-items:center }
+	.state					{ font-size:32px; margin:10px 5px }
+	.devices				{ margin:10px 7px }
 	.mosmix					{ position:relative; left:0 }
+	.svg					{ max-width:1000px }
 
 	dl 						{ font-size:32px }
-	dl dd					{ position:relative; width:95px; height:300px; }
+	dl dd					{ position:relative; width:95px; height:300px; margin:0 10px 0 0 }
 	dl dd .bar				{ position:absolute; bottom:0px; width:95px; display:block }
 	dl dd .load				{ position:relative; top:250px; text-align:center }
 	dl dd .name				{ position:relative; left:32px; writing-mode:sideways-rl;  z-index:+1 }
