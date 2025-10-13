@@ -341,7 +341,7 @@ static void calculate_gstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
 	// offline mode when PV / load ratio is last 3 minutes below 75%
-	int offline = DSTATE_ALL_DOWN && m0->pload < 75 && m1->pload < 75 && m2->pload < 75;
+	int offline = m0->pload < 75 && m1->pload < 75 && m2->pload < 75;
 	if (offline) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -846,7 +846,7 @@ static void loop() {
 
 		// wait for next second
 		while (now_ts == time(NULL))
-			msleep(222);
+			msleep(111);
 	}
 }
 

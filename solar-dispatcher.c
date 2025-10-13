@@ -734,7 +734,7 @@ static void calculate_dstate() {
 		dstate->cload += DD->load;
 
 		// flags for all devices up/down/standby
-		if (DD->power)
+		if (DD->power > 0)
 			dstate->flags &= ~FLAG_ALL_DOWN;
 		if (!DD->power || (DD->adj && DD->power != 100))
 			dstate->flags &= ~FLAG_ALL_UP;
@@ -903,6 +903,7 @@ static void loop() {
 
 	// dispatcher main loop
 	while (1) {
+		msleep(222); // wait for collector calculation
 
 		// PROFILING_START
 
@@ -956,7 +957,7 @@ static void loop() {
 
 		// wait for next second
 		while (now_ts == time(NULL))
-			msleep(333);
+			msleep(111);
 	}
 }
 
