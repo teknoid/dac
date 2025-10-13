@@ -20,7 +20,11 @@ body, html {
 	float: left
 }
 
-dl { margin: 10px 0 0 0 }
+.flex-row	 				{ display:flex; flex-direction:row }
+.flex-column 				{ display:flex; flex-direction:column }
+
+
+dl							{ margin: 10px 0 0 0 }
 
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
@@ -35,8 +39,10 @@ dl dd.d						{ cursor:default }
 /* desktop */
 @media (max-width: 2000px) {
 	iframe					{ width:420px; height:420px }
-	.powerflow				{ width:420px; display:block; float:inline-end }
+	.powerflow				{ width:420px; position:fixed }
 	.svg					{ max-width:1500px }
+	.page					{ display:flex; flex-direction:row; padding-left:5px }
+	.mosmix					{ overflow:scroll; position:relative; left:420px }
 	
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -48,8 +54,10 @@ dl dd.d						{ cursor:default }
 /* laptop */
 @media (max-width: 1400px) {
 	iframe					{ width:420px; height:420px }
-	.powerflow				{ width:420px; display:block; float:inline-end }
+	.powerflow				{ width:420px; position:fixed }
 	.svg					{ max-width:940px }
+	.page					{ display:flex; flex-direction:row; padding-left:5px }
+	.mosmix					{ overflow:scroll; position:relative; left:420px }
 
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -61,9 +69,11 @@ dl dd.d						{ cursor:default }
 /* mobile */
 @media (max-width: 1000px) {
 	iframe					{ width:980px; height:940px }
-	.powerflow				{ width:940px; display:block; float:inline-end }
+	.powerflow				{ width:940px; position:relative }
 	.state					{ font-size:32px }
 	.svg					{ max-width:980px }
+	.page					{ display:flex; flex-direction:column; padding-left:0; align-items:center }
+	.mosmix					{ position:relative; left:0 }
 
 	dl 						{ font-size:32px }
 	dl dd					{ position:relative; width:95px; height:300px; }
@@ -72,18 +82,15 @@ dl dd.d						{ cursor:default }
 	dl dd .name				{ position:relative; left:32px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
-.mosmix						{ display:flex; flex-direction:column }
-
-.lv							{ margin:5px 2px; padding:4px 6px; background-color:lightgrey }
+.lv							{ margin:2px; padding:4px 6px; background-color:lightgrey }
 .l							{ display:inline-flex }
 .v							{ display:block; float:right }
 .u							{ display:block; float:right }
 
-.state						{ display:flex }
 .pstate						{ width:33% }
 .gstate						{ width:33% }
 .dstate						{ width:33% }
-.devices					{ margin:10px 0 0 0 }
+.devices					{ margin:10px 0 0 2px }
 
 .apv-p						{ background-color:#FAD967 }
 .agrid-p					{ background-color:orangered }

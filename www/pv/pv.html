@@ -9,12 +9,12 @@
 </head>
 
 <body>
-	<div>
+	<div class="page">
 		<div class="powerflow">
 			<iframe frameBorder="0" src="fronius.html"></iframe>
 
-			<div class="state">
-				<div class="pstate">
+			<div class="state flex-row">
+				<div class="pstate flex-column">
 					<div class="lv apv">
 						<div class="l">PV</div>
 						<div class="u">&nbsp;W</div>
@@ -71,7 +71,7 @@
 					</div>
 				</div>
 
-				<div class="dstate">
+				<div class="dstate flex-column">
 					<div class="lv surp">
 						<div class="l">Surplus</div>
 						<div class="u">&nbsp;W</div>
@@ -114,7 +114,7 @@
 					</div>
 				</div>
 
-				<div class="gstate">
+				<div class="gstate flex-column">
 					<div class="lv pv">
 						<div class="l">PV</div>
 						<div class="u">&nbsp;Wh</div>
@@ -173,13 +173,13 @@
 				</div>
 			</div>
 			
-			<div class="devices">
+			<div class="devices flex-row">
 				<dl></dl>
 			</div>
 
 		</div>
 
-		<div class="mosmix">
+		<div class="mosmix flex-column">
 			<a href="/pv/data/pstate-seconds-wide.svg">
 				<img class="svg" src="/pv/data/pstate-seconds.svg" />
 			</a>
