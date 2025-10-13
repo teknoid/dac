@@ -214,7 +214,7 @@ static void ramp_boiler(device_t *boiler) {
 	power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) && !GSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) ? boiler->min * 100 / boiler->total : 0;
 
 	HICUT(power, 100);
 	LOCUT(power, min);
@@ -288,8 +288,12 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// aku is charging but we still have grid upload - either on limited akku charging or extra power
+		// akku is charging but we still have grid upload - either on limited akku charging or extra power
 		if (akku->state == Charge && GSTATE_GRID_ULOAD)
+			return;
+
+		// akku charging is nearly saturated
+		if (akku->power > 95)
 			return;
 
 		// akku is really charging
@@ -298,12 +302,16 @@ static void ramp_akku(device_t *akku) {
 				// leave akku a little bit charging to avoid grid load
 				akku->ramp = MINIMUM;
 			} else {
-				// all available DC power up to either charge maximum or charge limit
-				akku->ramp = pstate->mppt1 + pstate->mppt2 - akku->load;
-				HICUT(power, akku->total)
+				// all as long as akku charging is not saturated
+				int to_charge = akku->total - akku->load;
+				akku->ramp = power > to_charge ? power - to_charge : power;
 			}
 			return;
 		}
+
+		// postpone rampup when others ramped up before - akku sees current meter grid and claws all power that we used during ramp phase
+		if (dstate->lock)
+			return;
 
 		// start charging
 		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
@@ -314,6 +322,7 @@ static void ramp_akku(device_t *akku) {
 			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
 				limit = AKKU_LIMIT_CHARGE3X;
 			if (!akku_charge(akku, limit)) {
+				akku->ramp = power; // consume all at startup
 				dstate->flags |= FLAG_ACTION;
 				dstate->lock = WAIT_START_CHARGE;
 			}
@@ -421,10 +430,6 @@ static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0; // no change
 
-	// potd has changed - set AKKU to standby when charging
-	if (potd != 0 && AKKU_CHARGING)
-		akku_standby(AKKU);
-
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
 	dstate->lock = WAIT_RESPONSE;
@@ -446,7 +451,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < 1000)
+	if (gstate->survive < 900)
 		return select_program(&MODEST);
 
 	// survive but tomorrow not enough PV - charging akku has priority
@@ -458,7 +463,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
-	if (gstate->tomorrow > gstate->today)
+	if (gstate->survive > 1100 && gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
 	// enough PV available to survive + heating
@@ -479,7 +484,7 @@ static void rampup() {
 		int oldramp = dstate->ramp;
 		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↑ %3d --> %s=%3d --> %3d", oldramp, DD->name, DD->ramp, dstate->ramp);
+		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", oldramp, DD->ramp, dstate->ramp, DD->name);
 		if (DD->ramp)
 			msleep(111);
 		dd++;
@@ -494,11 +499,11 @@ static void rampdown() {
 		dd++;
 
 	// now go backward - this gives reverse order
-	while (dd-- != potd->devices && dstate->ramp <= -RAMP) {
+	while (dd-- != potd->devices && dstate->ramp < 0) {
 		int oldramp = dstate->ramp;
 		ramp_device(DD, dstate->ramp);
 		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↓ %3d <-- %s=%3d <-- %3d", dstate->ramp, DD->name, DD->ramp, oldramp);
+		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp, oldramp, DD->name);
 		if (DD->ramp)
 			msleep(111);
 	}
@@ -507,7 +512,7 @@ static void rampdown() {
 static void ramp() {
 	dstate->ramp = dstate->surp;
 
-	if (dstate->ramp <= -RAMP && !DSTATE_ALL_DOWN)
+	if (dstate->ramp < 0 && !DSTATE_ALL_DOWN)
 		rampdown();
 
 	// allow rampup after rampdown if power was released
@@ -720,8 +725,8 @@ static void calculate_dstate(time_t ts) {
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 
-		// akku has own logic above, check only devices in AUTO or MANUAL mode
-		int check = DD != AKKU && (DD->state == Auto || DD->state == Manual);
+		// check only devices in AUTO/MANUAL/STANDBY mode
+		int check = DD->state == Auto || DD->state == Manual || DD->state == Standby;
 		if (!check)
 			continue;
 
@@ -748,7 +753,7 @@ static void calculate_dstate(time_t ts) {
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
 	// no further actions
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || device || dstate->lock)
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || device || dstate->lock)
 		return;
 
 	// ramp logic each 10 seconds (0, 10, 20, ...)
@@ -757,13 +762,17 @@ static void calculate_dstate(time_t ts) {
 		dstate->flags |= FLAG_ACTION_RAMP;
 
 	// no further actions
-	if (DSTATE_ALL_DOWN || pstate->pload < 120)
+	if (DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
 		return;
 
 	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 	if (ts % 10 == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
+
+	// no further actions
+	if (DSTATE_ALL_STANDBY || DSTATE_ALL_UP)
+		return;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
 	if (ts % 10 == 2 && !overload)
@@ -776,12 +785,15 @@ static void daily() {
 
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
-
-	// set all devices back to automatic and clear flags
 	for (device_t **dd = DEVICES; *dd; dd++) {
+
+		// clear flags
 		DD->flags = 0;
+
+		// set all devices back to automatic
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
+
 		// force off when offline
 		if (GSTATE_OFFLINE)
 			ramp_device(DD, DD->total * -1);

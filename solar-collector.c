@@ -339,8 +339,8 @@ static void calculate_gstate() {
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
-	// offline mode when PV / load ratio is last 3 minutes below 100%
-	int offline = m0->pload < 100 && m1->pload < 100 && m2->pload < 100;
+	// offline mode when PV / load ratio is last 3 minutes below 75%
+	int offline = DSTATE_ALL_DOWN && m0->pload < 75 && m1->pload < 75 && m2->pload < 75;
 	if (offline) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -463,7 +463,7 @@ static void calculate_gstate() {
 	// akku charging
 	int empty = gstate->soc < 100;
 	int soc6 = GSTATE_HOUR(6)->soc;
-	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
+	int time_window = now->tm_hour >= 9 && now->tm_hour < 16; // between 9 and 16 o'clock
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
 	if (empty || weekend || WINTER)
 		// empty or weekend or winter: always at any time
@@ -572,7 +572,7 @@ static void calculate_pstate() {
 		// emergency shutdown: grid download at all states or akku discharge at one of them
 		int egrid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY && s3->grid > EMERGENCY;
 		int eakku = pstate->batt > EMERGENCY || s5->batt > EMERGENCY || s10->batt > EMERGENCY;
-		if (egrid || eakku) {
+		if ((egrid || eakku) && pstate->pload < 100) {
 			pstate->flags |= FLAG_EMERGENCY;
 			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
 		}
@@ -588,7 +588,7 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 		int psum = pstate->p1 + pstate->p2 + pstate->p3;
-		if (psum < pstate->grid - NOISE || psum > pstate->grid + NOISE) {
+		if (psum < pstate->grid - MINIMUM || psum > pstate->grid + MINIMUM) {
 			xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
 			pstate->flags &= ~FLAG_VALID;
 		}
@@ -662,11 +662,16 @@ static void calculate_pstate() {
 			// enough - suppress when below 0
 			LOCUT(surp, 0)
 
+			// add 20% more when pv is rising
+			if (PSTATE_PV_RISING)
+				surp += surp / 5;
+
 		} else if (100 <= pstate->pload && pstate->pload < 110) {
 
-			// nearly equal - one step down to avoid grid download
-			if (0 < pstate->agrid && pstate->agrid < RAMP)
+			// nearly equal - full step down when below 0
+			if (-RAMP < pstate->agrid && pstate->agrid < 0)
 				surp = -RAMP;
+
 			// limit to +RAMP
 			HICUT(surp, RAMP)
 
@@ -674,6 +679,10 @@ static void calculate_pstate() {
 
 			// not enough - suppress when above 0
 			HICUT(surp, 0)
+
+			// add 20% more when pv is falling
+			if (PSTATE_PV_FALLING)
+				surp += surp / 5;
 
 		}
 
@@ -688,7 +697,7 @@ static void calculate_pstate() {
 	memcpy(PSTATE_SEC_NOW, (void*) pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when delta / on grid load
-	if (MINLY || PSTATE_DELTA || pstate->grid > NOISE)
+	if (MINLY || PSTATE_DELTA || pstate->grid > NOISE || pstate->surp)
 		print_pstate();
 }
 
@@ -819,7 +828,7 @@ static void loop() {
 		create_powerflow_json();
 		gnuplot();
 
-		// PROFILING_LOG("collector main loop")
+		// PROFILING_LOG(" collector main loop")
 
 		// wait for next second
 		while (now_ts == time(NULL))
