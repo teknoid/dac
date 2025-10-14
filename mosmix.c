@@ -474,26 +474,20 @@ int mosmix_survive(struct tm *now, int aload[], int aakku[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
-	strcpy(line, "MOSMIX survive h:l:x");
+	strcpy(line, "MOSMIX survive h:l:a:x");
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
-// TODO remove
-#define BASELOAD 200
-#define DISSIPATION 25
-
-		int load = aload[h] > BASELOAD * 2 ? BASELOAD : aload[h]; // limit to 2 x BASELOAD max
-		load += DISSIPATION; // add dissipation
-
 		// current hour -> partly, remaining hours -> full
 		int l = h == ch ? aload[h] * (60 - now->tm_min) / 60 : aload[h];
+		int a = h == ch ? aakku[h] * (60 - now->tm_min) / 60 : aakku[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
 		// night
 		if (l > x) {
-			snprintf(value, 48, " %d:%d:%d", h, l, x);
+			snprintf(value, 48, " %d:%d:%d:%d", h, l, a, x);
 			strcat(line, value);
-			needed += l; // TODO nach einer Woche auf aakku[h] setzen
+			needed += l > a ? l : a; // use higher one - akku might be empty or still some pv available
 			night = 1;
 			hours++;
 		}

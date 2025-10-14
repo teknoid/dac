@@ -419,7 +419,7 @@ static void calculate_gstate() {
 	// akku usable energy and estimated time to live based on last hour's average load +5% extra +inverter dissipation
 	int min = akku_get_min_soc();
 	int akku = AKKU_AVAILABLE;
-	gstate->ttl = gstate->load && gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->diss) : 0;
+	gstate->ttl = gstate->load && gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->adiss) : 0;
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
@@ -619,13 +619,13 @@ static void calculate_pstate() {
 			xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", pstate->dgrid, dp1, dp2, dp3);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->load < 0) {
-			xlog("SOLAR negative load detected %d", pstate->load);
-			pstate->flags &= ~FLAG_VALID;
-		}
 		if (pstate->grid < -NOISE && pstate->batt > NOISE) {
 			int waste = abs(pstate->grid) < pstate->batt ? abs(pstate->grid) : pstate->batt;
 			xlog("SOLAR wasting power %d akku -> grid", waste);
+			pstate->flags &= ~FLAG_VALID;
+		}
+		if (pstate->load < 0) {
+			xlog("SOLAR negative load detected %d", pstate->load);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv1 != I_STATUS_MPPT) {
