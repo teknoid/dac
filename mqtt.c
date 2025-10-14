@@ -194,6 +194,11 @@ static int dispatch_solar(struct mqtt_response_publish *p) {
 	char *idc = NULL, *cmd = NULL;
 	int r = 0;
 
+	// TODO weitere kommandos z.B.
+	// "reset" --> alle devices zurück in AUTO mode setzen
+	// "force_standby"
+	// akku in standby setzen oder limit setzen
+
 	json_scanf(p->application_message, p->application_message_size, "{id:%Q, r:%d, cmd:%Q}", &idc, &r, &cmd);
 #ifdef SOLAR
 	unsigned int id = (unsigned int) strtol(idc, NULL, 16);

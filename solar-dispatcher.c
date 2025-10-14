@@ -154,7 +154,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = WAIT_RESPONSE; // TODO abhängig von ramp power, je größer desto länger
+	dstate->lock = WAIT_RESPONSE;
 	heater->power = power;
 	heater->ramp = power ? heater->total : heater->total * -1;
 	heater->load = power ? heater->total : 0;
@@ -249,7 +249,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup // TODO abhängig von ramp power, je größer desto länger
+	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->power = power;
 	boiler->ramp = step * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -309,7 +309,7 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// postpone rampup when others ramped up before - akku sees current meter grid and claws all power that we used during ramp phase
+		// do not start charging together with other ramps - akku sees current meter grid and claws all power that we used during ramp phase
 		if (dstate->lock)
 			return;
 
@@ -747,6 +747,10 @@ static void calculate_dstate() {
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
+	// no action during a running standby check
+	if (device && DEV_STANDBY_CHECK(device))
+		return;
+
 	// ramp always if set
 	dstate->ramp_in = dstate->ramp = pstate->ramp;
 	if (dstate->ramp) {
@@ -755,13 +759,12 @@ static void calculate_dstate() {
 	}
 
 	// no further actions
-	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ACTION_RAMP || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN || device || dstate->lock)
+	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN || device || dstate->lock)
 		return;
 
 	int ts = time(NULL);
 
 	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
-	// TODO in dieser Zeit ramp verhindern
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 	if (ts % 10 == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
@@ -791,8 +794,10 @@ static void hourly() {
 			DD->state = Auto;
 
 		// force off when offline
-		if (GSTATE_OFFLINE)
+		if (GSTATE_OFFLINE) {
+			DD->flags |= FLAG_FORCE_OFF;
 			ramp_device(DD, DD->total * -1);
+		}
 	}
 }
 

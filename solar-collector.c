@@ -216,8 +216,7 @@ static void collect_averages() {
 
 	// calculate nightly baseload
 	params->baseload = round10((aloads[3] + aloads[4] + aloads[5]) / 3);
-	// TODO remove after 1week
-	params->baseload = BASELOAD;
+	xlog("SOLAR baseload=%d", params->baseload);
 }
 
 static void print_gstate() {
@@ -564,6 +563,12 @@ static void calculate_pstate() {
 	pstate->aload /= AVERAGE;
 	pstate->adiss /= AVERAGE;
 
+	// grid should always be around 0 - so limit average grid to actual grid
+	if (pstate->grid > 0)
+		HICUT(pstate->agrid, pstate->grid)
+	if (pstate->grid < 0)
+		LOCUT(pstate->agrid, pstate->grid)
+
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
 		pstate->flags |= FLAG_DELTA;
@@ -579,6 +584,10 @@ static void calculate_pstate() {
 
 	else {
 		// online
+
+		// ratio pv / load - only when we have pv and load
+		pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
+		LOCUT(pstate->pload, 0)
 
 		// emergency shutdown: grid download at all states or akku discharge at one of them
 		int egrid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY && s3->grid > EMERGENCY;
@@ -628,10 +637,6 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 
-		// state is stable when we have now and last 3s no grid changes
-		if (!pstate->dgrid && !s1->dgrid && !s2->dgrid && !s3->dgrid)
-			pstate->flags |= FLAG_STABLE;
-
 		// PV tendency: rising or falling
 		int r3 = s1->dpv > 25 && s2->dpv > 25 && s3->dpv > 25;
 		int r2 = s1->dpv > 50 && s2->dpv > 50;
@@ -648,15 +653,15 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
 		}
 
+		// state is stable when we have no grid load
+		if (-NOISE < pstate->agrid && pstate->agrid < NOISE)
+			pstate->flags |= FLAG_STABLE;
+
 		// load is completely satisfied from secondary inverter
 		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2) {
 			pstate->flags |= FLAG_EXTRAPOWER;
 			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
 		}
-
-		// ratio pv / load - only when we have pv and load
-		pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
-		LOCUT(pstate->pload, 0)
 
 		// TODO mppt tracking erkennen und ramping verhindern, zuerst geht ac runter, dann dc und mpptx, 1-2 sekunden später grid rückmeldung
 		// und eine sekunde später alles wieder rauf
@@ -684,17 +689,17 @@ static void calculate_pstate() {
 			if (pstate->pload < 100)
 				HICUT(pstate->ramp, 0)
 
-			// nearly equal - full step down when 0...RAMP, max. one step up
+			// nearly equal - full step down when grid between 0...RAMP, max. one step up
 			if (100 <= pstate->pload && pstate->pload <= 110) {
 				if (0 < pstate->agrid && pstate->agrid < RAMP)
 					pstate->ramp = -RAMP;
 				HICUT(pstate->ramp, RAMP)
 			}
 
-			// shape from -RAMP..RAMP
+			// zero from -RAMP..RAMP
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
-				xlog("SOLAR average grid ramp=%d grid=%d", pstate->ramp, pstate->agrid);
+				xlog("SOLAR average grid ramp=%d agrid=%d grid=%d pload=%d", pstate->ramp, pstate->agrid, pstate->grid, pstate->pload);
 
 		} else {
 
@@ -709,17 +714,17 @@ static void calculate_pstate() {
 			if (pstate->pload < 100)
 				HICUT(pstate->ramp, 0)
 
-			// nearly equal - full step down when 0...RAMP, max. one step upF
+			// nearly equal - full step down when grid between 0...RAMP, max. one step up
 			if (100 <= pstate->pload && pstate->pload <= 110) {
 				if (0 < pstate->agrid && pstate->agrid < RAMP)
 					pstate->ramp = -RAMP;
 				HICUT(pstate->ramp, RAMP)
 			}
 
-			// shape from -RAMP..RAMP
+			// zero from -RAMP..RAMP
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
-				xlog("SOLAR delta pv ramp=%d", pstate->ramp);
+				xlog("SOLAR delta pv ramp=%d dpv=%d pv=%d pload=%d", pstate->ramp, pstate->dpv, pstate->pv, pstate->pload);
 		}
 	}
 

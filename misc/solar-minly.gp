@@ -34,8 +34,7 @@ p pstates u 1:"apv"      t "pv"      w lines ls 1,\
        '' u 1:"agrid"    t "grid"    w lines ls 3,\
        '' u 1:"pload"    t "pload"   w lines ls 4,\
        '' u 1:"aload"    t "load"    w lines ls 5,\
-       '' u 1:"ramp_in"  t "ramp_in" w lines lt 1,\
-       '' u 1:"ramp"     t "ramp"    w lines lt 2,\
+       '' u 1:"ramp"     t "ramp"    w lines lt 1,\
        110               t "110%"    w lines lt 0
 
 set terminal svg size 4320,1080
@@ -45,7 +44,6 @@ p pstates u 1:"apv"      t "pv"      w lines ls 1,\
        '' u 1:"agrid"    t "grid"    w lines ls 3,\
        '' u 1:"pload"    t "pload"   w lines ls 4,\
        '' u 1:"aload"    t "load"    w lines ls 5,\
-       '' u 1:"ramp_in"  t "ramp_in" w lines lt 1,\
-       '' u 1:"ramp"     t "ramp"    w lines lt 2,\
+       '' u 1:"ramp"     t "ramp"    w lines lt 1,\
        110               t "110%"    w lines lt 0
        
