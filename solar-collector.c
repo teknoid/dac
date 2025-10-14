@@ -397,8 +397,8 @@ static void calculate_gstate() {
 #endif
 
 	// store values in gstate for 24/7 average calculation
-	gstate->load = PSTATE_HOUR_NOW->load;
 	gstate->batt = PSTATE_HOUR_NOW->batt;
+	gstate->load = PSTATE_HOUR_NOW->load;
 
 	// calculate pv minimum, maximum and average
 	gstate->pvmin = UINT16_MAX;
@@ -416,10 +416,13 @@ static void calculate_gstate() {
 	gstate->pvmax = round100(gstate->pvmax);
 	gstate->pvavg = round100(gstate->pvavg);
 
-	// akku usable energy and estimated time to live based on last hour's average load +5% extra +inverter dissipation
+	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
 	int min = akku_get_min_soc();
 	int akku = AKKU_AVAILABLE;
-	gstate->ttl = gstate->load && gstate->soc > min ? akku * 60 / (gstate->load + gstate->load / 20 + pstate->adiss) : 0;
+	int batt = (m0->batt + m1->batt + m2->batt) / 3;
+	int load = (m0->load + m1->load + m2->load) / 3;
+	int bl = batt > load ? batt : load;
+	gstate->ttl = bl && gstate->soc > min ? akku * 60 / bl : 0; // in minutes
 
 	// collect mosmix forecasts
 	int today, tomorrow, sod, eod;
