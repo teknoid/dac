@@ -47,10 +47,10 @@ dl dd.d						{ cursor:default }
 /* laptop */
 @media (max-width: 1400px) {
 	.page					{ display:flex; flex-direction:row; margin-left:5px }
-	.powerflow				{ width:480px; position:fixed }
+	.powerflow				{ width:480px; position:relative }
 	iframe					{ width:100%; height:480px }
 	.devices				{ margin: 0 0 0 2px }
-	.mosmix					{ overflow:scroll; position:relative; left:410px }
+	.mosmix					{ position:relative; left:0 }
 	.svg					{ max-width:940px }
 
 	dl 						{ }
