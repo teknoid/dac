@@ -510,8 +510,6 @@ static void rampdown() {
 }
 
 static void ramp() {
-	dstate->ramp = dstate->surp;
-
 	if (dstate->ramp < 0 && !DSTATE_ALL_DOWN)
 		rampdown();
 
@@ -712,11 +710,8 @@ static void calculate_dstate() {
 	if (GSTATE_OFFLINE)
 		return;
 
-	// take over surplus
-	dstate->surp = pstate->surp;
-
-	// clear values
-	dstate->cload = dstate->rload = 0;
+	// clear flags and values
+	dstate->flags = dstate->cload = dstate->rload = 0;
 
 	// update akku
 	AKKU->load = pstate->batt * -1;
@@ -752,6 +747,13 @@ static void calculate_dstate() {
 	// copy to history
 	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
 
+	// ramp always if set
+	dstate->ramp_in = dstate->ramp = pstate->ramp;
+	if (dstate->ramp) {
+		dstate->flags |= FLAG_ACTION_RAMP;
+		return;
+	}
+
 	// no further actions
 	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ACTION_RAMP || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN || device || dstate->lock)
 		return;
@@ -759,6 +761,7 @@ static void calculate_dstate() {
 	int ts = time(NULL);
 
 	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
+	// TODO in dieser Zeit ramp verhindern
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 	if (ts % 10 == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
@@ -828,7 +831,7 @@ static void minly() {
 
 	// clear values when offline
 	if (GSTATE_OFFLINE)
-		dstate->surp = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
+		dstate->ramp_in = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
 }
 
 // set device into MANUAL mode and toggle power
@@ -924,7 +927,6 @@ static void loop() {
 		// calculate device state and actions
 		calculate_dstate();
 
-		// ramp flag is set by collector
 		if (DSTATE_ACTION_RAMP)
 			ramp();
 
@@ -949,9 +951,6 @@ static void loop() {
 		// web output
 		create_dstate_json();
 		create_devices_json();
-
-		// clear flags
-		dstate->flags = 0;
 
 		// PROFILING_LOG("dispatcher main loop")
 

@@ -211,7 +211,7 @@ struct _pstate {
 	int pload;
 	int diss;
 	int adiss;
-	int surp;
+	int ramp;
 	int flags;
 };
 
@@ -222,7 +222,7 @@ typedef struct _dstate dstate_t;
 struct _dstate {
 	int flags;
 	int lock;
-	int surp;
+	int ramp_in;
 	int ramp;
 	int steal;
 	int cload;
