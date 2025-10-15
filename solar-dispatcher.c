@@ -31,7 +31,7 @@
 
 #define OVERLOAD_STANDBY_FORCE	1000
 #define OVERLOAD_STANDBY		150
-#define OVERLOAD				110
+#define OVERLOAD_STEAL			110
 
 #define WAIT_RESPONSE			6
 #define WAIT_THERMOSTAT			12
@@ -62,10 +62,10 @@ static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0 },
 static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0, .from = 10, .to = 15, .min = 100 };
-static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox" };
-static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox" };
-static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 500, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5" };
-static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 200, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox" };
+static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox", .min = 500 };
+static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox", .min = 500 };
+static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5", .min = 500 };
+static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
 
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
@@ -137,6 +137,10 @@ static void ramp_heater(device_t *heater) {
 
 	// not enough power available to switch on
 	if (power > 0 && power < heater->total)
+		return;
+
+	// min is set and not enough power available to switch on
+	if (power > 0 && heater->min && power < heater->min)
 		return;
 
 	// transform power into on/off
@@ -402,8 +406,13 @@ static void print_dstate() {
 		strcat(line, value);
 	}
 
-	strcat(line, "   potd ");
+	strcat(line, "   potd:");
 	strcat(line, potd ? potd->name : "NULL");
+
+	if (device) {
+		strcat(line, "   Device:");
+		strcat(line, device->name);
+	}
 
 	if (dstate->lock)
 		xlogl_int(line, "   Lock", dstate->lock);
@@ -553,18 +562,19 @@ static device_t* standby() {
 
 static void steal() {
 	// calculate steal power for any device in AUTO mode
+	dstate->steal = 0;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		if (DD == AKKU) {
 			// steal max 75% of charging power
-			DD->steal = DD->load * 0.75;
+			DD->steal = DD->load > MINIMUM ? DD->load * 0.75 : 0;
 			dstate->steal += DD->steal;
 			continue;
 		}
 		// only when in AUTO mode and no OVERLOAD (we cannot be sure if the power is really consumed)
-		if (DD->state == Auto && dstate->rload < OVERLOAD) {
-			if (DD->min)
-				DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // all above minimum
+		if (DD->state == Auto && dstate->rload < OVERLOAD_STEAL) {
+			if (DD->min && DD->min < DD->load)
+				DD->steal = DD->load - DD->min; // all above minimum
 			else
 				DD->steal = DD->load; // all
 			dstate->steal += DD->steal;
@@ -643,8 +653,9 @@ static void steal() {
 			to_steal -= given;
 		}
 
-		// ramp up thief
-		ramp_device(t, total);
+		// ramp up starting from head
+		dstate->ramp = total;
+		rampup();
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RESPONSE;
 		device = 0; // expect no response when power is transferred from one to another
 		return;
@@ -920,7 +931,7 @@ static void loop() {
 		localtime_r(&now_ts, &now_tm);
 
 		// count down lock
-		if (dstate->lock)
+		if (dstate->lock > 0)
 			dstate->lock--;
 
 		// check response

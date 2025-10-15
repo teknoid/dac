@@ -80,6 +80,11 @@
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 #define PSTATE_MIN(m)			(&pstate_minutes[m])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
+#define PSTATE_AVG3				(&pstate_averages[0])
+#define PSTATE_AVG6				(&pstate_averages[1])
+#define PSTATE_AVG9				(&pstate_averages[2])
+#define PSTATE_AVGM5			(&pstate_averages[3])
+#define PSTATE_AVGM10			(&pstate_averages[4])
 
 // load and akku over 24/7
 static int aloads[24], abatts[24];
@@ -89,7 +94,7 @@ static struct tm now_tm, *now = &now_tm;
 // local counter/pstate/gstate/params memory
 static counter_t counter_history[HISTORY_SIZE];
 static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_current;
+static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_averages[5], pstate_current;
 static params_t params_current;
 
 // global counter/pstate/gstate/params pointer
@@ -492,6 +497,10 @@ static void calculate_gstate() {
 }
 
 static void calculate_pstate() {
+
+	// TODO utils.c now->tm_sec -1
+	// averages_xx berechnen
+
 	// lock while calculating
 	pthread_mutex_lock(&collector_lock);
 
@@ -541,8 +550,8 @@ static void calculate_pstate() {
 	// grid
 	ZDELTA(pstate->dgrid, pstate->grid, s1->grid, DELTA)
 
-	// load - meter latency is 1s - check nightly akku service interval -> should be nearly no load change when akku goes off
-	pstate->load = pstate->grid + s1->ac1 + s1->ac2;
+	// load - meter latency is 1-2s - check nightly akku service interval -> should be nearly no load change when akku goes off
+	pstate->load = pstate->grid + (s1->ac1 + s2->ac1) / 2 + (s1->ac2 + s2->ac2) / 2;
 
 	// calculate average values over last AVERAGE seconds
 	// apv    -> suppress mppt tracking
@@ -566,11 +575,14 @@ static void calculate_pstate() {
 	pstate->aload /= AVERAGE;
 	pstate->adiss /= AVERAGE;
 
-	// grid should always be around 0 - so limit average grid to actual grid
+	// grid should always be around 0 - limit average grid to actual grid
 	if (pstate->grid > 0)
 		HICUT(pstate->agrid, pstate->grid)
 	if (pstate->grid < 0)
 		LOCUT(pstate->agrid, pstate->grid)
+
+	// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
+	LOCUT(pstate->apv, pstate->pv)
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -580,6 +592,10 @@ static void calculate_pstate() {
 	if (abs(pstate->ac2 - s1->ac2) > DELTA)
 		pstate->flags |= FLAG_DELTA;
 
+	// ratio pv / load - only when we have pv and load
+	pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
+	LOCUT(pstate->pload, 0)
+
 	// skip calculations when offline
 	if (GSTATE_OFFLINE)
 
@@ -587,10 +603,6 @@ static void calculate_pstate() {
 
 	else {
 		// online
-
-		// ratio pv / load - only when we have pv and load
-		pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
-		LOCUT(pstate->pload, 0)
 
 		// emergency shutdown: grid download at all states or akku discharge at one of them
 		int egrid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY && s3->grid > EMERGENCY;
@@ -627,8 +639,8 @@ static void calculate_pstate() {
 			xlog("SOLAR wasting power %d akku -> grid", waste);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (pstate->load < 0) {
-			xlog("SOLAR negative load detected %d", pstate->load);
+		if (pstate->load <= 0) {
+			xlog("SOLAR zero/negative load detected %d", pstate->load);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv1 != I_STATUS_MPPT) {
