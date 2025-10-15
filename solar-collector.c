@@ -30,10 +30,11 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '31 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '26 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
+#define PSTATE_A_FILE			"solar-pstate-seconds-average.bin"
 
 // CSV files for gnuplot
 #define GSTATE_TODAY_CSV		"gstate-today.csv"
@@ -116,6 +117,7 @@ static void load_state() {
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	load_blob(STATE SLASH PSTATE_A_FILE, pstate_seconds_avg, sizeof(pstate_seconds_avg));
 }
 
 static void store_state() {
@@ -129,6 +131,7 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
+	store_blob(STATE SLASH PSTATE_A_FILE, pstate_seconds_avg, sizeof(pstate_seconds_avg));
 }
 
 static void create_pstate_json() {
