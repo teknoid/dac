@@ -816,6 +816,21 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
+void aggregate_rows(int *target, int *table, int cols, int rows, int row, int count) {
+	memset(target, 0, sizeof(int) * cols);
+	for (int x = 0; x < cols; x++) {
+		int y = row;
+		for (int z = 0; z < count; z++) {
+			int *i = table + y * cols + x;
+			target[x] += *i;
+			if (y-- == 0)
+				y = rows - 1;
+		}
+		int z = (target[x] * 10) / count;
+		target[x] = z / 10 + (z % 10 < 5 ? 0 : 1);
+	}
+}
+
 void aggregate(int *target, int *table, int cols, int rows) {
 	memset(target, 0, sizeof(int) * cols);
 	for (int x = 0; x < cols; x++) {

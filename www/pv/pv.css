@@ -84,12 +84,12 @@ dl dd.d						{ cursor:default }
 .gstate						{ width:33.3% }
 .dstate						{ width:33.3% }
 
-.apv-p						{ background-color:#FAD967 }
-.agrid-p					{ background-color:orangered }
-.agrid-m					{ background-color:palegreen }
-.abatt-p					{ background-color:#FEAD00 }
-.abatt-m					{ background-color:palegreen }
-.aload-p, .aload-m			{ background-color:skyblue }
+.pv-p						{ background-color:#FAD967 }
+.grid-p						{ background-color:orangered }
+.grid-m						{ background-color:palegreen }
+.batt-p						{ background-color:#FEAD00 }
+.batt-m						{ background-color:palegreen }
+.load-p, .load-m			{ background-color:skyblue }
 .cload-p, .cload-m			{ background-color:skyblue }
 .rload-p, .rload-m			{ background-color:skyblue }
 .mppt1-p					{ background-color:#FAD967 }

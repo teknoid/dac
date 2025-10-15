@@ -80,11 +80,7 @@
 #define PSTATE_HOUR(h)			(&pstate_hours[h])
 #define PSTATE_MIN(m)			(&pstate_minutes[m])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
-#define PSTATE_AVG3				(&pstate_averages[0])
-#define PSTATE_AVG6				(&pstate_averages[1])
-#define PSTATE_AVG9				(&pstate_averages[2])
-#define PSTATE_AVGM5			(&pstate_averages[3])
-#define PSTATE_AVGM10			(&pstate_averages[4])
+#define PSTATE_SEC_NOW_AVG		(&pstate_seconds_avg[now->tm_sec])
 
 // load and akku over 24/7
 static int aloads[24], abatts[24];
@@ -94,8 +90,11 @@ static struct tm now_tm, *now = &now_tm;
 // local counter/pstate/gstate/params memory
 static counter_t counter_history[HISTORY_SIZE];
 static gstate_t gstate_history[HISTORY_SIZE], gstate_minutes[60], gstate_current;
-static pstate_t pstate_seconds[60], pstate_minutes[60], pstate_hours[24], pstate_averages[5], pstate_current;
+static pstate_t pstate_hours[24], pstate_minutes[60], pstate_seconds[60], pstate_seconds_avg[60], pstate_current;
 static params_t params_current;
+
+// local average pstate pointer
+static pstate_t *pstate_avg = &pstate_seconds_avg[0];
 
 // global counter/pstate/gstate/params pointer
 counter_t counter[10];
@@ -147,10 +146,10 @@ static void create_powerflow_json() {
 		return;
 
 	// Fronius expects negative load
-	int load = pstate->aload * -1;
+	int load = pstate->load * -1;
 
 #define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"storeryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
-	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(gstate->soc), pstate->abatt, pstate->agrid, load, pstate->apv);
+	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(gstate->soc), pstate->batt, pstate->grid, load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
 }
@@ -163,7 +162,7 @@ static void gnuplot() {
 		int offset = 60 * (now->tm_min > 0 ? now->tm_min - 1 : 59);
 		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
 			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
-		append_table_csv((int*) pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
+		append_table_csv((int*) pstate_seconds_avg, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
 		system(GNUPLOT_MINLY);
 	}
 #endif
@@ -498,11 +497,24 @@ static void calculate_gstate() {
 
 static void calculate_pstate() {
 
-	// TODO utils.c now->tm_sec -1
-	// averages_xx berechnen
-
-	// lock while calculating
+	// lock while calculating new values
 	pthread_mutex_lock(&collector_lock);
+
+	// calculate average values over last AVERAGE seconds
+	// apv    -> suppress mppt tracking
+	// grid   -> suppress meter latency
+	// others -> suppress spikes
+	pstate_avg = PSTATE_SEC_NOW_AVG;
+	int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet written
+	aggregate_rows((int*) pstate_avg, (int*) pstate_seconds, PSTATE_SIZE, 60, sec, AVERAGE);
+	// dump_struct((int*) pstate_avg, PSTATE_SIZE, "[ØØ]", 0);
+	// grid should always be around 0 - limit average grid to actual grid
+	if (pstate->grid > 0)
+		HICUT(pstate_avg->grid, pstate->grid)
+	if (pstate->grid < 0)
+		LOCUT(pstate_avg->grid, pstate->grid)
+	// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
+	LOCUT(pstate_avg->pv, pstate->pv)
 
 	// inverter status
 	int inv1, inv2;
@@ -553,36 +565,9 @@ static void calculate_pstate() {
 	// load - meter latency is 1-2s - check nightly akku service interval -> should be nearly no load change when akku goes off
 	pstate->load = pstate->grid + (s1->ac1 + s2->ac1) / 2 + (s1->ac2 + s2->ac2) / 2;
 
-	// calculate average values over last AVERAGE seconds
-	// apv    -> suppress mppt tracking
-	// grid   -> suppress meter latency
-	// others -> suppress spikes
-	pstate->apv = pstate->agrid = pstate->abatt = pstate->aload = pstate->adiss = 0;
-	int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet written
-	for (int i = 0; i < AVERAGE; i++) {
-		pstate_t *p = &pstate_seconds[sec];
-		pstate->apv += p->pv;
-		pstate->agrid += p->grid;
-		pstate->abatt += p->batt;
-		pstate->aload += p->load;
-		pstate->adiss += p->diss;
-		if (sec-- == 0)
-			sec = 59;
-	}
-	pstate->apv /= AVERAGE;
-	pstate->agrid /= AVERAGE;
-	pstate->abatt /= AVERAGE;
-	pstate->aload /= AVERAGE;
-	pstate->adiss /= AVERAGE;
-
-	// grid should always be around 0 - limit average grid to actual grid
-	if (pstate->grid > 0)
-		HICUT(pstate->agrid, pstate->grid)
-	if (pstate->grid < 0)
-		LOCUT(pstate->agrid, pstate->grid)
-
-	// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
-	LOCUT(pstate->apv, pstate->pv)
+	// ratio pv / load - only when we have pv and load
+	pstate->pload = pstate_avg->pv && pstate_avg->load ? (pstate_avg->pv - pstate_avg->diss) * 100 / pstate_avg->load : 0;
+	LOCUT(pstate->pload, 0)
 
 	// check if we have delta ac power anywhere
 	if (abs(pstate->grid - s1->grid) > DELTA)
@@ -592,11 +577,7 @@ static void calculate_pstate() {
 	if (abs(pstate->ac2 - s1->ac2) > DELTA)
 		pstate->flags |= FLAG_DELTA;
 
-	// ratio pv / load - only when we have pv and load
-	pstate->pload = pstate->apv && pstate->aload ? (pstate->apv - pstate->adiss) * 100 / pstate->aload : 0;
-	LOCUT(pstate->pload, 0)
-
-	// skip calculations when offline
+	// skip further calculations when offline
 	if (GSTATE_OFFLINE)
 
 		pstate->ramp = 0;
@@ -653,30 +634,29 @@ static void calculate_pstate() {
 		}
 
 		// PV tendency: rising or falling
-		int r3 = s1->dpv > 25 && s2->dpv > 25 && s3->dpv > 25;
-		int r2 = s1->dpv > 50 && s2->dpv > 50;
-		int r1 = s1->dpv > 100;
-		if (r3 || r2 || r1) {
-			pstate->flags |= FLAG_PV_RISING;
-			xdebug("SOLAR set FLAG_PV_RISING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
-		}
-		int f3 = s1->dpv < -25 && s2->dpv < -25 && s3->dpv < -25;
-		int f2 = s1->dpv < -50 && s2->dpv < -50;
-		int f1 = s1->dpv < -100;
-		if (f3 || f2 || f1) {
-			pstate->flags |= FLAG_PV_FALLING;
-			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
-		}
+		// TODO noch nötig?
+//		int r3 = s1->dpv > 25 && s2->dpv > 25 && s3->dpv > 25;
+//		int r2 = s1->dpv > 50 && s2->dpv > 50;
+//		int r1 = s1->dpv > 100;
+//		if (r3 || r2 || r1) {
+//			pstate->flags |= FLAG_PV_RISING;
+//			xdebug("SOLAR set FLAG_PV_RISING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
+//		}
+//		int f3 = s1->dpv < -25 && s2->dpv < -25 && s3->dpv < -25;
+//		int f2 = s1->dpv < -50 && s2->dpv < -50;
+//		int f1 = s1->dpv < -100;
+//		if (f3 || f2 || f1) {
+//			pstate->flags |= FLAG_PV_FALLING;
+//			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", s3->dpv, s2->dpv, s1->dpv);
+//		}
 
 		// state is stable when we have no grid load
-		if (-NOISE < pstate->agrid && pstate->agrid < NOISE)
+		if (-NOISE < pstate_avg->grid && pstate_avg->grid < NOISE)
 			pstate->flags |= FLAG_STABLE;
 
 		// load is completely satisfied from secondary inverter
-		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2) {
+		if ((-NOISE < pstate_avg->ac1 && pstate_avg->ac1 < NOISE) || pstate_avg->load < pstate_avg->ac2)
 			pstate->flags |= FLAG_EXTRAPOWER;
-			xdebug("SOLAR set FLAG_EXTRAPOWER load=%d ac1=%d ac2=%d", pstate->load, pstate->ac1, pstate->ac2);
-		}
 
 		// TODO mppt tracking erkennen und ramping verhindern, zuerst geht ac runter, dann dc und mpptx, 1-2 sekunden später grid rückmeldung
 		// und eine sekunde später alles wieder rauf
@@ -687,14 +667,15 @@ static void calculate_pstate() {
 
 		// TODO oder delta ac verwenden?
 
+		// calculate ramp power - here we use average values
 		if (time(NULL) % 10 == 0) {
 
 			// absolute average grid driven slow ramp every 10 seconds
-			pstate->ramp = pstate->agrid * -1;
+			pstate->ramp = pstate_avg->grid * -1;
 
 			// minus akku when discharging
-			if (pstate->abatt > NOISE)
-				pstate->ramp -= pstate->abatt * -1;
+			if (pstate_avg->batt > NOISE)
+				pstate->ramp -= pstate_avg->batt * -1;
 
 			// suppress when below 0 as long as we have enough
 			if (pstate->pload > 110)
@@ -706,7 +687,7 @@ static void calculate_pstate() {
 
 			// nearly equal - full step down when grid between 0...RAMP, max. one step up
 			if (100 <= pstate->pload && pstate->pload <= 110) {
-				if (0 < pstate->agrid && pstate->agrid < RAMP)
+				if (0 < pstate_avg->grid && pstate_avg->grid < RAMP)
 					pstate->ramp = -RAMP;
 				HICUT(pstate->ramp, RAMP)
 			}
@@ -714,7 +695,7 @@ static void calculate_pstate() {
 			// zero from -RAMP..RAMP
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
-				xlog("SOLAR average grid ramp=%d agrid=%d grid=%d pload=%d", pstate->ramp, pstate->agrid, pstate->grid, pstate->pload);
+				xlog("SOLAR average grid ramp=%d agrid=%d grid=%d pload=%d", pstate->ramp, pstate_avg->grid, pstate->grid, pstate->pload);
 
 		} else {
 
@@ -731,7 +712,7 @@ static void calculate_pstate() {
 
 			// nearly equal - full step down when grid between 0...RAMP, max. one step up
 			if (100 <= pstate->pload && pstate->pload <= 110) {
-				if (0 < pstate->agrid && pstate->agrid < RAMP)
+				if (0 < pstate_avg->grid && pstate_avg->grid < RAMP)
 					pstate->ramp = -RAMP;
 				HICUT(pstate->ramp, RAMP)
 			}
@@ -749,7 +730,7 @@ static void calculate_pstate() {
 	memcpy(PSTATE_SEC_NOW, (void*) pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when delta / on grid load
-	if (MINLY || PSTATE_DELTA || pstate->agrid > NOISE || pstate->ramp)
+	if (MINLY || PSTATE_DELTA || pstate_avg->grid > NOISE || pstate->ramp)
 		print_pstate();
 }
 

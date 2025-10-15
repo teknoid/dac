@@ -171,6 +171,7 @@ int load_blob(const char *filename, void *data, size_t size);
 int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);
 
+void aggregate_rows(int *target, int *table, int cols, int rows, int row, int count);
 void aggregate(int *target, int *table, int cols, int rows);
 void cumulate(int *target, int *table, int cols, int rows);
 void store_csv_header(const char *header, const char *filename);
