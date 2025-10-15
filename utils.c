@@ -632,6 +632,7 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 	while (*fvalue)
 		fputc(*fvalue++, fp);
 	fputc('\n', fp);
+	fflush(fp);
 	fclose(fp);
 }
 
@@ -816,46 +817,49 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
-void aggregate_rows(int *target, int *table, int cols, int rows, int row, int count) {
-	memset(target, 0, sizeof(int) * cols);
+void aggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
+	memset(dst, 0, cols * sizeof(int));
+	int y = row;
+	for (int z = 0; z < count; z++) {
+		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
+		for (int x = 0; x < cols; x++)
+			*dptr++ += *sptr++;
+		if (y-- == 0)
+			y = rows - 1;
+	}
+	int *ptr = (int*) dst;
 	for (int x = 0; x < cols; x++) {
-		int y = row;
-		for (int z = 0; z < count; z++) {
-			int *i = table + y * cols + x;
-			target[x] += *i;
-			if (y-- == 0)
-				y = rows - 1;
-		}
-		int z = (target[x] * 10) / count;
-		target[x] = z / 10 + (z % 10 < 5 ? 0 : 1);
+		int z = *ptr * 10 / count;
+		*ptr++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 	}
 }
 
-void aggregate(int *target, int *table, int cols, int rows) {
-	memset(target, 0, sizeof(int) * cols);
+void aggregate(void *dst, void *src, int cols, int rows) {
+	memset(dst, 0, sizeof(int) * cols);
 	for (int x = 0; x < cols; x++) {
 		int count = 0;
+		int *dptr = (int*) dst + x;
 		for (int y = 0; y < rows; y++) {
-			int *i = table + y * cols + x;
-			if (*i) { // ignore 0
-				target[x] += *i;
+			int *sptr = (int*) src + y * cols + x;
+			if (*sptr) { // ignore 0
+				*dptr += *sptr;
 				count++;
 			}
 		}
 		if (count) {
-			int z = (target[x] * 10) / count;
-			target[x] = z / 10 + (z % 10 < 5 ? 0 : 1);
+			int z = *dptr * 10 / count;
+			*dptr = z / 10 + (z % 10 < 5 ? 0 : 1);
 		}
 	}
 }
 
-void cumulate(int *target, int *table, int cols, int rows) {
-	memset(target, 0, sizeof(int) * cols);
-	for (int x = 0; x < cols; x++)
-		for (int y = 0; y < rows; y++) {
-			int *i = table + y * cols + x;
-			target[x] += *i;
-		}
+void cumulate(void *dst, void *src, int cols, int rows) {
+	memset(dst, 0, cols * sizeof(int));
+	for (int y = 0; y < rows; y++) {
+		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
+		for (int x = 0; x < cols; x++)
+			*dptr++ += *sptr++;
+	}
 }
 
 void store_csv_header(const char *header, const char *filename) {
@@ -871,9 +875,7 @@ void store_csv_header(const char *header, const char *filename) {
 	xlog("UTILS stored header %s", filename);
 }
 
-void store_array_csv(int array[], int size, int duplicate, const char *header, const char *filename) {
-	char c[8 + 16], v[16];
-
+void store_table_csv(void *table, int cols, int rows, const char *header, const char *filename) {
 	FILE *fp = fopen(filename, "wt");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
@@ -883,48 +885,12 @@ void store_array_csv(int array[], int size, int duplicate, const char *header, c
 	if (header)
 		fprintf(fp, " i%s\n", header);
 
-	for (int y = 0; y < size; y++) {
-		snprintf(v, 16, "%02d ", y);
-		strcpy(c, v);
-		snprintf(v, 8, "%5d ", array[y]);
-		strcat(c, v);
-		fprintf(fp, "%s\n", c);
-	}
-
-	// gnuplot workaround - duplicate index 0 at the end
-	if (duplicate) {
-		snprintf(v, 16, "%02d ", size);
-		strcpy(c, v);
-		snprintf(v, 8, "%5d ", array[0]);
-		strcat(c, v);
-		fprintf(fp, "%s\n", c);
-	}
-
-	fflush(fp);
-	fclose(fp);
-	xlog("UTILS stored %s", filename);
-}
-
-void store_table_csv(int *table, int cols, int rows, const char *header, const char *filename) {
-	char c[cols * 8 + 16], v[16];
-
-	FILE *fp = fopen(filename, "wt");
-	if (fp == NULL) {
-		xerr("UTILS Cannot open file %s for writing", filename);
-		return;
-	}
-
-	if (header)
-		fprintf(fp, " i%s\n", header);
-
+	int *p = (int*) table;
 	for (int y = 0; y < rows; y++) {
-		snprintf(v, 16, "%02d ", y);
-		strcpy(c, v);
-		for (int x = 0; x < cols; x++) {
-			snprintf(v, 8, "%5d ", *table++);
-			strcat(c, v);
-		}
-		fprintf(fp, "%s\n", c);
+		fprintf(fp, "%02d ", y);
+		for (int x = 0; x < cols; x++)
+			fprintf(fp, "%5d ", *p++);
+		fprintf(fp, "\n");
 	}
 
 	fflush(fp);
@@ -932,23 +898,19 @@ void store_table_csv(int *table, int cols, int rows, const char *header, const c
 	xlog("UTILS stored %s", filename);
 }
 
-void append_table_csv(int *table, int cols, int rows, int offset, const char *filename) {
-	char c[cols * 8 + 16], v[16];
-
+void append_table_csv(void *table, int cols, int rows, int offset, const char *filename) {
 	FILE *fp = fopen(filename, "at");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
 	}
 
+	int *p = (int*) table;
 	for (int y = 0; y < rows; y++) {
-		snprintf(v, 16, "%04d ", offset + y);
-		strcpy(c, v);
-		for (int x = 0; x < cols; x++) {
-			snprintf(v, 8, "%5d ", *table++);
-			strcat(c, v);
-		}
-		fprintf(fp, "%s\n", c);
+		fprintf(fp, "%04d ", offset + y);
+		for (int x = 0; x < cols; x++)
+			fprintf(fp, "%5d ", *p++);
+		fprintf(fp, "\n");
 	}
 
 	fflush(fp);
@@ -956,7 +918,7 @@ void append_table_csv(int *table, int cols, int rows, int offset, const char *fi
 	xlog("UTILS appended %s", filename);
 }
 
-void dump_table(int *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
+void dump_table(void *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
 	char c[cols * 8 + 16], v[16];
 
 	if (title)
@@ -968,14 +930,14 @@ void dump_table(int *table, int cols, int rows, int highlight_row, const char *t
 		xdebug(c);
 	}
 
+	int *p = (int*) table;
 	for (int y = 0; y < rows; y++) {
 		snprintf(v, 16, "[%02d] ", y);
 		strcpy(c, v);
 		if (y == highlight_row)
 			strcat(c, BOLD);
 		for (int x = 0; x < cols; x++) {
-			// int *i = table + yy * x + xx;
-			snprintf(v, 8, "%5d ", *table++);
+			snprintf(v, 8, "%5d ", *p++);
 			strcat(c, v);
 		}
 		if (y == highlight_row)
@@ -984,7 +946,7 @@ void dump_table(int *table, int cols, int rows, int highlight_row, const char *t
 	}
 }
 
-void dump_struct(int *values, int size, const char *idx, const char *title) {
+void dump_array(void *array, int size, const char *idx, const char *title) {
 	char c[size * 8 + 16], v[16];
 
 	if (title)
@@ -992,30 +954,33 @@ void dump_struct(int *values, int size, const char *idx, const char *title) {
 
 	snprintf(v, 16, "%s ", idx);
 	strcpy(c, v);
-	for (int xx = 0; xx < size; xx++) {
-		snprintf(v, 8, "%5d ", values[xx]);
+	int *p = (int*) array;
+	for (int x = 0; x < size; x++) {
+		snprintf(v, 8, "%5d ", *p++);
 		strcat(c, v);
 	}
 	xdebug(c);
 }
 
-void store_struct_json(int *values, int size, const char *header, const char *filename) {
+void store_array_json(void *array, int size, const char *header, const char *filename) {
 	FILE *fp = fopen(filename, "wt");
 	if (fp == NULL) {
 		xerr("UTILS Cannot open file %s for writing", filename);
 		return;
 	}
 
+	// TODO anders lösen
 	int i = 0;
 	char *str = strdup(header); // strtok() needs write access to the string(!)
-	char *p = strtok(str, " ");
+	char *w = strtok(str, " ");
 
 	fprintf(fp, "{");
-	while (p != NULL && i < size) {
-		fprintf(fp, "\"%s\":\"%d\"", p, values[i]);
+	int *p = (int*) array;
+	while (w != NULL && i < size) {
+		fprintf(fp, "\"%s\":\"%d\"", w, *p++);
 		if (i != size - 1)
 			fprintf(fp, ", ");
-		p = strtok(NULL, " ");
+		w = strtok(NULL, " ");
 		i++;
 	}
 	fprintf(fp, "}");

@@ -512,39 +512,6 @@ static int storage_min(char *arg) {
 	return sunspec_storage_minimum_soc(ss, min);
 }
 
-static int init() {
-	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
-	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
-	meter = sunspec_init_poll("fronius10", 200, &update_meter);
-
-	// use the same lock as both run against same IP address
-	meter->lock = inverter1->lock;
-
-	// allow storage control
-	inverter1->control = control;
-
-	// stop if Fronius10 is not available
-	if (!inverter1)
-		return xerr("No connection to inverter1");
-
-	// do not continue before we have SoC value from Fronius10
-	int retry = 100;
-	while (--retry) {
-		msleep(100);
-		if (inverter1->storage != 0 && inverter1->storage->ChaState != 0)
-			break;
-	}
-	if (!retry)
-		return xerr("No SoC from %d", inverter1->name);
-
-	params->akku_capacity = AKKU_CAPACITY;
-	params->akku_cmax = AKKU_CHARGE_MAX;
-	params->akku_dmax = AKKU_DISCHARGE_MAX;
-	xlog("SOLAR modbus %s ready retry=%d Akku capacity=%d cmax=%d dmax=%d", inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax);
-
-	return 0;
-}
-
 static int latency() {
 	int count;
 	time_t ts;
@@ -614,6 +581,38 @@ static int latency() {
 			break;
 	}
 	printf("detected OFF meter response after %dms\n", count * 100);
+
+	return 0;
+}
+static int init() {
+	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
+	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
+	meter = sunspec_init_poll("fronius10", 200, &update_meter);
+
+	// use the same lock as both run against same IP address
+	meter->lock = inverter1->lock;
+
+	// allow storage control
+	inverter1->control = control;
+
+	// stop if Fronius10 is not available
+	if (!inverter1)
+		return xerr("No connection to inverter1");
+
+	// do not continue before we have SoC value from Fronius10
+	int retry = 100;
+	while (--retry) {
+		msleep(100);
+		if (inverter1->storage != 0 && inverter1->storage->ChaState != 0)
+			break;
+	}
+	if (!retry)
+		return xerr("No SoC from %d", inverter1->name);
+
+	params->akku_capacity = AKKU_CAPACITY;
+	params->akku_cmax = AKKU_CHARGE_MAX;
+	params->akku_dmax = AKKU_DISCHARGE_MAX;
+	xlog("SOLAR modbus %s ready retry=%d Akku capacity=%d cmax=%d dmax=%d", inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax);
 
 	return 0;
 }

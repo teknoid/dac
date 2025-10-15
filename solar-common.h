@@ -21,6 +21,7 @@
 #define DAILY					(now->tm_hour == 0 && now->tm_min == 0 && now->tm_sec == 0)
 
 #define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
+#define SURVIVE					1500
 
 // gstate flags
 #define FLAG_SUMMER				(1 << 0)
@@ -79,12 +80,12 @@
 
 // device flags
 #define FLAG_RESPONSE			(1 << 0)
-#define FLAG_FORCE_OFF			(1 << 1)
+#define FLAG_FORCE				(1 << 1)
 #define FLAG_STANDBY_CHECK		(1 << 2)
 #define FLAG_STANDBY_CHECKED	(1 << 3)
 
 #define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE)
-#define DEV_FORCE_OFF(d)		(d->flags & FLAG_FORCE_OFF)
+#define DEV_FORCE(d)			(d->flags & FLAG_FORCE)
 #define DEV_STANDBY_CHECK(d)	(d->flags & FLAG_STANDBY_CHECK)
 #define DEV_STANDBY_CHECKED(d)	(d->flags & FLAG_STANDBY_CHECKED)
 
@@ -123,6 +124,9 @@ struct _device {
 	int steal;
 	int load;
 	int ramp;
+	int p1;
+	int p2;
+	int p3;
 	ramp_function_t *rf;
 };
 
@@ -154,7 +158,7 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod  load   soc  batt   ttl  succ  foca  surv nsurv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca  surv nsurv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
@@ -166,9 +170,7 @@ struct _gstate {
 	int tomorrow;
 	int sod;
 	int eod;
-	int load;
 	int soc;
-	int batt;
 	int ttl;
 	int success;
 	int forecast;
@@ -222,9 +224,6 @@ struct _dstate {
 	int steal;
 	int cload;
 	int rload;
-	int p1;
-	int p2;
-	int p3;
 };
 
 // global counter, state and parameter pointer

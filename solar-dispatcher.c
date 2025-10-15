@@ -24,7 +24,6 @@
 #define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < -NOISE)
 #define AKKU_LIMIT_CHARGE3X		1750
 #define AKKU_LIMIT_CHARGE2X		2500
-#define AKKU_LIMIT_DISCHARGE	BASELOAD
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
@@ -65,19 +64,20 @@ static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &r
 static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox", .min = 500 };
 static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox", .min = 500 };
 static device_t h3 = { .name = "schlaf", .id = PLUG5, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5", .min = 500 };
-static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
+static device_t h4 = { .name = "heizer", .id = PLUG9, .total = 1000, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug9", .min = 1500 };
+static device_t h5 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
 
 // all devices, needed for initialization
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
+static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &b2, &b3, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &h5, &b2, &b3, 0 };
 
 // steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &b1, &b2, &b3, &a1, 0 };
+static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };
 
 // heaters, then akku, then boilers (catch remaining pv from secondary inverters or if akku is not able to consume all generated power)
-static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, 0 };
+static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b3, 0 };
 
 // force boiler heating first
 //static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
@@ -119,54 +119,48 @@ static device_t* get_by_id(unsigned int id, int relay) {
 }
 
 static void ramp_heater(device_t *heater) {
-	int power = heater->ramp;
 	heater->ramp = 0;
-
-	if (!power || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
+	if (!dstate->ramp || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return;
 
 	// heating disabled
-	if (heater->state == Auto && power > 0 && !GSTATE_HEATING) {
-		power = 0;
+	if (heater->state == Auto && dstate->ramp > 0 && !GSTATE_HEATING) {
+		dstate->ramp = 0;
 		heater->state = Standby;
 	}
 
 	// keep on when already on
-	if (power > 0 && heater->power)
+	if (dstate->ramp > 0 && heater->power)
+		return;
+
+	// keep off when already off
+	if (dstate->ramp <= 0 && !heater->power)
 		return;
 
 	// not enough power available to switch on
-	if (power > 0 && power < heater->total)
+	int min = !DEV_FORCE(heater) && heater->min ? heater->min : heater->total;
+	if (dstate->ramp > 0 && dstate->ramp < min)
 		return;
 
-	// min is set and not enough power available to switch on
-	if (power > 0 && heater->min && power < heater->min)
-		return;
-
-	// transform power into on/off
-	power = power > 0 ? 1 : 0;
-
-	// check if update is necessary
-	if (heater->power == power)
-		return;
-
-	xdebug("SOLAR switching %s %s", heater->name, power ? "ON" : "OFF");
+	// transform ramp into power on/off
+	heater->power = dstate->ramp > 0 ? 1 : 0;
+	xdebug("SOLAR switching %s %s", heater->name, heater->power ? "ON" : "OFF");
 
 #ifndef SOLAR_MAIN
-	tasmota_power(heater->id, heater->r, power);
+	tasmota_power(heater->id, heater->r, heater->power);
 #endif
 
 	// update power values
+	dstate->flags &= ~FLAG_FORCE;
 	dstate->flags |= FLAG_ACTION;
 	dstate->lock = WAIT_RESPONSE;
-	heater->power = power;
-	heater->ramp = power ? heater->total : heater->total * -1;
-	heater->load = power ? heater->total : 0;
+	heater->ramp = heater->power ? heater->total : heater->total * -1;
+	heater->load = heater->power ? heater->total : 0;
 
 	// store phase power to detect response
-	dstate->p1 = pstate->p1;
-	dstate->p2 = pstate->p2;
-	dstate->p3 = pstate->p3;
+	heater->p1 = pstate->p1;
+	heater->p2 = pstate->p2;
+	heater->p3 = pstate->p3;
 	device = heater;
 
 	return;
@@ -175,10 +169,8 @@ static void ramp_heater(device_t *heater) {
 // echo p:0:0 | socat - udp:boiler3:1975
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 static void ramp_boiler(device_t *boiler) {
-	int power = boiler->ramp;
 	boiler->ramp = 0;
-
-	if (!power || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
+	if (!dstate->ramp || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
 		return;
 
 	// cannot send UDP if we don't have an IP
@@ -186,26 +178,26 @@ static void ramp_boiler(device_t *boiler) {
 		return;
 
 	// already full up
-	if (boiler->power == 100 && power > 0)
+	if (boiler->power == 100 && dstate->ramp > 0)
 		return;
 
 	// already full down
-	if (boiler->power == 0 && power < 0)
+	if (boiler->power == 0 && dstate->ramp < 0)
 		return;
 
 	// charging boilers only between configured FROM / TO (winter always)
-	if (boiler->power == 0 && power > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
+	if (boiler->power == 0 && dstate->ramp > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
 		boiler->state = Standby;
 		return;
 	}
 
 	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->state == Auto && boiler->power == 0 && power < boiler->min)
+	if (boiler->state == Auto && boiler->power == 0 && dstate->ramp < boiler->min)
 		return;
 
 	// power steps
-	int step = power * 100 / boiler->total;
-	if (power < 0 && (power < step * boiler->total / 100))
+	int step = dstate->ramp * 100 / boiler->total;
+	if (dstate->ramp < 0 && (dstate->ramp < step * boiler->total / 100))
 		step -= 1; // one step more when not enough
 	if (!step)
 		return;
@@ -215,16 +207,17 @@ static void ramp_boiler(device_t *boiler) {
 		step = 1;
 
 	// transform power into 0..100%
-	power = boiler->power + step;
+	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->state == Auto && boiler->min && !DEV_FORCE_OFF(boiler) ? boiler->min * 100 / boiler->total : 0;
+	// TODO funktioniert nicht, boiler 3 bleibt an wenn offline
+	int min = !DEV_FORCE(boiler) && boiler->state == Auto && boiler->min ? boiler->min * 100 / boiler->total : 0;
 
 	HICUT(power, 100);
 	LOCUT(power, min);
 
-	// check if update is necessary
-	if (boiler->power == power)
+	// no update needed
+	if (power == boiler->power)
 		return;
 
 	// send UDP message to device
@@ -252,38 +245,38 @@ static void ramp_boiler(device_t *boiler) {
 #endif
 
 	// update power values
+	dstate->flags &= ~FLAG_FORCE;
 	dstate->flags |= FLAG_ACTION;
 	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
-	boiler->power = power;
 	boiler->ramp = step * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
+	boiler->power = power;
 
 	// store phase power to detect response
-	dstate->p1 = pstate->p1;
-	dstate->p2 = pstate->p2;
-	dstate->p3 = pstate->p3;
+	boiler->p1 = pstate->p1;
+	boiler->p2 = pstate->p2;
+	boiler->p3 = pstate->p3;
 	device = boiler;
 
 	return;
 }
 
 static void ramp_akku(device_t *akku) {
-	int power = akku->ramp;
 	akku->ramp = 0;
 
 	// akku ramps up and down itself - emulating ramp behavior
 
 	// ramp down request
-	if (power < 0) {
+	if (dstate->ramp < 0) {
 
-		// leave akku a little bit charging, otherwise up to it's current charging power
+		// akku can max. ramp down current charge power
 		if (AKKU_CHARGING)
-			akku->ramp = (akku->load < MINIMUM) || (power * -1 < akku->load) ? power : akku->load * -1;
+			akku->ramp = dstate->ramp < akku->load * -1 ? akku->load * -1 : dstate->ramp;
 
 	}
 
 	// ramp up request
-	if (power > 0) {
+	if (dstate->ramp > 0) {
 
 		// set into standby when full
 		if (gstate->soc == 1000) {
@@ -300,15 +293,16 @@ static void ramp_akku(device_t *akku) {
 		if (akku->power > 95)
 			return;
 
-		// akku is really charging
-		if (AKKU->state == Charge && AKKU->load > NOISE) {
+		// akku is charging
+		if (AKKU->state == Charge) {
 			if (akku->load < MINIMUM) {
 				// leave akku a little bit charging to avoid grid load
 				akku->ramp = MINIMUM;
 			} else {
 				// all as long as akku charging is not saturated
 				int to_charge = akku->total - akku->load;
-				akku->ramp = power > to_charge ? power - to_charge : power;
+				if (akku->ramp > to_charge)
+					akku->ramp -= to_charge;
 			}
 			return;
 		}
@@ -326,7 +320,6 @@ static void ramp_akku(device_t *akku) {
 			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
 				limit = AKKU_LIMIT_CHARGE3X;
 			if (!akku_charge(akku, limit)) {
-				akku->ramp = power; // consume all at startup
 				dstate->flags |= FLAG_ACTION;
 				dstate->lock = WAIT_START_CHARGE;
 			}
@@ -335,7 +328,7 @@ static void ramp_akku(device_t *akku) {
 }
 
 static void create_dstate_json() {
-	store_struct_json((int*) dstate, DSTATE_SIZE, DSTATE_HEADER, RUN SLASH DSTATE_JSON);
+	store_array_json(dstate, DSTATE_SIZE, DSTATE_HEADER, RUN SLASH DSTATE_JSON);
 }
 
 static void create_devices_json() {
@@ -422,7 +415,8 @@ static void print_dstate() {
 
 static void toggle_device(device_t *d) {
 	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
-	d->ramp = !d->power ? d->total : d->total * -1;
+	dstate->ramp = !d->power ? d->total : d->total * -1;
+	d->flags |= FLAG_FORCE;
 	(d->rf)(d);
 }
 
@@ -430,8 +424,7 @@ static void toggle_device(device_t *d) {
 static void ramp_device(device_t *d, int power) {
 	if (d->state == Manual)
 		return;
-
-	d->ramp = power;
+	dstate->ramp = power;
 	(d->rf)(d);
 }
 
@@ -460,7 +453,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// we will NOT survive - charging akku has priority
-	if (gstate->survive < 900)
+	if (gstate->survive < SURVIVE)
 		return select_program(&MODEST);
 
 	// survive but tomorrow not enough PV - charging akku has priority
@@ -472,7 +465,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
-	if (gstate->survive > 1100 && gstate->tomorrow > gstate->today)
+	if (gstate->survive > 2000 && gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
 	// enough PV available to survive + heating
@@ -571,8 +564,8 @@ static void steal() {
 			dstate->steal += DD->steal;
 			continue;
 		}
-		// only when in AUTO mode and no OVERLOAD (we cannot be sure if the power is really consumed)
-		if (DD->state == Auto && dstate->rload < OVERLOAD_STEAL) {
+		// only when in AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
+		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
 			if (DD->min && DD->min < DD->load)
 				DD->steal = DD->load - DD->min; // all above minimum
 			else
@@ -629,8 +622,8 @@ static void steal() {
 		if (dstate->steal < RAMP)
 			continue;
 
-		// minimum power to ramp up thief: adjustable = 5% of total, dumb = total +10%
-		int min = t->adj ? (t->total / 20) : (t->total * 1.1);
+		// minimum power to ramp up thief
+		int min = t->min ? t->min : t->total;
 
 		// not enough to ramp up
 		// TODO und die letzte minute lang genug da und stabil
@@ -644,18 +637,17 @@ static void steal() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		int to_steal = min;
+		int to_steal = total;
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
 			ramp_device(v, to_steal * -1);
-			int given = v->ramp * -1;
+			int given = v->ramp;
 			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, min, total);
-			to_steal -= given;
+			to_steal += given;
 		}
 
-		// ramp up starting from head
-		dstate->ramp = total;
-		rampup();
+		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
+		ramp_device(t, total);
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RESPONSE;
 		device = 0; // expect no response when power is transferred from one to another
 		return;
@@ -670,9 +662,9 @@ static void response() {
 	int delta = device->ramp - device->ramp / 3;
 
 	// check if we got a response on any phase
-	int d1 = pstate->p1 - dstate->p1;
-	int d2 = pstate->p2 - dstate->p2;
-	int d3 = pstate->p3 - dstate->p3;
+	int d1 = pstate->p1 - device->p1;
+	int d2 = pstate->p2 - device->p2;
+	int d3 = pstate->p3 - device->p3;
 	int l1 = delta > 0 ? d1 > delta : d1 < delta;
 	int l2 = delta > 0 ? d2 > delta : d2 < delta;
 	int l3 = delta > 0 ? d3 > delta : d3 < delta;
@@ -703,7 +695,7 @@ static void response() {
 	// no response during lock
 	if (standby_check) {
 		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", device->name, delta, d1, d2, d3);
-		device->flags |= FLAG_FORCE_OFF;
+		device->flags |= FLAG_FORCE;
 		ramp_device(device, device->total * -1);
 		device->state = Standby;
 	} else
@@ -717,16 +709,19 @@ static void response() {
 }
 
 static void calculate_dstate() {
-	// skip when offline
-	if (GSTATE_OFFLINE)
-		return;
+	// update akku
+	AKKU->load = pstate->batt * -1;
+	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
 
 	// clear flags and values
 	dstate->flags = dstate->cload = dstate->rload = 0;
 
-	// update akku
-	AKKU->load = pstate->batt * -1;
-	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
+	// skip single devices calculation when offline
+	if (GSTATE_OFFLINE)
+		return;
+
+	// take over ramp power
+	dstate->ramp_in = dstate->ramp = pstate->ramp;
 
 	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -756,37 +751,37 @@ static void calculate_dstate() {
 	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
 
 	// copy to history
-	memcpy(DSTATE_NOW, (void*) dstate, sizeof(dstate_t));
+	memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 
 	// no action during a running standby check
 	if (device && DEV_STANDBY_CHECK(device))
 		return;
 
-	// ramp always if set
-	dstate->ramp_in = dstate->ramp = pstate->ramp;
-	if (dstate->ramp) {
+	// ramp down has prio
+	if (dstate->ramp < 0) {
 		dstate->flags |= FLAG_ACTION_RAMP;
 		return;
 	}
 
-	// no further actions
-	if (!PSTATE_VALID || !PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN || device || dstate->lock)
-		return;
+	// cyclic actions
+	int cyclic = time(NULL) % 10;
+	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
+		cyclic = 0;
 
-	int ts = time(NULL);
-
-	// standby logic each 10 seconds (1, 11, 21, ...) on permanent OVERLOAD_STANDBY
+	// permanent overload
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-	if (ts % 10 == 1 && overload)
+
+	// standby logic each 10 seconds (1, 11, 21, ...)
+	if (cyclic == 1 && overload)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
-	// no further actions
-	if (DSTATE_ALL_UP)
-		return;
-
 	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (ts % 10 == 2 && !overload)
+	if (cyclic == 2 && !overload)
 		dstate->flags |= FLAG_ACTION_STEAL;
+
+	// ramp up always when no other preceded actions
+	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
+		dstate->flags |= FLAG_ACTION_RAMP;
 }
 
 static void daily() {
@@ -806,7 +801,7 @@ static void hourly() {
 
 		// force off when offline
 		if (GSTATE_OFFLINE) {
-			DD->flags |= FLAG_FORCE_OFF;
+			DD->flags |= FLAG_FORCE;
 			ramp_device(DD, DD->total * -1);
 		}
 	}
@@ -831,8 +826,8 @@ static void minly() {
 	if ((GSTATE_GRID_DLOAD && GSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE && !AKKU_CHARGING)) {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
-		// winter: limit discharge and try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && (tiny_tomorrow || gstate->survive < 0) ? AKKU_LIMIT_DISCHARGE : 0;
+		// winter: limit discharge to base load --> try to extend ttl as much as possible
+		int limit = GSTATE_WINTER && (tiny_tomorrow || gstate->survive < 1000) ? params->baseload : 0;
 		akku_discharge(AKKU, limit);
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
@@ -891,7 +886,7 @@ void solar_tasmota(tasmota_t *t) {
 }
 
 static void loop() {
-	time_t now_ts;
+	time_t now_ts, startup_ts = time(NULL);
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -942,6 +937,10 @@ static void loop() {
 
 		// calculate device state and actions
 		calculate_dstate();
+
+		// suppress ramps directly after startup due to incomplete or wrong pstate
+		if (now_ts - startup_ts < 10)
+			dstate->flags &= ~(FLAG_ACTION_RAMP | FLAG_ACTION_STANDBY | FLAG_ACTION_STEAL);
 
 		if (DSTATE_ACTION_RAMP)
 			ramp();
