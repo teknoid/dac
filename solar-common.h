@@ -45,7 +45,7 @@
 #define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 
 // pstate flags
-#define FLAG_DELTA				(1 << 0)
+#define FLAG_ACDELTA			(1 << 0)
 #define FLAG_VALID				(1 << 1)
 #define FLAG_STABLE				(1 << 2)
 #define FLAG_PV_FALLING			(1 << 3)
@@ -53,7 +53,7 @@
 #define FLAG_EMERGENCY			(1 << 5)
 #define FLAG_EXTRAPOWER			(1 << 6)
 
-#define PSTATE_DELTA			(pstate->flags & FLAG_DELTA)
+#define PSTATE_ACDELTA			(pstate->flags & FLAG_ACDELTA)
 #define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 #define PSTATE_PV_FALLING		(pstate->flags & FLAG_PV_FALLING)
@@ -182,12 +182,10 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv   dpv  grid dgrid  batt   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   inv  load pload  diss  ramp flags"
+#define PSTATE_HEADER	"    pv  grid  batt   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   inv  load pload  diss  ramp flags"
 struct _pstate {
 	int pv;
-	int dpv;
 	int grid;
-	int dgrid;
 	int batt;
 	int ac1;
 	int ac2;

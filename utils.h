@@ -74,11 +74,6 @@
 		if (-y < x && x < y) \
 			x = 0;
 
-#define ZDELTA(z, x, y, d) \
-		z = x - y; \
-		if (-d < z && z < d) \
-			z = 0;
-
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
 		struct tm tm_now, *now = &tm_now; \
@@ -174,6 +169,7 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 void aggregate_rows(void *target, void *table, int cols, int rows, int row, int count);
 void aggregate(void *dst, void *src, int cols, int rows);
 void cumulate(void *dst, void *src, int cols, int rows);
+void delta(void *dst, void *src1, void *src2, int cols, int shape);
 void store_csv_header(const char *header, const char *filename);
 void store_table_csv(void *table, int cols, int rows, const char *header, const char *filename);
 void append_table_csv(void *table, int cols, int rows, int offset, const char *filename);

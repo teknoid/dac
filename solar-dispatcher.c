@@ -290,7 +290,7 @@ static void ramp_akku(device_t *akku) {
 			return;
 
 		// akku charging is nearly saturated
-		if (akku->power > 95)
+		if (akku->power > 90)
 			return;
 
 		// akku is charging
@@ -583,7 +583,7 @@ static void steal() {
 		device_t *t = *tt; // thief
 
 		//  when inverter produces ac output and akku is charging and not saturated (limited or maximum charge power reached)
-		if (t == AKKU && pstate->ac1 > RAMP && AKKU_CHARGING && AKKU->power < 95) {
+		if (t == AKKU && pstate->ac1 > RAMP && AKKU_CHARGING && AKKU->power < 90) {
 			// akku can not steal more than inverters ac output
 			if (pstate->ac1 < dstate->steal)
 				dstate->steal = pstate->ac1;

@@ -11,6 +11,7 @@
 #include "mcp.h"
 
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
+#define PSTATE_H_FILE			"solar-pstate-hours.bin"
 
 typedef struct gstate_old_t {
 	int pv;
@@ -23,9 +24,7 @@ typedef struct gstate_old_t {
 	int tomorrow;
 	int sod;
 	int eod;
-	int load;
 	int soc;
-	int batt;
 	int ttl;
 	int success;
 	int forecast;
@@ -33,6 +32,35 @@ typedef struct gstate_old_t {
 	int nsurvive;
 	int flags;
 } gstate_old_t;
+
+typedef struct pstate_old_t {
+	int pv;
+	int dpv;
+	int grid;
+	int dgrid;
+	int batt;
+	int ac1;
+	int ac2;
+	int dc1;
+	int dc2;
+	int mppt1;
+	int mppt2;
+	int mppt3;
+	int mppt4;
+	int p1;
+	int p2;
+	int p3;
+	int v1;
+	int v2;
+	int v3;
+	int f;
+	int inv;
+	int load;
+	int pload;
+	int diss;
+	int ramp;
+	int flags;
+} pstate_old_t;
 
 int akku_get_min_soc() {
 	return 0;
@@ -76,16 +104,19 @@ static int update() {
 
 // gstate structure enhancements: migrate old data to new data
 static int migrate() {
-	gstate_old_t old[HISTORY_SIZE];
-	gstate_t new[HISTORY_SIZE];
 
-	ZERO(old);
-	load_blob(STATE SLASH GSTATE_H_FILE, old, sizeof(old));
+	// migrate gstate
+	gstate_old_t gold[HISTORY_SIZE];
+	gstate_t gnew[HISTORY_SIZE];
+	ZERO(gold);
+	load_blob(STATE SLASH GSTATE_H_FILE, gold, sizeof(gold));
 	for (int i = 0; i < HISTORY_SIZE; i++) {
-		gstate_old_t *o = &old[i];
-		gstate_t *n = &new[i];
-
+		gstate_old_t *o = &gold[i];
+		gstate_t *n = &gnew[i];
 		n->pv = o->pv;
+		n->pvmin = o->pvmin;
+		n->pvmax = o->pvmax;
+		n->pvavg = o->pvavg;
 		n->produced = o->produced;
 		n->consumed = o->consumed;
 		n->today = o->today;
@@ -96,12 +127,45 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->survive = o->survive;
+		n->forecast = o->forecast;
+		n->nsurvive = o->nsurvive;
 	}
+	store_blob(TMP SLASH GSTATE_H_FILE, gnew, sizeof(gnew));
+	store_blob(STATE SLASH GSTATE_H_FILE, gnew, sizeof(gnew));
 
-	// test and verify
-	store_blob(TMP SLASH GSTATE_H_FILE, new, sizeof(new));
-	// live
-	store_blob(STATE SLASH GSTATE_H_FILE, new, sizeof(new));
+	// migrate pstate
+	pstate_old_t pold[HISTORY_SIZE];
+	pstate_t pnew[HISTORY_SIZE];
+	ZERO(pold);
+	load_blob(STATE SLASH PSTATE_H_FILE, pold, sizeof(pold));
+	for (int i = 0; i < HISTORY_SIZE; i++) {
+		pstate_old_t *o = &pold[i];
+		pstate_t *n = &pnew[i];
+		n->pv = o->pv;
+		n->grid = o->grid;
+		n->batt = o->batt;
+		n->ac1 = o->ac1;
+		n->ac2 = o->ac2;
+		n->dc1 = o->dc1;
+		n->dc2 = o->dc1;
+		n->mppt1 = o->mppt1;
+		n->mppt2 = o->mppt2;
+		n->mppt3 = o->mppt3;
+		n->mppt4 = o->mppt4;
+		n->p1 = o->p1;
+		n->p2 = o->p2;
+		n->p3 = o->p3;
+		n->v1 = o->v1;
+		n->v2 = o->v2;
+		n->v3 = o->v3;
+		n->f = o->f;
+		n->inv = o->inv;
+		n->load = o->load;
+		n->pload = o->pload;
+	}
+	store_blob(TMP SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
+	store_blob(STATE SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
+
 	return 0;
 }
 

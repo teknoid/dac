@@ -862,6 +862,14 @@ void cumulate(void *dst, void *src, int cols, int rows) {
 	}
 }
 
+void delta(void *dst, void *src1, void *src2, int cols, int shape) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++) {
+		int delta = *sptr1++ - *sptr2++;
+		*dptr++ = shape * -1 < delta && delta < shape ? 0 : delta;
+	}
+}
+
 void store_csv_header(const char *header, const char *filename) {
 	FILE *fp = fopen(filename, "wt");
 	if (fp == NULL) {
