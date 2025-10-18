@@ -30,20 +30,20 @@ set xtics time 300 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate-seconds.svg"
 p pstates u 1:"pv"      t "pv"      w lines ls 1,\
-       '' u 1:"batt"    t "batt"    w lines ls 2,\
+       '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
        '' u 1:"pload"   t "pload"   w lines ls 4,\
        '' u 1:"load"    t "load"    w lines ls 5,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1,\
-       110              t "110%"    w lines lt 0
+       120              t "120%"    w lines lt 0
 
 set terminal svg size 4320,1080
 set output "/run/mcp/pstate-seconds-wide.svg"
 p pstates u 1:"pv"      t "pv"      w lines ls 1,\
-       '' u 1:"batt"    t "batt"    w lines ls 2,\
+       '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
        '' u 1:"pload"   t "pload"   w lines ls 4,\
        '' u 1:"load"    t "load"    w lines ls 5,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1,\
-       110              t "110%"    w lines lt 0
+       120              t "120%"    w lines lt 0
        

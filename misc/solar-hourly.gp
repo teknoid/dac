@@ -8,8 +8,7 @@ history="/run/mcp/mosmix-history.csv"
 factors="/run/mcp/mosmix-factors.csv"
 today="/run/mcp/mosmix-today.csv"
 tomorrow="/run/mcp/mosmix-tomorrow.csv"
-loads="/run/mcp/loads.csv"
-akkus="/run/mcp/akkus.csv"
+avg247="/run/mcp/pstate-average-247.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -63,8 +62,7 @@ p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"e
 set ylabel "GState week"
 set xrange [0:168]
 set output "/run/mcp/gstate-week.svg"
-p gstatew u 1:"load"  t "load"     w lines ls 5,\
-       '' u 1:"soc"   t "soc"      w lines ls 6,\
+p gstatew u 1:"soc"   t "soc"      w lines ls 6,\
        '' u 1:"ttl"   t "ttl"      w lines lt 4,\
        '' u 1:"surv"  t "survive"  w lines lt 1
 
@@ -113,8 +111,8 @@ set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate.svg"
 p pstate u 1:(0):"pv"        w filledc below ls 1 t "pv",\
       '' u 1:(0):"pv"        w filledc above ls 1,\
-      '' u 1:(0):"batt"      w filledc below ls 2 t "batt",\
-      '' u 1:(0):"batt"      w filledc above ls 2,\
+      '' u 1:(0):"akku"      w filledc below ls 2 t "akku",\
+      '' u 1:(0):"akku"      w filledc above ls 2,\
       '' u 1:(0):"grid"      w filledc below ls 3 t "grid",\
       '' u 1:(0):"grid"      w filledc above ls 4,\
       '' u 1:"load" t "load" w lines ls 5
@@ -156,13 +154,12 @@ set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
 
 
-# loads + akkus
-set ylabel "Average Load 24/7"
+# 24/7 pstate averages
+set ylabel "PState Avg 24/7"
 set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"
-set output "/run/mcp/loads.svg"
-p loads   u 1:"load"  t "load"     w fsteps ls 5
-set ylabel "Average Akku 24/7"
-set output "/run/mcp/akkus.svg"
-p akkus   u 1:"akku"  t "akku"     w fsteps ls 2
+set output "/run/mcp/pstate-average-247.svg"
+p avg247 u 1:"grid"  t "grid"     w fsteps ls 4,\
+      '' u 1:"akku"  t "akku"     w fsteps ls 2,\
+      '' u 1:"load"  t "load"     w fsteps ls 5

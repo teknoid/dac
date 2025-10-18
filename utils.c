@@ -817,7 +817,10 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
+// partial average - add src rows backwards starting at row to dest and divide by count
 void aggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
+	if (!count)
+		return;
 	memset(dst, 0, cols * sizeof(int));
 	int y = row;
 	for (int z = 0; z < count; z++) {
@@ -834,25 +837,22 @@ void aggregate_rows(void *dst, void *src, int cols, int rows, int row, int count
 	}
 }
 
+// full average - add all src rows to dest and divide by rows
 void aggregate(void *dst, void *src, int cols, int rows) {
-	memset(dst, 0, sizeof(int) * cols);
+	memset(dst, 0, cols * sizeof(int));
+	for (int y = 0; y < rows; y++) {
+		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
+		for (int x = 0; x < cols; x++)
+			*dptr++ += *sptr++;
+	}
+	int *dptr = (int*) dst;
 	for (int x = 0; x < cols; x++) {
-		int count = 0;
-		int *dptr = (int*) dst + x;
-		for (int y = 0; y < rows; y++) {
-			int *sptr = (int*) src + y * cols + x;
-			if (*sptr) { // ignore 0
-				*dptr += *sptr;
-				count++;
-			}
-		}
-		if (count) {
-			int z = *dptr * 10 / count;
-			*dptr = z / 10 + (z % 10 < 5 ? 0 : 1);
-		}
+		int z = *dptr * 10 / rows;
+		*dptr++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 	}
 }
 
+// add all src rows to dest
 void cumulate(void *dst, void *src, int cols, int rows) {
 	memset(dst, 0, cols * sizeof(int));
 	for (int y = 0; y < rows; y++) {
@@ -861,12 +861,30 @@ void cumulate(void *dst, void *src, int cols, int rows) {
 			*dptr++ += *sptr++;
 	}
 }
+// add src to dest
+void add(void *dst, void *src, int cols) {
+	int *dptr = (int*) dst, *sptr = (int*) src;
+	for (int x = 0; x < cols; x++)
+		*dptr++ += *sptr++;
+}
 
+// calculate src1 - src2 and store to dest
 void delta(void *dst, void *src1, void *src2, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
 		int delta = *sptr1++ - *sptr2++;
 		*dptr++ = shape * -1 < delta && delta < shape ? 0 : delta;
+	}
+}
+
+// divide dest by constant
+void div_const(void *dst, int cols, int divisor) {
+	if (!divisor)
+		return;
+	int *dptr = (int*) dst;
+	for (int x = 0; x < cols; x++) {
+		int z = *dptr * 10 / divisor;
+		*dptr++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 	}
 }
 

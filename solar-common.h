@@ -8,7 +8,8 @@
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
-#define EMERGENCY				1000
+#define EMERGENCY_AVG			1000
+#define EMERGENCY				2000
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 #define MINIMUM					(BASELOAD / 2)
@@ -182,11 +183,11 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv  grid  batt   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   inv  load pload  diss  ramp flags"
+#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2 mppt1 mppt2 mppt3 mppt4    p1    p2    p3    v1    v2    v3     f   inv  load pload  diss  ramp flags"
 struct _pstate {
 	int pv;
 	int grid;
-	int batt;
+	int akku;
 	int ac1;
 	int ac2;
 	int dc1;

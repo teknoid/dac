@@ -470,7 +470,7 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 }
 
 // night: collect akku power when pv is not enough
-int mosmix_survive(struct tm *now, int aload[], int aakku[]) {
+int mosmix_survive(struct tm *now, int loads[], int akkus[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
@@ -479,8 +479,8 @@ int mosmix_survive(struct tm *now, int aload[], int aakku[]) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
 		// current hour -> partly, remaining hours -> full
-		int l = h == ch ? aload[h] * (60 - now->tm_min) / 60 : aload[h];
-		int a = h == ch ? aakku[h] * (60 - now->tm_min) / 60 : aakku[h];
+		int l = h == ch ? loads[h] * (60 - now->tm_min) / 60 : loads[h];
+		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
 		// night

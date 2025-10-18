@@ -121,7 +121,7 @@ function update_state(file, selector) {
 							item.style.backgroundColor = "lightgrey";
 						else if (v < 100)
 							item.style.backgroundColor = "coral";
-						else if (v < 110)
+						else if (v < 120)
 							item.style.backgroundColor = "orange";
 						else
 							item.style.backgroundColor = "palegreen";

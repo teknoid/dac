@@ -93,7 +93,7 @@ static void loop() {
 		pstate->mppt4 = mppt4;
 
 		pstate->grid = grid;
-		pstate->batt = 0;
+		pstate->akku = 0;
 		pstate->p1 = 0;
 		pstate->p2 = 0;
 		pstate->p3 = 0;

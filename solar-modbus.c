@@ -143,11 +143,11 @@ static void update_inverter1(sunspec_t *ss) {
 
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		break;
 
 	case I_STATUS_SLEEPING:
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->batt = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
 		break;
 
@@ -176,7 +176,7 @@ static void update_inverter1(sunspec_t *ss) {
 		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
 		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
 		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d", ss->name, mppt3, mppt4);
-		pstate->batt = mppt3 > 0 ? mppt3 * -1 : mppt4;
+		pstate->akku = mppt3 > 0 ? mppt3 * -1 : mppt4;
 		gstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10; // store x10 scaled
 
 		// pstate->f = ss->inverter->Hz - 5000; // store only the diff

@@ -515,9 +515,9 @@ static void ramp() {
 	if (dstate->ramp < 0 && !DSTATE_ALL_DOWN)
 		rampdown();
 
-	// allow rampup after rampdown if power was released
+	// allow rampup after rampdown if power was released, but not when PV is going down
 
-	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP)
+	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PV_FALLING)
 		rampup();
 }
 
@@ -559,8 +559,8 @@ static void steal() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		if (DD == AKKU) {
-			// steal max 75% of charging power
-			DD->steal = DD->load > MINIMUM ? DD->load * 0.75 : 0;
+			// steal max 75% of charging power, but not when we have grid upload
+			DD->steal = DD->load > MINIMUM && !GSTATE_GRID_ULOAD ? DD->load * 0.75 : 0;
 			dstate->steal += DD->steal;
 			continue;
 		}
@@ -710,7 +710,7 @@ static void response() {
 
 static void calculate_dstate() {
 	// update akku
-	AKKU->load = pstate->batt * -1;
+	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
 
 	// clear flags and values
@@ -765,7 +765,7 @@ static void calculate_dstate() {
 
 	// cyclic actions
 	int cyclic = time(NULL) % 10;
-	if (!PSTATE_VALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
+	if (PSTATE_EMERGENCY || !PSTATE_VALID || !PSTATE_STABLE || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
 		cyclic = 0;
 
 	// permanent overload

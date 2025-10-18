@@ -35,10 +35,8 @@ typedef struct gstate_old_t {
 
 typedef struct pstate_old_t {
 	int pv;
-	int dpv;
 	int grid;
-	int dgrid;
-	int batt;
+	int akku;
 	int ac1;
 	int ac2;
 	int dc1;
@@ -143,7 +141,7 @@ static int migrate() {
 		pstate_t *n = &pnew[i];
 		n->pv = o->pv;
 		n->grid = o->grid;
-		n->batt = o->batt;
+		n->akku = o->akku;
 		n->ac1 = o->ac1;
 		n->ac2 = o->ac2;
 		n->dc1 = o->dc1;

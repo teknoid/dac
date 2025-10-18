@@ -87,8 +87,8 @@ dl dd.d						{ cursor:default }
 .pv-p						{ background-color:#FAD967 }
 .grid-p						{ background-color:orangered }
 .grid-m						{ background-color:palegreen }
-.batt-p						{ background-color:#FEAD00 }
-.batt-m						{ background-color:palegreen }
+.akku-p						{ background-color:#FEAD00 }
+.akku-m						{ background-color:palegreen }
 .load-p, .load-m			{ background-color:skyblue }
 .cload-p, .cload-m			{ background-color:skyblue }
 .rload-p, .rload-m			{ background-color:skyblue }
