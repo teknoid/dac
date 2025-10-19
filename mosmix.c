@@ -345,7 +345,7 @@ static void* calculate_factors_master(void *arg) {
 	mosmix_t mc;
 	store_table_csv(factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	dump_table(factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
-	cumulate(&mc, factors, FACTOR_SIZE, 24);
+	icumulate(&mc, factors, FACTOR_SIZE, 24);
 	dump_array(&mc, FACTOR_SIZE, "[++]", 0);
 	return (void*) 0;
 }
@@ -557,14 +557,14 @@ void mosmix_24h(int day, mosmix_csv_t *sum) {
 
 void mosmix_dump_today(struct tm *now) {
 	mosmix_t m;
-	cumulate(&m, today, MOSMIX_SIZE, 24);
+	icumulate(&m, today, MOSMIX_SIZE, 24);
 	dump_table(today, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX today", MOSMIX_HEADER);
 	dump_array(&m, MOSMIX_SIZE, "[++]", 0);
 }
 
 void mosmix_dump_tomorrow(struct tm *now) {
 	mosmix_t m;
-	cumulate(&m, tomorrow, MOSMIX_SIZE, 24);
+	icumulate(&m, tomorrow, MOSMIX_SIZE, 24);
 	dump_table(tomorrow, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX tomorrow", MOSMIX_HEADER);
 	dump_array(&m, MOSMIX_SIZE, "[++]", 0);
 }

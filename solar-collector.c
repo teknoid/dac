@@ -17,6 +17,8 @@
 
 #define AKKU_BURNOUT			1
 #define AVERAGE					10
+#define SLOPE_PV				50
+#define SLOPE_GRID				25
 
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
@@ -43,8 +45,6 @@
 #define GSTATE_M_CSV			"gstate-minutes.csv"
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define PSTATE_S_CSV			"pstate-seconds.csv"
-#define PSTATE_A_CSV			"pstate-average.csv"
-#define PSTATE_D_CSV			"pstate-delta.csv"
 #define PSTATE_A_247_CSV		"pstate-average-247.csv"
 #define PSTATE_WEEK_CSV			"pstate-week.csv"
 
@@ -74,6 +74,8 @@
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec >  0 ? now->tm_sec -  1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec >  1 ? now->tm_sec -  2 : (now->tm_sec -  2 + 60)])
 #define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec >  2 ? now->tm_sec -  3 : (now->tm_sec -  3 + 60)])
+#define PSTATE_SEC_LAST6		(&pstate_seconds[now->tm_sec >  5 ? now->tm_sec -  6 : (now->tm_sec -  6 + 60)])
+#define PSTATE_SEC_LAST9		(&pstate_seconds[now->tm_sec >  8 ? now->tm_sec -  9 : (now->tm_sec -  9 + 60)])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min >  0 ? now->tm_min -  1 : 59])
 #define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min >  1 ? now->tm_min -  2 : (now->tm_min -  2 + 60)])
@@ -83,13 +85,6 @@
 #define PSTATE_YDAY				(&pstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define PSTATE_DAY_HOUR(d, h)	(&pstate_hours[24 * (d) + (h)])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
-#define PSTATE_AVG				(&pstate_averages[now->tm_sec])
-#define PSTATE_AVG_LAST5		(&pstate_averages[now->tm_sec >  4 ? now->tm_sec -  5 : (now->tm_sec -  5 + 60)])
-#define PSTATE_AVG_LAST10		(&pstate_averages[now->tm_sec >  9 ? now->tm_sec - 10 : (now->tm_sec - 10 + 60)])
-#define PSTATE_DELTA			(&pstate_deltas[now->tm_sec])
-#define PSTATE_DELTA_LAST1		(&pstate_deltas[now->tm_sec >  0 ? now->tm_sec -  1 : 59])
-#define PSTATE_DELTA_LAST2		(&pstate_deltas[now->tm_sec >  1 ? now->tm_sec -  2 : (now->tm_sec -  2 + 60)])
-#define PSTATE_DELTA_LAST3		(&pstate_deltas[now->tm_sec >  2 ? now->tm_sec -  3 : (now->tm_sec -  3 + 60)])
 #define PSTATE_AVG_247(h)		(&pstate_average_247[h])
 
 static struct tm now_tm, *now = &now_tm;
@@ -97,16 +92,16 @@ static struct tm now_tm, *now = &now_tm;
 // local counter/pstate/gstate/params memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
-static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_averages[60], pstate_deltas[60], pstate_average_247[24], pstate_current;
+static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[10];
 static params_t params_current;
 
-// local average and delta pstate pointer
-static pstate_t *pstate_avg = &pstate_averages[0], *pstate_dlt = &pstate_deltas[0];
+// local delta, average and slope pointer
+static pstate_t *delta = &pstates[1], *avg = &pstates[2], *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5];
 
 // global counter/pstate/gstate/params pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
-pstate_t *pstate = &pstate_current;
+pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
 
 // mutex for updating / calculating pstate and counter
@@ -123,7 +118,6 @@ static void load_state() {
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	load_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
-	load_blob(STATE SLASH PSTATE_A_FILE, pstate_averages, sizeof(pstate_averages));
 }
 
 static void store_state() {
@@ -137,11 +131,10 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
 	store_blob(STATE SLASH PSTATE_S_FILE, pstate_seconds, sizeof(pstate_seconds));
-	store_blob(STATE SLASH PSTATE_A_FILE, pstate_averages, sizeof(pstate_averages));
 }
 
 static void create_pstate_json() {
-	store_array_json(pstate_avg, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_AVG_JSON);
+	store_array_json(avg, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_AVG_JSON);
 	store_array_json(pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
 }
 
@@ -170,14 +163,9 @@ static void create_gnuplot_csv() {
 	if (MINLY || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
 		// pstate seconds
 		int offset = 60 * (now->tm_min > 0 ? now->tm_min - 1 : 59);
-		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
+		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
 			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
-			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_A_CSV);
-			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_D_CSV);
-		}
 		append_table_csv(pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
-		append_table_csv(pstate_averages, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_A_CSV);
-		append_table_csv(pstate_deltas, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_D_CSV);
 	}
 #endif
 #ifdef GNUPLOT_HOURLY
@@ -208,8 +196,8 @@ static void collect_average_247() {
 	for (int h = 0; h < 24; h++) {
 		pstate_t *pavg = PSTATE_AVG_247(h);
 		for (int d = 0; d < 7; d++)
-			add(pavg, PSTATE_DAY_HOUR(d, h), PSTATE_SIZE);
-		div_const(pavg, PSTATE_SIZE, 7);
+			iadd(pavg, PSTATE_DAY_HOUR(d, h), PSTATE_SIZE);
+		idiv_const(pavg, PSTATE_SIZE, 7);
 	}
 
 	strcpy(line, "SOLAR average 24/7 load:");
@@ -556,15 +544,17 @@ static void calculate_pstate() {
 	// skip further calculations when offline
 	if (!GSTATE_OFFLINE) {
 
-		//update delta and average pointer
-		pstate_dlt = PSTATE_DELTA;
-		pstate_avg = PSTATE_AVG;
-
 		// calculate deltas
-		delta(pstate_dlt, pstate, PSTATE_SEC_LAST1, PSTATE_SIZE, NOISE);
+		idelta(delta, pstate, PSTATE_SEC_LAST1, PSTATE_SIZE, NOISE);
+
+		// calculate slopes over 3, 6 and 9 seconds
+		islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
+		islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
+		islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
+		xlog("SOLAR slopes pv %d %d %d   grid %d %d %d", slope3->pv, slope6->pv, slope9->pv, slope3->grid, slope6->grid, slope9->grid);
 
 		// check if we have delta ac power anywhere
-		if (pstate_dlt->p1 || pstate_dlt->p2 || pstate_dlt->p3 || pstate_dlt->ac1 || pstate_dlt->ac2)
+		if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
 			pstate->flags |= FLAG_ACDELTA;
 
 		// calculate average values over last AVERAGE seconds
@@ -572,35 +562,36 @@ static void calculate_pstate() {
 		// grid   -> suppress meter latency
 		// others -> suppress spikes
 		int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet written
-		aggregate_rows(pstate_avg, pstate_seconds, PSTATE_SIZE, 60, sec, AVERAGE);
+		iaggregate_rows(avg, pstate_seconds, PSTATE_SIZE, 60, sec, AVERAGE);
 		// dump_array(pstate_avg, PSTATE_SIZE, "[ØØ]", 0);
 		// grid should always be around 0 - limit average grid to actual grid
 		if (pstate->grid > 0)
-			HICUT(pstate_avg->grid, pstate->grid)
+			HICUT(avg->grid, pstate->grid)
 		if (pstate->grid < 0)
-			LOCUT(pstate_avg->grid, pstate->grid)
+			LOCUT(avg->grid, pstate->grid)
 		// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
-		LOCUT(pstate_avg->pv, pstate->pv)
+		LOCUT(avg->pv, pstate->pv)
 
 		// history states
-		pstate_t *s1 = PSTATE_SEC_LAST1;
-		pstate_t *s2 = PSTATE_SEC_LAST2;
-		pstate_t *s3 = PSTATE_SEC_LAST3;
-		pstate_t *a5 = PSTATE_AVG_LAST5;
-		pstate_t *a10 = PSTATE_AVG_LAST10;
-		pstate_t *d1 = PSTATE_DELTA_LAST1;
-		pstate_t *d2 = PSTATE_DELTA_LAST2;
-		pstate_t *d3 = PSTATE_DELTA_LAST3;
+		pstate_t *p1 = PSTATE_SEC_LAST1;
+		pstate_t *p2 = PSTATE_SEC_LAST2;
+		pstate_t *p3 = PSTATE_SEC_LAST3;
+		pstate_t *p6 = PSTATE_SEC_LAST6;
+		pstate_t *p9 = PSTATE_SEC_LAST9;
 
-		// emergency shutdown: grid download or akku discharge
-		int eagrid = pstate_avg->grid > EMERGENCY_AVG || a5->grid > EMERGENCY_AVG || a10->grid > EMERGENCY_AVG;
-		int eaakku = pstate_avg->akku > EMERGENCY_AVG || a5->akku > EMERGENCY_AVG || a10->akku > EMERGENCY_AVG;
-		int egrid = pstate->grid > EMERGENCY && s1->grid > EMERGENCY && s2->grid > EMERGENCY && s3->grid > EMERGENCY;
-		int eakku = pstate->akku > EMERGENCY && s1->akku > EMERGENCY && s2->akku > EMERGENCY && s3->grid > EMERGENCY;
-		if (eagrid || eaakku || egrid || eakku) {
+		// emergency shutdown: long/short grid download or akku discharge
+		int lgrid = pstate->grid > EMERGENCY_AVG || p3->grid > EMERGENCY_AVG || p6->grid > EMERGENCY_AVG || p9->grid > EMERGENCY_AVG;
+		int lakku = pstate->akku > EMERGENCY_AVG || p3->akku > EMERGENCY_AVG || p6->akku > EMERGENCY_AVG || p9->akku > EMERGENCY_AVG;
+		int sgrid = pstate->grid > EMERGENCY && p1->grid > EMERGENCY && p2->grid > EMERGENCY && p3->grid > EMERGENCY;
+		int sakku = pstate->akku > EMERGENCY && p1->akku > EMERGENCY && p2->akku > EMERGENCY && p3->grid > EMERGENCY;
+		if (lgrid || lakku || sgrid || sakku) {
 			pstate->flags |= FLAG_EMERGENCY;
-			xlog("SOLAR set FLAG_EMERGENCY agrid=%d grid=%d aakku=%d akku=%d", eagrid, egrid, eaakku, eakku);
+			xlog("SOLAR set FLAG_EMERGENCY lgrid=%d sgrid=%d lakku=%d sakku=%d", lgrid, sgrid, lakku, sakku);
 		}
+
+		// load is completely satisfied from secondary inverter
+		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
+			pstate->flags |= FLAG_EXTRAPOWER;
 
 		// first set and then clear VALID flag when values suspicious
 		pstate->flags |= FLAG_VALID;
@@ -617,8 +608,8 @@ static void calculate_pstate() {
 			xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
 			pstate->flags &= ~FLAG_VALID;
 		}
-		if (abs(pstate_dlt->grid) > SPIKE || abs(pstate_dlt->p1) > SPIKE || abs(pstate_dlt->p2) > SPIKE || abs(pstate_dlt->p3) > SPIKE) {
-			xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", pstate_dlt->grid, pstate_dlt->p1, pstate_dlt->p2, pstate_dlt->p3);
+		if (abs(delta->p1) > SPIKE || abs(delta->p2) > SPIKE || abs(delta->p3) > SPIKE) {
+			xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->p1, delta->p2, delta->p3);
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (pstate->grid < -NOISE && pstate->akku > NOISE) {
@@ -639,45 +630,37 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 
-		// state is stable when we have no grid delta and no pv delta over last 3 seconds
-		int dgrid = pstate_dlt->grid || d1->grid || d2->grid || d3->grid;
-		int dpv = pstate_dlt->pv || d1->pv || d2->pv || d3->pv;
-		if (!dgrid && !dpv)
-			pstate->flags |= FLAG_STABLE;
-
-		// load is completely satisfied from secondary inverter
-		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
-			pstate->flags |= FLAG_EXTRAPOWER;
-
-		// PV tendency: rising or falling
-		int r3 = d1->pv > 25 && d2->pv > 25 && d3->pv > 25;
-		int r2 = d1->pv > 50 && d2->pv > 50;
-		int r1 = d1->pv > 100;
-		if (r3 || r2 || r1) {
+		// tendency: rising or falling or stable
+		int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
+		int pvfall = slope3->pv < -SLOPE_PV || slope6->pv < -SLOPE_PV || slope9->pv < -SLOPE_PV;
+		int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
+		int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
+		if (pvrise && !pvfall) {
 			pstate->flags |= FLAG_PV_RISING;
-			xdebug("SOLAR set FLAG_PV_RISING 3=%d 2=%d 1=%d", d3->pv, d2->pv, d1->pv);
+			xdebug("SOLAR set FLAG_PV_RISING");
 		}
-		int f3 = d1->pv < -25 && d2->pv < -25 && d3->pv < -25;
-		int f2 = d1->pv < -50 && d2->pv < -50;
-		int f1 = d1->pv < -100;
-		if (f3 || f2 || f1) {
+		if (pvfall && !pvrise) {
 			pstate->flags |= FLAG_PV_FALLING;
-			xdebug("SOLAR set FLAG_PV_FALLING 3=%d 2=%d 1=%d", d3->pv, d2->pv, d1->pv);
+			xdebug("SOLAR set FLAG_PV_FALLING");
+		}
+		if (!pvrise && !pvfall && !gridrise && !gridfall) {
+			pstate->flags |= FLAG_STABLE;
+			xdebug("SOLAR set FLAG_STABLE");
 		}
 
-		// suppress ramp up when PLoad below 100% / on grid download / on akku discharge
-		int grid_download = GSTATE_GRID_DLOAD || pstate_avg->grid > NOISE || pstate->grid > RAMP;
-		int akku_discharge = GSTATE_AKKU_DCHARGE || pstate_avg->akku > NOISE || pstate->akku > RAMP;
-		int suppress_up = pstate->pload < 100 || grid_download || akku_discharge || !PSTATE_VALID;
+		// suppress ramp up when pv is falling / PLoad below 100% / on grid download / on akku discharge
+		int grid_download = GSTATE_GRID_DLOAD || avg->grid > NOISE || pstate->grid > RAMP;
+		int akku_discharge = GSTATE_AKKU_DCHARGE || avg->akku > NOISE || pstate->akku > RAMP;
+		int suppress_up = PSTATE_PV_FALLING || pstate->pload < 100 || grid_download || akku_discharge || !PSTATE_VALID;
 
-		// suppress ramp down when PLoad above 120%
-		int suppress_down = pstate->pload > 120;
+		// suppress ramp down when pv is rising / PLoad above 120%
+		int suppress_down = PSTATE_PV_RISING || pstate->pload > 120;
 
 		// calculate ramp power - here we use average values
 		if (time(NULL) % 10 == 0) {
 
 			// absolute average grid driven slow ramp every 10 seconds
-			pstate->ramp = pstate_avg->grid * -1;
+			pstate->ramp = avg->grid * -1;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
@@ -692,12 +675,12 @@ static void calculate_pstate() {
 				HICUT(pstate->ramp, RAMP)
 
 			// push grid down slowly
-			if (0 < pstate_avg->grid && pstate_avg->grid < RAMP)
+			if (0 < avg->grid && avg->grid < RAMP)
 				pstate->ramp = -RAMP;
 
 			// always minus akku when discharging
-			if (pstate_avg->akku > NOISE)
-				pstate->ramp -= pstate_avg->akku;
+			if (avg->akku > NOISE)
+				pstate->ramp -= avg->akku;
 
 			// 20% more when falling
 			if (PSTATE_PV_FALLING)
@@ -707,12 +690,12 @@ static void calculate_pstate() {
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
 #define AVERAGE_GRID_RAMP "SOLAR average grid ramp agrid=%d grid=%d aakku=%d akku=%d pload=%d --> ramp=%d"
-				xlog(AVERAGE_GRID_RAMP, pstate_avg->grid, pstate->grid, pstate_avg->akku, pstate->akku, pstate->pload, pstate->ramp);
+				xlog(AVERAGE_GRID_RAMP, avg->grid, pstate->grid, avg->akku, pstate->akku, pstate->pload, pstate->ramp);
 
 		} else {
 
 			// relative pv delta driven fast ramp every second
-			pstate->ramp = pstate_dlt->pv;
+			pstate->ramp = delta->pv;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
@@ -730,7 +713,7 @@ static void calculate_pstate() {
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
 #define DELTA_PV_RAMP "SOLAR delta pv ramp dpv=%d agrid=%d grid=%d aakku=%d akku=%d pload=%d --> ramp=%d"
-				xlog(DELTA_PV_RAMP, pstate_dlt->pv, pstate_avg->grid, pstate->grid, pstate_avg->akku, pstate->akku, pstate->pload, pstate->ramp);
+				xlog(DELTA_PV_RAMP, delta->pv, avg->grid, pstate->grid, avg->akku, pstate->akku, pstate->pload, pstate->ramp);
 		}
 	}
 
@@ -819,15 +802,15 @@ static void aggregate_state() {
 	if (DAILY) {
 		// aggregate 24 pstate hours into one day
 		pstate_t pda, pdc;
-		aggregate(&pda, PSTATE_YDAY, PSTATE_SIZE, 24);
-		cumulate(&pdc, PSTATE_YDAY, PSTATE_SIZE, 24);
+		iaggregate(&pda, PSTATE_YDAY, PSTATE_SIZE, 24);
+		icumulate(&pdc, PSTATE_YDAY, PSTATE_SIZE, 24);
 		dump_table(PSTATE_YDAY, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
 		dump_array(&pda, PSTATE_SIZE, "[ØØ]", 0);
 		dump_array(&pdc, PSTATE_SIZE, "[++]", 0);
 		// aggregate 24 gstate hours into one day
 		gstate_t gda, gdc;
-		aggregate(&gda, GSTATE_YDAY, GSTATE_SIZE, 24);
-		cumulate(&gdc, GSTATE_YDAY, GSTATE_SIZE, 24);
+		iaggregate(&gda, GSTATE_YDAY, GSTATE_SIZE, 24);
+		icumulate(&gdc, GSTATE_YDAY, GSTATE_SIZE, 24);
 		dump_table(GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
 		dump_array(&gda, GSTATE_SIZE, "[ØØ]", 0);
 		dump_array(&gdc, GSTATE_SIZE, "[++]", 0);
@@ -835,14 +818,14 @@ static void aggregate_state() {
 
 	// aggregate 60 minutes into one hour
 	if (HOURLY) {
-		aggregate(PSTATE_HOUR_NOW, pstate_minutes, PSTATE_SIZE, 60);
+		iaggregate(PSTATE_HOUR_NOW, pstate_minutes, PSTATE_SIZE, 60);
 		// dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
 		// dump_array(PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 	}
 
 	// aggregate 60 seconds into one minute
 	if (MINLY) {
-		aggregate(PSTATE_MIN_NOW, pstate_seconds, PSTATE_SIZE, 60);
+		iaggregate(PSTATE_MIN_NOW, pstate_seconds, PSTATE_SIZE, 60);
 		// dump_table(pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
 		// dump_array(PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
 	}
@@ -905,8 +888,8 @@ static int init() {
 
 	pthread_mutex_init(&collector_lock, NULL);
 
-	// clear pstate
-	ZERO(pstate_current);
+	// clear pstates
+	ZERO(pstates);
 
 	load_state();
 	mosmix_load_state(now);

@@ -818,7 +818,7 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 }
 
 // partial average - add src rows backwards starting at row to dest and divide by count
-void aggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
+void iaggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
 	if (!count)
 		return;
 	memset(dst, 0, cols * sizeof(int));
@@ -838,7 +838,7 @@ void aggregate_rows(void *dst, void *src, int cols, int rows, int row, int count
 }
 
 // full average - add all src rows to dest and divide by rows
-void aggregate(void *dst, void *src, int cols, int rows) {
+void iaggregate(void *dst, void *src, int cols, int rows) {
 	memset(dst, 0, cols * sizeof(int));
 	for (int y = 0; y < rows; y++) {
 		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
@@ -853,7 +853,7 @@ void aggregate(void *dst, void *src, int cols, int rows) {
 }
 
 // add all src rows to dest
-void cumulate(void *dst, void *src, int cols, int rows) {
+void icumulate(void *dst, void *src, int cols, int rows) {
 	memset(dst, 0, cols * sizeof(int));
 	for (int y = 0; y < rows; y++) {
 		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
@@ -862,23 +862,37 @@ void cumulate(void *dst, void *src, int cols, int rows) {
 	}
 }
 // add src to dest
-void add(void *dst, void *src, int cols) {
+void iadd(void *dst, void *src, int cols) {
 	int *dptr = (int*) dst, *sptr = (int*) src;
 	for (int x = 0; x < cols; x++)
 		*dptr++ += *sptr++;
 }
 
 // calculate src1 - src2 and store to dest
-void delta(void *dst, void *src1, void *src2, int cols, int shape) {
+void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
-		int delta = *sptr1++ - *sptr2++;
-		*dptr++ = shape * -1 < delta && delta < shape ? 0 : delta;
+		int z = *sptr1++ - *sptr2++;
+		*dptr++ = shape * -1 < z && z < shape ? 0 : z;
+	}
+}
+
+// calculate src1 - src2 and divide by divisor
+void islope(void *dst, void *src1, void *src2, int cols, int divisor, int shape) {
+	if (!divisor)
+		return;
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++) {
+		int z = (*sptr1++ - *sptr2++) * 10 / divisor;
+		z = z / 10 + (z % 10 < 5 ? 0 : 1);
+		if (shape * -1 < z && z < shape)
+			z = 0;
+		*dptr++ = z;
 	}
 }
 
 // divide dest by constant
-void div_const(void *dst, int cols, int divisor) {
+void idiv_const(void *dst, int cols, int divisor) {
 	if (!divisor)
 		return;
 	int *dptr = (int*) dst;
