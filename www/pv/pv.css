@@ -98,8 +98,8 @@ dl dd.d						{ cursor:default }
 .mppt4-p					{ background-color:#FAD967 }
 .surp-p						{ background-color:aquamarine }
 .surp-m						{ background-color:lightsalmon }
-.ramp-p						{ background-color:aquamarine }
-.ramp-m						{ background-color:lightsalmon }
+.ramp-p, .rampi-p			{ background-color:aquamarine }
+.ramp-m, .rampi-m			{ background-color:lightsalmon }
 .steal-p					{ background-color:cyan }
 
 .pv-p						{ background-color:#FAD967 }

@@ -281,6 +281,21 @@ static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t m
 	}
 }
 
+static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
+	char power[8], power1[8], power2[8], power3[8], power4[8];
+
+#define PATTERN_POWER "{POWER:%s, POWER1:%s, POWER2:%s, POWER3:%s, POWER4:%s}"
+	json_scanf(message, msize, PATTERN_POWER, &power, &power1, &power2, &power3, &power4);
+
+	update_power(t, 0, MESSAGE_ON);
+	update_power(t, 1, MESSAGE_ON);
+	update_power(t, 2, MESSAGE_ON);
+	update_power(t, 3, MESSAGE_ON);
+	update_power(t, 4, MESSAGE_ON);
+
+	return 0;
+}
+
 static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
 	char buffer[BUFSIZE];
 	char *analog = NULL;
@@ -413,7 +428,7 @@ static int dispatch_cmnd(tasmota_t *t, const char *suffix, int idx, const char *
 
 static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
 	if (!strcmp("STATUS", suffix))
-		return dispatch_sensor(t, message, msize);
+		return dispatch_status(t, message, msize);
 
 	// power state results
 	if (!strcmp("POWER", suffix))

@@ -885,9 +885,22 @@ void islope(void *dst, void *src1, void *src2, int cols, int divisor, int shape)
 	for (int x = 0; x < cols; x++) {
 		int z = (*sptr1++ - *sptr2++) * 10 / divisor;
 		z = z / 10 + (z % 10 < 5 ? 0 : 1);
-		if (shape * -1 < z && z < shape)
-			z = 0;
-		*dptr++ = z;
+		*dptr++ = shape * -1 < z && z < shape ? 0 : z;
+	}
+}
+
+// calculate (src1 - src2) / src2 * 100
+void ivariance(void *dst, void *src1, void *src2, int cols) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++) {
+		if (*sptr2) {
+			int z = *sptr2++;
+			*dptr++ = (*sptr1++ - z) * 100 / z;
+		} else {
+			*dptr++ = 0;
+			sptr1++;
+			sptr2++;
+		}
 	}
 }
 
