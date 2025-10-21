@@ -32,7 +32,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '25 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '24 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -343,13 +343,20 @@ static void calculate_gstate() {
 	// clear state flags and values
 	gstate->flags = 0;
 
+	// summer / winter mode
+	if (SUMMER)
+		gstate->flags |= FLAG_SUMMER;
+
+	if (WINTER)
+		gstate->flags |= FLAG_WINTER;
+
 	// history states
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 
-	// offline mode when last 3 minutes no surplus
-	int offline = !m0->surp && !m1->surp && !m2->surp;
+	// offline mode when last 3 minutes surplus below MINIMUM
+	int offline = m0->surp < MINIMUM && m1->surp < MINIMUM && m2->surp < MINIMUM;
 	if (offline) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -386,13 +393,6 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_AKKU_DCHARGE;
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
 	}
-
-	// summer / winter mode
-	if (SUMMER)
-		gstate->flags |= FLAG_SUMMER;
-
-	if (WINTER)
-		gstate->flags |= FLAG_WINTER;
 
 	// day total: consumed / produced / pv
 #ifdef COUNTER_METER
@@ -520,18 +520,6 @@ static void calculate_pstate() {
 	CS_NOW->mppt3 += pstate->mppt3;
 	CS_NOW->mppt4 += pstate->mppt4;
 
-	// dissipation
-	int diss1 = pstate->dc1 - pstate->ac1;
-	int diss2 = pstate->dc2 - pstate->ac2;
-	pstate->diss = diss1 + diss2;
-	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
-
-	// surplus is inverter ac output minus akku when discharging
-	pstate->surp = pstate->ac1 + pstate->ac2;
-	if (pstate->akku > 0)
-		pstate->surp -= avg->akku;
-	LOCUT(pstate->surp, 0);
-
 	// pv
 	ZSHAPE(pstate->mppt1, NOISE)
 	ZSHAPE(pstate->mppt2, NOISE)
@@ -539,8 +527,17 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 
+	// surplus is inverter ac output, hi-cutted by pv (no akku discharge)
+	pstate->surp = pstate->ac1 + pstate->ac2;
+	HICUT(pstate->surp, pstate->pv)
+
 	// load - meter latency is 1-2s - check nightly akku service interval -> should be nearly no load change when akku goes off
 	pstate->load = pstate->grid + (pstate->ac1 + PSTATE_SEC_LAST1->ac1) / 2 + (pstate->ac2 + PSTATE_SEC_LAST1->ac2) / 2;
+
+	// dissipation
+	// int diss1 = pstate->dc1 - pstate->ac1;
+	// int diss2 = pstate->dc2 - pstate->ac2;
+	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
 	// clear flags and values
 	pstate->flags = pstate->ramp = 0;
@@ -564,9 +561,9 @@ static void calculate_pstate() {
 		// calculate variance
 		ivariance(var30, pstate, PSTATE_SEC_LAST30, PSTATE_SIZE);
 
-		xlog("SOLAR slopes pv %d %d %d %d var30 pv %d", slope3->pv, slope6->pv, slope9->pv, slope30->pv, var30->pv);
-		xlog("SOLAR slopes grid %d %d %d %d", slope3->grid, slope6->grid, slope9->grid, slope30->grid);
-		xlog("SOLAR pv now=%d +3=%d +6=%d +9=%d +30=%d", pstate->pv, pstate->pv + slope3->pv, pstate->pv + slope6->pv, pstate->pv + slope9->pv, pstate->pv + slope30->pv);
+//		xlog("SOLAR slopes pv %d %d %d %d var30 pv %d", slope3->pv, slope6->pv, slope9->pv, slope30->pv, var30->pv);
+//		xlog("SOLAR slopes grid %d %d %d %d", slope3->grid, slope6->grid, slope9->grid, slope30->grid);
+//		xlog("SOLAR pv now=%d +3=%d +6=%d +9=%d +30=%d", pstate->pv, pstate->pv + slope3->pv, pstate->pv + slope6->pv, pstate->pv + slope9->pv, pstate->pv + slope30->pv);
 
 		// check if we have delta ac power anywhere
 		if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)

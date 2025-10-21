@@ -56,7 +56,6 @@ typedef struct pstate_old_t {
 	int surp;
 	int load;
 	int rsl;
-	int diss;
 	int ramp;
 	int flags;
 } pstate_old_t;
