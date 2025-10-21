@@ -53,8 +53,9 @@ typedef struct pstate_old_t {
 	int v3;
 	int f;
 	int inv;
+	int surp;
 	int load;
-	int pload;
+	int rsl;
 	int diss;
 	int ramp;
 	int flags;
@@ -157,9 +158,6 @@ static int migrate() {
 		n->v2 = o->v2;
 		n->v3 = o->v3;
 		n->f = o->f;
-		n->inv = o->inv;
-		n->load = o->load;
-		n->pload = o->pload;
 	}
 	store_blob(TMP SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
 	store_blob(STATE SLASH PSTATE_H_FILE, pnew, sizeof(pnew));

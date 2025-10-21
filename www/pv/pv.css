@@ -96,8 +96,7 @@ dl dd.d						{ cursor:default }
 .mppt2-p					{ background-color:#FAD967 }
 .mppt3-p					{ background-color:#FAD967 }
 .mppt4-p					{ background-color:#FAD967 }
-.surp-p						{ background-color:aquamarine }
-.surp-m						{ background-color:lightsalmon }
+.surp						{ background-color:palegreen }
 .ramp-p, .rampi-p			{ background-color:aquamarine }
 .ramp-m, .rampi-m			{ background-color:lightsalmon }
 .steal-p					{ background-color:cyan }
