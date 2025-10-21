@@ -761,7 +761,7 @@ static void calculate_dstate() {
 		return;
 
 	// take over ramp power
-	dstate->ramp_in = dstate->ramp = pstate->ramp;
+	dstate->ramp = pstate->ramp;
 
 	// ramp down has prio
 	if (dstate->ramp < 0) {
@@ -848,7 +848,7 @@ static void minly() {
 
 	// clear values when offline
 	if (GSTATE_OFFLINE)
-		dstate->ramp_in = dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
+		dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
 }
 
 // set device into MANUAL mode and toggle power
