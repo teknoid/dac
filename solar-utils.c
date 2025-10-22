@@ -28,8 +28,8 @@ typedef struct gstate_old_t {
 	int ttl;
 	int success;
 	int forecast;
+	int needed;
 	int survive;
-	int nsurvive;
 	int flags;
 } gstate_old_t;
 
@@ -124,9 +124,9 @@ static int migrate() {
 		n->soc = o->soc;
 		n->ttl = o->ttl;
 		n->success = o->success;
-		n->survive = o->survive;
 		n->forecast = o->forecast;
-		n->nsurvive = o->nsurvive;
+		n->needed = o->needed;
+		n->survive = o->survive;
 	}
 	store_blob(TMP SLASH GSTATE_H_FILE, gnew, sizeof(gnew));
 	store_blob(STATE SLASH GSTATE_H_FILE, gnew, sizeof(gnew));

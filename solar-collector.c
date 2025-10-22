@@ -96,7 +96,7 @@ static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[6
 static params_t params_current;
 
 // local delta, average and slope pointer
-static pstate_t *delta = &pstates[1], *avg = &pstates[2], *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5], *slope30 = &pstates[6], *var30 = &pstates[7];
+static pstate_t *delta = &pstates[1], *avg = &pstates[2], *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5];
 
 // global counter/pstate/gstate/params pointer
 counter_t counter[10];
@@ -396,6 +396,7 @@ static void calculate_gstate() {
 	}
 
 	// stable when surplus +/- 10% for last 3 minutes
+	// TODO ivariance
 	if (m0->surp) {
 		int surp3 = (m0->surp - m3->surp) * 100 / m0->surp;
 		int surp2 = (m0->surp - m2->surp) * 100 / m0->surp;
@@ -454,15 +455,15 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
 
 	// survival factor
-	int tocharge = gstate->nsurvive - akku_avail;
+	int tocharge = gstate->needed - akku_avail;
 	LOCUT(tocharge, 0)
 	int available = gstate->eod - tocharge;
 	LOCUT(available, 0)
 	if (gstate->sod == 0)
 		available = 0; // pv not yet started - we only have akku
-	gstate->survive = gstate->nsurvive ? (available + akku_avail) * 1000 / gstate->nsurvive : 0;
+	gstate->survive = gstate->needed ? (available + akku_avail) * 1000 / gstate->needed : 0;
 	HICUT(gstate->survive, 2000)
-	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->nsurvive, FLOAT10(gstate->survive));
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
 
 	// heating
 	gstate->flags |= FLAG_HEATING;
@@ -553,7 +554,7 @@ static void calculate_pstate() {
 	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
 	// clear flags and values
-	pstate->flags = pstate->ramp = 0;
+	pstate->flags = pstate->rsl = pstate->ramp = 0;
 
 	// skip further calculations when offline
 	if (!GSTATE_OFFLINE) {
@@ -569,14 +570,6 @@ static void calculate_pstate() {
 		islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
 		islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
 		islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
-		islope(slope30, pstate, PSTATE_SEC_LAST30, PSTATE_SIZE, 30, NOISE);
-
-		// calculate variance
-		ivariance(var30, pstate, PSTATE_SEC_LAST30, PSTATE_SIZE);
-
-//		xlog("SOLAR slopes pv %d %d %d %d var30 pv %d", slope3->pv, slope6->pv, slope9->pv, slope30->pv, var30->pv);
-//		xlog("SOLAR slopes grid %d %d %d %d", slope3->grid, slope6->grid, slope9->grid, slope30->grid);
-//		xlog("SOLAR pv now=%d +3=%d +6=%d +9=%d +30=%d", pstate->pv, pstate->pv + slope3->pv, pstate->pv + slope6->pv, pstate->pv + slope9->pv, pstate->pv + slope30->pv);
 
 		// check if we have delta ac power anywhere
 		if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
@@ -791,7 +784,7 @@ static void hourly() {
 		loads[h] = p->load;
 		akkus[h] = p->akku;
 	}
-	gstate->nsurvive = mosmix_survive(now, loads, akkus);
+	gstate->needed = mosmix_needed(now, loads, akkus);
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;

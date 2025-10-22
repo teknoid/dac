@@ -385,22 +385,6 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	memcpy(mh, m, sizeof(mosmix_t));
 }
 
-// collect total expected today, tomorrow and till end of day / start of day
-void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
-	mosmix_t mtoday, mtomorrow, msod, meod;
-	collect(now, &mtomorrow, &mtoday, &msod, &meod);
-
-	*itomorrow = SUM_EXP(&mtomorrow);
-	*itoday = SUM_EXP(&mtoday);
-	*isod = SUM_EXP(&msod);
-	*ieod = SUM_EXP(&meod);
-	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
-
-	// validate
-	if (*itoday != *isod + *ieod)
-		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *isod, *ieod);
-}
-
 void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	mosmix_t mtoday, mtomorrow, msod, meod;
 	*succ1 = *succ2 = 0;
@@ -469,8 +453,24 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 
+// collect total expected today, tomorrow and till end of day / start of day
+void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
+	mosmix_t mtoday, mtomorrow, msod, meod;
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+
+	*itomorrow = SUM_EXP(&mtomorrow);
+	*itoday = SUM_EXP(&mtoday);
+	*isod = SUM_EXP(&msod);
+	*ieod = SUM_EXP(&meod);
+	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
+
+	// validate
+	if (*itoday != *isod + *ieod)
+		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *isod, *ieod);
+}
+
 // night: collect akku power when pv is not enough
-int mosmix_survive(struct tm *now, int loads[], int akkus[]) {
+int mosmix_needed(struct tm *now, int loads[], int akkus[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
@@ -710,7 +710,7 @@ static int test() {
 	now->tm_hour = 16;
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
-	mosmix_survive(now, fake_loads, fake_loads);
+	mosmix_needed(now, fake_loads, fake_loads);
 	mosmix_heating(now, 1500);
 	return 0;
 }

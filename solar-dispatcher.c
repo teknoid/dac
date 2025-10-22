@@ -123,6 +123,9 @@ static void ramp_heater(device_t *heater) {
 	if (!dstate->ramp || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return;
 
+	if (heater->state == Manual && !DEV_FORCE(heater))
+		return;
+
 	// heating disabled
 	if (heater->state == Auto && dstate->ramp > 0 && !GSTATE_HEATING) {
 		dstate->ramp = 0;
@@ -151,11 +154,11 @@ static void ramp_heater(device_t *heater) {
 #endif
 
 	// update power values
-	dstate->flags &= ~FLAG_FORCE;
 	dstate->flags |= FLAG_ACTION;
 	dstate->resp = WAIT_RESPONSE;
 	heater->ramp = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
+	heater->flags &= ~FLAG_FORCE;
 
 	// store phase power to detect response
 	heater->p1 = pstate->p1;
@@ -171,6 +174,9 @@ static void ramp_heater(device_t *heater) {
 static void ramp_boiler(device_t *boiler) {
 	boiler->ramp = 0;
 	if (!dstate->ramp || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
+		return;
+
+	if (boiler->state == Manual && !DEV_FORCE(boiler))
 		return;
 
 	// cannot send UDP if we don't have an IP
@@ -244,12 +250,12 @@ static void ramp_boiler(device_t *boiler) {
 #endif
 
 	// update power values
-	dstate->flags &= ~FLAG_FORCE;
 	dstate->flags |= FLAG_ACTION;
 	dstate->resp = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->ramp = step * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
+	boiler->flags &= ~FLAG_FORCE;
 
 	// store phase power to detect response
 	boiler->p1 = pstate->p1;
@@ -420,8 +426,6 @@ static void toggle_device(device_t *d) {
 
 // call device specific ramp function
 static void ramp_device(device_t *d, int power) {
-	if (d->state == Manual)
-		return;
 	dstate->ramp = power;
 	(d->rf)(d);
 }
@@ -459,7 +463,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
-	if (gstate->forecast < 500 && AKKU_AVAILABLE < gstate->nsurvive)
+	if (gstate->forecast < 500 && AKKU_AVAILABLE < gstate->needed)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -519,6 +523,8 @@ static void ramp() {
 
 	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PV_FALLING)
 		rampup();
+
+	// TODO idee: wenn power frei gegeben wurde (dstate->ramp > pstate->ramp) einen lock setzen um den nächsten delta ramp down zu verhindern der dann gar nicht nötig wäre
 }
 
 static device_t* perform_standby(device_t *d) {
@@ -878,7 +884,7 @@ void solar_tasmota(tasmota_t *t) {
 }
 
 static void loop() {
-	time_t now_ts, startup_ts = time(NULL);
+	time_t now_ts;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -907,6 +913,9 @@ static void loop() {
 	// initially select the program of the day
 	choose_program();
 
+	// suppress ramps directly after startup due to incomplete or wrong pstate
+	dstate->lock = 10;
+
 	// dispatcher main loop
 	while (1) {
 		msleep(222); // wait for collector calculation
@@ -922,11 +931,6 @@ static void loop() {
 
 		// calculate device state and actions
 		calculate_dstate();
-
-		// suppress ramps directly after startup due to incomplete or wrong pstate
-		// TODO nicht mehr nötig weil wir pstate speichern (?)
-		if (now_ts - startup_ts < 10)
-			dstate->flags &= ~(FLAG_ACTION_RAMP | FLAG_ACTION_STANDBY | FLAG_ACTION_STEAL);
 
 		if (PSTATE_EMERGENCY)
 			emergency();

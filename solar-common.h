@@ -43,7 +43,7 @@
 #define GSTATE_GRID_DLOAD		(gstate->flags & FLAG_GRID_DLOAD)
 #define GSTATE_AKKU_DCHARGE		(gstate->flags & FLAG_AKKU_DCHARGE)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
-#define GSTATE_STABLE			(pstate->flags & FLAG_GSTABLE)
+#define GSTATE_STABLE			(gstate->flags & FLAG_GSTABLE)
 #define GSTATE_BURNOUT			(gstate->flags & FLAG_BURNOUT)
 #define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 
@@ -161,7 +161,7 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca  surv nsurv flags"
+#define GSTATE_HEADER	"    pv pvmin pvmax pvavg ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca  need  surv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
@@ -177,8 +177,8 @@ struct _gstate {
 	int ttl;
 	int success;
 	int forecast;
+	int needed;
 	int survive;
-	int nsurvive;
 	int flags;
 };
 
@@ -228,7 +228,7 @@ struct _dstate {
 };
 
 // global counter, state and parameter pointer
-extern counter_t counter[10];
+extern counter_t counter[];
 extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;

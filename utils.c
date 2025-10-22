@@ -889,7 +889,7 @@ void islope(void *dst, void *src1, void *src2, int cols, int divisor, int shape)
 	}
 }
 
-// calculate (src1 - src2) / src2 * 100
+// calculate (src1 - src2) * 100 / src2
 void ivariance(void *dst, void *src1, void *src2, int cols) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
