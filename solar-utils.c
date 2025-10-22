@@ -159,7 +159,7 @@ static int migrate() {
 		n->f = o->f;
 		n->inv = o->inv;
 		n->surp = o->surp;
-		n->load = o->load;
+		n->load = o->load; // needed for 24/7 !!!
 		n->rsl = o->rsl;
 		n->ramp = o->ramp;
 	}
