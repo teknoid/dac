@@ -57,7 +57,7 @@ static void ramp_boiler(device_t *device);
 static void ramp_akku(device_t *device);
 
 // devices
-static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0 }, *AKKU = &a1;
+static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0, .from = 10, .to = 15, .min = 100 };
@@ -554,24 +554,20 @@ static device_t* standby() {
 }
 
 static void steal() {
-	// calculate steal power for any device in AUTO mode
+	// calculate steal power for each device
 	dstate->steal = 0;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
-		if (DD == AKKU) {
-			// steal max 75% of charging power, but not when we have grid upload
-			DD->steal = DD->load > MINIMUM && !GSTATE_GRID_ULOAD ? DD->load * 0.75 : 0;
-			dstate->steal += DD->steal;
-			continue;
-		}
-		// only when in AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
-		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
-			if (DD->min && DD->min < DD->load)
-				DD->steal = DD->load - DD->min; // all above minimum
+		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
+		int steal_akku = AKKU_CHARGING;
+		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
+		if (steal_akku || steal_device) {
+			if (DD->min)
+				DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // all above minimum
 			else
 				DD->steal = DD->load; // all
-			dstate->steal += DD->steal;
 		}
+		dstate->steal += DD->steal;
 	}
 
 	// nothing to steal
@@ -584,17 +580,15 @@ static void steal() {
 
 		//  when inverter produces ac output and akku is charging and not saturated (limited or maximum charge power reached)
 		if (t == AKKU && pstate->ac1 > RAMP && AKKU_CHARGING && AKKU->power < 90) {
-			// akku can not steal more than inverters ac output
-			if (pstate->ac1 < dstate->steal)
-				dstate->steal = pstate->ac1;
-
 			// jump to last entry
 			device_t **vv = potd->devices;
 			while (*vv)
 				vv++;
 
-			// ramp down victims in inverse order
-			int to_steal = dstate->steal;
+			// akku can not steal more than inverters ac output
+			int to_steal = pstate->ac1;
+
+			//ramp down victims in inverse order
 			while (--vv != tt && to_steal > 0) {
 				device_t *v = *vv;
 				ramp_device(v, to_steal * -1);
@@ -614,21 +608,13 @@ static void steal() {
 			continue;
 
 		// collect steal power from victims
-		dstate->steal = 0;
+		int thief_steal = 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
-			dstate->steal += (*vv)->steal;
-
-		// nothing to steal
-		if (dstate->steal < RAMP)
-			continue;
-
-		// minimum power to ramp up thief
-		int min = t->min ? t->min : t->total;
+			thief_steal += (*vv)->steal;
 
 		// not enough to ramp up
-		// TODO und die letzte minute lang genug da und stabil
-		int total = dstate->steal + dstate->ramp;
-		if (total < min)
+		int thief_min = t->min ? t->min : t->total;
+		if (thief_steal < thief_min)
 			continue;
 
 		// jump to last entry
@@ -637,17 +623,17 @@ static void steal() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		int to_steal = total;
+		int to_steal = thief_steal;
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
 			ramp_device(v, to_steal * -1);
 			int given = v->ramp;
-			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, min, total);
+			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, thief_min, thief_steal);
 			to_steal += given;
 		}
 
 		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
-		ramp_device(t, total);
+		ramp_device(t, thief_steal);
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0; // give akku time to release or consume power
 		device = 0; // expect no response when power is transferred from one to another
 		return;
@@ -771,7 +757,7 @@ static void calculate_dstate() {
 
 	// cyclic actions
 	int cyclic = time(NULL) % 10;
-	if (PSTATE_EMERGENCY || !PSTATE_VALID || !PSTATE_STABLE || GSTATE_OFFLINE || DSTATE_ALL_STANDBY || DSTATE_ALL_DOWN)
+	if (PSTATE_EMERGENCY || !PSTATE_VALID || !PSTATE_STABLE || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		cyclic = 0;
 
 	// permanent overload
