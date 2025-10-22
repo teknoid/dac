@@ -157,6 +157,11 @@ static int migrate() {
 		n->v2 = o->v2;
 		n->v3 = o->v3;
 		n->f = o->f;
+		n->inv = o->inv;
+		n->surp = o->surp;
+		n->load = o->load;
+		n->rsl = o->rsl;
+		n->ramp = o->ramp;
 	}
 	store_blob(TMP SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
 	store_blob(STATE SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
