@@ -936,11 +936,11 @@ void store_table_csv(void *table, int cols, int rows, const char *header, const 
 	}
 
 	if (header)
-		fprintf(fp, " i%s\n", header);
+		fprintf(fp, "   i%s\n", header);
 
 	int *p = (int*) table;
 	for (int y = 0; y < rows; y++) {
-		fprintf(fp, "%02d ", y);
+		fprintf(fp, "%04d ", y);
 		for (int x = 0; x < cols; x++)
 			fprintf(fp, "%5d ", *p++);
 		fprintf(fp, "\n");
