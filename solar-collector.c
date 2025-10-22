@@ -354,6 +354,7 @@ static void calculate_gstate() {
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
+	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// offline mode when last 3 minutes surplus below MINIMUM
 	int offline = m0->surp < MINIMUM && m1->surp < MINIMUM && m2->surp < MINIMUM;
@@ -392,6 +393,18 @@ static void calculate_gstate() {
 	if (a2 || a1 || a0) {
 		gstate->flags |= FLAG_AKKU_DCHARGE;
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
+	}
+
+	// stable when surplus +/- 10% for last 3 minutes
+	if (m0->surp) {
+		int surp3 = (m0->surp - m3->surp) * 100 / m0->surp;
+		int surp2 = (m0->surp - m2->surp) * 100 / m0->surp;
+		int surp1 = (m0->surp - m1->surp) * 100 / m0->surp;
+		int stable = -10 < surp3 && surp3 < 10 && -10 < surp2 && surp2 < 10 && -10 < surp1 && surp1 < 10;
+		if (stable) {
+			gstate->flags |= FLAG_GSTABLE;
+			xdebug("SOLAR set FLAG_GSTABLE surplus now=%d 3=%d 2=%d 1=%d", m0->surp, m3->surp, m2->surp, m1->surp);
+		}
 	}
 
 	// day total: consumed / produced / pv
@@ -654,8 +667,8 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_PV_FALLING");
 		}
 		if (!pvrise && !pvfall && !gridrise && !gridfall) {
-			pstate->flags |= FLAG_STABLE;
-			xdebug("SOLAR set FLAG_STABLE");
+			pstate->flags |= FLAG_PSTABLE;
+			xdebug("SOLAR set FLAG_PSTABLE");
 		}
 
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge

@@ -768,7 +768,7 @@ static void calculate_dstate() {
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !overload)
+	if (cyclic == 2 && !overload && GSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up always when no other preceded actions
