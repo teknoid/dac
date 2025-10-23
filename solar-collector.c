@@ -16,7 +16,9 @@
 #define COUNTER_METER
 
 #define AKKU_BURNOUT			1
+
 #define AVERAGE					10
+#define STABLE					10
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
 
@@ -95,8 +97,10 @@ static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[10];
 static params_t params_current;
 
-// local delta, average and slope pointer
-static pstate_t *delta = &pstates[1], *avg = &pstates[2], *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5];
+// local pstate delta / average / slope / variance pointer
+static pstate_t *delta = &pstates[1], *avg = &pstates[2];
+static pstate_t *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5];
+static pstate_t *m1var = &pstates[6], *m2var = &pstates[7], *m3var = &pstates[8];
 
 // global counter/pstate/gstate/params pointer
 counter_t counter[10];
@@ -395,17 +399,16 @@ static void calculate_gstate() {
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
 	}
 
-	// stable when surplus +/- 10% for last 3 minutes
-	// TODO ivariance
-	if (m0->surp) {
-		int surp3 = (m0->surp - m3->surp) * 100 / m0->surp;
-		int surp2 = (m0->surp - m2->surp) * 100 / m0->surp;
-		int surp1 = (m0->surp - m1->surp) * 100 / m0->surp;
-		int stable = -10 < surp3 && surp3 < 10 && -10 < surp2 && surp2 < 10 && -10 < surp1 && surp1 < 10;
-		if (stable) {
-			gstate->flags |= FLAG_GSTABLE;
-			xdebug("SOLAR set FLAG_GSTABLE surplus now=%d 3=%d 2=%d 1=%d", m0->surp, m3->surp, m2->surp, m1->surp);
-		}
+	// stable when +/- 10% against last 3 minutes
+	ivariance(m3var, m0, m3, PSTATE_SIZE);
+	ivariance(m2var, m0, m2, PSTATE_SIZE);
+	ivariance(m1var, m0, m1, PSTATE_SIZE);
+	xlog("SOLAR GSTABLE      pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+	xlog("SOLAR GSTABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+	int surp_stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
+	if (surp_stable) {
+		gstate->flags |= GSTATE_STABLE;
+		xdebug("SOLAR set GSTATE_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
 	}
 
 	// day total: consumed / produced / pv
@@ -667,11 +670,11 @@ static void calculate_pstate() {
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
 		int grid_download = GSTATE_GRID_DLOAD || avg->grid > NOISE || pstate->grid > RAMP;
 		int akku_discharge = GSTATE_AKKU_DCHARGE || avg->akku > NOISE || pstate->akku > RAMP;
-		int suppress_up = PSTATE_PV_FALLING || pstate->rsl < 100 || grid_download || akku_discharge || !PSTATE_VALID;
+		int suppress_up = !PSTATE_VALID || PSTATE_PV_FALLING || pstate->rsl < 100 || grid_download || akku_discharge;
 
 		// suppress ramp down when pv is rising / rsl above 120%
 		// TODO suppress when calculated load still above surplus
-		int suppress_down = PSTATE_PV_RISING || pstate->rsl > 120;
+		int suppress_down = !PSTATE_VALID || PSTATE_PV_RISING || pstate->rsl > 120;
 
 		// calculate ramp power - here we use average values
 		if (time(NULL) % 10 == 0) {

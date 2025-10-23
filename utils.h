@@ -1,26 +1,41 @@
-#define XLOG_NONE					0
-#define XLOG_STDOUT					1
-#define XLOG_SYSLOG					2
-#define XLOG_FILE					3
+#define XLOG_NONE				0
+#define XLOG_STDOUT				1
+#define XLOG_SYSLOG				2
+#define XLOG_FILE				3
 
-#define SPACEMASK32					0x01010101
-#define SPACEMASK64					0x0101010101010101
+#define LINEBUF					256
 
-#define ARRAY_SIZE(x)				(sizeof(x) / sizeof(x[0]))
+#define msleep(x)				usleep(x * 1000)
 
-#define ZEROP(x)					memset((void*) x, 0, sizeof(*x))
-#define ZERO(x)						memset((void*) &x, 0, sizeof(x))
+#define SPACEMASK32				0x01010101
+#define SPACEMASK64				0x0101010101010101
 
-#define SWAP16(x)					x = (((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
-#define SWAP32(x)					x = (((x << 16) & 0xffff0000) | ((x >> 16) & 0x0000ffff))
+#define ARRAY_SIZE(x)			(sizeof(x) / sizeof(x[0]))
 
-#define FLOAT10(x)					((float) x / 10.0)
-#define FLOAT60(x)					((float) x / 60.0)
-#define FLOAT100(x)					((float) x / 100.0)
+#define ZEROP(x)				memset((void*) x, 0, sizeof(*x))
+#define ZERO(x)					memset((void*) &x, 0, sizeof(x))
 
-#define msleep(x)					usleep(x * 1000)
+#define SWAP16(x)				x = (((x << 8) & 0xff00) | ((x >> 8) & 0x00ff))
+#define SWAP32(x)				x = (((x << 16) & 0xffff0000) | ((x >> 16) & 0x0000ffff))
 
-#define LINEBUF						256
+#define FLOAT10(x)				((float) x / 10.0)
+#define FLOAT60(x)				((float) x / 60.0)
+#define FLOAT100(x)				((float) x / 100.0)
+
+#define IN(x, y)				(-y < x && x < y)
+#define OUT(x, y)				(x < -y && y < x)
+
+#define HICUT(x, y)				if (x > y) x = y;
+#define LOCUT(x, y)				if (x < y) x = y;
+
+#define SHAPE(x, y)				if (-y < x && x < y) x = y;
+#define ZSHAPE(x, y)			if (-y < x && x < y) x = 0;
+
+#define CUT(x, y) \
+		if (x > 0 && x > y) \
+			x = y; \
+		if (x < 0 && x < y) \
+			x = y;
 
 #define BYTE2BIN_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE2BIN(x)  \
@@ -51,28 +66,6 @@
   ((x) & 0x0004 ? '1' : '0'), \
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
-
-#define HICUT(x, y) \
-		if (x > y) \
-			x = y;
-
-#define LOCUT(x, y) \
-		if (x < y) \
-			x = y;
-
-#define CUT(x, y) \
-		if (x > 0 && x > y) \
-			x = y; \
-		if (x < 0 && x < y) \
-			x = y;
-
-#define SHAPE(x, y) \
-		if (-y < x && x < y) \
-			x = y;
-
-#define ZSHAPE(x, y) \
-		if (-y < x && x < y) \
-			x = 0;
 
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \

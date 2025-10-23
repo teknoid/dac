@@ -568,9 +568,12 @@ static void steal() {
 		int steal_akku = AKKU_CHARGING;
 		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
 		if (steal_akku || steal_device) {
-			if (DD->min)
-				DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // all above minimum
-			else
+			if (DD->min) {
+				if (DD->min > DD->total)
+					DD->steal = DD->load; // dumb devices - all
+				else
+					DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // adjustable devices - all above minimum
+			} else
 				DD->steal = DD->load; // all
 		}
 		dstate->steal += DD->steal;
@@ -748,8 +751,8 @@ static void calculate_dstate() {
 	// copy to history
 	memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 
-	// no action when locked or during a running standby check
-	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)))
+	// no action
+	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)) || PSTATE_EMERGENCY || DSTATE_ALL_STANDBY)
 		return;
 
 	// take over ramp power
@@ -763,21 +766,19 @@ static void calculate_dstate() {
 
 	// cyclic actions
 	int cyclic = time(NULL) % 10;
-	if (PSTATE_EMERGENCY || !PSTATE_VALID || !PSTATE_STABLE || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
-		cyclic = 0;
 
 	// permanent overload
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 
 	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && overload)
+	if (cyclic == 1 && overload && PSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
 	if (cyclic == 2 && !overload && GSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
-	// ramp up always when no other preceded actions
+	// ramp up when no other preceded actions
 	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
 		dstate->flags |= FLAG_ACTION_RAMP;
 }
