@@ -403,12 +403,10 @@ static void calculate_gstate() {
 	ivariance(m3var, m0, m3, PSTATE_SIZE);
 	ivariance(m2var, m0, m2, PSTATE_SIZE);
 	ivariance(m1var, m0, m1, PSTATE_SIZE);
-	xlog("SOLAR GSTABLE      pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
-	xlog("SOLAR GSTABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
-	int surp_stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
-	if (surp_stable) {
-		gstate->flags |= GSTATE_STABLE;
-		xdebug("SOLAR set GSTATE_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+	int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
+	if (stable) {
+		gstate->flags |= FLAG_GSTABLE;
+		xdebug("SOLAR set FLAG_GSTABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
 	}
 
 	// day total: consumed / produced / pv
