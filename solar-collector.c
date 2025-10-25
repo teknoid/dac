@@ -387,8 +387,8 @@ static void calculate_gstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *m3 = PSTATE_MIN_LAST3;
 
-	// offline mode when last 3 minutes surplus below MINIMUM
-	int offline = m0->surp < MINIMUM && m1->surp < MINIMUM && m2->surp < MINIMUM;
+	// offline mode when surplus is now and last 3 minutes below load
+	int offline = m0->surp < m0->load && m1->surp < m1->load && m2->surp < m2->load && m3->surp < m3->load;
 	if (offline) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -748,8 +748,8 @@ static void calculate_pstate() {
 			// zero from -RAMP..RAMP
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
-#define DELTA_PV_RAMP "SOLAR delta surplus ramp dsurp=%d rsl=%d --> ramp=%d"
-				xlog(DELTA_PV_RAMP, delta->surp, pstate->rsl, pstate->ramp);
+#define DELTA_SURPLUS_RAMP "SOLAR delta surplus ramp dsurp=%d rsl=%d --> ramp=%d"
+				xlog(DELTA_SURPLUS_RAMP, delta->surp, pstate->rsl, pstate->ramp);
 		}
 	}
 
