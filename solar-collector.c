@@ -426,19 +426,21 @@ static void calculate_gstate() {
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
 	}
 
-	// tendency: rising or falling or stable
+	// calculate variance for current minute against last 3 minutes
 	ivariance(m3var, m0, m3, PSTATE_SIZE);
 	ivariance(m2var, m0, m2, PSTATE_SIZE);
 	ivariance(m1var, m0, m1, PSTATE_SIZE);
-	int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
+
+	// tendency: falling or rising or stable, fall has prio
 	int pvfall = m3var->pv < -STABLE || m2var->pv < -STABLE || m1var->pv < -STABLE;
+	int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
+	if (pvfall) {
+		gstate->flags |= FLAG_PVFALL;
+		xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+	}
 	if (pvrise && !pvfall) {
 		gstate->flags |= FLAG_PVRISE;
 		xlog("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
-	}
-	if (pvfall && !pvrise) {
-		gstate->flags |= FLAG_PVFALL;
-		xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
 	}
 	// stable when surplus +/- 10% against last 3 minutes
 	int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
@@ -499,7 +501,7 @@ static void calculate_gstate() {
 	int critical = gstate->survive < SURVIVE;
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
 	int soc6 = GSTATE_HOUR(6)->soc;
-	int time_window = now->tm_hour >= 9 && now->tm_hour < 16; // between 9 and 16 o'clock
+	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
 	if (empty || critical || weekend || WINTER)
 		// empty / critical / weekend / winter --> always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
@@ -578,11 +580,6 @@ static void calculate_pstate() {
 		pstate->rsl = pstate->load ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
 		LOCUT(pstate->rsl, 0)
 
-		// calculate slopes over 3, 6 and 9 seconds
-		islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
-		islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
-		islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
-
 		// check if we have delta ac power anywhere
 		if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
 			pstate->flags |= FLAG_ACDELTA;
@@ -658,18 +655,23 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 
-		// tendency: rising or falling or stable
-		int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
+		// calculate slopes over 3, 6 and 9 seconds
+		islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
+		islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
+		islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
+
+		// tendency: falling or rising or stable, fall has prio
 		int pvfall = slope3->pv < -SLOPE_PV || slope6->pv < -SLOPE_PV || slope9->pv < -SLOPE_PV;
-		int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
+		int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
 		int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
+		int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
+		if (pvfall) {
+			pstate->flags |= FLAG_PVFALL;
+			xdebug("SOLAR set FLAG_PVFALL");
+		}
 		if (pvrise && !pvfall) {
 			pstate->flags |= FLAG_PVRISE;
 			xdebug("SOLAR set FLAG_PVRISE");
-		}
-		if (pvfall && !pvrise) {
-			pstate->flags |= FLAG_PVFALL;
-			xdebug("SOLAR set FLAG_PVFALL");
 		}
 		if (!pvrise && !pvfall && !gridrise && !gridfall) {
 			pstate->flags |= FLAG_STABLE;
@@ -677,14 +679,18 @@ static void calculate_pstate() {
 		}
 
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
-		int grid_download = GSTATE_GRID_DLOAD || avg->grid > NOISE || pstate->grid > RAMP;
-		int akku_discharge = GSTATE_AKKU_DCHARGE || avg->akku > NOISE || pstate->akku > RAMP;
-		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || pstate->rsl < 100 || grid_download || akku_discharge;
+		int grid_download = GSTATE_GRID_DLOAD || (avg->grid > NOISE && pstate->grid > RAMP);
+		int akku_discharge = GSTATE_AKKU_DCHARGE || (avg->akku > NOISE && pstate->akku > RAMP);
+		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || pstate->rsl < 95 || grid_download || akku_discharge;
+		if (suppress_up && pstate->rsl > 200)
+			suppress_up = 0; // overrule
 
 		// suppress ramp down when pv is rising / rsl above 120%
 		// TODO suppress when calculated load still above surplus
 		// TODO overrule when akku charging above MINIMUM
 		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || pstate->rsl > 120;
+		if (suppress_down && pstate->rsl < 95)
+			suppress_down = 0; // overrule
 
 		// calculate ramp power - here we use average values
 		if (time(NULL) % 10 == 0) {
@@ -695,6 +701,10 @@ static void calculate_pstate() {
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST1->surp);
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST2->surp);
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST3->surp);
+
+			// 50% more when average rsl below 100
+			if (pstate->ramp < 0 && avg->rsl < 100)
+				pstate->ramp += pstate->ramp / 2;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
