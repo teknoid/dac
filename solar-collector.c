@@ -354,6 +354,33 @@ static void calculate_gstate() {
 	if (WINTER)
 		gstate->flags |= FLAG_WINTER;
 
+	// day total: consumed / produced / pv
+#ifdef COUNTER_METER
+	gstate->consumed = CM_DAY->consumed;
+	gstate->produced = CM_DAY->produced;
+	gstate->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
+#else
+	gstate->consumed = CS_DAY->consumed;
+	gstate->produced = CS_DAY->produced;
+	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
+#endif
+
+	// calculate pv minimum, maximum and average
+	gstate->pvmin = UINT16_MAX;
+	gstate->pvmax = 0, gstate->pvavg = 0;
+	for (int m = 0; m < 60; m++) {
+		pstate_t *p = PSTATE_MIN(m);
+		HICUT(gstate->pvmin, p->pv)
+		LOCUT(gstate->pvmax, p->pv)
+		gstate->pvavg += p->pv;
+	}
+	gstate->pvavg /= 60;
+	gstate->pvmin += gstate->pvmin / 10; // +10%
+	gstate->pvmax -= gstate->pvmax / 10; // -10%
+	gstate->pvmin = round100(gstate->pvmin);
+	gstate->pvmax = round100(gstate->pvmax);
+	gstate->pvavg = round100(gstate->pvavg);
+
 	// history states
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
@@ -399,42 +426,26 @@ static void calculate_gstate() {
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
 	}
 
-	// stable when +/- 10% against last 3 minutes
+	// tendency: rising or falling or stable
 	ivariance(m3var, m0, m3, PSTATE_SIZE);
 	ivariance(m2var, m0, m2, PSTATE_SIZE);
 	ivariance(m1var, m0, m1, PSTATE_SIZE);
+	int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
+	int pvfall = m3var->pv < -STABLE || m2var->pv < -STABLE || m1var->pv < -STABLE;
+	if (pvrise && !pvfall) {
+		gstate->flags |= FLAG_PVRISE;
+		xlog("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+	}
+	if (pvfall && !pvrise) {
+		gstate->flags |= FLAG_PVFALL;
+		xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+	}
+	// stable when surplus +/- 10% against last 3 minutes
 	int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
 	if (stable) {
-		gstate->flags |= FLAG_GSTABLE;
-		xdebug("SOLAR set FLAG_GSTABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+		gstate->flags |= FLAG_STABLE;
+		xlog("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
 	}
-
-	// day total: consumed / produced / pv
-#ifdef COUNTER_METER
-	gstate->consumed = CM_DAY->consumed;
-	gstate->produced = CM_DAY->produced;
-	gstate->pv = CM_DAY->mppt1 + CM_DAY->mppt2 + CM_DAY->mppt3 + CM_DAY->mppt4;
-#else
-	gstate->consumed = CS_DAY->consumed;
-	gstate->produced = CS_DAY->produced;
-	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
-#endif
-
-	// calculate pv minimum, maximum and average
-	gstate->pvmin = UINT16_MAX;
-	gstate->pvmax = 0, gstate->pvavg = 0;
-	for (int m = 0; m < 60; m++) {
-		pstate_t *p = PSTATE_MIN(m);
-		HICUT(gstate->pvmin, p->pv)
-		LOCUT(gstate->pvmax, p->pv)
-		gstate->pvavg += p->pv;
-	}
-	gstate->pvavg /= 60;
-	gstate->pvmin += gstate->pvmin / 10; // +10%
-	gstate->pvmax -= gstate->pvmax / 10; // -10%
-	gstate->pvmin = round100(gstate->pvmin);
-	gstate->pvmax = round100(gstate->pvmax);
-	gstate->pvavg = round100(gstate->pvavg);
 
 	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
 	int min = akku_get_min_soc();
@@ -653,26 +664,27 @@ static void calculate_pstate() {
 		int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
 		int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
 		if (pvrise && !pvfall) {
-			pstate->flags |= FLAG_PV_RISING;
-			xdebug("SOLAR set FLAG_PV_RISING");
+			pstate->flags |= FLAG_PVRISE;
+			xdebug("SOLAR set FLAG_PVRISE");
 		}
 		if (pvfall && !pvrise) {
-			pstate->flags |= FLAG_PV_FALLING;
-			xdebug("SOLAR set FLAG_PV_FALLING");
+			pstate->flags |= FLAG_PVFALL;
+			xdebug("SOLAR set FLAG_PVFALL");
 		}
 		if (!pvrise && !pvfall && !gridrise && !gridfall) {
-			pstate->flags |= FLAG_PSTABLE;
-			xdebug("SOLAR set FLAG_PSTABLE");
+			pstate->flags |= FLAG_STABLE;
+			xdebug("SOLAR set FLAG_STABLE");
 		}
 
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
 		int grid_download = GSTATE_GRID_DLOAD || avg->grid > NOISE || pstate->grid > RAMP;
 		int akku_discharge = GSTATE_AKKU_DCHARGE || avg->akku > NOISE || pstate->akku > RAMP;
-		int suppress_up = !PSTATE_VALID || PSTATE_PV_FALLING || pstate->rsl < 100 || grid_download || akku_discharge;
+		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || pstate->rsl < 100 || grid_download || akku_discharge;
 
 		// suppress ramp down when pv is rising / rsl above 120%
 		// TODO suppress when calculated load still above surplus
-		int suppress_down = !PSTATE_VALID || PSTATE_PV_RISING || pstate->rsl > 120;
+		// TODO overrule when akku charging above MINIMUM
+		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || pstate->rsl > 120;
 
 		// calculate ramp power - here we use average values
 		if (time(NULL) % 10 == 0) {

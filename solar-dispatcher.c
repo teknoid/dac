@@ -521,7 +521,7 @@ static void ramp() {
 
 	// allow rampup after rampdown if power was released, but not when PV is going down
 
-	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PV_FALLING)
+	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL && !GSTATE_PVFALL)
 		rampup();
 
 	// TODO idee: wenn power frei gegeben wurde (dstate->ramp > pstate->ramp) einen lock setzen um den nächsten delta ramp down zu verhindern der dann gar nicht nötig wäre
