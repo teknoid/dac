@@ -682,7 +682,7 @@ static void calculate_pstate() {
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
 		int grid_download = GSTATE_GRID_DLOAD || (avg->grid > NOISE && pstate->grid > RAMP);
 		int akku_discharge = GSTATE_AKKU_DCHARGE || (avg->akku > NOISE && pstate->akku > RAMP);
-		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || pstate->rsl < 95 || grid_download || akku_discharge;
+		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || grid_download || akku_discharge || pstate->rsl < 95;
 		if (suppress_up && pstate->rsl > 200)
 			suppress_up = 0; // overrule
 
