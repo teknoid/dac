@@ -21,6 +21,7 @@
 #define STABLE					10
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
+#define SURPLUS_OFFLINE			75
 
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
@@ -388,7 +389,7 @@ static void calculate_gstate() {
 	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// offline mode when surplus is now and last 3 minutes below load
-	int offline = m0->surp < m0->load && m1->surp < m1->load && m2->surp < m2->load && m3->surp < m3->load;
+	int offline = m0->surp < SURPLUS_OFFLINE && m1->surp < SURPLUS_OFFLINE && m2->surp < SURPLUS_OFFLINE && m3->surp < SURPLUS_OFFLINE;
 	if (offline) {
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -559,8 +560,8 @@ static void calculate_pstate() {
 	pstate->surp = pstate->ac1 + pstate->ac2;
 	HICUT(pstate->surp, pstate->pv)
 
-	// load - meter latency is 1-2s - check nightly akku service interval -> should be nearly no load change when akku goes off
-	pstate->load = pstate->grid + (pstate->ac1 + PSTATE_SEC_LAST1->ac1) / 2 + (pstate->ac2 + PSTATE_SEC_LAST1->ac2) / 2;
+	// load
+	pstate->load = pstate->grid + pstate->ac1 + pstate->ac2;
 
 	// dissipation
 	// int diss1 = pstate->dc1 - pstate->ac1;
