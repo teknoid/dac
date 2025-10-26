@@ -841,7 +841,7 @@ static void minly() {
 
 	// clear values when offline
 	if (GSTATE_OFFLINE)
-		dstate->ramp = dstate->steal = dstate->flags = dstate->cload = dstate->rload = 0;
+		memset(dstate, 0, sizeof(dstate_t));
 }
 
 // set device into MANUAL mode and toggle power
