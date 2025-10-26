@@ -388,18 +388,6 @@ static void calculate_gstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *m3 = PSTATE_MIN_LAST3;
 
-	// offline mode when surplus is now and last 3 minutes below load
-	int offline = m0->surp < SURPLUS_OFFLINE && m1->surp < SURPLUS_OFFLINE && m2->surp < SURPLUS_OFFLINE && m3->surp < SURPLUS_OFFLINE;
-	if (offline) {
-		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
-		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
-		if (burnout_time && burnout_possible && AKKU_BURNOUT)
-			gstate->flags |= FLAG_BURNOUT; // burnout
-		else
-			gstate->flags |= FLAG_OFFLINE; // offline
-	}
-
 	// grid upload in last 3 minutes
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
 	int gu1 = m0->grid < -75 && m1->grid < -75;
@@ -425,29 +413,6 @@ static void calculate_gstate() {
 	if (a2 || a1 || a0) {
 		gstate->flags |= FLAG_AKKU_DCHARGE;
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
-	}
-
-	// calculate variance for current minute against last 3 minutes
-	ivariance(m3var, m0, m3, PSTATE_SIZE);
-	ivariance(m2var, m0, m2, PSTATE_SIZE);
-	ivariance(m1var, m0, m1, PSTATE_SIZE);
-
-	// tendency: falling or rising or stable, fall has prio
-	int pvfall = m3var->pv < -STABLE || m2var->pv < -STABLE || m1var->pv < -STABLE;
-	int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
-	if (pvfall) {
-		gstate->flags |= FLAG_PVFALL;
-		xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
-	}
-	if (pvrise && !pvfall) {
-		gstate->flags |= FLAG_PVRISE;
-		xlog("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
-	}
-	// stable when surplus +/- 10% against last 3 minutes
-	int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
-	if (stable) {
-		gstate->flags |= FLAG_STABLE;
-		xlog("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
 	}
 
 	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
@@ -480,42 +445,81 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
 
-	// heating
-	gstate->flags |= FLAG_HEATING;
-	// no need to heat
-	if (sensors->tin > 18.0 && SUMMER)
-		gstate->flags &= ~FLAG_HEATING;
-	if (sensors->tin > 24.0 && sensors->tout > 15.0 && !SUMMER)
-		gstate->flags &= ~FLAG_HEATING;
-	if (sensors->tin > 26.0)
-		gstate->flags &= ~FLAG_HEATING;
-	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 25.0) // may/sept begin 16 o'clock
-		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 25.0) // apr/oct begin 14 o'clock
-		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
-		gstate->flags |= FLAG_HEATING;
+	// offline mode when surplus is now and last 3 minutes below load
+	int offline = m0->surp < SURPLUS_OFFLINE && m1->surp < SURPLUS_OFFLINE && m2->surp < SURPLUS_OFFLINE && m3->surp < SURPLUS_OFFLINE;
+	if (offline) {
 
-	// akku charging
-	int empty = gstate->soc < 100;
-	int critical = gstate->survive < SURVIVE;
-	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
-	int soc6 = GSTATE_HOUR(6)->soc;
-	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
-	if (empty || critical || weekend || WINTER)
-		// empty / critical / weekend / winter --> always at any time
-		gstate->flags |= FLAG_CHARGE_AKKU;
-	else if (SUMMER) {
-		// summer: when below 22%
-		if (time_window && soc6 < 222)
-			gstate->flags |= FLAG_CHARGE_AKKU;
+		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
+		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
+		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
+		if (burnout_time && burnout_possible && AKKU_BURNOUT)
+			gstate->flags |= FLAG_BURNOUT; // burnout
+		else
+			gstate->flags |= FLAG_OFFLINE; // offline
+
 	} else {
-		// autumn/spring: when below 33% or tomorrow not enough pv
-		if (time_window && soc6 < 333)
+		// online
+
+		// calculate variance for current minute against last 3 minutes
+		ivariance(m3var, m0, m3, PSTATE_SIZE);
+		ivariance(m2var, m0, m2, PSTATE_SIZE);
+		ivariance(m1var, m0, m1, PSTATE_SIZE);
+
+		// tendency: falling or rising or stable, fall has prio
+		int pvfall = m3var->pv < -STABLE || m2var->pv < -STABLE || m1var->pv < -STABLE;
+		int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
+		if (pvfall) {
+			gstate->flags |= FLAG_PVFALL;
+			xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+		}
+		if (pvrise && !pvfall) {
+			gstate->flags |= FLAG_PVRISE;
+			xlog("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+		}
+		// stable when surplus +/- 10% against last 3 minutes
+		int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
+		if (stable) {
+			gstate->flags |= FLAG_STABLE;
+			xlog("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+		}
+
+		// heating
+		gstate->flags |= FLAG_HEATING;
+		// no need to heat
+		if (sensors->tin > 18.0 && SUMMER)
+			gstate->flags &= ~FLAG_HEATING;
+		if (sensors->tin > 24.0 && sensors->tout > 15.0 && !SUMMER)
+			gstate->flags &= ~FLAG_HEATING;
+		if (sensors->tin > 26.0)
+			gstate->flags &= ~FLAG_HEATING;
+		// force heating
+		if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 25.0) // may/sept begin 16 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 25.0) // apr/oct begin 14 o'clock
+			gstate->flags |= FLAG_HEATING;
+		else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
+			gstate->flags |= FLAG_HEATING;
+
+		// akku charging
+		int empty = gstate->soc < 100;
+		int critical = gstate->survive < SURVIVE;
+		int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
+		int soc6 = GSTATE_HOUR(6)->soc;
+		int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
+		if (empty || critical || weekend || WINTER)
+			// empty / critical / weekend / winter --> always at any time
 			gstate->flags |= FLAG_CHARGE_AKKU;
-		if (time_window && gstate->tomorrow < params->akku_capacity * 2)
-			gstate->flags |= FLAG_CHARGE_AKKU;
+		else if (SUMMER) {
+			// summer: when below 22%
+			if (time_window && soc6 < 222)
+				gstate->flags |= FLAG_CHARGE_AKKU;
+		} else {
+			// autumn/spring: when below 33% or tomorrow not enough pv
+			if (time_window && soc6 < 333)
+				gstate->flags |= FLAG_CHARGE_AKKU;
+			if (time_window && gstate->tomorrow < params->akku_capacity * 2)
+				gstate->flags |= FLAG_CHARGE_AKKU;
+		}
 	}
 
 	// copy to history
