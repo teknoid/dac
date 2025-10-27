@@ -685,6 +685,11 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_STABLE");
 		}
 
+		// TODO mehr mit rsl arbeiten
+		// < 100 und avg->grid > 100 --> (grid + dgrid) runter sofort
+		// 100 < rsl < 150 langsam rauf/runter jede sekunde
+		// > 150 delta pv und alle 10 sec grid ramp mit suppress up/down
+
 		// suppress ramp up when pv is falling / rsl below 95% / calculated load above average pv / on grid download / on akku discharge
 		int grid_download = avg->grid > NOISE && pstate->grid > RAMP;
 		int akku_discharge = avg->akku > NOISE && pstate->akku > RAMP;
@@ -694,7 +699,7 @@ static void calculate_pstate() {
 		// suppress ramp down when pv is rising / rsl above 150% / calculated load below pv minimum
 		int below_minimum = dstate->cload < gstate->pvmin;
 		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || below_minimum || pstate->rsl > 150;
-		if (suppress_down && pstate->rsl < 95)
+		if (suppress_down && pstate->rsl < 100)
 			suppress_down = 0; // overrule
 
 		// calculate ramp power - here we use average values
