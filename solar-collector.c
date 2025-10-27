@@ -560,12 +560,14 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 
-	// surplus is inverter ac output, hi-cutted by pv (no akku discharge)
+	// surplus is inverter ac output plus (charging) akku, hi-cutted by pv (not discharging akku)
 	pstate->surp = pstate->ac1 + pstate->ac2;
+	if (pstate->akku < NOISE)
+		pstate->surp += pstate->akku * -1;
 	HICUT(pstate->surp, pstate->pv)
 
-	// load
-	pstate->load = pstate->grid + pstate->ac1 + pstate->ac2;
+	// load is inverter ac output plus grid
+	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 
 	// dissipation
 	// int diss1 = pstate->dc1 - pstate->ac1;
@@ -686,9 +688,8 @@ static void calculate_pstate() {
 		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
 		int grid_download = GSTATE_GRID_DLOAD || (avg->grid > NOISE && pstate->grid > RAMP);
 		int akku_discharge = GSTATE_AKKU_DCHARGE || (avg->akku > NOISE && pstate->akku > RAMP);
-		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || grid_download || akku_discharge || pstate->rsl < 95;
-		if (suppress_up && pstate->rsl > 200)
-			suppress_up = 0; // overrule
+		int over_average = dstate->cload > gstate->pvavg;
+		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || grid_download || akku_discharge || over_average || pstate->rsl < 95;
 
 		// suppress ramp down when pv is rising / rsl above 120%
 		// TODO suppress when calculated load still above surplus
@@ -707,17 +708,19 @@ static void calculate_pstate() {
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST2->surp);
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST3->surp);
 
-			// 50% more when average rsl below 100
-			if (pstate->ramp < 0 && avg->rsl < 100)
+			// 50% more down when average rsl below 150
+			if (pstate->ramp < 0 && avg->rsl < 150)
 				pstate->ramp += pstate->ramp / 2;
+
+			// 50% less up when average rsl below 150
+			if (pstate->ramp < 0 && avg->rsl < 150)
+				pstate->ramp -= pstate->ramp / 2;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
 				pstate->ramp = 0;
 
-			// no ramp down
-			if (pstate->ramp < 0 && suppress_down)
-				pstate->ramp = 0;
+			// no ramp down suppression
 
 			// nearly equal - max. one step up
 			if (100 <= pstate->rsl && pstate->rsl <= 120)
@@ -739,8 +742,8 @@ static void calculate_pstate() {
 
 		} else {
 
-			// relative surplus delta driven fast ramp every second
-			pstate->ramp = delta->surp;
+			// relative pv delta driven fast ramp every second
+			pstate->ramp = delta->pv;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
@@ -753,8 +756,8 @@ static void calculate_pstate() {
 			// zero from -RAMP..RAMP
 			ZSHAPE(pstate->ramp, RAMP)
 			if (pstate->ramp)
-#define DELTA_SURPLUS_RAMP "SOLAR delta surplus ramp dsurp=%d rsl=%d --> ramp=%d"
-				xlog(DELTA_SURPLUS_RAMP, delta->surp, pstate->rsl, pstate->ramp);
+#define DELTA_PV_RAMP "SOLAR delta surplus ramp dsurp=%d rsl=%d --> ramp=%d"
+				xlog(DELTA_PV_RAMP, delta->pv, pstate->rsl, pstate->ramp);
 		}
 	}
 

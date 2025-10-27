@@ -168,8 +168,8 @@ typedef struct _gstate gstate_t;
 struct _gstate {
 	int pv;
 	int pvmin;
-	int pvmax;
 	int pvavg;
+	int pvmax;
 	int produced;
 	int consumed;
 	int today;

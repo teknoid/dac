@@ -704,17 +704,51 @@ static void response() {
 	device = 0; // next action
 }
 
-static void calculate_dstate() {
+static void calculate_actions() {
+
 	// update akku
 	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
 
-	// clear flags and values
-	dstate->flags = dstate->cload = dstate->rload = 0;
-
 	// count down lock
 	if (dstate->lock > 0)
 		dstate->lock--;
+
+	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)) || PSTATE_EMERGENCY || DSTATE_ALL_STANDBY)
+		return; // no action
+
+	// take over ramp power
+	dstate->ramp = pstate->ramp;
+
+	// ramp down has prio
+	if (dstate->ramp < 0) {
+		dstate->flags |= FLAG_ACTION_RAMP;
+		return;
+	}
+
+	// cyclic actions
+	int cyclic = time(NULL) % 10;
+
+	// permanent overload
+	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
+
+	// standby logic each 10 seconds (1, 11, 21, ...)
+	if (cyclic == 1 && overload && PSTATE_STABLE)
+		dstate->flags |= FLAG_ACTION_STANDBY;
+
+	// steal logic each 10 seconds (2, 12, 22, ...)
+	if (cyclic == 2 && !overload && GSTATE_STABLE)
+		dstate->flags |= FLAG_ACTION_STEAL;
+
+	// ramp up when no other preceded actions
+	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
+		dstate->flags |= FLAG_ACTION_RAMP;
+}
+
+static void calculate_dstate() {
+
+	// clear flags and values
+	dstate->flags = dstate->cload = dstate->rload = 0;
 
 	// skip single devices calculation when offline
 	if (GSTATE_OFFLINE)
@@ -747,40 +781,6 @@ static void calculate_dstate() {
 
 	// ratio between calculated load and actual load
 	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
-
-	// copy to history
-	memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
-
-	// no action
-	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)) || PSTATE_EMERGENCY || DSTATE_ALL_STANDBY)
-		return;
-
-	// take over ramp power
-	dstate->ramp = pstate->ramp;
-
-	// ramp down has prio
-	if (dstate->ramp < 0) {
-		dstate->flags |= FLAG_ACTION_RAMP;
-		return;
-	}
-
-	// cyclic actions
-	int cyclic = time(NULL) % 10;
-
-	// permanent overload
-	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-
-	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && overload && PSTATE_STABLE)
-		dstate->flags |= FLAG_ACTION_STANDBY;
-
-	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !overload && GSTATE_STABLE)
-		dstate->flags |= FLAG_ACTION_STEAL;
-
-	// ramp up when no other preceded actions
-	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
-		dstate->flags |= FLAG_ACTION_RAMP;
 }
 
 static void daily() {
@@ -930,8 +930,8 @@ static void loop() {
 		// check response
 		response();
 
-		// calculate device state and actions
-		calculate_dstate();
+		// calculate actions
+		calculate_actions();
 
 		if (PSTATE_EMERGENCY)
 			emergency();
@@ -944,6 +944,9 @@ static void loop() {
 
 		if (DSTATE_ACTION_STEAL)
 			steal();
+
+		// calculate device state
+		calculate_dstate();
 
 		// cron jobs
 		if (MINLY)
@@ -960,6 +963,9 @@ static void loop() {
 		// web output
 		create_dstate_json();
 		create_devices_json();
+
+		// copy to history
+		memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 
 		// PROFILING_LOG("dispatcher main loop")
 
