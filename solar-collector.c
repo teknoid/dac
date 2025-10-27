@@ -717,11 +717,11 @@ static void calculate_pstate() {
 
 			// 50% more down when average rsl below 150
 			if (pstate->ramp < 0 && avg->rsl < 150)
-				pstate->ramp += (pstate->ramp / 2);
+				pstate->ramp += pstate->ramp / 2;
 
 			// 50% less up when average rsl below 150
-			if (pstate->ramp < 0 && avg->rsl < 150)
-				pstate->ramp -= (pstate->ramp / 2);
+			if (pstate->ramp > 0 && avg->rsl < 150)
+				pstate->ramp -= pstate->ramp / 2;
 
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
