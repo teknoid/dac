@@ -376,8 +376,8 @@ static void calculate_gstate() {
 		gstate->pvavg += p->pv;
 	}
 	gstate->pvavg /= 60;
-	gstate->pvmin += gstate->pvmin / 10; // +10%
-	gstate->pvmax -= gstate->pvmax / 10; // -10%
+	gstate->pvmin += (gstate->pvmin / 10); // +10%
+	gstate->pvmax -= (gstate->pvmax / 10); // -10%
 	gstate->pvmin = round100(gstate->pvmin);
 	gstate->pvmax = round100(gstate->pvmax);
 	gstate->pvavg = round100(gstate->pvavg);
@@ -685,15 +685,13 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_STABLE");
 		}
 
-		// suppress ramp up when pv is falling / on grid download / on akku discharge / rsl below 95% / calculated load above average pv
+		// suppress ramp up when pv is falling / rsl below 95% / calculated load above average pv / on grid download / on akku discharge
 		int grid_download = avg->grid > NOISE && pstate->grid > RAMP;
 		int akku_discharge = avg->akku > NOISE && pstate->akku > RAMP;
 		int over_average = dstate->cload > gstate->pvavg;
-		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || grid_download || akku_discharge || over_average || pstate->rsl < 95;
+		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || over_average || pstate->rsl < 95 || grid_download || akku_discharge;
 
 		// suppress ramp down when pv is rising / rsl above 150% / calculated load below pv minimum
-		// TODO suppress when calculated load still above surplus
-		// TODO overrule when akku charging above MINIMUM
 		int below_minimum = dstate->cload < gstate->pvmin;
 		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || below_minimum || pstate->rsl > 150;
 		if (suppress_down && pstate->rsl < 95)
@@ -709,6 +707,22 @@ static void calculate_pstate() {
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST2->surp);
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST3->surp);
 
+			// slowly push down grid
+			if (NOISE < avg->grid && avg->grid < RAMP)
+				pstate->ramp = -RAMP;
+
+			// nearly equal - max. one step up
+			if (100 <= pstate->rsl && pstate->rsl <= 120)
+				HICUT(pstate->ramp, RAMP)
+
+			// 50% more down when average rsl below 150
+			if (pstate->ramp < 0 && avg->rsl < 150)
+				pstate->ramp += (pstate->ramp / 2);
+
+			// 50% less up when average rsl below 150
+			if (pstate->ramp < 0 && avg->rsl < 150)
+				pstate->ramp -= (pstate->ramp / 2);
+
 			// no ramp up
 			if (pstate->ramp > 0 && suppress_up)
 				pstate->ramp = 0;
@@ -716,22 +730,6 @@ static void calculate_pstate() {
 			// no ramp down
 			if (pstate->ramp < 0 && suppress_down)
 				pstate->ramp = 0;
-
-			// 50% more down when average rsl below 150
-			if (pstate->ramp < 0 && avg->rsl < 150)
-				pstate->ramp += pstate->ramp / 2;
-
-			// 50% less up when average rsl below 150
-			if (pstate->ramp < 0 && avg->rsl < 150)
-				pstate->ramp -= pstate->ramp / 2;
-
-			// nearly equal - max. one step up
-			if (100 <= pstate->rsl && pstate->rsl <= 120)
-				HICUT(pstate->ramp, RAMP)
-
-			// slowly push down grid
-			if (NOISE < avg->grid && avg->grid < RAMP)
-				pstate->ramp = -RAMP;
 
 			// always minus akku when discharging
 			if (avg->akku > NOISE)
