@@ -685,16 +685,17 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_STABLE");
 		}
 
-		// suppress ramp up when pv is falling / rsl below 100% / on grid download / on akku discharge
-		int grid_download = GSTATE_GRID_DLOAD || (avg->grid > NOISE && pstate->grid > RAMP);
-		int akku_discharge = GSTATE_AKKU_DCHARGE || (avg->akku > NOISE && pstate->akku > RAMP);
+		// suppress ramp up when pv is falling / on grid download / on akku discharge / rsl below 95% / calculated load above average pv
+		int grid_download = avg->grid > NOISE && pstate->grid > RAMP;
+		int akku_discharge = avg->akku > NOISE && pstate->akku > RAMP;
 		int over_average = dstate->cload > gstate->pvavg;
 		int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || grid_download || akku_discharge || over_average || pstate->rsl < 95;
 
-		// suppress ramp down when pv is rising / rsl above 120%
+		// suppress ramp down when pv is rising / rsl above 150% / calculated load below pv minimum
 		// TODO suppress when calculated load still above surplus
 		// TODO overrule when akku charging above MINIMUM
-		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || pstate->rsl > 120;
+		int below_minimum = dstate->cload < gstate->pvmin;
+		int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || below_minimum || pstate->rsl > 150;
 		if (suppress_down && pstate->rsl < 95)
 			suppress_down = 0; // overrule
 
@@ -708,6 +709,14 @@ static void calculate_pstate() {
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST2->surp);
 //			HICUT(pstate->ramp, PSTATE_MIN_LAST3->surp);
 
+			// no ramp up
+			if (pstate->ramp > 0 && suppress_up)
+				pstate->ramp = 0;
+
+			// no ramp down
+			if (pstate->ramp < 0 && suppress_down)
+				pstate->ramp = 0;
+
 			// 50% more down when average rsl below 150
 			if (pstate->ramp < 0 && avg->rsl < 150)
 				pstate->ramp += pstate->ramp / 2;
@@ -715,12 +724,6 @@ static void calculate_pstate() {
 			// 50% less up when average rsl below 150
 			if (pstate->ramp < 0 && avg->rsl < 150)
 				pstate->ramp -= pstate->ramp / 2;
-
-			// no ramp up
-			if (pstate->ramp > 0 && suppress_up)
-				pstate->ramp = 0;
-
-			// no ramp down suppression
 
 			// nearly equal - max. one step up
 			if (100 <= pstate->rsl && pstate->rsl <= 120)
