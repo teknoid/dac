@@ -228,9 +228,7 @@ static void collect_average_247() {
 
 	// calculate nightly baseload
 	int load3 = PSTATE_AVG_247(3)->load, load4 = PSTATE_AVG_247(4)->load, load5 = PSTATE_AVG_247(5)->load;
-	params->baseload = round10(load3 + load4 + load5 / 3);
-	// TODO remove after one week
-	// params->baseload = BASELOAD;
+	params->baseload = round10((load3 + load4 + load5) / 3);
 	xlog("SOLAR baseload=%d", params->baseload);
 }
 
@@ -371,7 +369,7 @@ static void calculate_ramp() {
 	}
 
 	if (pstate->rsl < 110) {
-		xlog("SOLAR stable - no ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, pstate->ramp);
+		// xlog("SOLAR stable - no ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, pstate->ramp);
 		return;
 	}
 
@@ -620,6 +618,9 @@ static void calculate_gstate() {
 static void calculate_pstate() {
 	// lock while calculating new values
 	pthread_mutex_lock(&collector_lock);
+
+	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
+	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
 
 	// inverter status
 	int inv1, inv2;
