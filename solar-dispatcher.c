@@ -127,10 +127,8 @@ static void ramp_heater(device_t *heater) {
 		return;
 
 	// heating disabled
-	if (heater->state == Auto && dstate->ramp > 0 && !GSTATE_HEATING) {
-		dstate->ramp = 0;
+	if (heater->state == Auto && dstate->ramp > 0 && !GSTATE_HEATING)
 		heater->state = Standby;
-	}
 
 	// keep on when already on
 	if (dstate->ramp > 0 && heater->power)
@@ -220,7 +218,7 @@ static void ramp_boiler(device_t *boiler) {
 	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = !DEV_FORCE(boiler) && boiler->state == Auto && boiler->min ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->min && boiler->state == Auto && !GSTATE_OFFLINE && !DEV_FORCE(boiler) ? boiler->min * 100 / boiler->total : 0;
 	HICUT(power, 100);
 	LOCUT(power, min);
 
@@ -302,7 +300,7 @@ static void ramp_akku(device_t *akku) {
 			return;
 
 		// akku is charging
-		if (AKKU->state == Charge) {
+		if (AKKU_CHARGING) {
 			if (akku->load < MINIMUM) {
 				// leave akku a little bit charging to avoid grid load
 				akku->ramp = MINIMUM;
@@ -717,7 +715,7 @@ static void calculate_actions() {
 	if (dstate->lock > 0)
 		dstate->lock--;
 
-	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)) || PSTATE_EMERGENCY || DSTATE_ALL_STANDBY)
+	if (dstate->lock || (device && DEV_STANDBY_CHECK(device)) || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return; // no action
 
 	// take over ramp power
@@ -829,7 +827,7 @@ static void minly() {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
 		// winter: limit discharge to base load --> try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && (tiny_tomorrow || gstate->survive < 1000) ? params->baseload : 0;
+		int limit = GSTATE_WINTER && gstate->soc < 555 && (tiny_tomorrow || gstate->survive < 1000) ? params->baseload : 0;
 		akku_discharge(AKKU, limit);
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
