@@ -37,6 +37,7 @@
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
 #define NOISE					10
+#define BASELOAD				250
 
 #define HISTORY_SIZE			(24 * 7)
 
@@ -470,30 +471,29 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 }
 
 // night: collect akku power when pv is not enough
-int mosmix_needed(struct tm *now, int loads[], int akkus[]) {
+int mosmix_needed(struct tm *now, int baseload, int akkus[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
 
-	strcpy(line, "MOSMIX survive h:l:a:x");
+	strcpy(line, "MOSMIX survive h:a:x");
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
 		// current hour -> partly, remaining hours -> full
-		int l = h == ch ? loads[h] * (60 - now->tm_min) / 60 : loads[h];
 		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
 		// night
-		if (l > x) {
-			snprintf(value, 48, " %d:%d:%d:%d", h, l, a, x);
+		if (x < baseload) {
+			snprintf(value, 48, " %d:%d:%d", h, a, x);
 			strcat(line, value);
-			needed += l > a ? l : a; // use higher one - akku might be empty or still some pv available
+			needed += a;
 			night = 1;
 			hours++;
 		}
 
 		// reached end of night or high noon this/next day
-		if ((night && x > l) || (night && h == 12) || (midnight && h == 12))
+		if ((night && x > baseload) || (night && h == 12) || (midnight && h == 12))
 			break;
 
 		// reached midnight
@@ -710,7 +710,7 @@ static int test() {
 	now->tm_hour = 16;
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
-	mosmix_needed(now, fake_loads, fake_loads);
+	mosmix_needed(now, BASELOAD, fake_loads);
 	mosmix_heating(now, 1500);
 	return 0;
 }

@@ -212,12 +212,15 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->power < 5 && 1 < step && step < 5)
 		step = 1;
 
+	// -100..100
+	HICUT(step, 100);
+	LOCUT(step, -100);
+
 	// transform power into 0..100%
 	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
 	int min = !DEV_FORCE(boiler) && boiler->state == Auto && boiler->min ? boiler->min * 100 / boiler->total : 0;
-
 	HICUT(power, 100);
 	LOCUT(power, min);
 
