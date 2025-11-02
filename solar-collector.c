@@ -21,7 +21,6 @@
 #define STABLE					10
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
-#define SURPLUS_OFFLINE			75
 
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
@@ -345,88 +344,108 @@ static void calculate_counter() {
 	pthread_mutex_unlock(&collector_lock);
 }
 
-static void calculate_ramp() {
+static int calculate_ramp_rsl() {
+	int ramp = 0;
 
-	// ratio surplus / load - add actual delta to get future result
-	pstate->rsl = pstate->load ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
-	LOCUT(pstate->rsl, 0)
-
-	// ratio surplus / calculated load - add actual delta to get future result
-	// TODO funktioniert aber nicht mehr sobald manuelle heizer oder andere geräte an sind die micht im mcp registriert sind
-	int rscl = dstate->cload ? (pstate->surp + delta->surp) * 100 / dstate->cload : 0;
-	LOCUT(rscl, 0)
-
+	// 0..90 - 150% down, no up
 	if (pstate->rsl < 90) {
-		pstate->ramp = (pstate->grid + pstate->grid / 2) * -1;
-		xlog("SOLAR hard grid ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, pstate->ramp);
-		return;
+		if (pstate->grid > 0)
+			ramp = (pstate->grid + pstate->grid / 2) * -1;
+		if (-RAMP < ramp && ramp < 0)
+			ramp = -RAMP;
+		if (ramp)
+			xlog("SOLAR hard grid down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+		return ramp;
 	}
 
+	// 90..100 - single step down, no up
 	if (pstate->rsl < 100) {
-		pstate->ramp = pstate->grid / -5;
-		xlog("SOLAR soft grid ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, pstate->ramp);
-		return;
+		if (pstate->grid > 0)
+			ramp = -RAMP;
+		if (ramp)
+			xlog("SOLAR single step down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+		return ramp;
 	}
 
-	if (pstate->rsl < 110) {
-		// xlog("SOLAR stable - no ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, pstate->ramp);
-		return;
-	}
+	// 100..110 - stable
+	if (pstate->rsl < 110)
+		return 0;
 
+	// 110..150 - single step
 	if (pstate->rsl < 150) {
-		if (avg->grid < -NOISE)
-			pstate->ramp = RAMP;
-		else if (avg->grid > NOISE)
-			pstate->ramp = -RAMP;
-		if (pstate->ramp)
-			xlog("SOLAR single step ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, pstate->ramp);
-		return;
+		if (pstate->grid > RAMP * 2)
+			ramp = -RAMP;
+		if (pstate->grid < RAMP * -2)
+			ramp = RAMP;
+		if (ramp)
+			xlog("SOLAR single step up rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+		return ramp;
 	}
 
-	// rsl over 150
+	// 150..200 - actual grid ramp up/down
+	if (pstate->rsl < 200) {
+		ramp = pstate->grid * -1;
+		ZSHAPE(ramp, RAMP);
+		if (ramp)
+			xlog("SOLAR actual grid ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+		return ramp;
+	}
 
-	// suppress ramp up when pv is falling / calculated load above average pv / on grid download / on akku discharge
-	int grid_download = avg->grid > NOISE && pstate->grid > RAMP;
-	int akku_discharge = avg->akku > NOISE && pstate->akku > RAMP;
-	int over_average = dstate->cload > gstate->pvavg;
-	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || GSTATE_PVFALL || over_average || grid_download || akku_discharge;
+	// over 200
 
-	// suppress ramp down when pv is rising / calculated load below pv minimum
-	int below_minimum = dstate->cload < gstate->pvmin;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || GSTATE_PVRISE || below_minimum;
-
-	// absolute average grid driven slow ramp every 10 seconds, hi-cutted to last minute surplus averages
+	// absolute average grid driven ramp every 10 seconds
 	if (time(NULL) % 10 == 0) {
-		pstate->ramp = avg->grid * -1;
-		HICUT(pstate->ramp, PSTATE_MIN_NOW->surp);
-
-		// no ramp up
-		if (pstate->ramp > 0 && suppress_up)
-			pstate->ramp = 0;
-
-		// no ramp down
-		if (pstate->ramp < 0 && suppress_down)
-			pstate->ramp = 0;
-
-		if (pstate->ramp) {
-			xlog("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, pstate->ramp);
-			return;
+		ramp = avg->grid * -1;
+		ZSHAPE(ramp, RAMP);
+		if (ramp) {
+			xlog("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, ramp);
+			return ramp;
 		}
 	}
 
-	// relative pv delta driven fast ramp every second
-	pstate->ramp = delta->pv;
+	// relative pv delta driven ramp every second
+	ramp = delta->pv;
+	if (ramp)
+		xlog("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, ramp);
+	return ramp;
+}
 
-	// no ramp up
-	if (pstate->ramp > 0 && suppress_up)
+static void calculate_ramp() {
+
+	// always ramp down on akku discharge
+	int akku_dcharge = avg->akku > RAMP && pstate->akku > RAMP * 2;
+	if (akku_dcharge) {
+		pstate->ramp = avg->akku * -1;
+		xlog("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
+		return;
+	}
+
+	// always ramp down on grid download
+	int grid_dload = avg->grid > RAMP && pstate->grid > RAMP * 2;
+	if (grid_dload) {
+		pstate->ramp = avg->grid * -1;
+		xlog("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avg->grid, pstate->grid, pstate->ramp);
+		return;
+	}
+
+	// calculate ramp based on RSL
+	pstate->ramp = calculate_ramp_rsl();
+
+	// suppress ramp up when pv is falling / calculated load above average pv / on grid download / on akku discharge
+	int over_average = dstate->cload > gstate->pvavg;
+	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || over_average || grid_dload || akku_dcharge;
+	if (pstate->ramp > 0 && suppress_up) {
+		xlog("SOLAR suppress up valid=%d fall=%d over=%d grid=%d akku=%d", !PSTATE_VALID, PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
 		pstate->ramp = 0;
+	}
 
-	// no ramp down
-	if (pstate->ramp < 0 && suppress_down)
+	// suppress ramp down when pv is rising / calculated load below pv minimum
+	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_LAST1->rsl > 100;
+	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
+	if (pstate->ramp < 0 && suppress_down) {
+		xlog("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
 		pstate->ramp = 0;
-
-	if (pstate->ramp)
-		xlog("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, pstate->ramp);
+	}
 }
 
 static void calculate_gstate() {
@@ -453,7 +472,7 @@ static void calculate_gstate() {
 
 	// calculate pv minimum, maximum and average
 	gstate->pvmin = UINT16_MAX;
-	gstate->pvmax = 0, gstate->pvavg = 0;
+	gstate->pvmax = gstate->pvavg = 0;
 	for (int m = 0; m < 60; m++) {
 		pstate_t *p = PSTATE_MIN(m);
 		HICUT(gstate->pvmin, p->pv)
@@ -530,8 +549,8 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
 
-	// offline mode when surplus is now and last 3 minutes below load
-	int offline = m0->surp < SURPLUS_OFFLINE && m1->surp < SURPLUS_OFFLINE && m2->surp < SURPLUS_OFFLINE && m3->surp < SURPLUS_OFFLINE;
+	// offline mode when surplus is now and last 3 minutes below MINIMUM
+	int offline = m0->surp < MINIMUM && m1->surp < MINIMUM && m2->surp < MINIMUM && m3->surp < MINIMUM;
 	if (offline) {
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
@@ -768,6 +787,10 @@ static void calculate_pstate() {
 			pstate->flags |= FLAG_STABLE;
 			xdebug("SOLAR set FLAG_STABLE");
 		}
+
+		// ratio surplus / load - add actual delta to get future result
+		pstate->rsl = pstate->load ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
+		LOCUT(pstate->rsl, 0)
 
 		calculate_ramp();
 	}

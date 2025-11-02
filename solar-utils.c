@@ -16,8 +16,8 @@
 typedef struct gstate_old_t {
 	int pv;
 	int pvmin;
-	int pvmax;
 	int pvavg;
+	int pvmax;
 	int produced;
 	int consumed;
 	int today;

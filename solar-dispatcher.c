@@ -522,7 +522,7 @@ static void ramp() {
 
 	// allow rampup after rampdown if power was released, but not when PV is going down
 
-	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL && !GSTATE_PVFALL)
+	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL)
 		rampup();
 
 	// TODO idee: wenn power frei gegeben wurde (dstate->ramp > pstate->ramp) einen lock setzen um den nächsten delta ramp down zu verhindern der dann gar nicht nötig wäre
@@ -749,7 +749,7 @@ static void calculate_actions() {
 static void calculate_dstate() {
 
 	// clear flags and values
-	dstate->flags = dstate->cload = dstate->rload = 0;
+	dstate->flags = dstate->cload = dstate->rload = dstate->steal = 0;
 
 	// skip single devices calculation when offline
 	if (GSTATE_OFFLINE)

@@ -483,8 +483,8 @@ int mosmix_needed(struct tm *now, int baseload, int akkus[]) {
 		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
 
-		// night
-		if (x < baseload) {
+		// akku is discharging and expected below baseload - night
+		if (a > 0 && x < baseload) {
 			snprintf(value, 48, " %d:%d:%d", h, a, x);
 			strcat(line, value);
 			needed += a;
