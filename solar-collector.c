@@ -440,7 +440,7 @@ static void calculate_ramp() {
 	}
 
 	// suppress ramp down when pv is rising / calculated load below pv minimum
-	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_LAST1->rsl > 100;
+	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_NOW->rsl > 100;
 	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
 	if (pstate->ramp < 0 && suppress_down) {
 		xlog("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
@@ -563,6 +563,12 @@ static void calculate_gstate() {
 
 	} else {
 		// online
+
+		// force off when rsl is permanent below 90%
+		if (m3->rsl < 90 && m2->rsl < 90 && m1->rsl < 90 && m0->rsl < 90) {
+			gstate->flags |= FLAG_FORCE_OFF;
+			xlog("SOLAR set FLAG_FORCE_OFF rsl m3=%d m2=%d m1=%dm0=%d", m3->rsl, m2->rsl, m1->rsl, m0->rsl);
+		}
 
 		// calculate variance for current minute against last 3 minutes
 		ivariance(m3var, m0, m3, PSTATE_SIZE);

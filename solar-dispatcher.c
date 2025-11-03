@@ -427,6 +427,8 @@ static void toggle_device(device_t *d) {
 
 // call device specific ramp function
 static void ramp_device(device_t *d, int power) {
+	if (GSTATE_FORCE_OFF)
+		d->flags |= FLAG_FORCE;
 	dstate->ramp = power;
 	(d->rf)(d);
 }
@@ -822,7 +824,6 @@ static void minly() {
 	}
 
 	// set akku to DISCHARGE if we have long term grid download
-	// TODO verify
 	if ((GSTATE_GRID_DLOAD && GSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE && !AKKU_CHARGING)) {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 

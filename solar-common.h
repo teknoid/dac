@@ -39,6 +39,7 @@
 #define FLAG_WINTER				(1 << 6)
 #define FLAG_SUMMER				(1 << 7)
 #define FLAG_CHARGE_AKKU		(1 << 8)
+#define FLAG_FORCE_OFF			(1 << 9)
 
 #define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 #define GSTATE_AKKU_DCHARGE		(gstate->flags & FLAG_AKKU_DCHARGE)
@@ -49,6 +50,7 @@
 #define GSTATE_WINTER			(gstate->flags & FLAG_WINTER)
 #define GSTATE_SUMMER			(gstate->flags & FLAG_SUMMER)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
+#define GSTATE_FORCE_OFF		(gstate->flags & FLAG_FORCE_OFF)
 #define GSTATE_PVFALL			(gstate->flags & FLAG_PVFALL)
 #define GSTATE_PVRISE			(gstate->flags & FLAG_PVRISE)
 #define GSTATE_STABLE			(gstate->flags & FLAG_STABLE)
