@@ -367,27 +367,18 @@ static int calculate_ramp_rsl() {
 		return ramp;
 	}
 
-	// 100..110 - stable
-	if (pstate->rsl < 110)
+	// 100..120 - stable
+	if (pstate->rsl < 120)
 		return 0;
 
-	// 110..150 - single step
-	if (pstate->rsl < 150) {
+	// 120..200 - single step
+	if (pstate->rsl < 200) {
 		if (pstate->grid > RAMP * 2)
 			ramp = -RAMP;
 		if (pstate->grid < RAMP * -2)
 			ramp = RAMP;
 		if (ramp)
-			xlog("SOLAR single step up rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
-		return ramp;
-	}
-
-	// 150..200 - actual grid ramp up/down
-	if (pstate->rsl < 200) {
-		ramp = pstate->grid * -1;
-		ZSHAPE(ramp, RAMP);
-		if (ramp)
-			xlog("SOLAR actual grid ramp rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+			xlog("SOLAR single step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
 		return ramp;
 	}
 
@@ -549,8 +540,8 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
 
-	// offline mode when surplus is now and last 3 minutes below MINIMUM
-	int offline = m0->surp < MINIMUM && m1->surp < MINIMUM && m2->surp < MINIMUM && m3->surp < MINIMUM;
+	// offline when surplus is permanent below MINIMUM
+	int offline = m3->surp < MINIMUM && m2->surp < MINIMUM && m1->surp < MINIMUM && m0->surp < MINIMUM;
 	if (offline) {
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day

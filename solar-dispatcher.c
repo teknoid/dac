@@ -276,9 +276,12 @@ static void ramp_akku(device_t *akku) {
 	if (dstate->ramp < 0) {
 
 		// akku can max. ramp down current charge power
-		if (AKKU_CHARGING)
+		if (AKKU_CHARGING) {
 			akku->ramp = dstate->ramp < akku->load * -1 ? akku->load * -1 : dstate->ramp;
-
+			if (akku->load < MINIMUM)
+				akku->ramp = 0; // leave a little bit charging - forward ramp down request
+			xlog("SOLAR akku ramp↓ power=%d load=%d ramp=%d", dstate->ramp, akku->load, akku->ramp);
+		}
 	}
 
 	// ramp up request
@@ -301,15 +304,15 @@ static void ramp_akku(device_t *akku) {
 
 		// akku is charging
 		if (AKKU_CHARGING) {
-			if (akku->load < MINIMUM) {
-				// leave akku a little bit charging to avoid grid load
-				akku->ramp = MINIMUM;
-			} else {
-				// all as long as akku charging is not saturated
-				int to_charge = akku->total - akku->load;
-				if (akku->ramp > to_charge)
-					akku->ramp -= to_charge;
-			}
+			// all mppt1+mppt2 up to maximum
+			int max = pstate->mppt1 + pstate->mppt2;
+			HICUT(max, akku->total);
+			int free_to_max = max - akku->load;
+			akku->ramp = dstate->ramp;
+			HICUT(akku->ramp, free_to_max);
+			if (akku->load < MINIMUM)
+				akku->ramp = MINIMUM; // leave a little bit charging - consume more to stop ramp up request
+			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d free=%d ramp=%d", dstate->ramp, akku->load, max, free_to_max, akku->ramp);
 			return;
 		}
 
