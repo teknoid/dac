@@ -388,6 +388,10 @@ static int calculate_ramp_rsl() {
 	if (time(NULL) % 10 == 0) {
 		ramp = avg->grid * -1;
 		ZSHAPE(ramp, RAMP);
+		if (pstate->grid > 0 && ramp > 0)
+			ramp = 0;
+		if (pstate->grid < 0 && ramp < 0)
+			ramp = 0;
 		if (ramp) {
 			xlog("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, ramp);
 			return ramp;
@@ -396,6 +400,7 @@ static int calculate_ramp_rsl() {
 
 	// relative pv delta driven ramp every second
 	ramp = delta->pv;
+	ZSHAPE(ramp, RAMP);
 	if (ramp)
 		xlog("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, ramp);
 	return ramp;

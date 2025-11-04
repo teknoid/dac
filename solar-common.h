@@ -69,14 +69,18 @@
 #define PSTATE_PVRISE			(pstate->flags & FLAG_PVRISE)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
 
-// dstate flags
+// dstate action flags
+#define ACTION_FLAGS_MASK		0x00FF
 #define FLAG_ACTION				(1 << 0)
 #define FLAG_ACTION_RAMP		(1 << 1)
 #define FLAG_ACTION_STANDBY		(1 << 2)
 #define FLAG_ACTION_STEAL		(1 << 3)
-#define FLAG_ALL_DOWN			(1 << 4)
-#define FLAG_ALL_STANDBY		(1 << 5)
-#define FLAG_ALL_UP				(1 << 6)
+
+// dstate state flags
+#define STATE_FLAGS_MASK		0xFF00
+#define FLAG_ALL_DOWN			(1 << 8)
+#define FLAG_ALL_STANDBY		(1 << 9)
+#define FLAG_ALL_UP				(1 << 10)
 
 #define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)

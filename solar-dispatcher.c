@@ -253,7 +253,7 @@ static void ramp_boiler(device_t *boiler) {
 	// update power values
 	dstate->flags |= FLAG_ACTION;
 	dstate->resp = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
-	boiler->ramp = step * boiler->total / 100;
+	boiler->ramp = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
 	boiler->flags &= ~FLAG_FORCE;
@@ -712,6 +712,9 @@ static void response() {
 
 static void calculate_actions() {
 
+	// clear action flags
+	dstate->flags &= ~ACTION_FLAGS_MASK;
+
 	// update akku
 	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
@@ -739,11 +742,11 @@ static void calculate_actions() {
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 
 	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && overload && PSTATE_STABLE)
+	if (cyclic == 1 && !device && overload && PSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !overload && GSTATE_STABLE)
+	if (cyclic == 2 && !device && !overload && GSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceded actions
@@ -753,8 +756,11 @@ static void calculate_actions() {
 
 static void calculate_dstate() {
 
-	// clear flags and values
-	dstate->flags = dstate->cload = dstate->rload = dstate->steal = 0;
+	// clear state flags
+	dstate->flags &= ~STATE_FLAGS_MASK;
+
+	// clear values
+	dstate->cload = dstate->rload = dstate->steal = 0;
 
 	// skip single devices calculation when offline
 	if (GSTATE_OFFLINE)
