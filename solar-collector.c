@@ -790,11 +790,14 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_STABLE");
 		}
 
-		// ratio surplus / load - add actual delta to get future result
-		pstate->rsl = pstate->load ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
-		LOCUT(pstate->rsl, 0)
+		if (PSTATE_VALID) {
 
-		calculate_ramp();
+			// ratio surplus / load - add actual delta to get future result
+			pstate->rsl = pstate->load > 0 ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
+
+			// calculate ramp power
+			calculate_ramp();
+		}
 	}
 
 	// calculations done
@@ -928,11 +931,11 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
+		// create/append gnuplot csv files BEFORE(!) aggregation/calculation
+		create_gnuplot_csv();
+
 		// aggregate state values into day-hour-minute when 0-0-0
 		aggregate_state();
-
-		// create/append gnuplot csv files BEFORE(!) calculation
-		create_gnuplot_csv();
 
 		// calculate power state
 		calculate_pstate();

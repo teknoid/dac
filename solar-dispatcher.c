@@ -661,6 +661,8 @@ static void response() {
 
 	// valid response is at least 2/3 of last ramp
 	int delta = device->ramp - device->ramp / 3;
+	if (!delta)
+		return; // no response expected (might be overridden on sub sequential down ramps till zero)
 
 	// check if we got a response on any phase
 	int d1 = pstate->p1 - device->p1;
