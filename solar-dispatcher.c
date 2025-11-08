@@ -71,7 +71,7 @@ static device_t h5 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ra
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &h1, &h2, &h3, &h4, &h5, &b2, &b3, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b3, &h1, &h2, &h3, &h4, &h5, &b2, 0 };
 
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };

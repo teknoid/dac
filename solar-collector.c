@@ -790,14 +790,13 @@ static void calculate_pstate() {
 			xdebug("SOLAR set FLAG_STABLE");
 		}
 
-		if (PSTATE_VALID) {
+		// ratio surplus / load - add actual delta to get future result
+		int load = pstate->load > params->baseload ? pstate->load : params->baseload;
+		pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
 
-			// ratio surplus / load - add actual delta to get future result
-			pstate->rsl = pstate->load > 0 ? (pstate->surp + delta->surp) * 100 / pstate->load : 0;
-
-			// calculate ramp power
+		// calculate ramp power
+		if (PSTATE_VALID)
 			calculate_ramp();
-		}
 	}
 
 	// calculations done
