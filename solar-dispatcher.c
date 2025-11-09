@@ -70,8 +70,8 @@ static device_t h5 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ra
 // all devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
-// first charge akku, then boilers, then heaters
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &b3, &h1, &h2, &h3, &h4, &h5, &b2, 0 };
+// first charge akku, then heaters, boilers last
+static device_t *DEVICES_MODEST[] = { &a1, &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, 0 };
 
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };
@@ -80,17 +80,13 @@ static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a
 static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b3, 0 };
 
 // force boiler heating first
-//static device_t *DEVICES_BOILERS[] = { &b1, &b2, &b3, &h1, &h2, &h3, &h4, &a1, 0 };
-//static device_t *DEVICES_BOILER1[] = { &b1, &a1, &b2, &b3, &h1, &h2, &h3, &h4, 0 };
-//static device_t *DEVICES_BOILER3[] = { &b3, &a1, &b1, &b2, &h1, &h2, &h3, &h4, 0 };
+static device_t *DEVICES_BOILERS[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // define POTDs
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-//static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
-//static const potd_t BOILER1 = { .name = "BOILER1", .devices = DEVICES_BOILER1 };
-//static const potd_t BOILER3 = { .name = "BOILER3", .devices = DEVICES_BOILER3 };
+static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
 
 static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
@@ -317,7 +313,7 @@ static void ramp_akku(device_t *akku) {
 		}
 
 		// do not start charging together with other ramps
-		if (dstate->resp)
+		if (device)
 			return;
 
 		// start charging
@@ -330,6 +326,7 @@ static void ramp_akku(device_t *akku) {
 				limit = AKKU_LIMIT_CHARGE3X;
 			if (!akku_charge(akku, limit)) {
 				dstate->flags |= FLAG_ACTION;
+				akku->ramp = dstate->ramp; // catch all
 				dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
 			}
 		}
@@ -464,13 +461,13 @@ static int choose_program() {
 	if (gstate->survive < SURVIVE)
 		return select_program(&MODEST);
 
-	// survive but tomorrow not enough PV - charging akku has priority
-	if (GSTATE_WINTER && gstate->tomorrow < params->akku_capacity)
-		return select_program(&MODEST);
-
 	// forecast below 50% and akku not yet enough to survive
 	if (gstate->forecast < 500 && AKKU_AVAILABLE < gstate->needed)
 		return select_program(&MODEST);
+
+	// survive but today+tomorrow not enough PV - heating makes no sense, charge akku then boilers
+	if (GSTATE_WINTER && gstate->today < params->akku_capacity && gstate->tomorrow < params->akku_capacity)
+		return select_program(&BOILERS);
 
 	// start heating asap and charge akku tommorrow
 	if (gstate->survive > 2000 && gstate->tomorrow > gstate->today)
@@ -661,8 +658,10 @@ static void response() {
 
 	// valid response is at least 2/3 of last ramp
 	int delta = device->ramp - device->ramp / 3;
-	if (!delta)
+	if (!delta) {
+		device = 0;
 		return; // no response expected (might be overridden on sub sequential down ramps till zero)
+	}
 
 	// check if we got a response on any phase
 	int d1 = pstate->p1 - device->p1;
@@ -839,7 +838,7 @@ static void minly() {
 		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
 
 		// winter: limit discharge to base load --> try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && gstate->soc < 555 && (tiny_tomorrow || gstate->survive < 1000) ? params->baseload : 0;
+		int limit = GSTATE_WINTER && gstate->soc < 555 && gstate->survive < 1000 ? params->baseload : 0;
 		akku_discharge(AKKU, limit);
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%

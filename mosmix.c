@@ -184,6 +184,12 @@ static void update_today_tomorrow(struct tm *now) {
 	for (int i = 0; i < HISTORY_SIZE; i++) {
 		mosmix_csv_t *mcsv = &mosmix_csv[i];
 
+//		struct tm utcTime, localTime;
+//		gmtime_r(&mcsv->ts, &utcTime);
+//		localtime_r(&mcsv->ts, &localTime);
+//		xlog("MOSMIX ts=%d   utcTime=%s", mcsv->ts, asctime(&utcTime));
+//		xlog("MOSMIX ts=%d localTime=%s", mcsv->ts, asctime(&localTime));
+
 		// find slot to update
 		localtime_r(&mcsv->ts, &tm);
 		mosmix_t *m = 0;
@@ -411,6 +417,12 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 
 	// calculate diff and error
 	errors(&m);
+
+	// high limit to 200%
+	HICUT(m.err1, 200);
+	HICUT(m.err2, 200);
+	HICUT(m.err3, 200);
+	HICUT(m.err4, 200);
 
 	// thresholds for scaling
 	int s1 = (m.diff1 < -100 || m.diff1 > 100) && (m.err1 < 90 || m.err1 > 120);
