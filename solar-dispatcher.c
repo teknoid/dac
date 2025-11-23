@@ -363,6 +363,7 @@ static void print_dstate() {
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
+		xlogl_int(line, "Ramp", dstate->ramp);
 		strcat(line, "   ");
 	}
 	for (device_t **dd = potd->devices; *dd; dd++) {

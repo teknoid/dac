@@ -429,17 +429,17 @@ static void calculate_ramp() {
 
 	// suppress ramp up when pv is falling / calculated load above average pv / on grid download / on akku discharge
 	int over_average = dstate->cload > gstate->pvavg;
-	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || over_average || grid_dload || akku_dcharge;
+	int suppress_up = PSTATE_PVFALL || over_average || grid_dload || akku_dcharge;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up valid=%d fall=%d over=%d grid=%d akku=%d", !PSTATE_VALID, PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
+		xlog("SOLAR suppress up fall=%d over=%d grid=%d akku=%d", PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
 		pstate->ramp = 0;
 	}
 
 	// suppress ramp down when pv is rising / calculated load below pv minimum
 	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_NOW->rsl > 100;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
+	int suppress_down = PSTATE_PVRISE || below_minimum;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
+		xlog("SOLAR suppress down rise=%d min=%d", PSTATE_PVRISE, below_minimum);
 		pstate->ramp = 0;
 	}
 }
@@ -763,7 +763,7 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 		if (inv2 != I_STATUS_MPPT) {
-			// xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
+			xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
 			pstate->flags &= ~FLAG_VALID;
 		}
 
@@ -795,8 +795,7 @@ static void calculate_pstate() {
 		pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
 
 		// calculate ramp power
-		if (PSTATE_VALID)
-			calculate_ramp();
+		calculate_ramp();
 	}
 
 	// calculations done
