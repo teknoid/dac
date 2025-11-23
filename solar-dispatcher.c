@@ -744,11 +744,11 @@ static void calculate_actions() {
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 
 	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && !device && overload && PSTATE_STABLE)
+	if (cyclic == 1 && !device && overload && PSTATE_VALID && PSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !device && !overload && GSTATE_STABLE)
+	if (cyclic == 2 && !device && !overload && PSTATE_VALID && GSTATE_STABLE)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceded actions
