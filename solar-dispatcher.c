@@ -454,6 +454,11 @@ static int choose_program() {
 	if (GSTATE_SUMMER || gstate->today > 50000)
 		return select_program(&PLENTY);
 
+	// survive but today+tomorrow not enough PV - heating makes no sense, charge akku then boilers
+	int acx2 = params->akku_capacity * 2;
+	if (GSTATE_WINTER && gstate->today < acx2 && gstate->tomorrow < acx2)
+		return select_program(&BOILERS);
+
 	// akku is empty - charging akku has priority
 	if (gstate->soc < 100)
 		return select_program(&MODEST);
@@ -469,11 +474,6 @@ static int choose_program() {
 	// start heating asap and charge akku tommorrow
 	if (gstate->survive > 2000 && gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
-
-	// survive but today+tomorrow not enough PV - heating makes no sense, charge akku then boilers
-	int acx2 = params->akku_capacity * 2;
-	if (GSTATE_WINTER && gstate->today < acx2 && gstate->tomorrow < acx2)
-		return select_program(&BOILERS);
 
 	// enough PV available to survive + heating
 	return select_program(&PLENTY);
