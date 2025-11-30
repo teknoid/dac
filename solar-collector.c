@@ -358,8 +358,8 @@ static int calculate_ramp_rsl() {
 		return ramp;
 	}
 
-	// 90..100 - single step down, no up
-	if (pstate->rsl < 100) {
+	// 90..105 - single step down, no up
+	if (pstate->rsl < 105) {
 		if (pstate->grid > 0)
 			ramp = -RAMP;
 		if (ramp)
@@ -367,7 +367,7 @@ static int calculate_ramp_rsl() {
 		return ramp;
 	}
 
-	// 100..120 - stable
+	// 105..120 - stable
 	if (pstate->rsl < 120)
 		return 0;
 
