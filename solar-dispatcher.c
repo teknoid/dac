@@ -22,8 +22,6 @@
 #define AKKU_STANDBY			(AKKU->state == Standby)
 #define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load >  NOISE)
 #define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < -NOISE)
-#define AKKU_LIMIT_CHARGE3X		1750
-#define AKKU_LIMIT_CHARGE2X		2500
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
@@ -312,23 +310,15 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// do not start charging together with other ramps
-		if (device)
+		// do not start charging together with other ramps or when not indicated
+		if (device || !GSTATE_CHARGE_AKKU)
 			return;
 
 		// start charging
-		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
-		if (GSTATE_CHARGE_AKKU) {
-			int limit = 0;
-			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-				limit = AKKU_LIMIT_CHARGE2X;
-			if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-				limit = AKKU_LIMIT_CHARGE3X;
-			if (!akku_charge(akku, limit)) {
-				dstate->flags |= FLAG_ACTION;
-				akku->ramp = dstate->ramp; // catch all
-				dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
-			}
+		if (!akku_charge(akku, gstate->climit)) {
+			dstate->flags |= FLAG_ACTION;
+			dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
+			akku->ramp = dstate->ramp; // catch all
 		}
 	}
 }
@@ -468,7 +458,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// forecast below 50% and akku not yet enough to survive
-	if (gstate->forecast < 500 && AKKU_AVAILABLE < gstate->needed)
+	if (gstate->forecast < 500)
 		return select_program(&MODEST);
 
 	// start heating asap and charge akku tommorrow
@@ -835,17 +825,10 @@ static void minly() {
 		//	solar_override_seconds("wozi", WAIT_BURNOUT);
 	}
 
-	// set akku to DISCHARGE if we have long term grid download
-	if ((GSTATE_GRID_DLOAD && GSTATE_OFFLINE && !AKKU_DISCHARGING) || (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE && !AKKU_CHARGING)) {
-		int tiny_tomorrow = gstate->tomorrow < params->akku_capacity;
-
-		// winter: limit discharge to base load --> try to extend ttl as much as possible
-		int limit = GSTATE_WINTER && gstate->soc < 555 && gstate->survive < 1000 ? params->baseload : 0;
-		akku_discharge(AKKU, limit);
-
-		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		int min_soc = GSTATE_WINTER && tiny_tomorrow && gstate->soc > 111 ? 10 : 5;
-		akku_set_min_soc(min_soc);
+	// set akku to DISCHARGE when offline or long term grid download
+	if (GSTATE_OFFLINE || GSTATE_GRID_DLOAD) {
+		akku_discharge(AKKU, gstate->dlimit);
+		akku_set_min_soc(gstate->minsoc);
 	}
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE

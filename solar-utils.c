@@ -125,7 +125,6 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->forecast = o->forecast;
-		n->needed = o->needed;
 		n->survive = o->survive;
 	}
 	store_blob(TMP SLASH GSTATE_H_FILE, gnew, sizeof(gnew));

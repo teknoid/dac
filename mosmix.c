@@ -483,25 +483,30 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 }
 
 // night: collect akku power when pv is not enough
-int mosmix_needed(struct tm *now, int baseload, int akkus[]) {
+void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int akkus[], int loads[]) {
 	char line[LINEBUF * 2], value[48];
-	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0, hours = 0, needed = 0;
+	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0;
+	*needed = *hours = 0;
 
 	strcpy(line, "MOSMIX survive h:a:x");
 	while (1) {
 		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
 
 		// current hour -> partly, remaining hours -> full
-		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
 		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
+		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
+		int l = h == ch ? loads[h] * (60 - now->tm_min) / 60 : loads[h];
+
+		// akku might be limited on discharge - use bigger one
+		int al = l > a ? l : a;
 
 		// akku is discharging and expected below baseload - night
 		if (a > 0 && x < baseload) {
-			snprintf(value, 48, " %d:%d:%d", h, a, x);
+			snprintf(value, 48, " %d:%d:%d", h, al, x);
 			strcat(line, value);
-			needed += a;
+			*needed += al;
+			*hours += 1;
 			night = 1;
-			hours++;
 		}
 
 		// reached end of night or high noon this/next day
@@ -515,10 +520,9 @@ int mosmix_needed(struct tm *now, int baseload, int akkus[]) {
 		}
 	}
 
-	snprintf(value, 48, " --> %d hours = %d", hours, needed);
+	snprintf(value, 48, " --> need=%d hours=%d", *needed, *hours);
 	strcat(line, value);
 	xlog(line);
-	return needed;
 }
 
 // day: collect heating power where we can use pv for
@@ -722,7 +726,8 @@ static int test() {
 	now->tm_hour = 16;
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
-	mosmix_needed(now, BASELOAD, fake_loads);
+	int needed, hours;
+	mosmix_needed(now, BASELOAD, &needed, &hours, fake_loads, fake_loads);
 	mosmix_heating(now, 1500);
 	return 0;
 }
