@@ -520,6 +520,7 @@ void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int ak
 		}
 	}
 
+	*needed = round100(*needed);
 	snprintf(value, 48, " --> need=%d hours=%d", *needed, *hours);
 	strcat(line, value);
 	xlog(line);

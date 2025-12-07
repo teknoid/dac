@@ -225,10 +225,13 @@ static void collect_average_247() {
 
 	store_table_csv(pstate_average_247, PSTATE_SIZE, 24, PSTATE_HEADER, RUN SLASH PSTATE_AVG247_CSV);
 
-	// calculate nightly baseload
+	// calculate baseload and minimum
 	int load3 = PSTATE_AVG_247(3)->load, load4 = PSTATE_AVG_247(4)->load, load5 = PSTATE_AVG_247(5)->load;
 	params->baseload = round10((load3 + load4 + load5) / 3);
-	xlog("SOLAR baseload=%d", params->baseload);
+	if (!params->baseload)
+		params->baseload = BASELOAD;
+	params->minimum = params->baseload / 2;
+	xlog("SOLAR baseload=%d minimum=%d", params->baseload, params->minimum);
 }
 
 static void print_gstate() {
@@ -524,15 +527,10 @@ static void calculate_gstate() {
 	gstate->ttl = al && gstate->soc > min ? akku_avail * 60 / al : 0; // in minutes
 
 	// collect mosmix forecasts
-	int today, tomorrow, sod, eod;
-	mosmix_collect(now, &tomorrow, &today, &sod, &eod);
-	gstate->tomorrow = tomorrow;
-	gstate->today = today;
-	gstate->sod = sod;
-	gstate->eod = eod;
-	gstate->success = sod > MINIMUM && gstate->pv > NOISE ? gstate->pv * 1000 / sod : 0;
+	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod);
+	gstate->success = gstate->sod > params->minimum && gstate->pv > NOISE ? gstate->pv * 1000 / gstate->sod : 0;
 	HICUT(gstate->success, 2000)
-	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, sod, eod, FLOAT10(gstate->success));
+	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// collect power to survive overnight and discharge rate
 	int akkus[24], loads[24], needed, hours;
@@ -553,12 +551,12 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, needed, FLOAT10(gstate->survive));
 
-	// offline when surplus is permanent below MINIMUM
-	int offline = m3->surp < MINIMUM && m2->surp < MINIMUM && m1->surp < MINIMUM && m0->surp < MINIMUM;
+	// offline when surplus is permanent below params->minimum
+	int offline = m3->surp < params->minimum && m2->surp < params->minimum && m1->surp < params->minimum && m0->surp < params->minimum;
 	if (offline) {
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity && gstate->soc > 111 ? 10 : 5;
+		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 
 		// discharge limit - only when not survive and not below baseload
 		gstate->dlimit = hours ? round10(needed / hours) : 0;
@@ -765,7 +763,7 @@ static void calculate_pstate() {
 			pstate->flags &= ~FLAG_VALID;
 		}
 		int psum = pstate->p1 + pstate->p2 + pstate->p3;
-		if (psum < pstate->grid - MINIMUM || psum > pstate->grid + MINIMUM) {
+		if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
 			xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
 			pstate->flags &= ~FLAG_VALID;
 		}
