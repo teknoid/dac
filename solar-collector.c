@@ -16,8 +16,6 @@
 #define COUNTER_METER
 
 #define AKKU_BURNOUT			1
-#define AKKU_LIMIT_CHARGE3X		1750
-#define AKKU_LIMIT_CHARGE2X		2500
 
 #define AVERAGE					10
 #define STABLE					10
@@ -562,8 +560,9 @@ static void calculate_gstate() {
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
 		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity && gstate->soc > 111 ? 10 : 5;
 
-		// discharge limit (only when not survive)
+		// discharge limit - only when not survive and not below baseload
 		gstate->dlimit = hours ? round10(needed / hours) : 0;
+		LOCUT(gstate->dlimit, params->baseload);
 		if (gstate->survive > 1000)
 			gstate->dlimit = 0;
 
@@ -581,9 +580,9 @@ static void calculate_gstate() {
 		// charge limit
 		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			gstate->climit = AKKU_LIMIT_CHARGE2X;
+			gstate->climit = params->akku_cmax / 2;
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			gstate->climit = AKKU_LIMIT_CHARGE3X;
+			gstate->climit = params->akku_cmax / 4;
 
 		// force off when rsl is permanent below 90%
 		if (m3->rsl < 90 && m2->rsl < 90 && m1->rsl < 90 && m0->rsl < 90) {
