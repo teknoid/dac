@@ -483,10 +483,10 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 }
 
 // night: collect akku power when pv is not enough
-void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int akkus[], int loads[]) {
+void mosmix_needed(struct tm *now, int baseload, int *needed, int *minutes, int akkus[], int loads[]) {
 	char line[LINEBUF * 2], value[48];
 	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0;
-	*needed = *hours = 0;
+	*needed = *minutes = 0;
 
 	strcpy(line, "MOSMIX survive h:a:x");
 	while (1) {
@@ -505,7 +505,7 @@ void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int ak
 			snprintf(value, 48, " %d:%d:%d", h, al, x);
 			strcat(line, value);
 			*needed += al;
-			*hours += 1;
+			*minutes += h == ch ? 60 - now->tm_min : 60;
 			night = 1;
 		}
 
@@ -521,7 +521,7 @@ void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int ak
 	}
 
 	*needed = round100(*needed);
-	snprintf(value, 48, " --> need=%d hours=%d", *needed, *hours);
+	snprintf(value, 48, " --> need=%d hours=%.1f", *needed, FLOAT60(*minutes));
 	strcat(line, value);
 	xlog(line);
 }

@@ -114,7 +114,7 @@ void mosmix_store_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_scale(struct tm *now, int *succ1, int *succ2);
 void mosmix_collect(struct tm *now, int *tomorrow, int *today, int *sod, int *eod);
-void mosmix_needed(struct tm *now, int baseload, int *needed, int *hours, int akkus[], int loads[]);
+void mosmix_needed(struct tm *now, int baseload, int *minutes, int *hours, int akkus[], int loads[]);
 int mosmix_heating(struct tm *now, int power);
 void mosmix_24h(int day, mosmix_csv_t *sum);
 int mosmix_load(struct tm *now, const char *filename, int clear);

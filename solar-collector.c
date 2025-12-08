@@ -533,12 +533,12 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// collect power to survive overnight and discharge rate
-	int akkus[24], loads[24], needed, hours;
+	int akkus[24], loads[24], needed, minutes;
 	for (int h = 0; h < 24; h++) {
 		akkus[h] = PSTATE_AVG_247(h)->akku;
 		loads[h] = PSTATE_AVG_247(h)->load;
 	}
-	mosmix_needed(now, params->baseload, &needed, &hours, akkus, loads);
+	mosmix_needed(now, params->baseload, &needed, &minutes, akkus, loads);
 
 	// survival factor
 	int tocharge = needed - akku_avail;
@@ -559,7 +559,7 @@ static void calculate_gstate() {
 		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 
 		// discharge limit - only when not survive and not below baseload
-		gstate->dlimit = hours ? round10(needed / hours) : 0;
+		gstate->dlimit = minutes ? round10(needed * 60 / minutes) : 0;
 		LOCUT(gstate->dlimit, params->baseload);
 		if (gstate->survive > 1000)
 			gstate->dlimit = 0;
