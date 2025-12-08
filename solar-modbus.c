@@ -190,7 +190,7 @@ static void update_inverter1(sunspec_t *ss) {
 	case I_STATUS_FAULT:
 		uint16_t active_state_code;
 		sunspec_read_reg(ss, 214, &active_state_code);
-		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
+		xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt3 < NOISE)
 			ss->sleep = SLEEP_TIME_SLEEPING;
@@ -245,7 +245,7 @@ static void update_inverter2(sunspec_t *ss) {
 	case I_STATUS_FAULT:
 		uint16_t active_state_code;
 		sunspec_read_reg(ss, 214, &active_state_code);
-		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
+		xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt1 < NOISE)
 			ss->sleep = SLEEP_TIME_SLEEPING;

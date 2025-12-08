@@ -357,7 +357,7 @@ static int calculate_ramp_rsl() {
 		if (-RAMP < ramp && ramp < 0)
 			ramp = -RAMP;
 		if (ramp)
-			xlog("SOLAR hard grid down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+			xdebug("SOLAR hard grid down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
 		return ramp;
 	}
 
@@ -366,7 +366,7 @@ static int calculate_ramp_rsl() {
 		if (pstate->grid > 0)
 			ramp = -RAMP;
 		if (ramp)
-			xlog("SOLAR single step down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+			xdebug("SOLAR single step down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
 		return ramp;
 	}
 
@@ -381,7 +381,7 @@ static int calculate_ramp_rsl() {
 		if (pstate->grid < RAMP * -2)
 			ramp = RAMP;
 		if (ramp)
-			xlog("SOLAR single step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+			xdebug("SOLAR single step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
 		return ramp;
 	}
 
@@ -396,7 +396,7 @@ static int calculate_ramp_rsl() {
 		if (pstate->grid < 0 && ramp < 0)
 			ramp = 0;
 		if (ramp) {
-			xlog("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, ramp);
+			xdebug("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, ramp);
 			return ramp;
 		}
 	}
@@ -405,7 +405,7 @@ static int calculate_ramp_rsl() {
 	ramp = delta->pv;
 	ZSHAPE(ramp, RAMP);
 	if (ramp)
-		xlog("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, ramp);
+		xdebug("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, ramp);
 	return ramp;
 }
 
@@ -415,7 +415,7 @@ static void calculate_ramp() {
 	int akku_dcharge = avg->akku > RAMP && pstate->akku > RAMP * 2;
 	if (akku_dcharge) {
 		pstate->ramp = avg->akku * -1;
-		xlog("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
+		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
 		return;
 	}
 
@@ -423,7 +423,7 @@ static void calculate_ramp() {
 	int grid_dload = avg->grid > RAMP && pstate->grid > RAMP * 2;
 	if (grid_dload) {
 		pstate->ramp = avg->grid * -1;
-		xlog("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avg->grid, pstate->grid, pstate->ramp);
+		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avg->grid, pstate->grid, pstate->ramp);
 		return;
 	}
 
@@ -434,7 +434,7 @@ static void calculate_ramp() {
 	int over_average = dstate->cload > gstate->pvavg;
 	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || over_average || grid_dload || akku_dcharge;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up valid=%d fall=%d over=%d grid=%d akku=%d", !PSTATE_VALID, PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
+		xdebug("SOLAR suppress up valid=%d fall=%d over=%d grid=%d akku=%d", !PSTATE_VALID, PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
 		pstate->ramp = 0;
 	}
 
@@ -442,7 +442,7 @@ static void calculate_ramp() {
 	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_NOW->rsl > 100;
 	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
+		xdebug("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
 		pstate->ramp = 0;
 	}
 }
@@ -545,9 +545,9 @@ static void calculate_gstate() {
 	LOCUT(tocharge, 0)
 	int available = gstate->eod - tocharge;
 	LOCUT(available, 0)
-	if (gstate->sod == 0)
+	if (pstate->pv < NOISE)
 		available = 0; // pv not yet started - we only have akku
-	gstate->survive = needed ? (available + akku_avail) * 1000 / needed : 0;
+	gstate->survive = needed ? (available + akku_avail) * 1000 / needed : 2000;
 	HICUT(gstate->survive, 2000)
 	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, needed, FLOAT10(gstate->survive));
 
@@ -585,7 +585,7 @@ static void calculate_gstate() {
 		// force off when rsl is permanent below 90%
 		if (m3->rsl < 90 && m2->rsl < 90 && m1->rsl < 90 && m0->rsl < 90) {
 			gstate->flags |= FLAG_FORCE_OFF;
-			xlog("SOLAR set FLAG_FORCE_OFF rsl m3=%d m2=%d m1=%dm0=%d", m3->rsl, m2->rsl, m1->rsl, m0->rsl);
+			xdebug("SOLAR set FLAG_FORCE_OFF rsl m3=%d m2=%d m1=%dm0=%d", m3->rsl, m2->rsl, m1->rsl, m0->rsl);
 		}
 
 		// calculate variance for current minute against last 3 minutes
@@ -598,17 +598,17 @@ static void calculate_gstate() {
 		int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
 		if (pvfall) {
 			gstate->flags |= FLAG_PVFALL;
-			xlog("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+			xdebug("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
 		}
 		if (pvrise && !pvfall) {
 			gstate->flags |= FLAG_PVRISE;
-			xlog("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+			xdebug("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
 		}
 		// stable when surplus +/- 10% against last 3 minutes
 		int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
 		if (stable) {
 			gstate->flags |= FLAG_STABLE;
-			xlog("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+			xdebug("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
 		}
 
 		// heating
