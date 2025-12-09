@@ -523,7 +523,7 @@ void mosmix_needed(struct tm *now, int baseload, int *needed, int *minutes, int 
 	*needed = round100(*needed);
 	snprintf(value, 48, " --> need=%d hours=%.1f", *needed, FLOAT60(*minutes));
 	strcat(line, value);
-	xlog(line);
+	xdebug(line);
 }
 
 // day: collect heating power where we can use pv for

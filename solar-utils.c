@@ -28,8 +28,10 @@ typedef struct gstate_old_t {
 	int ttl;
 	int success;
 	int forecast;
-	int needed;
 	int survive;
+	int climit;
+	int dlimit;
+	int minsoc;
 	int flags;
 } gstate_old_t;
 
@@ -100,7 +102,7 @@ static int update() {
 	return 0;
 }
 
-// gstate structure enhancements: migrate old data to new data
+// gstate+pstate structure enhancements: migrate old data to new data
 static int migrate() {
 
 	// migrate gstate
@@ -125,7 +127,12 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->forecast = o->forecast;
+		// n->needed = o->needed;
 		n->survive = o->survive;
+		n->climit = o->climit;
+		n->dlimit = o->dlimit;
+		n->minsoc = o->minsoc;
+		n->flags = o->flags;
 	}
 	store_blob(TMP SLASH GSTATE_H_FILE, gnew, sizeof(gnew));
 	store_blob(STATE SLASH GSTATE_H_FILE, gnew, sizeof(gnew));
@@ -161,6 +168,7 @@ static int migrate() {
 		n->load = o->load; // needed for 24/7 !!!
 		n->rsl = o->rsl;
 		n->ramp = o->ramp;
+		n->flags = o->flags;
 	}
 	store_blob(TMP SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
 	store_blob(STATE SLASH PSTATE_H_FILE, pnew, sizeof(pnew));

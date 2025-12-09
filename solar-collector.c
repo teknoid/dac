@@ -29,7 +29,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -238,23 +238,24 @@ static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "GSTATE ");
 	xlogl_bits16(line, NULL, gstate->flags);
-	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
 	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
-	xlogl_percent10(line, "Succ", gstate->success);
-	xlogl_percent10(line, "Surv", gstate->survive);
-//	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-//	xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-//	xlogl_float(line, "Ti", sensors->tin);
-//	xlogl_float(line, "To", sensors->tout);
-//	xlogl_int(line, "Today", gstate->today);
-//	xlogl_int(line, "Tomo", gstate->tomorrow);
-//	xlogl_int(line, "SoD", gstate->sod);
-//	xlogl_int(line, "EoD", gstate->eod);
-	if (!GSTATE_OFFLINE) {
+	xlogl_float(line, "Ti", sensors->tin);
+	xlogl_float(line, "To", sensors->tout);
+	if (GSTATE_OFFLINE) {
+		xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+		xlogl_percent10(line, "Surv", gstate->survive);
+	} else {
+		xlogl_int_b(line, "∑PV", gstate->pv);
 		xlogl_int(line, "PVmin", gstate->pvmin);
 		xlogl_int(line, "PVavg", gstate->pvavg);
 		xlogl_int(line, "PVmax", gstate->pvmax);
+		xlogl_int(line, "Today", gstate->today);
+		xlogl_int(line, "Tomo", gstate->tomorrow);
+		xlogl_int(line, "SoD", gstate->sod);
+		xlogl_int(line, "EoD", gstate->eod);
+		xlogl_percent10(line, "Succ", gstate->success);
 	}
 	xlogl_end(line, strlen(line), 0);
 }
@@ -263,18 +264,17 @@ static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE ");
 	xlogl_bits16(line, NULL, pstate->flags);
-	xlogl_int(line, "Inv", pstate->inv);
+	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int(line, "Load", pstate->load);
+	xlogl_int(line, "Inv", pstate->inv);
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
 		xlogl_int(line, "Surp", pstate->surp);
 		xlogl_int(line, "RSL", pstate->rsl);
-	}
-	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
-	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
-	if (!GSTATE_OFFLINE)
 		xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
+	}
 	xlogl_end(line, strlen(line), 0);
 }
 
@@ -533,23 +533,23 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// collect power to survive overnight and discharge rate
-	int akkus[24], loads[24], needed, minutes;
+	int akkus[24], loads[24], minutes;
 	for (int h = 0; h < 24; h++) {
 		akkus[h] = PSTATE_AVG_247(h)->akku;
 		loads[h] = PSTATE_AVG_247(h)->load;
 	}
-	mosmix_needed(now, params->baseload, &needed, &minutes, akkus, loads);
+	mosmix_needed(now, params->baseload, &gstate->needed, &minutes, akkus, loads);
 
 	// survival factor
-	int tocharge = needed - akku_avail;
+	int tocharge = gstate->needed - akku_avail;
 	LOCUT(tocharge, 0)
 	int available = gstate->eod - tocharge;
 	LOCUT(available, 0)
 	if (pstate->pv < NOISE)
 		available = 0; // pv not yet started - we only have akku
-	gstate->survive = needed ? (available + akku_avail) * 1000 / needed : 2000;
+	gstate->survive = gstate->needed ? (available + akku_avail) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
-	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, needed, FLOAT10(gstate->survive));
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
 
 	// offline when surplus is permanent below params->minimum
 	int offline = m3->surp < params->minimum && m2->surp < params->minimum && m1->surp < params->minimum && m0->surp < params->minimum;
@@ -559,7 +559,7 @@ static void calculate_gstate() {
 		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 
 		// discharge limit - only when not survive and not below baseload
-		gstate->dlimit = minutes ? round10(needed * 60 / minutes) : 0;
+		gstate->dlimit = minutes ? round10(gstate->needed * 60 / minutes) : 0;
 		LOCUT(gstate->dlimit, params->baseload);
 		if (gstate->survive > 1000)
 			gstate->dlimit = 0;
