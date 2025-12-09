@@ -300,13 +300,15 @@ static void ramp_akku(device_t *akku) {
 		if (AKKU_CHARGING) {
 			// all mppt1+mppt2 up to maximum
 			int max = pstate->mppt1 + pstate->mppt2;
-			HICUT(max, akku->total);
-			int free_to_max = max - akku->load;
+			HICUT(max, akku->total)
+			int remain = max - akku->load;
+			// akku draws more than mppt1+mppt2 when negative
+			LOCUT(remain, 0)
 			akku->ramp = dstate->ramp;
-			HICUT(akku->ramp, free_to_max);
+			HICUT(akku->ramp, remain)
 			if (akku->load < params->minimum)
 				akku->ramp = params->minimum; // leave a little bit charging - consume more to stop ramp up request
-			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d free=%d ramp=%d", dstate->ramp, akku->load, max, free_to_max, akku->ramp);
+			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", dstate->ramp, akku->load, max, remain, akku->ramp);
 			return;
 		}
 
@@ -397,15 +399,16 @@ static void print_dstate() {
 	}
 
 	strcat(line, "   potd:");
-	strcat(line, potd ? potd->name : "NULL");
-
+	strcat(line, potd->name);
 	if (device) {
 		strcat(line, "   Device:");
 		strcat(line, device->name);
 	}
+	if (dstate->resp)
+		xlogl_int(line, "   Resp", dstate->resp);
+	if (dstate->lock)
+		xlogl_int(line, "   Lock", dstate->lock);
 
-	xlogl_int(line, "   Resp", dstate->resp);
-	xlogl_int(line, "   Lock", dstate->lock);
 	xlogl_end(line, strlen(line), 0);
 }
 

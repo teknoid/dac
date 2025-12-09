@@ -18,26 +18,27 @@
 #define STRIP			"192.168.25.227"
 #define DELAY_FADE		3000
 #define DELAY_BLINK		500
-#define SINGLE			1
+#define SINGLE			0
 
 #define RED				1
 #define GREEN			2
 #define BLUE			3
 
-#define	YMIN			10
-#define YMAX			50
+#define	YMIN			100
+#define YMAX			150
+#define DMIN			200
 
 // Photometric/digital ITU BT.709
-#define RR				.2126
-#define GG				.7152
-#define BB				.0722
+//#define RR				.2126
+//#define GG				.7152
+//#define BB				.0722
 
 // Digital ITU BT.601 (gives more weight to the R and B components)
 // makes no sense on a cyan optimized LED Strip
 // see https://electronics.stackexchange.com/questions/437871/why-cant-rgb-or-bicolour-leds-produce-a-decent-yellow
-//#define RR  			.299
-//#define GG  			.587
-//#define BB  			.114
+#define RR  			.299
+#define GG  			.587
+#define BB  			.114
 
 enum emode {
 	None, Color, Fade, Blink
@@ -63,7 +64,7 @@ static int ddp() {
 	if (sendto(sock, msg, sizeof(msg), 0, sa, sizeof(*sa)) < 0)
 		return xerr("LEDSTRIP Error sending UDP message");
 
-//	int y = RR * r + GG * g + BB * b;
+//	int y = sqrt(r * r * RR + g * g * GG + b * b * BB);
 //	xlog("LEDSTRIP rgb %02x%02x%02x y=%d", r, g, b, y);
 
 	return 0;
@@ -121,9 +122,9 @@ static void fade_loop() {
 				rr = rand() % 0xff;
 				gg = rand() % 0xff;
 				bb = rand() % 0xff;
-				y = RR * rr + GG * gg + BB * bb;
+				y = sqrt(rr * rr * RR + gg * gg * GG + bb * bb * BB);
 				d = abs(rr - r) + abs(gg - g) + abs(bb - b);
-				if (YMIN < y && y < YMAX)
+				if (YMIN < y && y < YMAX && d > DMIN)
 					break;
 			}
 			xlog("LEDSTRIP next target color is %02x%02x%02x y=%d d=%d", rr, gg, bb, y, d);

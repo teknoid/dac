@@ -28,10 +28,10 @@
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
 
-#define FRMAX					6666
-#define FSMAX					999
+#define FRMAX					9999
+#define FSMAX					3333
 
-#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 10) * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
 
 #define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -99,16 +99,16 @@ static void expecteds(mosmix_t *m, factor_t *f) {
 
 static void errors(mosmix_t *m) {
 	// calculate errors as actual - expected
-	m->diff1 = m->mppt1 - m->exp1;
-	m->diff2 = m->mppt2 - m->exp2;
-	m->diff3 = m->mppt3 - m->exp3;
-	m->diff4 = m->mppt4 - m->exp4;
+	m->diff1 = m->mppt1 ? m->mppt1 - m->exp1 : 0;
+	m->diff2 = m->mppt2 ? m->mppt2 - m->exp2 : 0;
+	m->diff3 = m->mppt3 ? m->mppt3 - m->exp3 : 0;
+	m->diff4 = m->mppt4 ? m->mppt4 - m->exp4 : 0;
 
 	// calculate errors as actual / expected
-	m->err1 = m->exp1 && m->mppt1 ? m->mppt1 * 100 / m->exp1 : 100;
-	m->err2 = m->exp2 && m->mppt2 ? m->mppt2 * 100 / m->exp2 : 100;
-	m->err3 = m->exp3 && m->mppt3 ? m->mppt3 * 100 / m->exp3 : 100;
-	m->err4 = m->exp4 && m->mppt4 ? m->mppt4 * 100 / m->exp4 : 100;
+	m->err1 = m->mppt1 && m->exp1 ? m->mppt1 * 100 / m->exp1 : 100;
+	m->err2 = m->mppt2 && m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
+	m->err3 = m->mppt3 && m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
+	m->err4 = m->mppt4 && m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
 }
 
 static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod) {
@@ -520,7 +520,7 @@ void mosmix_needed(struct tm *now, int baseload, int *needed, int *minutes, int 
 		}
 	}
 
-	*needed = round100(*needed);
+	*needed = round10(*needed);
 	snprintf(value, 48, " --> need=%d hours=%.1f", *needed, FLOAT60(*minutes));
 	strcat(line, value);
 	xdebug(line);
@@ -601,14 +601,28 @@ void mosmix_dump_history_hours(int h) {
 void mosmix_load_state(struct tm *now) {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
-	// initially fill today and tomorrow from history
 	ZERO(today);
 	ZERO(tomorrow);
-	int day_today = now->tm_wday;
-	int day_tomorrow = day_today < 6 ? day_today + 1 : 0;
+
+	// initially fill today and tomorrow forecasts from history
 	for (int h = 0; h < 24; h++) {
-		memcpy(TODAY(h), HISTORY(day_today, h), sizeof(mosmix_t));
-		memcpy(TOMORROW(h), HISTORY(day_tomorrow, h), sizeof(mosmix_t));
+		mosmix_t *m1 = TOMORROW(h), *h1 = HISTORY(now->tm_wday < 6 ? now->tm_wday + 1 : 0, h);
+		m1->Rad1h = h1->Rad1h;
+		m1->SunD1 = h1->SunD1;
+		m1->TTT = h1->TTT;
+
+		mosmix_t *m0 = TODAY(h), *h0 = HISTORY(now->tm_wday, h);
+		m0->Rad1h = h0->Rad1h;
+		m0->SunD1 = h0->SunD1;
+		m0->TTT = h0->TTT;
+
+		// today elapsed hours: take over mpptX too
+		if (h <= now->tm_hour) {
+			m0->mppt1 = h0->mppt1;
+			m0->mppt2 = h0->mppt2;
+			m0->mppt3 = h0->mppt3;
+			m0->mppt4 = h0->mppt4;
+		}
 	}
 
 	// load or calculate factors

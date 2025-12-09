@@ -60,7 +60,9 @@
 
 // gstate access pointers
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
-#define GSTATE_MIN_LAST			(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
+#define GSTATE_MIN_LAST2		(&gstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
+#define GSTATE_MIN_LAST3		(&gstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
 #define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_HOUR_LAST		(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
 #define GSTATE_HOUR_NEXT		(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
@@ -71,7 +73,6 @@
 
 // pstate access pointers
 #define PSTATE_SEC_NOW			(&pstate_seconds[now->tm_sec])
-#define PSTATE_SEC_NEXT			(&pstate_seconds[now->tm_sec < 59 ? now->tm_sec +  1 : 0])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec >  0 ? now->tm_sec -  1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec >  1 ? now->tm_sec -  2 : (now->tm_sec -  2 + 60)])
 #define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec >  2 ? now->tm_sec -  3 : (now->tm_sec -  3 + 60)])
@@ -188,8 +189,6 @@ static void create_gnuplot_csv() {
 		store_table_csv(GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_T_CSV);
 		store_table_csv(gstate_hours, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_H_CSV);
 		store_table_csv(pstate_hours, PSTATE_SIZE, HISTORY_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_H_CSV);
-		// mosmix today and tomorrow
-		mosmix_store_csv();
 	}
 #endif
 	// TODO sensors plot
@@ -197,9 +196,6 @@ static void create_gnuplot_csv() {
 
 static void collect_average_247() {
 	char line[LINEBUF], value[10];
-// 1. load sammeln
-// 2. daraus baseload berechnen
-// 3. akku sammeln und wenn 0 (weil leer!) dann baseload +50W nehmen
 
 	ZERO(pstate_average_247);
 	for (int h = 0; h < 24; h++) {
@@ -223,8 +219,6 @@ static void collect_average_247() {
 	}
 	xlog(line);
 
-	store_table_csv(pstate_average_247, PSTATE_SIZE, 24, PSTATE_HEADER, RUN SLASH PSTATE_AVG247_CSV);
-
 	// calculate baseload and minimum
 	int load3 = PSTATE_AVG_247(3)->load, load4 = PSTATE_AVG_247(4)->load, load5 = PSTATE_AVG_247(5)->load;
 	params->baseload = round10((load3 + load4 + load5) / 3);
@@ -232,21 +226,24 @@ static void collect_average_247() {
 		params->baseload = BASELOAD;
 	params->minimum = params->baseload / 2;
 	xlog("SOLAR baseload=%d minimum=%d", params->baseload, params->minimum);
+
+	store_table_csv(pstate_average_247, PSTATE_SIZE, 24, PSTATE_HEADER, RUN SLASH PSTATE_AVG247_CSV);
 }
 
 static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "GSTATE ");
 	xlogl_bits16(line, NULL, gstate->flags);
-	xlogl_int_noise(line, NOISE, 0, "↑Grid", gstate->produced);
-	xlogl_int_noise(line, NOISE, 1, "↓Grid", gstate->consumed);
+	xlogl_int_noise(line, NOISE, 1, "Grid↓", gstate->consumed);
+	xlogl_int_noise(line, NOISE, 0, "Grid↑", gstate->produced);
 	xlogl_float(line, "Ti", sensors->tin);
 	xlogl_float(line, "To", sensors->tout);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	if (GSTATE_OFFLINE) {
-		xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 		xlogl_int(line, "Akku", gstate->akku);
 		xlogl_int(line, "Need", gstate->needed);
+		xlogl_int(line, "DLimit", gstate->dlimit);
 		xlogl_percent10(line, "Surv", gstate->survive);
 	} else {
 		xlogl_int_b(line, "∑PV", gstate->pv);
@@ -257,6 +254,7 @@ static void print_gstate() {
 		xlogl_int(line, "Tomo", gstate->tomorrow);
 		xlogl_int(line, "SoD", gstate->sod);
 		xlogl_int(line, "EoD", gstate->eod);
+		xlogl_int(line, "CLimit", gstate->climit);
 		xlogl_percent10(line, "Succ", gstate->success);
 	}
 	xlogl_end(line, strlen(line), 0);
@@ -266,8 +264,8 @@ static void print_pstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE ");
 	xlogl_bits16(line, NULL, pstate->flags);
-	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
+	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
 	xlogl_int(line, "Inv", pstate->inv);
 	if (!GSTATE_OFFLINE) {
@@ -368,16 +366,12 @@ static int calculate_ramp_rsl() {
 		if (pstate->grid > 0)
 			ramp = -RAMP;
 		if (ramp)
-			xdebug("SOLAR single step down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
+			xdebug("SOLAR single down step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
 		return ramp;
 	}
 
-	// 105..120 - stable
-	if (pstate->rsl < 120)
-		return 0;
-
-	// 120..200 - single step
-	if (pstate->rsl < 200) {
+	// 105..150 - single step
+	if (pstate->rsl < 150) {
 		if (pstate->grid > RAMP * 2)
 			ramp = -RAMP;
 		if (pstate->grid < RAMP * -2)
@@ -387,7 +381,7 @@ static int calculate_ramp_rsl() {
 		return ramp;
 	}
 
-	// over 200
+	// over 150
 
 	// absolute average grid driven ramp every 10 seconds
 	if (time(NULL) % 10 == 0) {
@@ -414,16 +408,14 @@ static int calculate_ramp_rsl() {
 static void calculate_ramp() {
 
 	// always ramp down on akku discharge
-	int akku_dcharge = avg->akku > RAMP && pstate->akku > RAMP * 2;
-	if (akku_dcharge) {
+	if (avg->akku > RAMP && pstate->akku > RAMP * 2) {
 		pstate->ramp = avg->akku * -1;
 		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
 		return;
 	}
 
 	// always ramp down on grid download
-	int grid_dload = avg->grid > RAMP && pstate->grid > RAMP * 2;
-	if (grid_dload) {
+	if (avg->grid > RAMP && pstate->grid > RAMP * 2) {
 		pstate->ramp = avg->grid * -1;
 		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avg->grid, pstate->grid, pstate->ramp);
 		return;
@@ -431,20 +423,24 @@ static void calculate_ramp() {
 
 	// calculate ramp based on RSL
 	pstate->ramp = calculate_ramp_rsl();
+	if (!pstate->ramp)
+		return;
 
-	// suppress ramp up when pv is falling / calculated load above average pv / on grid download / on akku discharge
-	int over_average = dstate->cload > gstate->pvavg;
-	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || over_average || grid_dload || akku_dcharge;
+	// suppress ramp up when pv is falling / calculated load above average pv / akku discharge / grid download
+	int akku_dcharge = pstate->akku > NOISE || avg->akku > NOISE;
+	int grid_dload = pstate->grid > NOISE || avg->grid > NOISE;
+	int over_average = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
+	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || akku_dcharge || grid_dload || over_average;
 	if (pstate->ramp > 0 && suppress_up) {
-		xdebug("SOLAR suppress up valid=%d fall=%d over=%d grid=%d akku=%d", !PSTATE_VALID, PSTATE_PVFALL, over_average, grid_dload, akku_dcharge);
+		xlog("SOLAR suppress up ramp=%d valid=%d fall=%d akku=%d grid=%d over=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVFALL, akku_dcharge, grid_dload, over_average);
 		pstate->ramp = 0;
 	}
 
 	// suppress ramp down when pv is rising / calculated load below pv minimum
-	int below_minimum = dstate->cload < gstate->pvmin && PSTATE_MIN_NOW->rsl > 100;
+	int below_minimum = dstate->cload < gstate->pvmin && avg->rsl > 100;
 	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
 	if (pstate->ramp < 0 && suppress_down) {
-		xdebug("SOLAR suppress down valid=%d rise=%d min=%d", !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d bmin=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
 		pstate->ramp = 0;
 	}
 }
@@ -493,35 +489,35 @@ static void calculate_gstate() {
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *m3 = PSTATE_MIN_LAST3;
 
-	// grid upload in last 3 minutes
+	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
-	int gu1 = m0->grid < -75 && m1->grid < -75;
-	int gu0 = m0->grid < -100;
+	int gu1 = m0->grid < -100 && m1->grid < -100;
+	int gu0 = m0->grid < -200;
 	if (gu2 || gu1 || gu0) {
 		gstate->flags |= FLAG_GRID_ULOAD;
-		xdebug("SOLAR set FLAG_GRID_ULOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
+		xdebug("SOLAR set FLAG_GRID_ULOAD m0=%d m1=%d m2=%d", m0->grid, m1->grid, m2->grid);
 	}
 
-	// grid download in last 3 minutes
+	// grid download
 	int gd2 = m0->grid > 50 && m1->grid > 50 && m2->grid > 50;
-	int gd1 = m0->grid > 75 && m1->grid > 75;
-	int gd0 = m0->grid > 100;
+	int gd1 = m0->grid > 100 && m1->grid > 100;
+	int gd0 = m0->grid > 200;
 	if (gd2 || gd1 || gd0) {
 		gstate->flags |= FLAG_GRID_DLOAD;
-		xdebug("SOLAR set FLAG_GRID_DLOAD last 3=%d 2=%d 1=%d", m2->grid, m1->grid, m0->grid);
+		xdebug("SOLAR set FLAG_GRID_DLOAD m0=%d m1=%d m2=%d", m0->grid, m1->grid, m2->grid);
 	}
 
-	// akku discharge in last 3 minutes
+	// akku discharge
 	int a2 = m0->akku > 50 && m1->akku > 50 && m2->akku > 50;
-	int a1 = m0->akku > 75 && m1->akku > 75;
-	int a0 = m0->akku > 100;
+	int a1 = m0->akku > 100 && m1->akku > 100;
+	int a0 = m0->akku > 200;
 	if (a2 || a1 || a0) {
 		gstate->flags |= FLAG_AKKU_DCHARGE;
-		xdebug("SOLAR set FLAG_AKKU_DCHARGE last 3=%d 2=%d 1=%d", m2->akku, m1->akku, m0->akku);
+		xdebug("SOLAR set FLAG_AKKU_DCHARGE m0=%d m1=%d m2=%d", m0->akku, m1->akku, m2->akku);
 	}
 
 	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
-	gstate->akku = AKKU_AVAILABLE;
+	gstate->akku = round10(AKKU_AVAILABLE);
 	int min = akku_get_min_soc();
 	int akku = (m0->akku + m1->akku + m2->akku) / 3;
 	int load = (m0->load + m1->load + m2->load) / 3;
@@ -541,6 +537,9 @@ static void calculate_gstate() {
 		loads[h] = PSTATE_AVG_247(h)->load;
 	}
 	mosmix_needed(now, params->baseload, &gstate->needed, &minutes, akkus, loads);
+	// take over last value when zero but pv not yet started
+	if (pstate->pv < NOISE && !gstate->needed)
+		gstate->needed = GSTATE_MIN_LAST1->needed;
 
 	// survival factor
 	int tocharge = gstate->needed - gstate->akku;
@@ -551,17 +550,18 @@ static void calculate_gstate() {
 		available = 0; // pv not yet started - we only have akku
 	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
-	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->needed, FLOAT10(gstate->survive));
+#define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
+	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, minutes, FLOAT10(gstate->survive));
 
 	// offline when surplus is permanent below params->minimum
-	int offline = m3->surp < params->minimum && m2->surp < params->minimum && m1->surp < params->minimum && m0->surp < params->minimum;
+	int offline = m0->surp < params->minimum && m1->surp < params->minimum && m2->surp < params->minimum && m3->surp < params->minimum;
 	if (offline) {
 
 		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
 		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 
 		// discharge limit - only when not survive and not below baseload
-		gstate->dlimit = minutes ? round10(gstate->needed * 60 / minutes) : 0;
+		gstate->dlimit = gstate->akku && minutes ? round10(gstate->akku * 60 / minutes) : 0;
 		LOCUT(gstate->dlimit, params->baseload);
 		if (gstate->survive > 1000)
 			gstate->dlimit = 0;
@@ -585,32 +585,32 @@ static void calculate_gstate() {
 			gstate->climit = params->akku_cmax / 4;
 
 		// force off when rsl is permanent below 90%
-		if (m3->rsl < 90 && m2->rsl < 90 && m1->rsl < 90 && m0->rsl < 90) {
+		if (m0->rsl < 90 && m1->rsl < 90 && m2->rsl < 90 && m3->rsl < 90) {
 			gstate->flags |= FLAG_FORCE_OFF;
-			xdebug("SOLAR set FLAG_FORCE_OFF rsl m3=%d m2=%d m1=%dm0=%d", m3->rsl, m2->rsl, m1->rsl, m0->rsl);
+			xdebug("SOLAR set FLAG_FORCE_OFF rsl m0=%d m1=%d m2=%d m3=%d", m0->rsl, m1->rsl, m2->rsl, m3->rsl);
 		}
 
 		// calculate variance for current minute against last 3 minutes
-		ivariance(m3var, m0, m3, PSTATE_SIZE);
-		ivariance(m2var, m0, m2, PSTATE_SIZE);
 		ivariance(m1var, m0, m1, PSTATE_SIZE);
+		ivariance(m2var, m0, m2, PSTATE_SIZE);
+		ivariance(m3var, m0, m3, PSTATE_SIZE);
 
 		// tendency: falling or rising or stable, fall has prio
-		int pvfall = m3var->pv < -STABLE || m2var->pv < -STABLE || m1var->pv < -STABLE;
-		int pvrise = m3var->pv > STABLE || m2var->pv > STABLE || m1var->pv > STABLE;
+		int pvfall = m1var->pv < -STABLE || m2var->pv < -STABLE || m3var->pv < -STABLE;
+		int pvrise = m1var->pv > STABLE || m2var->pv > STABLE || m3var->pv > STABLE;
 		if (pvfall) {
 			gstate->flags |= FLAG_PVFALL;
-			xdebug("SOLAR set FLAG_PVFALL pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+			xdebug("SOLAR set FLAG_PVFALL pv now=%d m1=%d/%d m2=%d/%d m3=%d/%d", m0->pv, m1->pv, m1var->pv, m2->pv, m2var->pv, m3->pv, m3var->pv);
 		}
 		if (pvrise && !pvfall) {
 			gstate->flags |= FLAG_PVRISE;
-			xdebug("SOLAR set FLAG_PVRISE pv now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->pv, m3->pv, m3var->pv, m2->pv, m2var->pv, m1->pv, m1var->pv);
+			xdebug("SOLAR set FLAG_PVRISE pv now=%d m1=%d/%d m2=%d/%d m3=%d/%d", m0->pv, m1->pv, m1var->pv, m2->pv, m2var->pv, m3->pv, m3var->pv);
 		}
 		// stable when surplus +/- 10% against last 3 minutes
-		int stable = IN(m3var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m1var->surp, STABLE);
+		int stable = IN(m1var->surp, STABLE) && IN(m2var->surp, STABLE) && IN(m3var->surp, STABLE);
 		if (stable) {
 			gstate->flags |= FLAG_STABLE;
-			xdebug("SOLAR set FLAG_STABLE surplus now=%d m3=%d/%d m2=%d/%d m1=%d/%d", m0->surp, m3->surp, m3var->surp, m2->surp, m2var->surp, m1->surp, m1var->surp);
+			xdebug("SOLAR set FLAG_STABLE surplus now=%d m1=%d/%d m2=%d/%d m3=%d/%d", m0->surp, m1->surp, m1var->surp, m2->surp, m2var->surp, m3->surp, m3var->surp);
 		}
 
 		// heating
@@ -741,13 +741,18 @@ static void calculate_pstate() {
 		pstate_t *p3 = PSTATE_SEC_LAST3;
 
 		// emergency shutdown: average/current grid download or akku discharge
-		int agrid = avg->grid > EMERGENCY_AVG;
-		int aakku = avg->akku > EMERGENCY_AVG;
-		int cgrid = pstate->grid > EMERGENCY && p1->grid > EMERGENCY && p2->grid > EMERGENCY && p3->grid > EMERGENCY;
-		int cakku = pstate->akku > EMERGENCY && p1->akku > EMERGENCY && p2->akku > EMERGENCY && p3->grid > EMERGENCY;
+		int agrid = avg->grid > EMERGENCY;
+		int aakku = avg->akku > EMERGENCY;
+		int cgrid = pstate->grid > EMERGENCY2X && p1->grid > EMERGENCY2X && p2->grid > EMERGENCY2X && p3->grid > EMERGENCY2X;
+		int cakku = pstate->akku > EMERGENCY2X && p1->akku > EMERGENCY2X && p2->akku > EMERGENCY2X && p3->grid > EMERGENCY2X;
 		if (agrid || aakku || cgrid || cakku) {
-			pstate->flags |= FLAG_EMERGENCY;
-			xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
+			int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
+			if (akku_unregulated) {
+				xlog("SOLAR suppress FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
+			} else {
+				pstate->flags |= FLAG_EMERGENCY;
+				xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
+			}
 		}
 
 		// load is completely satisfied from secondary inverter
@@ -874,6 +879,9 @@ static void hourly() {
 	mosmix_scale(now, &succ1, &succ2);
 	gstate->forecast = succ1;
 	HICUT(gstate->forecast, 2000);
+
+	// mosmix today and tomorrow
+	mosmix_store_csv();
 
 #ifdef GNUPLOT_HOURLY
 	// paint new diagrams
