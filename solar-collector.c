@@ -29,7 +29,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '20 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '21 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -245,6 +245,8 @@ static void print_gstate() {
 	if (GSTATE_OFFLINE) {
 		xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+		xlogl_int(line, "Akku", gstate->akku);
+		xlogl_int(line, "Need", gstate->needed);
 		xlogl_percent10(line, "Surv", gstate->survive);
 	} else {
 		xlogl_int_b(line, "∑PV", gstate->pv);
@@ -519,12 +521,12 @@ static void calculate_gstate() {
 	}
 
 	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
+	gstate->akku = AKKU_AVAILABLE;
 	int min = akku_get_min_soc();
-	int akku_avail = AKKU_AVAILABLE;
 	int akku = (m0->akku + m1->akku + m2->akku) / 3;
 	int load = (m0->load + m1->load + m2->load) / 3;
 	int al = akku > load ? akku : load;
-	gstate->ttl = al && gstate->soc > min ? akku_avail * 60 / al : 0; // in minutes
+	gstate->ttl = al && gstate->soc > min ? gstate->akku * 60 / al : 0; // in minutes
 
 	// collect mosmix forecasts
 	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod);
@@ -541,15 +543,15 @@ static void calculate_gstate() {
 	mosmix_needed(now, params->baseload, &gstate->needed, &minutes, akkus, loads);
 
 	// survival factor
-	int tocharge = gstate->needed - akku_avail;
+	int tocharge = gstate->needed - gstate->akku;
 	LOCUT(tocharge, 0)
 	int available = gstate->eod - tocharge;
 	LOCUT(available, 0)
 	if (pstate->pv < NOISE)
 		available = 0; // pv not yet started - we only have akku
-	gstate->survive = gstate->needed ? (available + akku_avail) * 1000 / gstate->needed : 2000;
+	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
-	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, akku_avail, gstate->needed, FLOAT10(gstate->survive));
+	xdebug("SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d --> %.1f%%", gstate->eod, tocharge, available, gstate->akku, gstate->needed, FLOAT10(gstate->survive));
 
 	// offline when surplus is permanent below params->minimum
 	int offline = m3->surp < params->minimum && m2->surp < params->minimum && m1->surp < params->minimum && m0->surp < params->minimum;
