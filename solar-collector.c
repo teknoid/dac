@@ -447,7 +447,7 @@ static void calculate_ramp() {
 
 static void calculate_gstate() {
 	// clear state flags and values
-	gstate->flags = gstate->dlimit = gstate->climit = 0;
+	gstate->flags = 0;
 
 	// summer / winter mode
 	if (SUMMER)
@@ -868,14 +868,15 @@ static void hourly() {
 	mosmix_store_csv();
 
 	// akku strategy: minimum SoC and charge / discharge limit
+	gstate->dlimit = gstate->climit = 0;
 	if (GSTATE_OFFLINE) {
-		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 		// discharge limit - only when not survive and not below baseload
 		gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
 		LOCUT(gstate->dlimit, params->baseload);
 		if (gstate->survive > 1000)
 			gstate->dlimit = 0;
+		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 	} else {
 		// charge limit
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
