@@ -557,6 +557,19 @@ static void calculate_gstate() {
 	int offline = m0->surp < params->minimum && m1->surp < params->minimum && m2->surp < params->minimum && m3->surp < params->minimum;
 	if (offline) {
 
+		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
+
+		// discharge limit
+		if (gstate->survive > 1000)
+			// survive - current minute average x100
+			gstate->dlimit = (m0->load / 100 + 1) * 100;
+		else {
+			// not survive - squeeze akku but not below baseload
+			gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
+			LOCUT(gstate->dlimit, params->baseload);
+		}
+
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
 		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
@@ -567,6 +580,13 @@ static void calculate_gstate() {
 
 	} else {
 		// online
+
+		// charge limit
+		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+			gstate->climit = params->akku_cmax / 2;
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+			gstate->climit = params->akku_cmax / 4;
 
 		// force off when rsl is permanent below 90%
 		if (m0->rsl < 90 && m1->rsl < 90 && m2->rsl < 90 && m3->rsl < 90) {
@@ -866,24 +886,6 @@ static void hourly() {
 
 	// mosmix today and tomorrow
 	mosmix_store_csv();
-
-	// akku strategy: minimum SoC and charge / discharge limit
-	gstate->dlimit = gstate->climit = 0;
-	if (GSTATE_OFFLINE) {
-		// discharge limit - only when not survive and not below baseload
-		gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
-		LOCUT(gstate->dlimit, params->baseload);
-		if (gstate->survive > 1000)
-			gstate->dlimit = 0;
-		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
-	} else {
-		// charge limit
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			gstate->climit = params->akku_cmax / 2;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			gstate->climit = params->akku_cmax / 4;
-	}
 
 #ifdef GNUPLOT_HOURLY
 	// paint new diagrams
