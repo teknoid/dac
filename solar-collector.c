@@ -561,10 +561,14 @@ static void calculate_gstate() {
 		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
 
 		// discharge limit
-		if (gstate->survive > 1000)
-			// survive - current minute average x100
-			gstate->dlimit = (m0->load / 100 + 1) * 100;
-		else {
+		if (gstate->survive > 1000) {
+			// survive - maximum of last minutes average x100
+			int m0max = (m0->load / 100 + 1) * 100;
+			int m1max = (m1->load / 100 + 1) * 100;
+			int m2max = (m2->load / 100 + 1) * 100;
+			int m3max = (m3->load / 100 + 1) * 100;
+			gstate->dlimit = maximum(4, m0max, m1max, m2max, m3max);
+		} else {
 			// not survive - squeeze akku but not below baseload
 			gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
 			LOCUT(gstate->dlimit, params->baseload);
