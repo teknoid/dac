@@ -29,7 +29,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '21 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '22 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -531,12 +531,12 @@ static void calculate_gstate() {
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// collect power to survive overnight and discharge rate
-	int akkus[24], loads[24], minutes;
+	int akkus[24], loads[24];
 	for (int h = 0; h < 24; h++) {
 		akkus[h] = PSTATE_AVG_247(h)->akku;
 		loads[h] = PSTATE_AVG_247(h)->load;
 	}
-	mosmix_needed(now, params->baseload, &gstate->needed, &minutes, akkus, loads);
+	mosmix_needed(now, params->baseload, &gstate->needed, &gstate->minutes, akkus, loads);
 	// take over last value when zero but pv not yet started
 	if (pstate->pv < NOISE && !gstate->needed)
 		gstate->needed = GSTATE_MIN_LAST1->needed;
@@ -551,20 +551,11 @@ static void calculate_gstate() {
 	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
-	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, minutes, FLOAT10(gstate->survive));
+	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when surplus is permanent below params->minimum
 	int offline = m0->surp < params->minimum && m1->surp < params->minimum && m2->surp < params->minimum && m3->surp < params->minimum;
 	if (offline) {
-
-		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
-
-		// discharge limit - only when not survive and not below baseload
-		gstate->dlimit = gstate->akku && minutes ? round10(gstate->akku * 60 / minutes) : 0;
-		LOCUT(gstate->dlimit, params->baseload);
-		if (gstate->survive > 1000)
-			gstate->dlimit = 0;
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
@@ -576,13 +567,6 @@ static void calculate_gstate() {
 
 	} else {
 		// online
-
-		// charge limit
-		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			gstate->climit = params->akku_cmax / 2;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			gstate->climit = params->akku_cmax / 4;
 
 		// force off when rsl is permanent below 90%
 		if (m0->rsl < 90 && m1->rsl < 90 && m2->rsl < 90 && m3->rsl < 90) {
@@ -882,6 +866,23 @@ static void hourly() {
 
 	// mosmix today and tomorrow
 	mosmix_store_csv();
+
+	// akku strategy: minimum SoC and charge / discharge limit
+	if (GSTATE_OFFLINE) {
+		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
+		// discharge limit - only when not survive and not below baseload
+		gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
+		LOCUT(gstate->dlimit, params->baseload);
+		if (gstate->survive > 1000)
+			gstate->dlimit = 0;
+	} else {
+		// charge limit
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+			gstate->climit = params->akku_cmax / 2;
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+			gstate->climit = params->akku_cmax / 4;
+	}
 
 #ifdef GNUPLOT_HOURLY
 	// paint new diagrams
