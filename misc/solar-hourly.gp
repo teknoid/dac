@@ -25,6 +25,14 @@ set style line 7 linecolor "magenta" lw 1				#
 set style line 8 linecolor "black" lw 1					# 
 set style line 9 linecolor "orange-red" lw 12			# Rad1h over SunD1
 
+set style line 10 linecolor rgb "#ae5a41" lw 1			# MPPT1
+set style line 11 linecolor rgb "#c3cb71" lw 1			# MPPT2
+set style line 12 linecolor rgb "#1b85b8" lw 1			# MPPT3
+
+set style line 20 linecolor rgb "#ae5a41" lw 1 dt 2		# MPPT1 dashed
+set style line 21 linecolor rgb "#c3cb71" lw 1 dt 2		# MPPT2 dashed
+set style line 22 linecolor rgb "#1b85b8" lw 1 dt 2		# MPPT3 dashed
+
 set style fill solid 1.0
 set boxwidth 0.33 relative
 
@@ -38,22 +46,26 @@ set tics format "%2.0s%c"
 set ylabel "MPPTs"
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 set output "/run/mcp/mosmix-mppt.svg" 
-p history u 1:"mppt1" t "mppt1" w lines,\
-       '' u 1:"mppt2" t "mppt2" w lines,\
-       '' u 1:"mppt3" t "mppt3" w lines,\
-       '' u 1:"exp1"  t "exp1"  w lines linecolor rgb "red",\
-       '' u 1:"exp2"  t "exp2"  w lines linecolor rgb "green",\
-       '' u 1:"exp3"  t "exp3"  w lines linecolor rgb "blue"
+p history u 1:"mppt1" t "mppt1" w lines ls 10,\
+       '' u 1:"mppt2" t "mppt2" w lines ls 11,\
+       '' u 1:"mppt3" t "mppt3" w lines ls 12,\
+       '' u 1:"exp1"  t "exp1"  w lines ls 20,\
+       '' u 1:"exp2"  t "exp2"  w lines ls 21,\
+       '' u 1:"exp3"  t "exp3"  w lines ls 22
 
 set ylabel "Errors Wh"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/mosmix-errors-diff.svg"
-p history u 1:"diff1" t "diff1" w lines, '' u 1:"diff2" t "diff2" w lines, '' u 1:"diff3" t "diff3" w lines
+p history u 1:"diff1" t "diff1" w lines ls 10,\
+       '' u 1:"diff2" t "diff2" w lines ls 11,\
+       '' u 1:"diff3" t "diff3" w lines ls 12
 
 set ylabel "Errors %"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/mosmix-errors-percent.svg"
-p history u 1:"err1" t "err1" w lines, '' u 1:"err2" t "err2" w lines, '' u 1:"err3" t "err3" w lines
+p history u 1:"err1" t "err1" w lines ls 10,\
+       '' u 1:"err2" t "err2" w lines ls 11,\
+       '' u 1:"err3" t "err3" w lines ls 12
 
 
 # gstate weekly
@@ -70,12 +82,12 @@ set ylabel "Factors"
 set xrange [5:22]
 set xtics 1
 set output "/run/mcp/mosmix-factors.svg" 
-p factors u 1:"r1" t "r1" w lines,\
-       '' u 1:"r2" t "r2" w lines,\
-       '' u 1:"r3" t "r3" w lines,\
-       '' u 1:"e1" t "e1" w lines linecolor rgb "red",\
-       '' u 1:"e2" t "e2" w lines linecolor rgb "green",\
-       '' u 1:"e3" t "e3" w lines linecolor rgb "blue"
+p factors u 1:"r1" t "r1" w lines ls 10,\
+       '' u 1:"r2" t "r2" w lines ls 11,\
+       '' u 1:"r3" t "r3" w lines ls 12,\
+       '' u 1:"e1" t "e1" w lines ls 20,\
+       '' u 1:"e2" t "e2" w lines ls 21,\
+       '' u 1:"e3" t "e3" w lines ls 22
 
 
 # mosmix forecast today
