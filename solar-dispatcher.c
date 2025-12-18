@@ -357,10 +357,12 @@ static void print_dstate() {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
 		xlogl_int(line, "CLimit", dstate->climit);
-		xlogl_int(line, "DLimit", dstate->dlimit);
 		xlogl_int(line, "Ramp", dstate->ramp);
-		strcat(line, "   ");
+	} else {
+		xlogl_int(line, "DLimit", dstate->dlimit);
+		xlogl_int(line, "MinSoC", dstate->minsoc);
 	}
+	strcat(line, "   ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
 		case Disabled:
@@ -816,21 +818,6 @@ static void hourly() {
 		}
 	}
 
-	// charge limit
-	dstate->climit = 0;
-	if (params->akku_climit)
-		dstate->climit = params->akku_climit;
-	else {
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			dstate->climit = params->akku_cmax / 2;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			dstate->climit = params->akku_cmax / 4;
-	}
-
-	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-	dstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
-	akku_set_min_soc(dstate->minsoc);
-
 	// reset limits
 	if (now->tm_hour == 6)
 		params->akku_climit = params->akku_dlimit = 0;
@@ -848,6 +835,25 @@ static void minly() {
 		akku_discharge(AKKU, 0); // enable discharge no limit
 		//	solar_override_seconds("küche", WAIT_BURNOUT);
 		//	solar_override_seconds("wozi", WAIT_BURNOUT);
+	}
+
+	// clear values when offline
+	if (GSTATE_OFFLINE)
+		memset(dstate, 0, sizeof(dstate_t));
+
+	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+	dstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
+	akku_set_min_soc(dstate->minsoc);
+
+	// charge limit
+	dstate->climit = 0;
+	if (params->akku_climit)
+		dstate->climit = params->akku_climit;
+	else {
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+			dstate->climit = params->akku_cmax / 2;
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+			dstate->climit = params->akku_cmax / 4;
 	}
 
 	// set akku to DISCHARGE when offline or long term grid download
@@ -869,10 +875,6 @@ static void minly() {
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			DD->flags &= ~FLAG_STANDBY_CHECKED;
-
-	// clear values when offline
-	if (GSTATE_OFFLINE)
-		memset(dstate, 0, sizeof(dstate_t));
 }
 
 // set device into MANUAL mode and toggle power
