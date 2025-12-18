@@ -900,11 +900,11 @@ void solar_toggle_id(unsigned int id, int relay) {
 // handle a subscribed mqtt message
 void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 
-	if (!strcmp("solar/params/climit", topic))
-		params->akku_climit = strtol(message, NULL, msize);
+	if (!strncmp("solar/params/climit", topic, tsize))
+		params->akku_climit = natoi(message, msize);
 
-	if (!strcmp("solar/params/dlimit", topic))
-		params->akku_dlimit = strtol(message, NULL, msize);
+	if (!strncmp("solar/params/dlimit", topic, tsize))
+		params->akku_dlimit = natoi(message, msize);
 
 	// TODO weitere kommandos z.B.
 	// "reset" --> alle devices zurück in AUTO mode setzen

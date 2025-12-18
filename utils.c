@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <sched.h>
 #include <unistd.h>
@@ -725,6 +726,15 @@ int round100(int n) {
 		return (x + 1) * 100;
 }
 
+int natoi(const char *s, int n) {
+	int x = 0;
+	while (isdigit(s[0]) && n--) {
+		x = x * 10 + (s[0] - '0');
+		s++;
+	}
+	return x;
+}
+
 int maximum(int count, ...) {
 	int max = 0;
 	int i;
@@ -1043,3 +1053,4 @@ void store_array_json(void *array, int size, const char *header, const char *fil
 	free(str);
 	//xdebug("UTILS stored %s", filename);
 }
+
