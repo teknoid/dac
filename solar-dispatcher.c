@@ -12,6 +12,7 @@
 
 #include "solar-common.h"
 #include "sunspec.h"
+#include "frozen.h"
 #include "utils.h"
 #include "mcp.h"
 
@@ -317,7 +318,7 @@ static void ramp_akku(device_t *akku) {
 			return;
 
 		// start charging
-		if (!akku_charge(akku, gstate->climit)) {
+		if (!akku_charge(akku, dstate->climit)) {
 			dstate->flags |= FLAG_ACTION;
 			dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
 			akku->ramp = dstate->ramp; // catch all
@@ -355,6 +356,8 @@ static void print_dstate() {
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
+		xlogl_int(line, "CLimit", dstate->climit);
+		xlogl_int(line, "DLimit", dstate->dlimit);
 		xlogl_int(line, "Ramp", dstate->ramp);
 		strcat(line, "   ");
 	}
@@ -812,6 +815,25 @@ static void hourly() {
 			ramp_device(DD, DD->total * -1);
 		}
 	}
+
+	// charge limit
+	dstate->climit = 0;
+	if (params->akku_climit)
+		dstate->climit = params->akku_climit;
+	else {
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+			dstate->climit = params->akku_cmax / 2;
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+			dstate->climit = params->akku_cmax / 4;
+	}
+
+	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
+	dstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
+	akku_set_min_soc(dstate->minsoc);
+
+	// reset limits
+	if (now->tm_hour == 6)
+		params->akku_climit = params->akku_dlimit = 0;
 }
 
 static void minly() {
@@ -830,8 +852,17 @@ static void minly() {
 
 	// set akku to DISCHARGE when offline or long term grid download
 	if (GSTATE_OFFLINE || GSTATE_GRID_DLOAD) {
-		akku_discharge(AKKU, gstate->dlimit);
-		akku_set_min_soc(gstate->minsoc);
+		if (params->akku_dlimit)
+			dstate->dlimit = params->akku_dlimit;
+		else {
+			// only when not survive and not below baseload
+			if (gstate->survive < 1000) {
+				dstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
+				LOCUT(dstate->dlimit, params->baseload);
+			} else
+				dstate->dlimit = 0;
+		}
+		akku_discharge(AKKU, dstate->dlimit);
 	}
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
@@ -862,6 +893,31 @@ void solar_toggle_id(unsigned int id, int relay) {
 
 	d->state = Manual;
 	toggle_device(d);
+}
+
+// handle a subscribed mqtt message
+void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
+
+	if (!strcmp("solar/params/climit", topic))
+		params->akku_climit = strtol(message, NULL, msize);
+
+	if (!strcmp("solar/params/dlimit", topic))
+		params->akku_dlimit = strtol(message, NULL, msize);
+
+	// TODO weitere kommandos z.B.
+	// "reset" --> alle devices zurück in AUTO mode setzen
+	// "force_standby"
+	// akku in standby setzen oder limit setzen
+
+	char *idc = NULL, *cmd = NULL;
+	int r = 0;
+	json_scanf(message, msize, "{id:%Q, r:%d, cmd:%Q}", &idc, &r, &cmd);
+	if (idc) {
+		unsigned int id = (unsigned int) strtol(idc, NULL, 16);
+		solar_toggle_id(id, r);
+		free(idc);
+		free(cmd);
+	}
 }
 
 // update device status from tasmota mqtt response

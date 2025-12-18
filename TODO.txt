@@ -6,6 +6,13 @@ BUGS
 TODO
 --------------------------------------------------------------------------------------------
 
+* testen
+	- suppress ramp up wenn akku/grid now und average -> OK
+	- akku: kein zusätzlicher akku forward ramp weil remain negativ -> OK
+	- akku: akku->ramp kann maximal remain sein, alles darüber muss forward werden 
+	- FLAG_GRID_DLOAD erst ab 200
+	- suppress FLAG_EMERGENCY 
+
 * solar: device und potd config in json ablegen und WebUI dafür bauen
 
 * alles solar* in separates verzeichnis solar/

@@ -132,11 +132,8 @@ static int migrate() {
 		n->forecast = o->forecast;
 		n->akku = o->akku;
 		n->needed = o->needed;
-		n->minutes = o->minutes
+		n->minutes = o->minutes;
 		n->survive = o->survive;
-		n->climit = o->climit;
-		n->dlimit = o->dlimit;
-		n->minsoc = o->minsoc;
 		n->flags = o->flags;
 	}
 	store_blob(TMP SLASH GSTATE_H_FILE, gnew, sizeof(gnew));

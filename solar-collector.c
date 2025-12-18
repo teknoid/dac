@@ -243,7 +243,6 @@ static void print_gstate() {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 		xlogl_int(line, "Akku", gstate->akku);
 		xlogl_int(line, "Need", gstate->needed);
-		xlogl_int(line, "DLimit", gstate->dlimit);
 		xlogl_percent10(line, "Surv", gstate->survive);
 	} else {
 		xlogl_int_b(line, "∑PV", gstate->pv);
@@ -254,7 +253,6 @@ static void print_gstate() {
 		xlogl_int(line, "Tomo", gstate->tomorrow);
 		xlogl_int(line, "SoD", gstate->sod);
 		xlogl_int(line, "EoD", gstate->eod);
-		xlogl_int(line, "CLimit", gstate->climit);
 		xlogl_percent10(line, "Succ", gstate->success);
 	}
 	xlogl_end(line, strlen(line), 0);
@@ -557,23 +555,6 @@ static void calculate_gstate() {
 	int offline = m0->surp < params->minimum && m1->surp < params->minimum && m2->surp < params->minimum && m3->surp < params->minimum;
 	if (offline) {
 
-		// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-		gstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
-
-		// discharge limit
-		if (gstate->survive > 1000) {
-			// survive - maximum of last minutes average x100
-			int m0max = (m0->load / 100 + 1) * 100;
-			int m1max = (m1->load / 100 + 1) * 100;
-			int m2max = (m2->load / 100 + 1) * 100;
-			int m3max = (m3->load / 100 + 1) * 100;
-			gstate->dlimit = maximum(4, m0max, m1max, m2max, m3max);
-		} else {
-			// not survive - squeeze akku but not below baseload
-			gstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
-			LOCUT(gstate->dlimit, params->baseload);
-		}
-
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 		int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
 		int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
@@ -584,13 +565,6 @@ static void calculate_gstate() {
 
 	} else {
 		// online
-
-		// charge limit
-		// TODO limit basierend auf pvmin/pvmax/pvavg setzen
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			gstate->climit = params->akku_cmax / 2;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			gstate->climit = params->akku_cmax / 4;
 
 		// force off when rsl is permanent below 90%
 		if (m0->rsl < 90 && m1->rsl < 90 && m2->rsl < 90 && m3->rsl < 90) {

@@ -107,11 +107,12 @@ enum e_state {
 // parameters
 typedef struct _params params_t;
 #define PARAMS_SIZE		(sizeof(params_t) / sizeof(int))
-#define PARAMS_HEADER	" bload"
 struct _params {
 	int akku_capacity;
 	int akku_cmax;
 	int akku_dmax;
+	int akku_climit;
+	int akku_dlimit;
 	int baseload;
 	int minimum;
 };
@@ -170,7 +171,7 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvavg pvmax ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca avail  need  minu  surv  clim  dlim  msoc flags"
+#define GSTATE_HEADER	"    pv pvmin pvavg pvmax ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca avail  need  minu  surv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
@@ -190,9 +191,6 @@ struct _gstate {
 	int needed;
 	int minutes;
 	int survive;
-	int climit;
-	int dlimit;
-	int minsoc;
 	int flags;
 };
 
@@ -230,7 +228,7 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags  lock  resp  ramp steal cload rload"
+#define DSTATE_HEADER	" flags  lock  resp  ramp steal cload rload  clim  dlim  msoc"
 struct _dstate {
 	int flags;
 	int lock;
@@ -239,6 +237,9 @@ struct _dstate {
 	int steal;
 	int cload;
 	int rload;
+	int climit;
+	int dlimit;
+	int minsoc;
 };
 
 // global counter, state and parameter pointer
