@@ -149,7 +149,7 @@ const char* resolve_ip(const char *hostname);
 
 int round10(int n);
 int round100(int n);
-int natoi(const char *s, int n);
+int atoin(const char *s, int n);
 
 int maximum(int, ...);
 int average_non_zero(int array[], size_t size);

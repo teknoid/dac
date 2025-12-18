@@ -900,11 +900,13 @@ void solar_toggle_id(unsigned int id, int relay) {
 // handle a subscribed mqtt message
 void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 
+	// mosquitto_pub -h mqtt -t "solar/params/climit" -m 2500
 	if (!strncmp("solar/params/climit", topic, tsize))
-		params->akku_climit = natoi(message, msize);
+		params->akku_climit = atoin(message, msize);
 
+	// mosquitto_pub -h mqtt -t "solar/params/dlimit" -m 500
 	if (!strncmp("solar/params/dlimit", topic, tsize))
-		params->akku_dlimit = natoi(message, msize);
+		params->akku_dlimit = atoin(message, msize);
 
 	// TODO weitere kommandos z.B.
 	// "reset" --> alle devices zurück in AUTO mode setzen

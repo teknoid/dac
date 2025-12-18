@@ -726,7 +726,7 @@ int round100(int n) {
 		return (x + 1) * 100;
 }
 
-int natoi(const char *s, int n) {
+int atoin(const char *s, int n) {
 	int x = 0;
 	while (isdigit(s[0]) && n--) {
 		x = x * 10 + (s[0] - '0');
