@@ -436,9 +436,10 @@ static void calculate_ramp() {
 
 	// suppress ramp down when pv is rising / calculated load below pv minimum
 	int below_minimum = dstate->cload < gstate->pvmin && avg->rsl > 100;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum;
+	int plenty = avg->rsl > 200 && avg->grid < 100;
+	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum || plenty;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d bmin=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, below_minimum);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d bmin=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, below_minimum, plenty);
 		pstate->ramp = 0;
 	}
 }
