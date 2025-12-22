@@ -361,40 +361,43 @@ static void calculate_ramp() {
 		return;
 	}
 
-	// calculate ramp every 5 seconds
+	// calculate ramp every 5 seconds - evaluate rsl and grid average values
 	if (time(NULL) % 5)
 		return;
 
 	// below 90 - coarse absolute down ramp
-	if (pstate->rsl < 90 && avg->grid > RAMP) {
+	if (avg->rsl < 90 && avg->grid > RAMP) {
 		pstate->ramp = avg->grid * -1;
 		ZSHAPE(pstate->ramp, RAMP)
 		if (pstate->ramp)
-			xlog("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+			xlog("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
 	// above 150 - coarse absolute up ramp
-	if (pstate->rsl > 150 && avg->grid < RAMP * -2) {
+	if (avg->rsl > 150 && avg->grid < RAMP * -2) {
 		pstate->ramp = avg->grid * -1;
 		ZSHAPE(pstate->ramp, RAMP)
 		if (pstate->ramp)
-			xlog("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+			xlog("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
 	// fine single step up / down
-	if (90 <= pstate->rsl && pstate->rsl <= 150) {
+	if (90 <= avg->rsl && avg->rsl <= 150) {
 		if (avg->grid > RAMP)
 			pstate->ramp = RAMP;
 		if (avg->grid < RAMP * -2)
 			pstate->ramp = -RAMP;
-		// no up between 90..105
-		if (pstate->rsl < 105)
+		// no up below 105
+		if (avg->rsl < 105)
 			HICUT(pstate->ramp, 0)
+		// force down below 100
+		if (avg->rsl < 100)
+			pstate->ramp = -RAMP;
 		if (pstate->ramp)
-			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// suppress ramp up when pv is falling / calculated load above average pv
+	// suppress ramp up when pv is falling / actual grid download / calculated load above average pv
 	int oa = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
 	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || pstate->grid > 0 || oa;
 	if (pstate->ramp > 0 && suppress_up) {
@@ -402,11 +405,11 @@ static void calculate_ramp() {
 		pstate->ramp = 0;
 	}
 
-	// suppress ramp down when pv is rising / plenty surplus / grid upload
+	// suppress ramp down when pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || plenty;
+	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, plenty);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, pstate->grid, plenty);
 		pstate->ramp = 0;
 	}
 }
