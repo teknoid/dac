@@ -345,101 +345,68 @@ static void calculate_counter() {
 	pthread_mutex_unlock(&collector_lock);
 }
 
-static int calculate_ramp_rsl() {
-	int ramp = 0;
-
-	// 0..90 - 150% down, no up
-	if (pstate->rsl < 90) {
-		if (pstate->grid > 0)
-			ramp = (pstate->grid + pstate->grid / 2) * -1;
-		if (-RAMP < ramp && ramp < 0)
-			ramp = -RAMP;
-		if (ramp)
-			xdebug("SOLAR hard grid down rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
-		return ramp;
-	}
-
-	// 90..105 - single step down, no up
-	if (pstate->rsl < 105) {
-		if (pstate->grid > 0)
-			ramp = -RAMP;
-		if (ramp)
-			xdebug("SOLAR single down step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
-		return ramp;
-	}
-
-	// 105..150 - single step
-	if (pstate->rsl < 150) {
-		if (pstate->grid > RAMP * 2)
-			ramp = -RAMP;
-		if (pstate->grid < RAMP * -2)
-			ramp = RAMP;
-		if (ramp)
-			xdebug("SOLAR single step rsl=%d grid=%d ramp=%d", pstate->rsl, pstate->grid, ramp);
-		return ramp;
-	}
-
-	// over 150
-
-	// absolute average grid driven ramp every 10 seconds
-	if (time(NULL) % 10 == 0) {
-		ramp = avg->grid * -1;
-		ZSHAPE(ramp, RAMP);
-		if (pstate->grid > 0 && ramp > 0)
-			ramp = 0;
-		if (pstate->grid < 0 && ramp < 0)
-			ramp = 0;
-		if (ramp) {
-			xdebug("SOLAR average grid ramp rsl=%d agrid=%d ramp=%d", pstate->rsl, avg->grid, ramp);
-			return ramp;
-		}
-	}
-
-	// relative pv delta driven ramp every second
-	ramp = delta->pv;
-	ZSHAPE(ramp, RAMP);
-	if (ramp)
-		xdebug("SOLAR delta pv ramp rsl=%d dpv=%d ramp=%d", pstate->rsl, delta->pv, ramp);
-	return ramp;
-}
-
 static void calculate_ramp() {
 
 	// always ramp down on akku discharge
-	if (avg->akku > RAMP && pstate->akku > RAMP * 2) {
-		pstate->ramp = avg->akku * -1;
-		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
+	if (PSTATE_AKKU_DCHARGE) {
+		pstate->ramp = pstate->akku * -1;
+		xlog("SOLAR akku discharge ramp rsl=%d aakku=%d akku=%d ramp=%d", pstate->rsl, avg->akku, pstate->akku, pstate->ramp);
 		return;
 	}
 
 	// always ramp down on grid download
-	if (avg->grid > RAMP && pstate->grid > RAMP * 2) {
-		pstate->ramp = avg->grid * -1;
-		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avg->grid, pstate->grid, pstate->ramp);
+	if (PSTATE_GRID_DLOAD) {
+		pstate->ramp = pstate->grid * -1;
+		xlog("SOLAR grid download ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
 		return;
 	}
 
-	// calculate ramp based on RSL
-	pstate->ramp = calculate_ramp_rsl();
-	if (!pstate->ramp)
+	// calculate ramp every 5 seconds
+	if (time(NULL) % 5)
 		return;
 
-	// suppress ramp up when pv is falling / calculated load above average pv / akku discharge / grid download
-	int akku_dcharge = pstate->akku > NOISE || avg->akku > NOISE;
-	int grid_dload = pstate->grid > NOISE || avg->grid > NOISE;
-	int over_average = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
-	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || akku_dcharge || grid_dload || over_average;
+	// below 90 - coarse absolute down ramp
+	if (pstate->rsl < 90 && avg->grid > RAMP) {
+		pstate->ramp = avg->grid * -1;
+		ZSHAPE(pstate->ramp, RAMP)
+		if (pstate->ramp)
+			xlog("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+	}
+
+	// above 150 - coarse absolute up ramp
+	if (pstate->rsl > 150 && avg->grid < RAMP * -2) {
+		pstate->ramp = avg->grid * -1;
+		ZSHAPE(pstate->ramp, RAMP)
+		if (pstate->ramp)
+			xlog("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+	}
+
+	// fine single step up / down
+	if (90 <= pstate->rsl && pstate->rsl <= 150) {
+		if (avg->grid > RAMP)
+			pstate->ramp = RAMP;
+		if (avg->grid < RAMP * -2)
+			pstate->ramp = -RAMP;
+		// no up between 90..105
+		if (pstate->rsl < 105)
+			HICUT(pstate->ramp, 0)
+		if (pstate->ramp)
+			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+	}
+
+	// suppress ramp up when pv is falling / calculated load above average pv
+	int oa = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
+	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || pstate->grid > 0 || oa;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up ramp=%d valid=%d fall=%d akku=%d grid=%d over=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVFALL, akku_dcharge, grid_dload, over_average);
+		xlog("SOLAR suppress up ramp=%d valid=%d fall=%d grid=%d over=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVFALL, pstate->grid, oa);
 		pstate->ramp = 0;
 	}
 
-	// suppress ramp down when pv is rising / calculated load below pv minimum
-	int below_minimum = dstate->cload < gstate->pvmin && avg->rsl > 100;
-	int plenty = avg->rsl > 200 && avg->grid < 100;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || below_minimum || plenty;
+	// suppress ramp down when pv is rising / plenty surplus / grid upload
+	int plenty = avg->rsl > 200;
+	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || plenty;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d bmin=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, below_minimum, plenty);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, plenty);
 		pstate->ramp = 0;
 	}
 }
@@ -737,6 +704,14 @@ static void calculate_pstate() {
 				xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
 			}
 		}
+
+		// akku discharge / grid download / grid upload
+		if (avg->akku > RAMP && pstate->akku > RAMP * 2)
+			pstate->flags |= FLAG_AKKU_DCHARGE;
+		if (avg->grid > RAMP && pstate->grid > RAMP * 2)
+			pstate->flags |= FLAG_GRID_DLOAD;
+		if (avg->grid < -50 && pstate->grid < -100)
+			pstate->flags |= FLAG_GRID_ULOAD;
 
 		// load is completely satisfied from secondary inverter
 		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
