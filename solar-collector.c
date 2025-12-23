@@ -384,9 +384,9 @@ static void calculate_ramp() {
 	// fine single step up / down
 	if (90 <= avg->rsl && avg->rsl <= 150) {
 		if (avg->grid > RAMP)
-			pstate->ramp = RAMP;
-		if (avg->grid < RAMP * -2)
 			pstate->ramp = -RAMP;
+		if (avg->grid < RAMP * -2)
+			pstate->ramp = RAMP;
 		// no up below 105
 		if (avg->rsl < 105)
 			HICUT(pstate->ramp, 0)
@@ -397,7 +397,7 @@ static void calculate_ramp() {
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// suppress ramp up when pv is falling / actual grid download / calculated load above average pv
+	// suppress ramp up if pv is falling / actual grid download / calculated load above average pv
 	int oa = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
 	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || pstate->grid > 0 || oa;
 	if (pstate->ramp > 0 && suppress_up) {
@@ -405,7 +405,7 @@ static void calculate_ramp() {
 		pstate->ramp = 0;
 	}
 
-	// suppress ramp down when pv is rising / actual grid upload / plenty surplus
+	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
 	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty;
 	if (pstate->ramp < 0 && suppress_down) {
