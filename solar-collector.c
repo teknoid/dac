@@ -222,7 +222,7 @@ static void collect_average_247() {
 	// calculate baseload and minimum
 	int load3 = PSTATE_AVG_247(3)->load, load4 = PSTATE_AVG_247(4)->load, load5 = PSTATE_AVG_247(5)->load;
 	params->baseload = round10((load3 + load4 + load5) / 3);
-	if (!params->baseload)
+	if (params->baseload <= 0)
 		params->baseload = BASELOAD;
 	params->minimum = params->baseload / 2;
 	xlog("SOLAR baseload=%d minimum=%d", params->baseload, params->minimum);
