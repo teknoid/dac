@@ -259,14 +259,14 @@ static void print_gstate() {
 }
 
 static void print_pstate() {
-	char line[512]; // 256 is not enough due to color escape sequences!!!
+	char line[512], value[10]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE ");
 	xlogl_bits16(line, NULL, pstate->flags);
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
-	xlogl_int(line, "I1", pstate->inv1);
-	xlogl_int(line, "I2", pstate->inv2);
+	snprintf(value, 10, " I:%d:%d", pstate->inv1, pstate->inv2);
+	strcat(line, value);
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
