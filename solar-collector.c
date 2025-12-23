@@ -34,7 +34,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '24 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '25 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -265,7 +265,8 @@ static void print_pstate() {
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
-	xlogl_int(line, "Inv", pstate->inv);
+	xlogl_int(line, "I1", pstate->inv1);
+	xlogl_int(line, "I2", pstate->inv2);
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
 		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
@@ -345,8 +346,7 @@ static void calculate_counter() {
 	pthread_mutex_unlock(&collector_lock);
 }
 
-static void calculate_ramp() {
-
+static void calculate_pstate_ramp() {
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = pstate->akku * -1;
@@ -414,7 +414,133 @@ static void calculate_ramp() {
 	}
 }
 
+static void calculate_pstate_online() {
+	// history states
+	pstate_t *p1 = PSTATE_SEC_LAST1;
+	pstate_t *p2 = PSTATE_SEC_LAST2;
+	pstate_t *p3 = PSTATE_SEC_LAST3;
+
+	// calculate deltas
+	idelta(delta, pstate, PSTATE_SEC_LAST1, PSTATE_SIZE, NOISE);
+
+	// check if we have delta ac power anywhere
+	if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
+		pstate->flags |= FLAG_ACDELTA;
+
+	// calculate average values over last AVERAGE seconds
+	// pv     -> suppress mppt tracking
+	// grid   -> suppress meter latency
+	// others -> suppress spikes
+	int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet written
+	iaggregate_rows(avg, pstate_seconds, PSTATE_SIZE, 60, sec, AVERAGE);
+	// dump_array(pstate_avg, PSTATE_SIZE, "[ØØ]", 0);
+	// grid should always be around 0 - limit average grid to actual grid
+	if (pstate->grid > 0)
+		HICUT(avg->grid, pstate->grid)
+	if (pstate->grid < 0)
+		LOCUT(avg->grid, pstate->grid)
+	// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
+	LOCUT(avg->pv, pstate->pv)
+
+	// emergency shutdown: average/current grid download or akku discharge
+	int agrid = avg->grid > EMERGENCY;
+	int aakku = avg->akku > EMERGENCY;
+	int cgrid = pstate->grid > EMERGENCY2X && p1->grid > EMERGENCY2X && p2->grid > EMERGENCY2X && p3->grid > EMERGENCY2X;
+	int cakku = pstate->akku > EMERGENCY2X && p1->akku > EMERGENCY2X && p2->akku > EMERGENCY2X && p3->grid > EMERGENCY2X;
+	if (agrid || aakku || cgrid || cakku) {
+		int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
+		if (akku_unregulated) {
+			xlog("SOLAR suppress FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
+		} else {
+			pstate->flags |= FLAG_EMERGENCY;
+			xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
+		}
+	}
+
+	// akku discharge / grid download / grid upload
+	if (avg->akku > RAMP && pstate->akku > RAMP * 2)
+		pstate->flags |= FLAG_AKKU_DCHARGE;
+	if (avg->grid > RAMP && pstate->grid > RAMP * 2)
+		pstate->flags |= FLAG_GRID_DLOAD;
+	if (avg->grid < -50 && pstate->grid < -100)
+		pstate->flags |= FLAG_GRID_ULOAD;
+
+	// load is completely satisfied from secondary inverter
+	if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
+		pstate->flags |= FLAG_EXTRAPOWER;
+
+	// first set and then clear VALID flag when values suspicious
+	pstate->flags |= FLAG_VALID;
+
+	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
+	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
+	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
+	if (abs(sum) > SUSPICIOUS) {
+		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	int psum = pstate->p1 + pstate->p2 + pstate->p3;
+	if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (abs(delta->p1) > SPIKE || abs(delta->p2) > SPIKE || abs(delta->p3) > SPIKE) {
+		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->p1, delta->p2, delta->p3);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
+		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
+		xlog("SOLAR wasting power %d akku -> grid", waste);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->load <= 0) {
+		xlog("SOLAR zero/negative load detected %d", pstate->load);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->inv1 != I_STATUS_MPPT) {
+		xlog("SOLAR Inverter1 state %d expected %d", pstate->inv1, I_STATUS_MPPT);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (pstate->inv2 != I_STATUS_MPPT) {
+		// xlog("SOLAR Inverter2 state %d expected %d ", pstate->inv2, I_STATUS_MPPT);
+		// pstate->flags &= ~FLAG_VALID;
+	}
+
+	// calculate slopes over 3, 6 and 9 seconds
+	islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
+	islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
+	islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
+
+	// tendency: falling or rising or stable, fall has prio
+	int pvfall = slope3->pv < -SLOPE_PV || slope6->pv < -SLOPE_PV || slope9->pv < -SLOPE_PV;
+	int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
+	int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
+	int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
+	if (pvfall) {
+		pstate->flags |= FLAG_PVFALL;
+		xdebug("SOLAR set FLAG_PVFALL");
+	}
+	if (pvrise && !pvfall) {
+		pstate->flags |= FLAG_PVRISE;
+		xdebug("SOLAR set FLAG_PVRISE");
+	}
+	if (!pvrise && !pvfall && !gridrise && !gridfall) {
+		pstate->flags |= FLAG_STABLE;
+		xdebug("SOLAR set FLAG_STABLE");
+	}
+
+	// ratio surplus / load - add actual delta to get future result
+	int load = pstate->load > params->baseload ? pstate->load : params->baseload;
+	pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
+}
+
 static void calculate_gstate() {
+	// history states
+	pstate_t *m0 = PSTATE_MIN_NOW;
+	pstate_t *m1 = PSTATE_MIN_LAST1;
+	pstate_t *m2 = PSTATE_MIN_LAST2;
+	pstate_t *m3 = PSTATE_MIN_LAST3;
+
 	// clear state flags and values
 	gstate->flags = 0;
 
@@ -451,12 +577,6 @@ static void calculate_gstate() {
 	gstate->pvmin = round100(gstate->pvmin);
 	gstate->pvmax = round100(gstate->pvmax);
 	gstate->pvavg = round100(gstate->pvavg);
-
-	// history states
-	pstate_t *m0 = PSTATE_MIN_NOW;
-	pstate_t *m1 = PSTATE_MIN_LAST1;
-	pstate_t *m2 = PSTATE_MIN_LAST2;
-	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
@@ -617,16 +737,17 @@ static void calculate_pstate() {
 	// lock while calculating new values
 	pthread_mutex_lock(&collector_lock);
 
+	// clear flags and values
+	pstate->flags = pstate->rsl = pstate->ramp = 0;
+
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
 
 	// inverter status
-	int inv1, inv2;
-	inverter_status(&inv1, &inv2);
-	pstate->inv = inv1 * 10 + inv2;
-	if (!inv1)
+	inverter_status(&pstate->inv1, &pstate->inv2);
+	if (!pstate->inv1)
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
-	if (!inv2)
+	if (!pstate->inv2)
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
 
 	// update self counter
@@ -660,132 +781,10 @@ static void calculate_pstate() {
 	// int diss2 = pstate->dc2 - pstate->ac2;
 	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
-	// clear flags and values
-	pstate->flags = pstate->rsl = pstate->ramp = 0;
-
-	// skip further calculations when offline
+	// calculate online state and ramp power
 	if (!GSTATE_OFFLINE) {
-
-		// calculate deltas
-		idelta(delta, pstate, PSTATE_SEC_LAST1, PSTATE_SIZE, NOISE);
-
-		// check if we have delta ac power anywhere
-		if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
-			pstate->flags |= FLAG_ACDELTA;
-
-		// calculate average values over last AVERAGE seconds
-		// pv     -> suppress mppt tracking
-		// grid   -> suppress meter latency
-		// others -> suppress spikes
-		int sec = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet written
-		iaggregate_rows(avg, pstate_seconds, PSTATE_SIZE, 60, sec, AVERAGE);
-		// dump_array(pstate_avg, PSTATE_SIZE, "[ØØ]", 0);
-		// grid should always be around 0 - limit average grid to actual grid
-		if (pstate->grid > 0)
-			HICUT(avg->grid, pstate->grid)
-		if (pstate->grid < 0)
-			LOCUT(avg->grid, pstate->grid)
-		// pv should always be constantly high - set low limit to actual pv to suppress short mppt tracking down spikes
-		LOCUT(avg->pv, pstate->pv)
-
-		// history states
-		pstate_t *p1 = PSTATE_SEC_LAST1;
-		pstate_t *p2 = PSTATE_SEC_LAST2;
-		pstate_t *p3 = PSTATE_SEC_LAST3;
-
-		// emergency shutdown: average/current grid download or akku discharge
-		int agrid = avg->grid > EMERGENCY;
-		int aakku = avg->akku > EMERGENCY;
-		int cgrid = pstate->grid > EMERGENCY2X && p1->grid > EMERGENCY2X && p2->grid > EMERGENCY2X && p3->grid > EMERGENCY2X;
-		int cakku = pstate->akku > EMERGENCY2X && p1->akku > EMERGENCY2X && p2->akku > EMERGENCY2X && p3->grid > EMERGENCY2X;
-		if (agrid || aakku || cgrid || cakku) {
-			int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
-			if (akku_unregulated) {
-				xlog("SOLAR suppress FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
-			} else {
-				pstate->flags |= FLAG_EMERGENCY;
-				xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
-			}
-		}
-
-		// akku discharge / grid download / grid upload
-		if (avg->akku > RAMP && pstate->akku > RAMP * 2)
-			pstate->flags |= FLAG_AKKU_DCHARGE;
-		if (avg->grid > RAMP && pstate->grid > RAMP * 2)
-			pstate->flags |= FLAG_GRID_DLOAD;
-		if (avg->grid < -50 && pstate->grid < -100)
-			pstate->flags |= FLAG_GRID_ULOAD;
-
-		// load is completely satisfied from secondary inverter
-		if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
-			pstate->flags |= FLAG_EXTRAPOWER;
-
-		// first set and then clear VALID flag when values suspicious
-		pstate->flags |= FLAG_VALID;
-
-		// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
-		// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
-		int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
-		if (abs(sum) > SUSPICIOUS) {
-			xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		int psum = pstate->p1 + pstate->p2 + pstate->p3;
-		if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
-			xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		if (abs(delta->p1) > SPIKE || abs(delta->p2) > SPIKE || abs(delta->p3) > SPIKE) {
-			xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->p1, delta->p2, delta->p3);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		if (pstate->grid < -NOISE && pstate->akku > NOISE) {
-			int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-			xlog("SOLAR wasting power %d akku -> grid", waste);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		if (pstate->load <= 0) {
-			xlog("SOLAR zero/negative load detected %d", pstate->load);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		if (inv1 != I_STATUS_MPPT) {
-			xlog("SOLAR Inverter1 state %d expected %d", inv1, I_STATUS_MPPT);
-			pstate->flags &= ~FLAG_VALID;
-		}
-		if (inv2 != I_STATUS_MPPT) {
-			// xlog("SOLAR Inverter2 state %d expected %d ", inv2, I_STATUS_MPPT);
-			// pstate->flags &= ~FLAG_VALID;
-		}
-
-		// calculate slopes over 3, 6 and 9 seconds
-		islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
-		islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
-		islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
-
-		// tendency: falling or rising or stable, fall has prio
-		int pvfall = slope3->pv < -SLOPE_PV || slope6->pv < -SLOPE_PV || slope9->pv < -SLOPE_PV;
-		int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
-		int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
-		int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
-		if (pvfall) {
-			pstate->flags |= FLAG_PVFALL;
-			xdebug("SOLAR set FLAG_PVFALL");
-		}
-		if (pvrise && !pvfall) {
-			pstate->flags |= FLAG_PVRISE;
-			xdebug("SOLAR set FLAG_PVRISE");
-		}
-		if (!pvrise && !pvfall && !gridrise && !gridfall) {
-			pstate->flags |= FLAG_STABLE;
-			xdebug("SOLAR set FLAG_STABLE");
-		}
-
-		// ratio surplus / load - add actual delta to get future result
-		int load = pstate->load > params->baseload ? pstate->load : params->baseload;
-		pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
-
-		// calculate ramp power
-		calculate_ramp();
+		calculate_pstate_online();
+		calculate_pstate_ramp();
 	}
 
 	// calculations done
