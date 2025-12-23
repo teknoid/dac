@@ -347,6 +347,10 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
+	// ratio surplus / load - add actual delta to get future result
+	int load = pstate->load > params->baseload ? pstate->load : params->baseload;
+	pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
+
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = pstate->akku * -1;
@@ -528,10 +532,6 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set FLAG_STABLE");
 	}
-
-	// ratio surplus / load - add actual delta to get future result
-	int load = pstate->load > params->baseload ? pstate->load : params->baseload;
-	pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
 }
 
 static void calculate_gstate() {
