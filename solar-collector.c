@@ -34,7 +34,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '25 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '23 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -91,6 +91,10 @@
 #define PSTATE_AVG_247(h)		(&pstate_average_247[h])
 
 static struct tm now_tm, *now = &now_tm;
+
+// inverters
+static device_t inverters[2];
+static device_t *inv1 = &inverters[0], *inv2 = &inverters[2];
 
 // local counter/pstate/gstate/params memory
 static counter_t counter_hours[HISTORY_SIZE];
@@ -265,7 +269,7 @@ static void print_pstate() {
 	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
-	snprintf(value, 10, " I:%d:%d", pstate->inv1, pstate->inv2);
+	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
@@ -501,11 +505,11 @@ static void calculate_pstate_online() {
 		xlog("SOLAR zero/negative load detected %d", pstate->load);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (pstate->inv1 != I_STATUS_MPPT) {
-		xlog("SOLAR Inverter1 state %d expected %d", pstate->inv1, I_STATUS_MPPT);
+	if (inv1->state != I_STATUS_MPPT) {
+		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (pstate->inv2 != I_STATUS_MPPT) {
+	if (inv2->state != I_STATUS_MPPT) {
 		// xlog("SOLAR Inverter2 state %d expected %d ", pstate->inv2, I_STATUS_MPPT);
 		// pstate->flags &= ~FLAG_VALID;
 	}
@@ -744,10 +748,10 @@ static void calculate_pstate() {
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
 
 	// inverter status
-	inverter_status(&pstate->inv1, &pstate->inv2);
-	if (!pstate->inv1)
+	inverter_status(inv1, inv2);
+	if (!inv1->state)
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
-	if (!pstate->inv2)
+	if (!inv2->state)
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
 
 	// update self counter

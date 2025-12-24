@@ -52,8 +52,8 @@ int akku_discharge(device_t *akku, int limit) {
 	return 0;
 }
 
-void inverter_status(int *inv1, int *inv2) {
-	*inv1 = *inv2 = 0;
+void inverter_status(device_t *inv1, device_t *inv2) {
+	inv1->state = inv2->state = 0;
 }
 
 static void loop() {

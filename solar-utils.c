@@ -32,9 +32,6 @@ typedef struct gstate_old_t {
 	int needed;
 	int minutes;
 	int survive;
-	int climit;
-	int dlimit;
-	int minsoc;
 	int flags;
 } gstate_old_t;
 
@@ -57,7 +54,6 @@ typedef struct pstate_old_t {
 	int v2;
 	int v3;
 	int f;
-	int inv;
 	int surp;
 	int load;
 	int rsl;
@@ -92,7 +88,7 @@ int akku_discharge(device_t *akku, int limit) {
 	return 0;
 }
 
-void inverter_status(int *inv1, int *inv2) {
+void inverter_status(device_t *inv1, device_t *inv2) {
 }
 
 // fake state and counter records from actual values and copy to history records
@@ -165,7 +161,6 @@ static int migrate() {
 		n->v2 = o->v2;
 		n->v3 = o->v3;
 		n->f = o->f;
-		n->inv = o->inv;
 		n->surp = o->surp;
 		n->load = o->load; // needed for 24/7 !!!
 		n->rsl = o->rsl;
