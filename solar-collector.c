@@ -29,7 +29,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '22 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -362,10 +362,10 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// always ramp down on grid download
-	if (PSTATE_GRID_DLOAD) {
+	// always ramp down on grid download greater than akku charging
+	if (PSTATE_GRID_DLOAD && pstate->grid > pstate->akku * -1) {
 		pstate->ramp = pstate->grid * -1;
-		xlog("SOLAR grid download ramp rsl=%d agrid=%d grid=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->ramp);
+		xlog("SOLAR grid download ramp rsl=%d agrid=%d grid=%d akku=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->akku, pstate->ramp);
 		return;
 	}
 
