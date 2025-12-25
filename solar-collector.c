@@ -94,7 +94,7 @@ static struct tm now_tm, *now = &now_tm;
 
 // inverters
 static device_t inverters[2];
-static device_t *inv1 = &inverters[0], *inv2 = &inverters[2];
+static device_t *inv1 = &inverters[0], *inv2 = &inverters[1];
 
 // local counter/pstate/gstate/params memory
 static counter_t counter_hours[HISTORY_SIZE];
