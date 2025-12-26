@@ -67,11 +67,14 @@ static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &r
 static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox", .min = 500 };
 static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox", .min = 500 };
 static device_t h3 = { .name = "schlaf", .id = PLUG6, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5", .min = 500 };
-static device_t h4 = { .name = "heizer", .id = PLUG9, .total = 1000, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug9", .min = 1200 };
-static device_t h5 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
+static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
+static device_t h5 = { .name = "heizer", .id = PLUG9, .total = 1000, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug9", .min = 1200 };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
+
+// heat at least with infrared panels
+static device_t *DEVICES_INFRA[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
 
 // first charge akku, then heaters, boilers last
 static device_t *DEVICES_MODEST[] = { &a1, &h1, &h2, &h3, &h4, &b1, &b2, &b3, &h5, 0 };
@@ -82,17 +85,14 @@ static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a
 // heaters, then akku, then boilers
 static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b3, 0 };
 
-// heat at least with infrared panels
-static device_t *DEVICES_INFRA[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
-
 // force boiler heating first
 static device_t *DEVICES_BOILERS[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // define POTDs
+static const potd_t INFRA = { .name = "INFRA", .devices = DEVICES_INFRA };
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t INFRA = { .name = "HEATING", .devices = DEVICES_INFRA };
 static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
 
 static struct tm now_tm, *now = &now_tm;
@@ -470,7 +470,7 @@ static int choose_program() {
 		return select_program(&MODEST);
 
 	// PV less than akku capacity and forecast below 50% - charge akku first
-	if (gstate->today < acx1 && gstate->forecast < 500)
+	if (gstate->today < acx1 && 0 < gstate->forecast && gstate->forecast < 500)
 		return select_program(&MODEST);
 
 	// PV less than akku capacity - charge akku then boilers
@@ -478,7 +478,7 @@ static int choose_program() {
 		return select_program(&BOILERS);
 
 	// PV less than twice akku capacity and forecast below 50% - charge akku first
-	if (gstate->today < acx2 && gstate->forecast < 500)
+	if (gstate->today < acx2 && 0 < gstate->forecast && gstate->forecast < 500)
 		return select_program(&MODEST);
 
 	// PV less than twice akku capacity - heat with infrared panels
@@ -579,8 +579,10 @@ static device_t* standby() {
 }
 
 static void steal() {
-	// calculate steal power for each device
 	dstate->steal = 0;
+
+	// calculate steal power for each device
+	int overall_steal = 0;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
@@ -595,28 +597,29 @@ static void steal() {
 			} else
 				DD->steal = DD->load; // all
 		}
-		dstate->steal += DD->steal;
+		overall_steal += DD->steal;
 	}
 
 	// nothing to steal
-	if (dstate->steal < RAMP)
+	if (overall_steal < params->minimum)
 		return;
 
 	// check if we can steal from lower prioritized devices
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		//  when inverter produces ac output and akku is charging and not saturated (limited or maximum charge power reached)
-		if (t == AKKU && pstate->ac1 > RAMP && AKKU_CHARGING && AKKU->power < 90) {
+		// special akku steal logic: akku is charging and not saturated (limited or maximum charge power reached) and inverter produces ac output
+		if (t == AKKU && AKKU_CHARGING && AKKU->power < 90 && pstate->ac1 > params->minimum) {
+			// can not steal more than inverters ac output
+			dstate->steal = pstate->ac1;
+
 			// jump to last entry
 			device_t **vv = potd->devices;
 			while (*vv)
 				vv++;
 
-			// akku can not steal more than inverters ac output
-			int to_steal = pstate->ac1;
-
 			//ramp down victims in inverse order
+			int to_steal = dstate->steal;
 			while (--vv != tt && to_steal > 0) {
 				device_t *v = *vv;
 				ramp_device(v, to_steal * -1);
@@ -636,13 +639,12 @@ static void steal() {
 			continue;
 
 		// collect steal power from victims
-		int thief_steal = 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
-			thief_steal += (*vv)->steal;
+			dstate->steal += (*vv)->steal;
 
-		// not enough to ramp up
+		// not enough to ramp up thief
 		int thief_min = t->min ? t->min : t->total;
-		if (thief_steal < thief_min)
+		if (dstate->steal < thief_min)
 			continue;
 
 		// jump to last entry
@@ -651,17 +653,17 @@ static void steal() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		int to_steal = thief_steal;
+		int to_steal = dstate->steal;
 		while (--vv != tt && to_steal > 0) {
 			device_t *v = *vv;
 			ramp_device(v, to_steal * -1);
-			int given = v->ramp;
-			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, thief_min, thief_steal);
-			to_steal += given;
+			int given = v->ramp * -1;
+			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, thief_min, dstate->steal);
+			to_steal -= given;
 		}
 
 		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
-		ramp_device(t, thief_steal);
+		ramp_device(t, dstate->steal);
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0; // give akku time to release or consume power
 		device = 0; // expect no response when power is transferred from one to another
 		return;
@@ -777,7 +779,7 @@ static void calculate_dstate() {
 	dstate->flags &= ~STATE_FLAGS_MASK;
 
 	// clear values
-	dstate->cload = dstate->rload = dstate->steal = 0;
+	dstate->cload = dstate->rload = 0;
 
 	// inverter status
 	dstate->inv = inv1->state * 10 + inv2->state;
@@ -946,8 +948,9 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 // update device status from tasmota mqtt response
 void solar_tasmota(tasmota_t *t) {
 	device_t *d = get_by_id(t->id, t->relay);
-	if (!d)
-		d = get_by_id(t->id, 0);
+//	no no no - this might be the led on newer shellies
+//	if (!d)
+//		d = get_by_id(t->id, 0);
 	if (!d)
 		return;
 
