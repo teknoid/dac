@@ -23,6 +23,9 @@
 #define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
+#define INV1STATE				(inverter1 && inverter1->inverter ? inverter1->inverter->St : 0)
+#define INV2STATE				(inverter2 && inverter2->inverter ? inverter2->inverter->St : 0)
+
 #define PX(x, y)				(x == 1 ? y.p1 : (x == 2 ? y.p2 : y.p3))
 #define SAMPLE(x)				x.p1  = SFI(ss->meter->WphA, ss->meter->W_SF); x.p2  = SFI(ss->meter->WphB, ss->meter->W_SF); x.p3  = SFI(ss->meter->WphC, ss->meter->W_SF);
 #define SAMPLE_ADD(x)			x.p1 += SFI(ss->meter->WphA, ss->meter->W_SF); x.p2 += SFI(ss->meter->WphB, ss->meter->W_SF); x.p3 += SFI(ss->meter->WphC, ss->meter->W_SF);
@@ -130,11 +133,8 @@ int akku_discharge(device_t *akku, int limit) {
 }
 
 void inverter_status(device_t *inv1, device_t *inv2) {
-	inv1->state = inv2->state = 0;
-	if (inverter1 && inverter1->inverter)
-		inv1->state = inverter1->inverter->St;
-	if (inverter2 && inverter2->inverter)
-		inv2->state = inverter2->inverter->St;
+	inv1->state = INV1STATE;
+	inv2->state = INV2STATE;
 }
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku

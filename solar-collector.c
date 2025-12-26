@@ -96,7 +96,7 @@ static struct tm now_tm, *now = &now_tm;
 static device_t inverters[2];
 static device_t *inv1 = &inverters[0], *inv2 = &inverters[1];
 
-// local counter/pstate/gstate/params memory
+// local counter/gstate/pstate/params memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[10];
@@ -107,7 +107,7 @@ static pstate_t *delta = &pstates[1], *avg = &pstates[2];
 static pstate_t *slope3 = &pstates[3], *slope6 = &pstates[4], *slope9 = &pstates[5];
 static pstate_t *m1var = &pstates[6], *m2var = &pstates[7], *m3var = &pstates[8];
 
-// global counter/pstate/gstate/params pointer
+// global counter/gstate/pstate/params pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
