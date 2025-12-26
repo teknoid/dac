@@ -88,9 +88,6 @@ int akku_discharge(device_t *akku, int limit) {
 	return 0;
 }
 
-void inverter_status(device_t *inv1, device_t *inv2) {
-}
-
 // fake state and counter records from actual values and copy to history records
 static int fake() {
 	return 0;

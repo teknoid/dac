@@ -55,7 +55,11 @@ static void ramp_heater(device_t *device);
 static void ramp_boiler(device_t *device);
 static void ramp_akku(device_t *device);
 
-// devices
+// inverters - producer
+static device_t i1 = { .name = "fronius10" };
+static device_t i2 = { .name = "fronius7" };
+
+// devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
@@ -66,7 +70,7 @@ static device_t h3 = { .name = "schlaf", .id = PLUG6, .total = 450, .rf = &ramp_
 static device_t h4 = { .name = "heizer", .id = PLUG9, .total = 1000, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug9", .min = 1200 };
 static device_t h5 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
 
-// all devices, needed for initialization
+// all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // first charge akku, then heaters, boilers last
@@ -99,6 +103,9 @@ static dstate_t dstate_seconds[60], dstate_current;
 
 // current ramped device
 static device_t *device = 0;
+
+// global inverter pointer
+device_t *inv1 = &i1, *inv2 = &i2;
 
 // global dstate pointer
 dstate_t *dstate = &dstate_current;
@@ -771,6 +778,9 @@ static void calculate_dstate() {
 
 	// clear values
 	dstate->cload = dstate->rload = dstate->steal = 0;
+
+	// inverter status
+	dstate->inv = inv1->state * 10 + inv2->state;
 
 	// skip single devices calculation when offline
 	if (GSTATE_OFFLINE)

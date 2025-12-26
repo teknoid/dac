@@ -92,10 +92,6 @@
 
 static struct tm now_tm, *now = &now_tm;
 
-// inverters
-static device_t inverters[2];
-static device_t *inv1 = &inverters[0], *inv2 = &inverters[1];
-
 // local counter/gstate/pstate/params memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
@@ -510,7 +506,7 @@ static void calculate_pstate_online() {
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (inv2->state != I_STATUS_MPPT) {
-		// xlog("SOLAR Inverter2 state %d expected %d ", pstate->inv2, I_STATUS_MPPT);
+		// xlog("SOLAR Inverter2 state %d expected %d ", inv2->state, I_STATUS_MPPT);
 		// pstate->flags &= ~FLAG_VALID;
 	}
 
@@ -748,7 +744,6 @@ static void calculate_pstate() {
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
 
 	// inverter status
-	inverter_status(inv1, inv2);
 	if (!inv1->state)
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 	if (!inv2->state)

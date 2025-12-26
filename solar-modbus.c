@@ -132,15 +132,11 @@ int akku_discharge(device_t *akku, int limit) {
 	}
 }
 
-void inverter_status(device_t *inv1, device_t *inv2) {
-	inv1->state = INV1STATE;
-	inv2->state = INV2STATE;
-}
-
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
 static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
+	inv1->state = INV1STATE;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
@@ -208,6 +204,7 @@ static void update_inverter1(sunspec_t *ss) {
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
+	inv2->state = INV2STATE;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;

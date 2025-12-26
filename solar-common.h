@@ -230,9 +230,10 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags  lock  resp  ramp steal cload rload  clim  dlim  msoc"
+#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload  clim  dlim  msoc"
 struct _dstate {
 	int flags;
+	int inv;
 	int lock;
 	int resp;
 	int ramp;
@@ -243,6 +244,10 @@ struct _dstate {
 	int dlimit;
 	int minsoc;
 };
+
+// global inverter pointers
+extern device_t *inv1;
+extern device_t *inv2;
 
 // global counter, state and parameter pointer
 extern counter_t counter[];
@@ -262,5 +267,3 @@ void akku_state(device_t *akku);
 int akku_standby(device_t *akku);
 int akku_charge(device_t *akku, int limit);
 int akku_discharge(device_t *akku, int limit);
-
-void inverter_status(device_t *inv1, device_t *inv2);
