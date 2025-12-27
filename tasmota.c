@@ -132,40 +132,6 @@ static int backlog(unsigned int id, const char *message) {
 	return publish(topic, message, 0);
 }
 
-// update tasmota shutter position
-static int update_shutter(tasmota_t *t, unsigned int position) {
-	t->position = position;
-	xlog("TASMOTA %06X updated shutter position to %d", t->id, position);
-	return 0;
-}
-
-// update tasmota relay power state
-static int update_power(tasmota_t *t, int relay, int power) {
-	t->relay = relay;
-	t->power = power;
-	if (relay == 0 || relay == 1) {
-		t->relay1 = power;
-		xlog("TASMOTA %06X updated relay1 state to %d", t->id, power);
-	} else if (relay == 2) {
-		t->relay2 = power;
-		xlog("TASMOTA %06X updated relay2 state to %d", t->id, power);
-	} else if (relay == 3) {
-		t->relay3 = power;
-		xlog("TASMOTA %06X updated relay3 state to %d", t->id, power);
-	} else if (relay == 4) {
-		t->relay4 = power;
-		xlog("TASMOTA %06X updated relay4 state to %d", t->id, power);
-	} else
-		xlog("TASMOTA %06X no relay %d", t->id, relay);
-
-#ifdef SOLAR
-	// forward to solar dispatcher
-	solar_tasmota(t);
-#endif
-
-	return 0;
-}
-
 // trigger a button press event
 static void trigger(tasmota_t *t, int button, int action) {
 
@@ -252,6 +218,84 @@ static int flamingo(unsigned int code) {
 	return 0;
 }
 
+// update tasmota shutter position
+static int update_shutter(tasmota_t *t, unsigned int position) {
+	t->position = position;
+	xlog("TASMOTA %06X updated shutter position to %d", t->id, position);
+	return 0;
+}
+
+// update tasmota relay power state
+static int update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
+	if (relay == 0 || relay == 1) {
+		t->relay1 = power;
+		xlog("TASMOTA %06X updated relay1 state to %d", t->id, power);
+	} else if (relay == 2) {
+		t->relay2 = power;
+		xlog("TASMOTA %06X updated relay2 state to %d", t->id, power);
+	} else if (relay == 3) {
+		t->relay3 = power;
+		xlog("TASMOTA %06X updated relay3 state to %d", t->id, power);
+	} else if (relay == 4) {
+		t->relay4 = power;
+		xlog("TASMOTA %06X updated relay4 state to %d", t->id, power);
+	} else
+		xlog("TASMOTA %06X no relay %d", t->id, relay);
+
+	// update event
+	t->relay = relay;
+	t->power = power;
+
+#ifdef SOLAR
+	// forward to solar dispatcher
+	solar_tasmota(t);
+#endif
+
+	return 0;
+}
+
+static int scan_power(tasmota_t *t, const char *message, size_t msize) {
+	unsigned int p;
+
+	// all uppercase
+	if (json_scanf(message, msize, "{POWER:%d}", &p))
+		update_power(t, 1, p);
+	if (json_scanf(message, msize, "{POWER1:%d}", &p))
+		update_power(t, 1, p);
+	if (json_scanf(message, msize, "{POWER2:%d}", &p))
+		update_power(t, 2, p);
+	if (json_scanf(message, msize, "{POWER3:%d}", &p))
+		update_power(t, 3, p);
+	if (json_scanf(message, msize, "{POWER4:%d}", &p))
+		update_power(t, 4, p);
+
+	// normal case
+	if (json_scanf(message, msize, "{Power:%d}", &p))
+		update_power(t, 1, p);
+	if (json_scanf(message, msize, "{Power1:%d}", &p))
+		update_power(t, 1, p);
+	if (json_scanf(message, msize, "{Power2:%d}", &p))
+		update_power(t, 2, p);
+	if (json_scanf(message, msize, "{Power3:%d}", &p))
+		update_power(t, 3, p);
+	if (json_scanf(message, msize, "{Power4:%d}", &p))
+		update_power(t, 4, p);
+
+	return 0;
+}
+
+static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
+	char *status = NULL;
+	json_scanf(message, msize, "{Status:%Q}", &status);
+	if (status == NULL)
+		return 0;
+
+	scan_power(t, status, strlen(status));
+	free(status);
+
+	return 0;
+}
+
 static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t msize) {
 	char fmt[32], a[5];
 
@@ -279,21 +323,6 @@ static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t m
 			free(sw);
 		}
 	}
-}
-
-static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
-	char power[8], power1[8], power2[8], power3[8], power4[8];
-
-#define PATTERN_POWER "{POWER:%s, POWER1:%s, POWER2:%s, POWER3:%s, POWER4:%s}"
-	json_scanf(message, msize, PATTERN_POWER, &power, &power1, &power2, &power3, &power4);
-
-	update_power(t, 0, MESSAGE_ON);
-	update_power(t, 1, MESSAGE_ON);
-	update_power(t, 2, MESSAGE_ON);
-	update_power(t, 3, MESSAGE_ON);
-	update_power(t, 4, MESSAGE_ON);
-
-	return 0;
 }
 
 static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
@@ -374,7 +403,6 @@ static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 	char *rf = NULL;
 
 	json_scanf(message, msize, "{RfReceived:%Q}", &rf);
-
 	if (rf != NULL) {
 		unsigned int data, bits, proto, pulse;
 
@@ -410,6 +438,9 @@ static int dispatch_lwt(tasmota_t *t, const char *message, size_t msize) {
 }
 
 static int dispatch_tele(tasmota_t *t, const char *suffix, int idx, const char *message, size_t msize) {
+	if (!strcmp("STATE", suffix))
+		return scan_power(t, message, msize);
+
 	if (!strcmp("SENSOR", suffix))
 		return dispatch_sensor(t, message, msize);
 

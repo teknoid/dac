@@ -61,14 +61,14 @@ static device_t i2 = { .name = "fronius7" };
 
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .id = BOILER1, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3, .total = 2000, .rf = &ramp_boiler, .adj = 1, .r = 0, .from = 10, .to = 15, .min = 100 };
-static device_t h1 = { .name = "küche", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 1, .host = "switchbox", .min = 500 };
-static device_t h2 = { .name = "wozi", .id = SWITCHBOX, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 2, .host = "switchbox", .min = 500 };
-static device_t h3 = { .name = "schlaf", .id = PLUG6, .total = 450, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug5", .min = 500 };
-static device_t h4 = { .name = "tisch", .id = SWITCHBOX, .total = 150, .rf = &ramp_heater, .adj = 0, .r = 3, .host = "switchbox", .min = 200 };
-static device_t h5 = { .name = "heizer", .id = PLUG9, .total = 1000, .rf = &ramp_heater, .adj = 0, .r = 0, .host = "plug9", .min = 1200 };
+static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
+static device_t h1 = { .name = "küche",   .id = SWITCHBOX, .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "switchbox" };
+static device_t h2 = { .name = "wozi",    .id = SWITCHBOX, .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "switchbox" };
+static device_t h3 = { .name = "schlaf",  .id = PLUG6,     .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug5" };
+static device_t h4 = { .name = "tisch",   .id = SWITCHBOX, .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "switchbox" };
+static device_t h5 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
@@ -117,7 +117,7 @@ static device_t* get_by_name(const char *name) {
 	return 0;
 }
 
-static device_t* get_by_id(unsigned int id, int relay) {
+static device_t* get_by_id(unsigned int id, unsigned int relay) {
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->id == id && DD->r == relay)
 			return DD;
@@ -948,11 +948,10 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 // update device status from tasmota mqtt response
 void solar_tasmota(tasmota_t *t) {
 	device_t *d = get_by_id(t->id, t->relay);
-//	no no no - this might be the led on newer shellies
-//	if (!d)
-//		d = get_by_id(t->id, 0);
-	if (!d)
+	if (!d) {
+		xlog("SOLAR Warning! no device %06X relay %d configured!", t->id, t->relay);
 		return;
+	}
 
 	if (d->state == Initial)
 		d->state = Auto;
