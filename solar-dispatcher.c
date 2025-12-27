@@ -55,6 +55,8 @@ static void ramp_heater(device_t *device);
 static void ramp_boiler(device_t *device);
 static void ramp_akku(device_t *device);
 
+// TODO load from configuration file
+
 // inverters - producer
 static device_t i1 = { .name = "fronius10" };
 static device_t i2 = { .name = "fronius7" };
