@@ -272,7 +272,7 @@ static int scan_power(tasmota_t *t, const char *message, size_t msize) {
 	if (json_scanf(message, msize, "{POWER4:%s}", &cp))
 		update_power(t, 4, CP_ON);
 
-	// normal case
+	// stat/5E40EC/STATUS {"Status":{"Module":0,"DeviceName":"plug6","FriendlyName":["plug6",""],"Topic":"5E40EC","ButtonTopic":"0","Power":"00","PowerLock":"00", ...
 	if (json_scanf(message, msize, "{Power:%d}", &ip))
 		update_power(t, 1, ip);
 	if (json_scanf(message, msize, "{Power1:%d}", &ip))

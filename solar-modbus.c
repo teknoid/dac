@@ -23,9 +23,6 @@
 #define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
-#define INV1STATE				(inverter1 && inverter1->inverter ? inverter1->inverter->St : 0)
-#define INV2STATE				(inverter2 && inverter2->inverter ? inverter2->inverter->St : 0)
-
 #define PX(x, y)				(x == 1 ? y.p1 : (x == 2 ? y.p2 : y.p3))
 #define SAMPLE(x)				x.p1  = SFI(ss->meter->WphA, ss->meter->W_SF); x.p2  = SFI(ss->meter->WphB, ss->meter->W_SF); x.p3  = SFI(ss->meter->WphC, ss->meter->W_SF);
 #define SAMPLE_ADD(x)			x.p1 += SFI(ss->meter->WphA, ss->meter->W_SF); x.p2 += SFI(ss->meter->WphB, ss->meter->W_SF); x.p3 += SFI(ss->meter->WphC, ss->meter->W_SF);
@@ -136,7 +133,7 @@ int akku_discharge(device_t *akku, int limit) {
 static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
-	inv1->state = INV1STATE;
+	inv1->state = ss->inverter->St;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
@@ -204,7 +201,7 @@ static void update_inverter1(sunspec_t *ss) {
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
-	inv2->state = INV2STATE;
+	inv2->state = ss->inverter->St;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;

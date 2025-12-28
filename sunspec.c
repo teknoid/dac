@@ -368,6 +368,8 @@ static void* poll(void *arg) {
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
+		if (ss->inverter)
+			ss->inverter->St = 0;
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
