@@ -229,16 +229,16 @@ static int update_shutter(tasmota_t *t, unsigned int position) {
 static int update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	if (relay == 0 || relay == 1) {
 		t->relay1 = power;
-		xlog("TASMOTA %06X updated relay1 state to %d", t->id, power);
+		xdebug("TASMOTA %06X update relay1 state to %d", t->id, power);
 	} else if (relay == 2) {
 		t->relay2 = power;
-		xlog("TASMOTA %06X updated relay2 state to %d", t->id, power);
+		xdebug("TASMOTA %06X update relay2 state to %d", t->id, power);
 	} else if (relay == 3) {
 		t->relay3 = power;
-		xlog("TASMOTA %06X updated relay3 state to %d", t->id, power);
+		xdebug("TASMOTA %06X update relay3 state to %d", t->id, power);
 	} else if (relay == 4) {
 		t->relay4 = power;
-		xlog("TASMOTA %06X updated relay4 state to %d", t->id, power);
+		xdebug("TASMOTA %06X update relay4 state to %d", t->id, power);
 	} else
 		xlog("TASMOTA %06X no relay %d", t->id, relay);
 
@@ -255,31 +255,34 @@ static int update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 }
 
 static int scan_power(tasmota_t *t, const char *message, size_t msize) {
-	unsigned int p;
+	unsigned int ip;
+	char cp[8];
 
-	// all uppercase
-	if (json_scanf(message, msize, "{POWER:%d}", &p))
-		update_power(t, 1, p);
-	if (json_scanf(message, msize, "{POWER1:%d}", &p))
-		update_power(t, 1, p);
-	if (json_scanf(message, msize, "{POWER2:%d}", &p))
-		update_power(t, 2, p);
-	if (json_scanf(message, msize, "{POWER3:%d}", &p))
-		update_power(t, 3, p);
-	if (json_scanf(message, msize, "{POWER4:%d}", &p))
-		update_power(t, 4, p);
+#define CP_ON (cp[0] == 'O' && cp[1] == 'N')
+
+	// tele/5E40EC/STATE {"Time":"2025-12-28T01:12:48","Uptime":"28T13:59:11","UptimeSec":2469551,"POWER1":"OFF","POWER2":"OFF", ...
+	if (json_scanf(message, msize, "{POWER:%s}", &cp))
+		update_power(t, 1, CP_ON);
+	if (json_scanf(message, msize, "{POWER1:%s}", &cp))
+		update_power(t, 1, CP_ON);
+	if (json_scanf(message, msize, "{POWER2:%s}", &cp))
+		update_power(t, 2, CP_ON);
+	if (json_scanf(message, msize, "{POWER3:%s}", &cp))
+		update_power(t, 3, CP_ON);
+	if (json_scanf(message, msize, "{POWER4:%s}", &cp))
+		update_power(t, 4, CP_ON);
 
 	// normal case
-	if (json_scanf(message, msize, "{Power:%d}", &p))
-		update_power(t, 1, p);
-	if (json_scanf(message, msize, "{Power1:%d}", &p))
-		update_power(t, 1, p);
-	if (json_scanf(message, msize, "{Power2:%d}", &p))
-		update_power(t, 2, p);
-	if (json_scanf(message, msize, "{Power3:%d}", &p))
-		update_power(t, 3, p);
-	if (json_scanf(message, msize, "{Power4:%d}", &p))
-		update_power(t, 4, p);
+	if (json_scanf(message, msize, "{Power:%d}", &ip))
+		update_power(t, 1, ip);
+	if (json_scanf(message, msize, "{Power1:%d}", &ip))
+		update_power(t, 1, ip);
+	if (json_scanf(message, msize, "{Power2:%d}", &ip))
+		update_power(t, 2, ip);
+	if (json_scanf(message, msize, "{Power3:%d}", &ip))
+		update_power(t, 3, ip);
+	if (json_scanf(message, msize, "{Power4:%d}", &ip))
+		update_power(t, 4, ip);
 
 	return 0;
 }

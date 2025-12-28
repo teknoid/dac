@@ -951,7 +951,7 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 void solar_tasmota(tasmota_t *t) {
 	device_t *d = get_by_id(t->id, t->relay);
 	if (!d) {
-		xlog("SOLAR Warning! no device %06X relay %d configured!", t->id, t->relay);
+		xdebug("SOLAR Warning! no device %06X relay %d configured!", t->id, t->relay);
 		return;
 	}
 
