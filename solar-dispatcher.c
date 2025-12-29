@@ -78,24 +78,20 @@ static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 // heat at least with infrared panels
 static device_t *DEVICES_INFRA[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
 
-// first charge akku, then heaters, boilers last
-static device_t *DEVICES_MODEST[] = { &a1, &h1, &h2, &h3, &h4, &b1, &b2, &b3, &h5, 0 };
-
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };
 
 // heaters, then akku, then boilers
 static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b3, 0 };
 
-// force boiler heating first
-static device_t *DEVICES_BOILERS[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
+// prio on akku and boilers
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // define POTDs
 static const potd_t INFRA = { .name = "INFRA", .devices = DEVICES_INFRA };
-static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
-static const potd_t BOILERS = { .name = "BOILERS", .devices = DEVICES_BOILERS };
+static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
 
 static struct tm now_tm, *now = &now_tm;
 static int sock = 0;
@@ -458,29 +454,25 @@ static int select_program(const potd_t *p) {
 
 // choose program of the day
 static int choose_program() {
-	int acx1 = params->akku_capacity, acx2 = acx1 * 2;
+	int acx1 = params->akku_capacity, acx2 = acx1 * 2, acx3 = acx1 * 3;
 
 	// return select_program(&GREEDY);
 	// return select_program(&MODEST);
 
 	// summer or enough pv
-	if (GSTATE_SUMMER || gstate->today > 50000)
+	if (GSTATE_SUMMER || gstate->today > acx3)
 		return select_program(&PLENTY);
 
-	// we will NOT survive - charge akku first
+	// we will NOT survive - charge akku and boilers
 	if (gstate->survive < SURVIVE)
 		return select_program(&MODEST);
 
-	// PV less than akku capacity and forecast below 50% - charge akku first
-	if (gstate->today < acx1 && 0 < gstate->forecast && gstate->forecast < 500)
+	// PV less than akku capacity - charge akku and boilers
+	if (gstate->today < acx1)
 		return select_program(&MODEST);
 
-	// PV less than akku capacity - charge akku then boilers
-	if (gstate->today < acx1)
-		return select_program(&BOILERS);
-
-	// PV less than twice akku capacity and forecast below 50% - charge akku first
-	if (gstate->today < acx2 && 0 < gstate->forecast && gstate->forecast < 500)
+	// PV less than twice akku capacity and forecast below 50% - charge akku and boilers
+	if (gstate->today < acx2 && gstate->forecast < 500)
 		return select_program(&MODEST);
 
 	// PV less than twice akku capacity - heat with infrared panels
