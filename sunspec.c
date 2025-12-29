@@ -297,6 +297,10 @@ static void* poll(void *arg) {
 	while (1) {
 		errors_all = 0;
 
+		// reset inverter state
+		if (ss->inverter)
+			ss->inverter->St = 0;
+
 		ss->mb = modbus_new_tcp(ss->ip, 502);
 		modbus_set_response_timeout(ss->mb, 5, 0);
 		modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
@@ -368,8 +372,6 @@ static void* poll(void *arg) {
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
-		if (ss->inverter)
-			ss->inverter->St = 0;
 
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
