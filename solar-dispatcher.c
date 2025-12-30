@@ -856,10 +856,6 @@ static void minly() {
 	if (GSTATE_OFFLINE)
 		memset(dstate, 0, sizeof(dstate_t));
 
-	// minimum SOC: standard 5%, winter and tomorrow not much PV expected 10%
-	dstate->minsoc = WINTER && gstate->tomorrow < params->akku_capacity / 2 && gstate->soc > 111 ? 10 : 5;
-	akku_set_min_soc(dstate->minsoc);
-
 	// charge limit
 	dstate->climit = 0;
 	if (params->akku_climit)
@@ -883,7 +879,12 @@ static void minly() {
 			} else
 				dstate->dlimit = 0;
 		}
-		akku_discharge(AKKU, dstate->dlimit);
+
+		// go not below 7% in winter to avoid forced charging from grid
+		if (GSTATE_WINTER && gstate->soc < 70)
+			akku_standby(AKKU);
+		else
+			akku_discharge(AKKU, dstate->dlimit);
 	}
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
@@ -1072,6 +1073,9 @@ static int init() {
 				DD->state = Disabled;
 		}
 	}
+
+	// minimum SOC: 5%
+	akku_set_min_soc(5);
 
 	return 0;
 }

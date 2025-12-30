@@ -178,7 +178,7 @@ static void recalc_expected() {
 static void update_today_tomorrow(struct tm *now) {
 	struct tm tm;
 	int day_today = now->tm_yday;
-	int day_tomorrow = now->tm_yday < 365 ? now->tm_yday + 1 : 0;
+	int day_tomorrow = now->tm_yday < 364 ? now->tm_yday + 1 : 0;
 
 	// loop over one week
 	for (int i = 0; i < HISTORY_SIZE; i++) {

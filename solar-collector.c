@@ -766,10 +766,11 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4, NOISE)
 	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
 
-	// surplus is inverter ac output plus (charging) akku, hi-cutted by pv (not discharging akku)
+	// surplus is inverter ac output plus (charging) akku, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
 	pstate->surp = pstate->ac1 + pstate->ac2;
 	if (pstate->akku < NOISE)
 		pstate->surp += pstate->akku * -1;
+	LOCUT(pstate->surp, 0)
 	HICUT(pstate->surp, pstate->pv)
 
 	// load is inverter ac output plus grid

@@ -14,12 +14,12 @@
 #include "xmas.h"
 #include "mcp.h"
 
-// light on: ↑earlier, ↓later
+// light on: ↑earlier, ↓later, can be overridden in target.h
 #ifndef SUNDOWN
 #define SUNDOWN					50
 #endif
 
-// light off: ↑later ↓earlier
+// light off: ↑later ↓earlier, can be overridden in target.h
 #ifndef SUNRISE
 #define SUNRISE					100
 #endif
