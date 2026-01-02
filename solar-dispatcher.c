@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "sunspec.h"
 #include "frozen.h"
 #include "utils.h"
@@ -842,7 +843,7 @@ static void minly() {
 	akku_state(AKKU);
 
 	// wakeup from manual sleep
-	if (pstate->pv > NOISE)
+	if (sensors->lumi > NOISE)
 		inverter_on();
 
 	// choose potd
@@ -885,7 +886,7 @@ static void minly() {
 		}
 
 		// go not below 7% in winter to avoid forced charging from grid
-		if (GSTATE_WINTER && gstate->soc < 70 && pstate->pv < NOISE) {
+		if (GSTATE_WINTER && gstate->soc < 70 && sensors->lumi < NOISE) {
 			akku_standby(AKKU);
 			inverter_off();
 		} else

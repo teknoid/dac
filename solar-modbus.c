@@ -147,6 +147,7 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		break;
 
+	case I_STATUS_STANDBY:
 	case I_STATUS_SLEEPING:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
@@ -215,6 +216,7 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4;
 		break;
 
+	case I_STATUS_STANDBY:
 	case I_STATUS_SLEEPING:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
 		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
