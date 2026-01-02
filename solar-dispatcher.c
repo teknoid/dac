@@ -367,10 +367,8 @@ static void print_dstate() {
 		xlogl_int(line, "RLoad", dstate->rload);
 		xlogl_int(line, "CLimit", dstate->climit);
 		xlogl_int(line, "Ramp", dstate->ramp);
-	} else {
+	} else
 		xlogl_int(line, "DLimit", dstate->dlimit);
-		xlogl_int(line, "MinSoC", dstate->minsoc);
-	}
 	strcat(line, "   ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
@@ -1073,9 +1071,6 @@ static int init() {
 				DD->state = Disabled;
 		}
 	}
-
-	// minimum SOC: 5%
-	akku_set_min_soc(5);
 
 	return 0;
 }

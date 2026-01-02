@@ -608,6 +608,9 @@ static int init() {
 	params->akku_dmax = AKKU_DISCHARGE_MAX;
 	xlog("SOLAR modbus %s ready retry=%d Akku capacity=%d cmax=%d dmax=%d", inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax);
 
+	// minimum SoC: 5%
+	sunspec_storage_minimum_soc(inverter1, 5);
+
 	return 0;
 }
 

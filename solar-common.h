@@ -230,7 +230,7 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload  clim  dlim  msoc"
+#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload  clim  dlim"
 struct _dstate {
 	int flags;
 	int inv;
@@ -242,7 +242,6 @@ struct _dstate {
 	int rload;
 	int climit;
 	int dlimit;
-	int minsoc;
 };
 
 // global inverter pointers
