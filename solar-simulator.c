@@ -36,7 +36,7 @@ int akku_standby(device_t *akku) {
 	return 0;
 }
 
-int akku_charge(device_t *akku, int limit) {
+int akku_charge(device_t *akku) {
 	// dummy implementation
 	akku->state = Charge;
 	akku->power = 0;
@@ -44,7 +44,7 @@ int akku_charge(device_t *akku, int limit) {
 	return 0;
 }
 
-int akku_discharge(device_t *akku, int limit) {
+int akku_discharge(device_t *akku) {
 	// dummy implementation
 	akku->state = Discharge;
 	akku->power = 0;

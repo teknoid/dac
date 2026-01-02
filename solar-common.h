@@ -140,6 +140,8 @@ struct _device {
 	int steal;
 	int load;
 	int ramp;
+	int climit;
+	int dlimit;
 	int p1;
 	int p2;
 	int p3;
@@ -230,7 +232,7 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload  clim  dlim"
+#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload"
 struct _dstate {
 	int flags;
 	int inv;
@@ -240,8 +242,6 @@ struct _dstate {
 	int steal;
 	int cload;
 	int rload;
-	int climit;
-	int dlimit;
 };
 
 // global inverter pointers
@@ -264,5 +264,5 @@ int akku_get_min_soc();
 void akku_set_min_soc(int min);
 void akku_state(device_t *akku);
 int akku_standby(device_t *akku);
-int akku_charge(device_t *akku, int limit);
-int akku_discharge(device_t *akku, int limit);
+int akku_charge(device_t *akku);
+int akku_discharge(device_t *akku);

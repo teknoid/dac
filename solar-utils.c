@@ -80,11 +80,11 @@ int akku_standby(device_t *akku) {
 	return 0;
 }
 
-int akku_charge(device_t *akku, int limit) {
+int akku_charge(device_t *akku) {
 	return 0;
 }
 
-int akku_discharge(device_t *akku, int limit) {
+int akku_discharge(device_t *akku) {
 	return 0;
 }
 

@@ -327,7 +327,7 @@ static void ramp_akku(device_t *akku) {
 			return;
 
 		// start charging
-		if (!akku_charge(akku, dstate->climit)) {
+		if (!akku_charge(akku)) {
 			dstate->flags |= FLAG_ACTION;
 			dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
 			akku->ramp = dstate->ramp; // catch all
@@ -365,10 +365,10 @@ static void print_dstate() {
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
-		xlogl_int(line, "CLimit", dstate->climit);
+		xlogl_int(line, "CLimit", AKKU->climit);
 		xlogl_int(line, "Ramp", dstate->ramp);
 	} else
-		xlogl_int(line, "DLimit", dstate->dlimit);
+		xlogl_int(line, "DLimit", AKKU->dlimit);
 	strcat(line, "   ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
@@ -489,7 +489,8 @@ static void emergency() {
 	if (dstate->lock)
 		return; // not when locked - e.g. akku starts charging
 	xlog("SOLAR emergency shutdown");
-	akku_discharge(AKKU, 0); // enable discharge no limit
+	AKKU->dlimit = 0;
+	akku_discharge(AKKU); // enable discharge no limit
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DD->total * -1);
 }
@@ -845,7 +846,8 @@ static void minly() {
 
 	if (GSTATE_BURNOUT) {
 		xlog("SOLAR burnout");
-		akku_discharge(AKKU, 0); // enable discharge no limit
+		AKKU->dlimit = 0;
+		akku_discharge(AKKU); // enable discharge no limit
 		//	solar_override_seconds("küche", WAIT_BURNOUT);
 		//	solar_override_seconds("wozi", WAIT_BURNOUT);
 	}
@@ -855,34 +857,34 @@ static void minly() {
 		memset(dstate, 0, sizeof(dstate_t));
 
 	// charge limit
-	dstate->climit = 0;
+	AKKU->climit = 0;
 	if (params->akku_climit)
-		dstate->climit = params->akku_climit;
+		AKKU->climit = params->akku_climit;
 	else {
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			dstate->climit = params->akku_cmax / 2;
+			AKKU->climit = params->akku_cmax / 2;
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			dstate->climit = params->akku_cmax / 4;
+			AKKU->climit = params->akku_cmax / 4;
 	}
 
 	// set akku to DISCHARGE when offline or long term grid download
 	if (GSTATE_OFFLINE || GSTATE_GRID_DLOAD) {
 		if (params->akku_dlimit)
-			dstate->dlimit = params->akku_dlimit;
+			AKKU->dlimit = params->akku_dlimit;
 		else {
 			// only when not survive and not below baseload
 			if (gstate->survive < 1000) {
-				dstate->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
-				LOCUT(dstate->dlimit, params->baseload);
+				AKKU->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
+				LOCUT(AKKU->dlimit, params->baseload);
 			} else
-				dstate->dlimit = 0;
+				AKKU->dlimit = 0;
 		}
 
 		// go not below 7% in winter to avoid forced charging from grid
 		if (GSTATE_WINTER && gstate->soc < 70)
 			akku_standby(AKKU);
 		else
-			akku_discharge(AKKU, dstate->dlimit);
+			akku_discharge(AKKU);
 	}
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE

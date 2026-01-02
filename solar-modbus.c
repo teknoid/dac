@@ -101,13 +101,13 @@ int akku_standby(device_t *akku) {
 	return sunspec_storage_limit_both(inverter1, 0, 0);
 }
 
-int akku_charge(device_t *akku, int limit) {
+int akku_charge(device_t *akku) {
 	akku->state = Charge;
 
-	if (limit) {
-		akku->total = limit;
-		xdebug("SOLAR set akku CHARGE limit %d", limit);
-		return sunspec_storage_limit_both(inverter1, limit, 0);
+	if (akku->climit) {
+		akku->total = akku->climit;
+		xdebug("SOLAR set akku CHARGE limit %d", akku->climit);
+		return sunspec_storage_limit_both(inverter1, akku->climit, 0);
 	} else {
 		akku->total = params->akku_cmax;
 		xdebug("SOLAR set akku CHARGE");
@@ -115,13 +115,13 @@ int akku_charge(device_t *akku, int limit) {
 	}
 }
 
-int akku_discharge(device_t *akku, int limit) {
+int akku_discharge(device_t *akku) {
 	akku->state = Discharge;
 
-	if (limit) {
-		akku->total = limit;
-		xdebug("SOLAR set akku DISCHARGE limit %d", limit);
-		return sunspec_storage_limit_both(inverter1, 0, limit);
+	if (akku->dlimit) {
+		akku->total = akku->dlimit;
+		xdebug("SOLAR set akku DISCHARGE limit %d", akku->dlimit);
+		return sunspec_storage_limit_both(inverter1, 0, akku->dlimit);
 	} else {
 		akku->total = params->akku_dmax;
 		xdebug("SOLAR set akku DISCHARGE");
