@@ -14,6 +14,12 @@
 #define TEMP_OUT				(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
 #define LUMI					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bh1750_lux : UINT16_MAX)
 
+void inverter_disconnect() {
+}
+
+void inverter_connect() {
+}
+
 int akku_get_min_soc() {
 	return 0;
 }

@@ -610,6 +610,21 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	return read_storage(ss);
 }
 
+int sunspec_controls_conn(sunspec_t *ss, int conn) {
+	if (!ss->control)
+		return EPERM;
+
+	if (!ss->controls)
+		return ENOENT;
+
+	if (ss->controls->Conn == conn)
+		return EALREADY; // already set
+
+	xlog("SUNSPEC setting controls Conn %d", conn);
+	sunspec_write_reg(ss, ss->controls_addr + OFFSET(ss->controls, ss->controls->Conn), conn);
+	return read_controls(ss);
+}
+
 // inverter: ./sunspec -s -h 192.168.25.240 -p 502 -a 40000
 // meter:    ./sunspec -s -h 192.168.25.240 -p 502 -a 40000 -v 200
 static int scan(int argc, char **argv) {

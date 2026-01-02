@@ -35,6 +35,14 @@ static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 static int control = 1;
 
+void inverter_off() {
+	sunspec_controls_conn(inverter1, 0);
+}
+
+void inverter_on() {
+	sunspec_controls_conn(inverter1, 1);
+}
+
 int akku_get_min_soc() {
 	return MIN_SOC;
 }

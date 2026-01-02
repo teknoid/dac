@@ -841,6 +841,10 @@ static void minly() {
 	// update akku state
 	akku_state(AKKU);
 
+	// wakeup from manual sleep
+	if (pstate->pv > NOISE)
+		inverter_on();
+
 	// choose potd
 	choose_program();
 
@@ -881,9 +885,10 @@ static void minly() {
 		}
 
 		// go not below 7% in winter to avoid forced charging from grid
-		if (GSTATE_WINTER && gstate->soc < 70)
+		if (GSTATE_WINTER && gstate->soc < 70 && pstate->pv < NOISE) {
 			akku_standby(AKKU);
-		else
+			inverter_off();
+		} else
 			akku_discharge(AKKU);
 	}
 

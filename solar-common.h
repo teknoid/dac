@@ -259,6 +259,8 @@ extern params_t *params;
 extern pthread_mutex_t collector_lock;
 
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
+void inverter_off();
+void inverter_on();
 
 int akku_get_min_soc();
 void akku_set_min_soc(int min);

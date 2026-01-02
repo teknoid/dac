@@ -61,6 +61,12 @@ typedef struct pstate_old_t {
 	int flags;
 } pstate_old_t;
 
+void inverter_disconnect() {
+}
+
+void inverter_connect() {
+}
+
 int akku_get_min_soc() {
 	return 0;
 }

@@ -88,6 +88,14 @@ static raw_t raw, *r = &raw;
 static CURL *curl1, *curl2;
 static response_t memory = { 0 };
 
+void inverter_disconnect() {
+	// unimplemented
+}
+
+void inverter_connect() {
+	// unimplemented
+}
+
 int akku_get_min_soc() {
 	return MIN_SOC;
 }
