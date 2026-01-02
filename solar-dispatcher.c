@@ -363,9 +363,9 @@ static void print_dstate() {
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
 	if (!GSTATE_OFFLINE) {
+		xlogl_int(line, "CLimit", AKKU->climit);
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
-		xlogl_int(line, "CLimit", AKKU->climit);
 		xlogl_int(line, "Ramp", dstate->ramp);
 	} else
 		xlogl_int(line, "DLimit", AKKU->dlimit);
