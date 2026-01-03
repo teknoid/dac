@@ -463,7 +463,7 @@ static int choose_program() {
 		return select_program(&PLENTY);
 
 	// we will NOT survive - charge akku and boilers
-	if (gstate->survive < SURVIVE)
+	if (gstate->survive < SURVIVE150)
 		return select_program(&MODEST);
 
 	// PV less than akku capacity - charge akku and boilers
@@ -842,10 +842,6 @@ static void minly() {
 	// update akku state
 	akku_state(AKKU);
 
-	// wakeup from manual sleep
-	if (sensors->lumi > NOISE)
-		inverter_on();
-
 	// choose potd
 	choose_program();
 
@@ -878,7 +874,7 @@ static void minly() {
 			AKKU->dlimit = params->akku_dlimit;
 		else {
 			// only when not survive and not below baseload
-			if (gstate->survive < 1000) {
+			if (gstate->survive < SURVIVE100) {
 				AKKU->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
 				LOCUT(AKKU->dlimit, params->baseload);
 			} else
@@ -886,12 +882,18 @@ static void minly() {
 		}
 
 		// go not below 7% in winter to avoid forced charging from grid
-		if (GSTATE_WINTER && gstate->soc < 70 && sensors->lumi < NOISE) {
+		if (GSTATE_WINTER && gstate->soc < 70) {
 			akku_standby(AKKU);
-			inverter_off();
+			if (sensors->lumi < NOISE)
+				inverter_off();
 		} else
 			akku_discharge(AKKU);
 	}
+
+	// wakeup from manual sleep
+	// TODO use DC1 voltage to not depend on sensors
+	if (sensors->lumi > params->minimum)
+		inverter_on();
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)

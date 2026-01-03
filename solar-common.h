@@ -21,7 +21,8 @@
 #define DAILY					(now->tm_hour == 0 && now->tm_min == 0 && now->tm_sec == 0)
 
 #define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
-#define SURVIVE					1500
+#define SURVIVE150				1500
+#define SURVIVE100				1000
 
 // common flags
 #define FLAG_AKKU_DCHARGE		(1 << 10)

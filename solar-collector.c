@@ -705,7 +705,7 @@ static void calculate_gstate() {
 
 		// akku charging
 		int empty = gstate->soc < 100;
-		int critical = gstate->survive < SURVIVE;
+		int critical = gstate->survive < SURVIVE150;
 		int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
 		int soc6 = GSTATE_HOUR(6)->soc;
 		int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
