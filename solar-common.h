@@ -22,6 +22,7 @@
 
 #define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
 #define SURVIVE150				1500
+#define SURVIVE110				1100
 #define SURVIVE100				1000
 
 // common flags
@@ -117,6 +118,7 @@ struct _params {
 	int akku_dmax;
 	int akku_climit;
 	int akku_dlimit;
+	int akku_minsoc; // TODO
 	int baseload;
 	int minimum;
 };

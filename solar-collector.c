@@ -781,6 +781,10 @@ static void calculate_pstate() {
 	// int diss2 = pstate->dc2 - pstate->ac2;
 	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
 
+	// shape
+	ZSHAPE(pstate->grid, 2)
+	ZSHAPE(pstate->akku, 2)
+
 	// calculate online state and ramp power
 	if (!GSTATE_OFFLINE) {
 		calculate_pstate_online();
@@ -838,7 +842,7 @@ static void hourly() {
 	int succ1, succ2;
 	mosmix_scale(now, &succ1, &succ2);
 	gstate->forecast = succ1;
-	HICUT(gstate->forecast, 2000);
+	HICUT(gstate->forecast, 2000)
 
 	// mosmix today and tomorrow
 	mosmix_store_csv();

@@ -218,16 +218,16 @@ static void ramp_boiler(device_t *boiler) {
 		step = 1;
 
 	// -100..100
-	HICUT(step, 100);
-	LOCUT(step, -100);
+	HICUT(step, 100)
+	LOCUT(step, -100)
 
 	// transform power into 0..100%
 	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
 	int min = boiler->min && boiler->state == Auto && !GSTATE_OFFLINE && !DEV_FORCE(boiler) ? boiler->min * 100 / boiler->total : 0;
-	HICUT(power, 100);
-	LOCUT(power, min);
+	HICUT(power, 100)
+	LOCUT(power, min)
 
 	// no update needed
 	if (power == boiler->power)
@@ -492,8 +492,11 @@ static void emergency() {
 	if (dstate->lock)
 		return; // not when locked - e.g. akku starts charging
 	xlog("SOLAR emergency shutdown");
-	AKKU->dlimit = 0;
-	akku_discharge(AKKU); // enable discharge no limit
+	// enable discharge no limit
+	if (!AKKU_DISCHARGING && gstate->soc > 70) {
+		AKKU->dlimit = 0;
+		akku_discharge(AKKU);
+	}
 	for (device_t **dd = DEVICES; *dd; dd++)
 		ramp_device(DD, DD->total * -1);
 }
@@ -757,11 +760,11 @@ static void calculate_actions() {
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 
 	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && !device && overload && PSTATE_VALID && PSTATE_STABLE)
+	if (cyclic == 1 && !device && overload && PSTATE_VALID && PSTATE_STABLE && !DSTATE_ALL_DOWN)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !device && !overload && PSTATE_VALID && GSTATE_STABLE)
+	if (cyclic == 2 && !device && !overload && PSTATE_VALID && GSTATE_STABLE && !DSTATE_ALL_DOWN && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceded actions
@@ -875,12 +878,14 @@ static void minly() {
 		if (params->akku_dlimit)
 			AKKU->dlimit = params->akku_dlimit;
 		else {
-			// only when not survive and not below baseload
-			if (gstate->survive < SURVIVE100) {
-				AKKU->dlimit = gstate->akku && gstate->minutes ? round10(gstate->akku * 60 / gstate->minutes) : 0;
-				LOCUT(AKKU->dlimit, params->baseload);
-			} else
+			if (gstate->survive > SURVIVE110)
+				// reset limit
 				AKKU->dlimit = 0;
+			else if (gstate->survive < SURVIVE100) {
+				// set limit but not below baseload
+				AKKU->dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
+				LOCUT(AKKU->dlimit, params->baseload)
+			}
 		}
 
 		// go not below 7% in winter to avoid forced charging from grid
@@ -932,6 +937,10 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	// mosquitto_pub -h mqtt -t "solar/params/dlimit" -m 500
 	if (!strncmp("solar/params/dlimit", topic, tsize))
 		params->akku_dlimit = atoin(message, msize);
+
+	// mosquitto_pub -h mqtt -t "solar/params/minsoc" -m 5
+	if (!strncmp("solar/params/minsoc", topic, tsize))
+		params->akku_minsoc = atoin(message, msize);
 
 	// TODO weitere kommandos z.B.
 	// "reset" --> alle devices zurück in AUTO mode setzen
