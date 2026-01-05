@@ -153,10 +153,10 @@ static int migrate() {
 		n->ac2 = o->ac2;
 		n->dc1 = o->dc1;
 		n->dc2 = o->dc1;
-		n->mppt1 = o->mppt1;
-		n->mppt2 = o->mppt2;
-		n->mppt3 = o->mppt3;
-		n->mppt4 = o->mppt4;
+		n->mpptp1 = o->mppt1;
+		n->mpptp2 = o->mppt2;
+		n->mpptp3 = o->mppt3;
+		n->mpptp4 = o->mppt4;
 		n->p1 = o->p1;
 		n->p2 = o->p2;
 		n->p3 = o->p3;

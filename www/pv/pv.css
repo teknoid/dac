@@ -92,10 +92,10 @@ dl dd.d						{ cursor:default }
 .load-p, .load-m			{ background-color:skyblue }
 .cload-p, .cload-m			{ background-color:skyblue }
 .rload-p, .rload-m			{ background-color:skyblue }
-.mppt1-p					{ background-color:#FAD967 }
-.mppt2-p					{ background-color:#FAD967 }
-.mppt3-p					{ background-color:#FAD967 }
-.mppt4-p					{ background-color:#FAD967 }
+.mp1-p						{ background-color:#FAD967 }
+.mp2-p						{ background-color:#FAD967 }
+.mp3-p						{ background-color:#FAD967 }
+.mp4-p						{ background-color:#FAD967 }
 .surp-p						{ background-color:turquoise }
 .ramp-p						{ background-color:aquamarine }
 .ramp-m						{ background-color:lightsalmon }

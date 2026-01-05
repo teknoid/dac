@@ -11,7 +11,6 @@
 #include <arpa/inet.h>
 
 #include "solar-common.h"
-#include "sensors.h"
 #include "sunspec.h"
 #include "frozen.h"
 #include "utils.h"
@@ -36,6 +35,9 @@
 #define WAIT_THERMOSTAT			12
 #define WAIT_AKKU				15
 #define WAIT_START_CHARGE		30
+
+#define MPPT_VOLTAGE_STANDBY	100
+#define MPPT_VOLTAGE_AWAKE		200
 
 // dstate access pointers
 #define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
@@ -310,7 +312,7 @@ static void ramp_akku(device_t *akku) {
 		// akku is charging
 		if (AKKU_CHARGING) {
 			// all mppt1+mppt2 up to maximum
-			int max = pstate->mppt1 + pstate->mppt2;
+			int max = pstate->mpptp1 + pstate->mpptp2;
 			HICUT(max, akku->total)
 			int remain = max - akku->load;
 			// akku draws more than mppt1+mppt2 when negative
@@ -884,15 +886,14 @@ static void minly() {
 		// go not below 7% in winter to avoid forced charging from grid
 		if (GSTATE_WINTER && gstate->soc < 70) {
 			akku_standby(AKKU);
-			if (sensors->lumi < NOISE)
+			if (pstate->mpptv1 < MPPT_VOLTAGE_STANDBY)
 				inverter_off();
 		} else
 			akku_discharge(AKKU);
 	}
 
-	// wakeup from manual sleep
-	// TODO use DC1 voltage to not depend on sensors
-	if (sensors->lumi > params->minimum)
+	// awake from manual sleep
+	if (pstate->mpptv1 > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE

@@ -34,7 +34,7 @@
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
 
-// hexdump -v -e '23 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
+// hexdump -v -e '27 "%6d ""\n"' /var/lib/mcp/solar-pstate*.bin
 #define PSTATE_H_FILE			"solar-pstate-hours.bin"
 #define PSTATE_M_FILE			"solar-pstate-minutes.bin"
 #define PSTATE_S_FILE			"solar-pstate-seconds.bin"
@@ -268,8 +268,8 @@ static void print_pstate() {
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (!GSTATE_OFFLINE) {
-		xlogl_int(line, "PV10", pstate->mppt1 + pstate->mppt2);
-		xlogl_int(line, "PV7", pstate->mppt3 + pstate->mppt4);
+		xlogl_int(line, "PV10", pstate->mpptp1 + pstate->mpptp2);
+		xlogl_int(line, "PV7", pstate->mpptp3 + pstate->mpptp4);
 		xlogl_int(line, "Surp", pstate->surp);
 		xlogl_int(line, "RSL", pstate->rsl);
 		xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
@@ -745,26 +745,26 @@ static void calculate_pstate() {
 
 	// inverter status
 	if (!inv1->state)
-		pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mpptp1 = pstate->mpptp2 = pstate->mpptv1 = pstate->mpptv2 = pstate->akku = 0;
 	if (!inv2->state)
-		pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
+		pstate->ac2 = pstate->dc2 = pstate->mpptp3 = pstate->mpptp4 = pstate->mpptv3 = pstate->mpptv4 = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;
 	if (pstate->grid < 0)
 		CS_NOW->produced += pstate->grid * -1;
-	CS_NOW->mppt1 += pstate->mppt1;
-	CS_NOW->mppt2 += pstate->mppt2;
-	CS_NOW->mppt3 += pstate->mppt3;
-	CS_NOW->mppt4 += pstate->mppt4;
+	CS_NOW->mppt1 += pstate->mpptp1;
+	CS_NOW->mppt2 += pstate->mpptp2;
+	CS_NOW->mppt3 += pstate->mpptp3;
+	CS_NOW->mppt4 += pstate->mpptp4;
 
 	// pv
-	ZSHAPE(pstate->mppt1, NOISE)
-	ZSHAPE(pstate->mppt2, NOISE)
-	ZSHAPE(pstate->mppt3, NOISE)
-	ZSHAPE(pstate->mppt4, NOISE)
-	pstate->pv = pstate->mppt1 + pstate->mppt2 + pstate->mppt3 + pstate->mppt4;
+	ZSHAPE(pstate->mpptp1, NOISE)
+	ZSHAPE(pstate->mpptp2, NOISE)
+	ZSHAPE(pstate->mpptp3, NOISE)
+	ZSHAPE(pstate->mpptp4, NOISE)
+	pstate->pv = pstate->mpptp1 + pstate->mpptp2 + pstate->mpptp3 + pstate->mpptp4;
 
 	// surplus is inverter ac output plus (charging) akku, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
 	pstate->surp = pstate->ac1 + pstate->ac2;

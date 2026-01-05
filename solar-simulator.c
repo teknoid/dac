@@ -86,13 +86,13 @@ static void loop() {
 
 		pstate->ac1 = mppt1 + mppt2;
 		pstate->dc1 = mppt1 + mppt2;
-		pstate->mppt1 = mppt1;
-		pstate->mppt2 = mppt2;
+		pstate->mpptp1 = mppt1;
+		pstate->mpptp2 = mppt2;
 
 		pstate->ac2 = mppt3 + mppt4;
 		pstate->dc2 = mppt3 + mppt4;
-		pstate->mppt3 = mppt3;
-		pstate->mppt4 = mppt4;
+		pstate->mpptp3 = mppt3;
+		pstate->mpptp4 = mppt4;
 
 		pstate->grid = grid;
 		pstate->akku = 0;
