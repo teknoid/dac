@@ -79,7 +79,7 @@ static device_t h5 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // heat at least with infrared panels
-static device_t *DEVICES_INFRA[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
+static device_t *DEVICES_INFRAR[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
 
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };
@@ -91,7 +91,7 @@ static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b
 static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
 
 // define POTDs
-static const potd_t INFRA = { .name = "INFRA", .devices = DEVICES_INFRA };
+static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
 static const potd_t GREEDY = { .name = "GREEDY", .devices = DEVICES_GREEDY };
 static const potd_t PLENTY = { .name = "PLENTY", .devices = DEVICES_PLENTY };
 static const potd_t MODEST = { .name = "MODEST", .devices = DEVICES_MODEST };
@@ -478,7 +478,7 @@ static int choose_program() {
 
 	// PV less than twice akku capacity - heat with infrared panels
 	if (gstate->today < acx2)
-		return select_program(&INFRA);
+		return select_program(&INFRAR);
 
 	// start heating asap and charge akku tommorrow
 	if (gstate->tomorrow > gstate->today)
