@@ -32,7 +32,7 @@ static int collect_models(sunspec_t *ss) {
 	int address = SUNSPEC_BASE_ADDRESS;
 	rc = modbus_read_registers(ss->mb, address, 2, (uint16_t*) &sunspec_id);
 	if (rc == -1)
-		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+		return xerr("SUNSPEC %s collect_models modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
 	// 0x53756e53 == 'SunS'
 	SWAP32(sunspec_id);
@@ -43,12 +43,9 @@ static int collect_models(sunspec_t *ss) {
 	address += 2;
 
 	while (1) {
-		pthread_mutex_lock(&ss->lock);
 		rc = modbus_read_registers(ss->mb, address, 2, (uint16_t*) &index);
-		pthread_mutex_unlock(&ss->lock);
-
 		if (rc == -1)
-			return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+			return xerr("SUNSPEC %s collect_models modbus_read_registers %s", ss->name, modbus_strerror(errno));
 
 		if (*id == 0xffff && *size == 0)
 			break;
@@ -182,10 +179,9 @@ static int read_model(sunspec_t *ss, uint16_t id, uint16_t addr, uint16_t size, 
 	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, size + 2, model);
 	pthread_mutex_unlock(&ss->lock);
-
 	if (rc == -1) {
 		memset(model, 0, size * sizeof(uint16_t) + 4);
-		return xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
+		return xerr("SUNSPEC %s read_model modbus_read_registers %s", ss->name, modbus_strerror(errno));
 	}
 
 	// validate id + size
@@ -393,10 +389,8 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
 	pthread_mutex_lock(&ss->lock);
 	int rc = modbus_read_registers(ss->mb, addr, 1, value);
 	pthread_mutex_unlock(&ss->lock);
-	if (rc == -1) {
-		*value = 0;
+	if (rc == -1)
 		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
-	}
 }
 
 int sunspec_read(sunspec_t *ss) {
