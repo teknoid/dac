@@ -347,30 +347,17 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
-	// surplus is positive inverter ac output without akku, hi-cutted by pv, lo-cut 0
-	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
-	HICUT(pstate->surp, pstate->pv)
-	LOCUT(pstate->surp, 0)
-
-	// grid load or akku discharge is not surplus
-	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
-		pstate->surp = 0;
-
-	// ratio surplus / load - add actual delta to get future result
-	int dsurp = pstate->surp - PSTATE_SEC_LAST1->surp;
-	pstate->rsl = pstate->load ? (pstate->surp + dsurp) * 100 / pstate->load : 0;
-
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = pstate->akku * -1;
-		xlog("SOLAR akku discharge ramp rsl=%d aakku=%d akku=%d ramp=%d", pstate->rsl, avg->akku, pstate->akku, pstate->ramp);
+		xlog("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avg->akku, pstate->akku, pstate->ramp);
 		return;
 	}
 
 	// always ramp down on grid download greater than akku charging
 	if (PSTATE_GRID_DLOAD && pstate->grid > pstate->akku * -1) {
 		pstate->ramp = pstate->grid * -1;
-		xlog("SOLAR grid download ramp rsl=%d agrid=%d grid=%d akku=%d ramp=%d", pstate->rsl, avg->grid, pstate->grid, pstate->akku, pstate->ramp);
+		xlog("SOLAR grid download ramp agrid=%d grid=%d akku=%d ramp=%d", avg->grid, pstate->grid, pstate->akku, pstate->ramp);
 		return;
 	}
 
@@ -745,7 +732,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear flags and values
-	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
+	pstate->flags = pstate->ramp = 0;
 
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
@@ -776,10 +763,17 @@ static void calculate_pstate() {
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 
-	// dissipation
-	// int diss1 = pstate->dc1 - pstate->ac1;
-	// int diss2 = pstate->dc2 - pstate->ac2;
-	// xdebug("SOLAR Inverter Dissipation diss1=%d diss2=%d adiss=%d", diss1, diss2, pstate->adiss);
+	// surplus is positive inverter ac output without akku, hi-cutted by pv, lo-cut 0
+	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
+	HICUT(pstate->surp, pstate->pv)
+	LOCUT(pstate->surp, 0)
+
+	// grid load or akku discharge is not surplus
+	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
+		pstate->surp = 0;
+
+	// ratio surplus / load
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
 
 	// shape
 	ZSHAPE(pstate->grid, 2)
