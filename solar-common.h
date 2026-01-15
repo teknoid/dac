@@ -142,7 +142,8 @@ struct _device {
 	int power;
 	int steal;
 	int load;
-	int ramp;
+	int ramp_in;
+	int ramp_out;
 	int climit;
 	int dlimit;
 	int p1;

@@ -347,9 +347,17 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
+	// surplus is positive inverter ac output, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
+	pstate->surp = pstate->ac1 + pstate->ac2;
+	if (pstate->ac1 < 0)
+		pstate->surp = 0;
+	if (pstate->ac2 < 0)
+		pstate->surp = 0;
+	LOCUT(pstate->surp, 0)
+	HICUT(pstate->surp, pstate->pv)
+
 	// ratio surplus / load - add actual delta to get future result
-	int load = pstate->load > params->baseload ? pstate->load : params->baseload;
-	pstate->rsl = load ? (pstate->surp + delta->surp) * 100 / load : 0;
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
 
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
@@ -642,8 +650,8 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// offline when surplus is permanent below params->minimum
-	int offline = m0->surp < params->minimum && m1->surp < params->minimum && m2->surp < params->minimum && m3->surp < params->minimum;
+	// offline when pv is permanent below params->minimum
+	int offline = m0->pv < params->minimum && m1->pv < params->minimum && m2->pv < params->minimum && m3->pv < params->minimum;
 	if (offline) {
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
@@ -738,7 +746,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear flags and values
-	pstate->flags = pstate->rsl = pstate->ramp = 0;
+	pstate->flags = pstate->rsl = pstate->ramp = pstate->surp = 0;
 
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
@@ -765,13 +773,6 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mpptp3, NOISE)
 	ZSHAPE(pstate->mpptp4, NOISE)
 	pstate->pv = pstate->mpptp1 + pstate->mpptp2 + pstate->mpptp3 + pstate->mpptp4;
-
-	// surplus is inverter ac output plus (charging) akku, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
-	pstate->surp = pstate->ac1 + pstate->ac2;
-	if (pstate->akku < NOISE)
-		pstate->surp += pstate->akku * -1;
-	LOCUT(pstate->surp, 0)
-	HICUT(pstate->surp, pstate->pv)
 
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
