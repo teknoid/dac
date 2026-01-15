@@ -126,32 +126,32 @@ static device_t* get_by_id(unsigned int id, unsigned int relay) {
 }
 
 static void ramp_heater(device_t *heater) {
-	heater->ramp = 0;
-	if (!dstate->ramp || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
+	heater->ramp_out = 0;
+	if (!heater->ramp_in || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return;
 
 	if (heater->state == Manual && !DEV_FORCE(heater))
 		return;
 
 	// heating disabled
-	if (heater->state == Auto && dstate->ramp > 0 && !GSTATE_HEATING)
+	if (heater->state == Auto && heater->ramp_in > 0 && !GSTATE_HEATING)
 		heater->state = Standby;
 
 	// keep on when already on
-	if (dstate->ramp > 0 && heater->power)
+	if (heater->ramp_in > 0 && heater->power)
 		return;
 
 	// keep off when already off
-	if (dstate->ramp <= 0 && !heater->power)
+	if (heater->ramp_in <= 0 && !heater->power)
 		return;
 
 	// not enough power available to switch on
 	int min = !DEV_FORCE(heater) && heater->min ? heater->min : heater->total;
-	if (dstate->ramp > 0 && dstate->ramp < min)
+	if (heater->ramp_in > 0 && heater->ramp_in < min)
 		return;
 
 	// transform ramp into power on/off
-	heater->power = dstate->ramp > 0 ? 1 : 0;
+	heater->power = heater->ramp_in > 0 ? 1 : 0;
 	xdebug("SOLAR switching %s %s", heater->name, heater->power ? "ON" : "OFF");
 
 #ifndef SOLAR_MAIN
@@ -161,7 +161,7 @@ static void ramp_heater(device_t *heater) {
 	// update power values
 	dstate->flags |= FLAG_ACTION;
 	dstate->resp = WAIT_RESPONSE;
-	heater->ramp = heater->power ? heater->total : heater->total * -1;
+	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
 	heater->flags &= ~FLAG_FORCE;
 
@@ -170,15 +170,13 @@ static void ramp_heater(device_t *heater) {
 	heater->p2 = pstate->p2;
 	heater->p3 = pstate->p3;
 	device = heater;
-
-	return;
 }
 
 // echo p:0:0 | socat - udp:boiler3:1975
 // for i in `seq 1 10`; do let j=$i*10; echo p:$j:0 | socat - udp:boiler1:1975; sleep 1; done
 static void ramp_boiler(device_t *boiler) {
-	boiler->ramp = 0;
-	if (!dstate->ramp || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
+	boiler->ramp_out = 0;
+	if (!boiler->ramp_in || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
 		return;
 
 	if (boiler->state == Manual && !DEV_FORCE(boiler))
@@ -189,26 +187,26 @@ static void ramp_boiler(device_t *boiler) {
 		return;
 
 	// already full up
-	if (boiler->power == 100 && dstate->ramp > 0)
+	if (boiler->power == 100 && boiler->ramp_in > 0)
 		return;
 
 	// already full down
-	if (boiler->power == 0 && dstate->ramp < 0)
+	if (boiler->power == 0 && boiler->ramp_in < 0)
 		return;
 
 	// charging boilers only between configured FROM / TO (winter always)
-	if (boiler->power == 0 && dstate->ramp > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
+	if (boiler->power == 0 && boiler->ramp_in > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
 		boiler->state = Standby;
 		return;
 	}
 
 	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->state == Auto && boiler->power == 0 && dstate->ramp < boiler->min)
+	if (boiler->state == Auto && boiler->power == 0 && boiler->ramp_in < boiler->min)
 		return;
 
 	// power steps
-	int step = dstate->ramp * 100 / boiler->total;
-	if (dstate->ramp < 0 && (dstate->ramp < step * boiler->total / 100))
+	int step = boiler->ramp_in * 100 / boiler->total;
+	if (boiler->ramp_in < 0 && (boiler->ramp_in < step * boiler->total / 100))
 		step -= 1; // one step more when not enough
 	if (!step)
 		return;
@@ -260,7 +258,7 @@ static void ramp_boiler(device_t *boiler) {
 	// update power values
 	dstate->flags |= FLAG_ACTION;
 	dstate->resp = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
-	boiler->ramp = (power - boiler->power) * boiler->total / 100;
+	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
 	boiler->flags &= ~FLAG_FORCE;
@@ -270,29 +268,27 @@ static void ramp_boiler(device_t *boiler) {
 	boiler->p2 = pstate->p2;
 	boiler->p3 = pstate->p3;
 	device = boiler;
-
-	return;
 }
 
 static void ramp_akku(device_t *akku) {
-	akku->ramp = 0;
+	akku->ramp_out = 0;
 
 	// akku ramps up and down itself - emulating ramp behavior
 
 	// ramp down request
-	if (dstate->ramp < 0) {
+	if (akku->ramp_in < 0) {
 
 		// akku can max. ramp down current charge power
 		if (AKKU_CHARGING) {
-			akku->ramp = dstate->ramp < akku->load * -1 ? akku->load * -1 : dstate->ramp;
+			akku->ramp_out = akku->ramp_in < akku->load * -1 ? akku->load * -1 : akku->ramp_in;
 			if (akku->load < params->minimum)
-				akku->ramp = 0; // leave a little bit charging - forward ramp down request
-			xlog("SOLAR akku ramp↓ power=%d load=%d ramp=%d", dstate->ramp, akku->load, akku->ramp);
+				akku->ramp_out = 0; // leave a little bit charging - forward ramp down request
+			xlog("SOLAR akku ramp↓ power=%d load=%d ramp=%d", akku->ramp_in, akku->load, akku->ramp_out);
 		}
 	}
 
 	// ramp up request
-	if (dstate->ramp > 0) {
+	if (akku->ramp_in > 0) {
 
 		// set into standby when full
 		if (gstate->soc == 1000) {
@@ -317,11 +313,11 @@ static void ramp_akku(device_t *akku) {
 			int remain = max - akku->load;
 			// akku draws more than mppt1+mppt2 when negative
 			LOCUT(remain, 0)
-			akku->ramp = dstate->ramp;
-			HICUT(akku->ramp, remain)
+			akku->ramp_out = akku->ramp_in;
+			HICUT(akku->ramp_out, remain)
 			if (akku->load < params->minimum)
-				akku->ramp = params->minimum; // leave a little bit charging - consume more to stop ramp up request
-			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", dstate->ramp, akku->load, max, remain, akku->ramp);
+				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
+			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
 			return;
 		}
 
@@ -333,9 +329,24 @@ static void ramp_akku(device_t *akku) {
 		if (!akku_charge(akku)) {
 			dstate->flags |= FLAG_ACTION;
 			dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
-			akku->ramp = dstate->ramp; // catch all
+			akku->ramp_out = akku->ramp_in; // catch all
 		}
 	}
+}
+
+// call device specific ramp_xxx() function
+static void ramp_device(device_t *d) {
+	if (GSTATE_FORCE_OFF)
+		d->flags |= FLAG_FORCE;
+	(d->rf)(d);
+}
+
+// toggle full power of a device
+static void toggle_device(device_t *d) {
+	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
+	d->ramp_in = !d->power ? d->total : d->total * -1;
+	d->flags |= FLAG_FORCE;
+	(d->rf)(d);
 }
 
 static void create_dstate_json() {
@@ -370,6 +381,7 @@ static void print_dstate() {
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
 		xlogl_int(line, "Ramp", dstate->ramp);
+		xlogl_int(line, "Steal", dstate->steal);
 	} else
 		xlogl_int(line, "DLimit", AKKU->dlimit);
 	strcat(line, "   ");
@@ -427,21 +439,6 @@ static void print_dstate() {
 	xlogl_end(line, strlen(line), 0);
 }
 
-static void toggle_device(device_t *d) {
-	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
-	dstate->ramp = !d->power ? d->total : d->total * -1;
-	d->flags |= FLAG_FORCE;
-	(d->rf)(d);
-}
-
-// call device specific ramp function
-static void ramp_device(device_t *d, int power) {
-	if (GSTATE_FORCE_OFF)
-		d->flags |= FLAG_FORCE;
-	dstate->ramp = power;
-	(d->rf)(d);
-}
-
 static int select_program(const potd_t *p) {
 	if (potd == p)
 		return 0; // no change
@@ -497,19 +494,21 @@ static void emergency() {
 		AKKU->dlimit = 0;
 		akku_discharge(AKKU);
 	}
-	for (device_t **dd = DEVICES; *dd; dd++)
-		ramp_device(DD, DD->total * -1);
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		DD->ramp_in = DD->total * -1;
+		ramp_device(DD);
+	}
 }
 
 // ramp up in POTD order
 static void rampup() {
 	device_t **dd = potd->devices;
 	while (*dd && dstate->ramp >= RAMP) {
-		int oldramp = dstate->ramp;
-		ramp_device(DD, dstate->ramp);
-		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", oldramp, DD->ramp, dstate->ramp, DD->name);
-		if (DD->ramp)
+		DD->ramp_in = dstate->ramp;
+		ramp_device(DD);
+		dstate->ramp -= DD->ramp_out;
+		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
+		if (DD->ramp_out)
 			msleep(111);
 		dd++;
 	}
@@ -524,11 +523,11 @@ static void rampdown() {
 
 	// now go backward - this gives reverse order
 	while (dd-- != potd->devices && dstate->ramp < 0) {
-		int oldramp = dstate->ramp;
-		ramp_device(DD, dstate->ramp);
-		dstate->ramp -= DD->ramp;
-		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp, oldramp, DD->name);
-		if (DD->ramp)
+		DD->ramp_in = dstate->ramp;
+		ramp_device(DD);
+		dstate->ramp -= DD->ramp_out;
+		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
+		if (DD->ramp_out)
 			msleep(111);
 	}
 }
@@ -549,7 +548,8 @@ static device_t* perform_standby(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
 	xlog("SOLAR starting standby check on %s with power=%d", d->name, power);
 	d->flags |= FLAG_STANDBY_CHECK; // set check flag
-	ramp_device(d, power);
+	d->ramp_in = power;
+	ramp_device(d);
 	return d;
 }
 
@@ -607,7 +607,7 @@ static void steal() {
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// special akku steal logic: akku is charging and not saturated (limited or maximum charge power reached) and inverter produces ac output
+		// thief is akku: when charging and not saturated (limited or maximum charge power reached) and inverter produces ac output
 		if (t == AKKU && AKKU_CHARGING && AKKU->power < 90 && pstate->ac1 > params->minimum) {
 			// can not steal more than inverters ac output
 			dstate->steal = pstate->ac1;
@@ -618,13 +618,15 @@ static void steal() {
 				vv++;
 
 			//ramp down victims in inverse order
-			int to_steal = dstate->steal;
-			while (--vv != tt && to_steal > 0) {
+			int to_steal = dstate->steal * -1;
+			while (--vv != tt && to_steal < 0) {
 				device_t *v = *vv;
-				ramp_device(v, to_steal * -1);
-				int given = v->ramp * -1;
-				xlog("SOLAR AKKU steal %d/%d from %s", given, to_steal, v->name);
-				to_steal -= given;
+				v->ramp_in = to_steal;
+				ramp_device(v);
+				to_steal -= v->ramp_out;
+				xlog("SOLAR AKKU steal %3d --> %3d --> %3d %s", v->ramp_in, v->ramp_out, to_steal, v->name);
+				if (v->ramp_out)
+					msleep(111);
 			}
 			return;
 		}
@@ -652,17 +654,20 @@ static void steal() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		int to_steal = dstate->steal;
-		while (--vv != tt && to_steal > 0) {
+		int to_steal = dstate->steal * -1;
+		while (--vv != tt && to_steal < 0) {
 			device_t *v = *vv;
-			ramp_device(v, to_steal * -1);
-			int given = v->ramp * -1;
-			xlog("SOLAR %s steal %d/%d from %s min=%d ramp=%d", t->name, given, to_steal, v->name, thief_min, dstate->steal);
-			to_steal -= given;
+			v->ramp_in = to_steal;
+			ramp_device(v);
+			to_steal -= v->ramp_out;
+			xlog("SOLAR %s steal %3d --> %3d --> %3d from %s min=%d", t->name, v->ramp_in, v->ramp_out, to_steal, v->name, thief_min);
+			if (v->ramp_out)
+				msleep(111);
 		}
 
 		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
-		ramp_device(t, dstate->steal);
+		t->ramp_in = dstate->steal;
+		ramp_device(t);
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0; // give akku time to release or consume power
 		device = 0; // expect no response when power is transferred from one to another
 		return;
@@ -674,7 +679,7 @@ static void response() {
 		return; // no response expected
 
 	// valid response is at least 2/3 of last ramp
-	int delta = device->ramp - device->ramp / 3;
+	int delta = device->ramp_out - device->ramp_out / 3;
 	if (!delta) {
 		device = 0;
 		return; // no response expected (might be overridden on sub sequential down ramps till zero)
@@ -716,7 +721,8 @@ static void response() {
 	if (standby_check) {
 		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", device->name, delta, d1, d2, d3);
 		device->flags |= FLAG_FORCE;
-		ramp_device(device, device->total * -1);
+		device->ramp_in = device->total * -1;
+		ramp_device(device);
 		device->state = Standby;
 	} else
 		xlog("SOLAR no response from %s", device->name);
@@ -767,7 +773,7 @@ static void calculate_actions() {
 	if (cyclic == 2 && !device && !overload && PSTATE_VALID && GSTATE_STABLE && !DSTATE_ALL_DOWN && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
-	// ramp up when no other preceded actions
+	// ramp up when no other preceding actions
 	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
 		dstate->flags |= FLAG_ACTION_RAMP;
 }
@@ -834,7 +840,8 @@ static void hourly() {
 		// force off when offline
 		if (GSTATE_OFFLINE) {
 			DD->flags |= FLAG_FORCE;
-			ramp_device(DD, DD->total * -1);
+			DD->ramp_in = DD->total * -1;
+			ramp_device(DD);
 		}
 	}
 
