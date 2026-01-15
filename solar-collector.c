@@ -347,14 +347,8 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
-	// surplus is positive inverter ac output plus charging akku, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
+	// surplus is positive inverter ac output, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
 	pstate->surp = pstate->ac1 + pstate->ac2;
-	if (pstate->akku < NOISE)
-		pstate->surp += pstate->akku * -1;
-	if (pstate->ac1 < 0)
-		pstate->surp = 0;
-	if (pstate->ac2 < 0)
-		pstate->surp = 0;
 	LOCUT(pstate->surp, 0)
 	HICUT(pstate->surp, pstate->pv)
 
@@ -405,9 +399,6 @@ static void calculate_pstate_ramp() {
 		// no up below 105
 		if (avg->rsl < 105)
 			HICUT(pstate->ramp, 0)
-		// force down below 100
-		if (avg->rsl < 100)
-			pstate->ramp = -RAMP;
 		if (pstate->ramp)
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
@@ -422,9 +413,10 @@ static void calculate_pstate_ramp() {
 
 	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty;
+	int akku = pstate->akku < -RAMP && pstate->mpptp1 + pstate->mpptp2 > pstate->akku * -1;
+	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, pstate->grid, plenty);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, pstate->grid, plenty, akku);
 		pstate->ramp = 0;
 	}
 }
