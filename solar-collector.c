@@ -347,8 +347,10 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
-	// surplus is positive inverter ac output, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
+	// surplus is positive inverter ac output plus charging akku, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
 	pstate->surp = pstate->ac1 + pstate->ac2;
+	if (pstate->akku < NOISE)
+		pstate->surp += pstate->akku * -1;
 	if (pstate->ac1 < 0)
 		pstate->surp = 0;
 	if (pstate->ac2 < 0)
@@ -357,7 +359,8 @@ static void calculate_pstate_ramp() {
 	HICUT(pstate->surp, pstate->pv)
 
 	// ratio surplus / load - add actual delta to get future result
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
+	int dsurp = pstate->surp - PSTATE_SEC_LAST1->surp;
+	pstate->rsl = pstate->load ? (pstate->surp + dsurp) * 100 / pstate->load : 0;
 
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
@@ -746,7 +749,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear flags and values
-	pstate->flags = pstate->rsl = pstate->ramp = pstate->surp = 0;
+	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
 
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
