@@ -526,6 +526,18 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set FLAG_STABLE");
 	}
+
+	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
+	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
+	HICUT(pstate->surp, pstate->pv)
+	LOCUT(pstate->surp, 0)
+
+	// grid load or akku discharge is not surplus
+	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
+		pstate->surp = 0;
+
+	// ratio surplus / load
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
 }
 
 static void calculate_gstate() {
@@ -732,7 +744,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear flags and values
-	pstate->flags = pstate->ramp = 0;
+	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
 
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
@@ -762,18 +774,6 @@ static void calculate_pstate() {
 
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
-
-	// surplus is positive inverter ac output without akku, hi-cutted by pv, lo-cut 0
-	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
-	HICUT(pstate->surp, pstate->pv)
-	LOCUT(pstate->surp, 0)
-
-	// grid load or akku discharge is not surplus
-	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
-		pstate->surp = 0;
-
-	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
 
 	// shape
 	ZSHAPE(pstate->grid, 2)
