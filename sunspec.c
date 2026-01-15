@@ -620,6 +620,7 @@ int sunspec_controls_conn(sunspec_t *ss, int conn) {
 
 	xlog("SUNSPEC setting controls Conn %d", conn);
 	sunspec_write_reg(ss, ss->controls_addr + OFFSET(ss->controls, ss->controls->Conn), conn);
+	ss->sleep = 10; // update poll loop timer
 	return read_controls(ss);
 }
 

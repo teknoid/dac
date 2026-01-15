@@ -41,7 +41,6 @@ void inverter_off() {
 
 void inverter_on() {
 	sunspec_controls_conn(inverter1, 1);
-	inverter1->sleep = 10;
 }
 
 int akku_get_min_soc() {
