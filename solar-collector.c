@@ -347,10 +347,14 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
-	// surplus is positive inverter ac output, hi-cutted by pv (not discharging akku), lo-cut 0 (forced akku charging when below 5%)
-	pstate->surp = pstate->ac1 + pstate->ac2;
-	LOCUT(pstate->surp, 0)
+	// surplus is positive inverter ac output without akku, hi-cutted by pv, lo-cut 0
+	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
 	HICUT(pstate->surp, pstate->pv)
+	LOCUT(pstate->surp, 0)
+
+	// grid load or akku discharge is not surplus
+	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
+		pstate->surp = 0;
 
 	// ratio surplus / load - add actual delta to get future result
 	int dsurp = pstate->surp - PSTATE_SEC_LAST1->surp;
