@@ -16,6 +16,7 @@
 
 // Shelly Switches
 #define HOFLICHT		0x2FEFEE // kaputt
+#define BAD				0x898640
 
 // Shelly Buttons
 #define KUECHE			0xB20670
@@ -32,14 +33,14 @@
 #define CARPORT			0xF81A5D
 #define SCHUPPEN		0x1A5E25
 #define SWITCHBOX		0x9D01FD
-#define INFRARED		0x555555
+#define INFRARED		0xB51597
 #define AQUA			0x666666
 
 // ESP32 Development Kits
 #define DEVKIT1			0x7ECDD0
 #define DEVKIT2			0x123456
 #define BOILER1			0x7A3FC4
-#define BOILER2			0xB2B2B2
+#define BOILER2			0x7A1F60
 #define BOILER3			0x9A3374
 
 // 433MHz RF Transmitter ID

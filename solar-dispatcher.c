@@ -69,26 +69,28 @@ static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .
 static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
 static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
-static device_t h1 = { .name = "küche",   .id = SWITCHBOX, .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "switchbox" };
-static device_t h2 = { .name = "wozi",    .id = SWITCHBOX, .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "switchbox" };
-static device_t h3 = { .name = "schlaf",  .id = PLUG6,     .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug5" };
-static device_t h4 = { .name = "tisch",   .id = SWITCHBOX, .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "switchbox" };
-static device_t h5 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
+static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
+static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
+static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
+static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
+static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
+static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
+static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
 // all (consumer) devices, needed for initialization
-static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
+static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
 
 // heat at least with infrared panels
-static device_t *DEVICES_INFRAR[] = { &h1, &h2, &h3, &h4, &a1, &b1, &b2, &b3, &h5, 0 };
+static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b3, &b2, &h4, &h5, &h7, 0 };
 
 // steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h1, &h2, &h3, &h4, &h5, &b1, &b2, &b3, &a1, 0 };
+static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h5, &h7, &b1, &b3, &b2, &a1, 0 };
 
 // heaters, then akku, then boilers
-static device_t *DEVICES_PLENTY[] = { &h1, &h2, &h3, &h4, &h5, &a1, &b1, &b2, &b3, 0 };
+static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h5, &h7, &b1, &b3, &b2, 0 };
 
 // prio on akku and boilers
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b3, &b2, &h2, &h3, &h6, &h1, &h4, &h5, &h7, 0 };
 
 // define POTDs
 static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
