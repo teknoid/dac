@@ -67,7 +67,7 @@ static device_t i2 = { .name = "fronius7" };
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .interlock = &b1  };
+static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
 static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
 static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
 static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
@@ -1108,6 +1108,10 @@ static int init() {
 				DD->state = Disabled;
 		}
 	}
+
+	// set interlock vice versa as both boilers hang on the same power line
+	b1.interlock = &b2;
+	b2.interlock = &b1;
 
 	return 0;
 }
