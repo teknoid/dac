@@ -14,7 +14,7 @@ static const xmas_t devices[] = {
 	{ PLUG5, 0 },
 	{ CARPORT, 1 },
 	{ SCHUPPEN, 1 },
-	{ SWITCHBOX, 4 },
+	{ INFRARED, 4 },
 };
 
 typedef struct xmas_timing_t {
