@@ -67,7 +67,7 @@ static device_t i2 = { .name = "fronius7" };
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
 static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .interlock = &b1  };
 static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
 static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
 static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
@@ -81,16 +81,16 @@ static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
 
 // heat at least with infrared panels
-static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b3, &b2, &h4, &h5, &h7, 0 };
+static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b2, &b3, &h4, &h5, &h7, 0 };
 
 // steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h5, &h7, &b1, &b3, &b2, &a1, 0 };
+static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h5, &h7, &b1, &b2, &b3, &a1, 0 };
 
 // heaters, then akku, then boilers
-static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h5, &h7, &b1, &b3, &b2, 0 };
+static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h5, &h7, &b1, &b2, &b3, 0 };
 
 // prio on akku and boilers
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &b3, &b2, &h2, &h3, &h6, &h1, &h4, &h5, &h7, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h5, &h7, 0 };
 
 // define POTDs
 static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
@@ -140,11 +140,15 @@ static void ramp_heater(device_t *heater) {
 		heater->state = Standby;
 
 	// keep on when already on
-	if (heater->ramp_in > 0 && heater->power)
+	if (heater->power == 1 && heater->ramp_in > 0)
 		return;
 
 	// keep off when already off
-	if (heater->ramp_in <= 0 && !heater->power)
+	if (heater->power == 0 && heater->ramp_in <= 0)
+		return;
+
+	// no ramp up when interlock device is powered up
+	if (heater->power == 0 && heater->ramp_in > 0 && heater->interlock && heater->interlock->power)
 		return;
 
 	// not enough power available to switch on
@@ -202,8 +206,12 @@ static void ramp_boiler(device_t *boiler) {
 		return;
 	}
 
+	// no ramp up when interlock device is powered up
+	if (boiler->power == 0 && boiler->ramp_in > 0 && boiler->interlock && boiler->interlock->power)
+		return;
+
 	// not enough to start up - electronic thermostat struggles at too less power
-	if (boiler->state == Auto && boiler->power == 0 && boiler->ramp_in < boiler->min)
+	if (boiler->power == 0 && boiler->state == Auto && boiler->ramp_in < boiler->min)
 		return;
 
 	// power steps

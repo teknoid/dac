@@ -150,6 +150,7 @@ struct _device {
 	int p2;
 	int p3;
 	ramp_function_t *rf;
+	device_t *interlock;
 };
 
 // self and meter counter with access pointers
