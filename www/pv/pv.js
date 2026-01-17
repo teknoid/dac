@@ -119,9 +119,9 @@ function update_state(file, selector) {
 					if (k == 'rsl') {
 						if (v == 0)
 							item.style.backgroundColor = "lightgrey";
-						else if (v < 100)
+						else if (v < 90)
 							item.style.backgroundColor = "coral";
-						else if (v < 120)
+						else if (v < 110)
 							item.style.backgroundColor = "orange";
 						else
 							item.style.backgroundColor = "palegreen";
