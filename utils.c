@@ -981,6 +981,23 @@ void append_table_csv(void *table, int cols, int rows, int offset, const char *f
 	xlog("UTILS appended %s", filename);
 }
 
+void append_line_csv(void *line, int cols, int offset, const char *filename) {
+	FILE *fp = fopen(filename, "at");
+	if (fp == NULL) {
+		xerr("UTILS Cannot open file %s for writing", filename);
+		return;
+	}
+
+	int *p = (int*) line;
+	fprintf(fp, "%04d ", offset);
+	for (int x = 0; x < cols; x++)
+		fprintf(fp, "%5d ", *p++);
+	fprintf(fp, "\n");
+
+	fflush(fp);
+	fclose(fp);
+	xlog("UTILS appended %s", filename);
+}
 void dump_table(void *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
 	char c[cols * 8 + 16], v[16];
 

@@ -174,7 +174,7 @@ set ylabel "PState Avg 24/7"
 set xrange [0:24]
 set yrange [*:*]
 set xtics 1 format "%s"
-set output "/run/mcp/pstate-average-247.svg"
+set output "/run/mcp/pstate-avg-247.svg"
 p avg247 u 1:"grid"  t "grid"     w fsteps ls 4,\
       '' u 1:"akku"  t "akku"     w fsteps ls 2,\
       '' u 1:"load"  t "load"     w fsteps ls 5

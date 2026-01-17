@@ -205,6 +205,30 @@ static void collect_average_247() {
 		idiv_const(pavg, PSTATE_SIZE, 7);
 	}
 
+	// grid validation
+	for (int h = 0; h < 24; h++) {
+		pstate_t *pavg = PSTATE_AVG_247(h);
+		int cgrid = pavg->p1 + pavg->p2 + pavg->p3;
+		if (abs(cgrid - pavg->grid) > 2)
+			xlog("SOLAR average 24/7 grid mismatch hour=%02d p1+p2+p3=%d grid=%d", h, cgrid, pavg->grid);
+	}
+
+	// load validation
+	for (int h = 0; h < 24; h++) {
+		pstate_t *pavg = PSTATE_AVG_247(h);
+		int cload = pavg->ac1 + pavg->ac2 + pavg->grid;
+		if (abs(cload - pavg->load) > 1)
+			xlog("SOLAR average 24/7 load mismatch hour=%02d ac1+ac2+grid=%d load=%d", h, cload, pavg->load);
+	}
+
+	// pv validation
+	for (int h = 0; h < 24; h++) {
+		pstate_t *pavg = PSTATE_AVG_247(h);
+		int cpv = pavg->mpptp1 + pavg->mpptp2 + pavg->mpptp3 + pavg->mpptp4;
+		if (abs(cpv - pavg->pv) > 1)
+			xlog("SOLAR average 24/7   pv mismatch hour=%02d mppt1+mppt2+mppt3+mppt4=%d load=%d", h, cpv, pavg->load);
+	}
+
 	strcpy(line, "SOLAR average 24/7 load:");
 	for (int h = 0; h < 24; h++) {
 		snprintf(value, 10, " %d", PSTATE_AVG_247(h)->load);
@@ -228,6 +252,7 @@ static void collect_average_247() {
 	xlog("SOLAR baseload=%d minimum=%d", params->baseload, params->minimum);
 
 	store_table_csv(pstate_average_247, PSTATE_SIZE, 24, PSTATE_HEADER, RUN SLASH PSTATE_AVG247_CSV);
+	append_line_csv(PSTATE_AVG_247(0), PSTATE_SIZE, 24, RUN SLASH PSTATE_AVG247_CSV); // gnuplot workaround: hour 0 = hour 24
 }
 
 static void print_gstate() {

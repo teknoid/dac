@@ -171,6 +171,7 @@ void idiv_const(void *dst, int cols, int divisor);
 void store_csv_header(const char *header, const char *filename);
 void store_table_csv(void *table, int cols, int rows, const char *header, const char *filename);
 void append_table_csv(void *table, int cols, int rows, int offset, const char *filename);
+void append_line_csv(void *line, int cols, int offset, const char *filename);
 void dump_table(void *table, int cols, int rows, int highlight_row, const char *title, const char *header);
 void dump_array(void *array, int size, const char *idx, const char *title);
 

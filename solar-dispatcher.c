@@ -997,7 +997,7 @@ void solar_tasmota(tasmota_t *t) {
 		d->power = t->power;
 		d->load = t->power ? d->total : 0;
 	}
-	xlog("SOLAR update id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
+	xlog("SOLAR update id=%06X name=%s relay=%d power=%d load=%d name=%s", t->id, t->name, t->relay, d->power, d->load, d->name);
 }
 
 static void loop() {
