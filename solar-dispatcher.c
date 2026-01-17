@@ -704,21 +704,29 @@ static void response() {
 	int d1 = pstate->p1 - device->p1;
 	int d2 = pstate->p2 - device->p2;
 	int d3 = pstate->p3 - device->p3;
-	int l1 = delta > 0 ? d1 > delta : d1 < delta;
-	int l2 = delta > 0 ? d2 > delta : d2 < delta;
-	int l3 = delta > 0 ? d3 > delta : d3 < delta;
+	int l1r = delta > 0 ? d1 > delta : d1 < delta;
+	int l2r = delta > 0 ? d2 > delta : d2 < delta;
+	int l3r = delta > 0 ? d3 > delta : d3 < delta;
 
 	// is the device currently in standby check?
 	int standby_check = DEV_STANDBY_CHECK(device);
 
+	// increment phase response counter
+	if (l1r)
+		device->l1rc++;
+	if (l2r)
+		device->l2rc++;
+	if (l3r)
+		device->l3rc++;
+
 	// response OK
-	if (l1 || l2 || l3) {
+	if (l1r || l2r || l3r) {
 		if (standby_check) {
 			xlog("SOLAR %s standby check negative, delta expected %d actual %d %d %d resp=%d", device->name, delta, d1, d2, d3, dstate->resp);
 			device->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
 			device->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
 		} else
-			xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d resp=%d", device->name, l1 ? "L1" : "", l2 ? "L2" : "", l3 ? "L3" : "", d1, d2, d3, delta, dstate->resp);
+			xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d resp=%d", device->name, l1r ? "L1" : "", l2r ? "L2" : "", l3r ? "L3" : "", d1, d2, d3, delta, dstate->resp);
 
 		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0; // give akku time to release or consume power
 		device->flags |= FLAG_RESPONSE; // flag with response OK
@@ -839,6 +847,10 @@ static void calculate_dstate() {
 
 static void daily() {
 	xdebug("SOLAR dispatcher executing daily tasks...");
+
+	// dump phase response counter
+	for (device_t **dd = DEVICES; *dd; dd++)
+		xlog("SOLAR %s phase response counter p1=%d p2=%d p3=%d", device->name, DD->l1rc, DD->l2rc, DD->l3rc);
 }
 
 static void hourly() {

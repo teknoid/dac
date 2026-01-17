@@ -149,6 +149,9 @@ struct _device {
 	int p1;
 	int p2;
 	int p3;
+	int l1rc;
+	int l2rc;
+	int l3rc;
 	ramp_function_t *rf;
 	device_t *interlock;
 };
