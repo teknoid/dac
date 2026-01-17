@@ -1117,6 +1117,7 @@ static int init() {
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->state = Initial;
+		DD->l1rc = DD->l2rc = DD->l3rc = 0;
 
 		// get IP address of boilers and disable when failed
 		if (DD->adj) {
