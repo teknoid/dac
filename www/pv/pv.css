@@ -15,8 +15,10 @@ body, html {
 	color: #3b3b3d;
 }
 
-.flex-row	 				{ display:flex; flex-direction:row }
-.flex-column 				{ display:flex; flex-direction:column }
+.flex-row	 				{ margin:0; padding:0; display:flex; flex-direction:row }
+.flex-column 				{ margin:0; padding:0; display:flex; flex-direction:column }
+
+.devices					{ margin-top:10px }
 
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
@@ -37,9 +39,9 @@ dl dd.d						{ cursor:default }
 	.svg					{ max-width:1420px }
 	
 	dl 						{ }
-	dl dd					{ position:relative; width:35px; height:100px }
+	dl dd					{ position:relative; width:35px; height:120px }
 	dl dd .bar				{ position:absolute; bottom:0px; width:35px; display:block }
-	dl dd .load				{ position:relative; top:80px; text-align:center }
+	dl dd .load				{ position:relative; top:100px; text-align:center }
 	dl dd .name				{ position:relative; left:10px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
@@ -69,10 +71,10 @@ dl dd.d						{ cursor:default }
 	.svg					{ max-width:1000px }
 
 	dl 						{ font-size:32px }
-	dl dd					{ position:relative; width:95px; height:300px; margin:0 10px 0 0 }
-	dl dd .bar				{ position:absolute; bottom:0px; width:95px; display:block }
+	dl dd					{ position:relative; width:75px; height:300px; margin:0 5px 0 0 }
+	dl dd .bar				{ position:absolute; bottom:0px; width:75px; display:block }
 	dl dd .load				{ position:relative; top:250px; text-align:center }
-	dl dd .name				{ position:relative; left:32px; writing-mode:sideways-rl;  z-index:+1 }
+	dl dd .name				{ position:relative; left:22px; writing-mode:sideways-rl;  z-index:+1 }
 }
 
 .lv							{ margin:2px; padding:4px 6px; background-color:lightgrey }
