@@ -95,12 +95,12 @@
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
 
 // device flags
-#define FLAG_RESPONSE			(1 << 0)
+#define FLAG_RESPONSE_OK		(1 << 0)
 #define FLAG_FORCE				(1 << 1)
 #define FLAG_STANDBY_CHECK		(1 << 2)
 #define FLAG_STANDBY_CHECKED	(1 << 3)
 
-#define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE)
+#define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE_OK)
 #define DEV_FORCE(d)			(d->flags & FLAG_FORCE)
 #define DEV_STANDBY_CHECK(d)	(d->flags & FLAG_STANDBY_CHECK)
 #define DEV_STANDBY_CHECKED(d)	(d->flags & FLAG_STANDBY_CHECKED)
@@ -146,6 +146,7 @@ struct _device {
 	int ramp_out;
 	int climit;
 	int dlimit;
+	int response;
 	int p1;
 	int p2;
 	int p3;
@@ -249,7 +250,6 @@ struct _dstate {
 	int flags;
 	int inv;
 	int lock;
-	int resp;
 	int ramp;
 	int steal;
 	int cload;
