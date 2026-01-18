@@ -82,16 +82,16 @@ static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 1, .total = 1000
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
 
 // heat at least with infrared panels
-static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b2, &b3, &h4, &h5, &h7, 0 };
+static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b2, &b3, &h4, &h7, &h5, 0 };
 
 // steal all akku charge power
-static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h5, &h7, &b1, &b2, &b3, &a1, 0 };
+static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h7, &h5, &b1, &b2, &b3, &a1, 0 };
 
 // heaters, then akku, then boilers
-static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h5, &h7, &b1, &b2, &b3, 0 };
+static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h7, &h5, &b1, &b2, &b3, 0 };
 
 // prio on akku and boilers
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h5, &h7, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
 
 // define POTDs
 static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
@@ -327,8 +327,12 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// TODO do not start charging together with other ramps or when not indicated
+		// do not start charging when not indicated
 		if (!GSTATE_CHARGE_AKKU)
+			return;
+
+		// do not start charging together with other ramps
+		if (DSTATE_ACTION)
 			return;
 
 		// start charging
@@ -536,6 +540,9 @@ static void rampdown() {
 }
 
 static void ramp() {
+	dstate->ramp = pstate->ramp; // take over ramp power
+
+	// rampdown
 	if (dstate->ramp < 0 && !DSTATE_ALL_DOWN)
 		rampdown();
 
@@ -546,11 +553,15 @@ static void ramp() {
 	// wait if more power was released than requested
 	if (DSTATE_ACTION && pstate->ramp < 0 && dstate->ramp > RAMP)
 		dstate->lock = WAIT_RAMP;
+
+	// give akku time to release or consume power
+	if (DSTATE_ACTION && AKKU_CHARGING)
+		dstate->lock = WAIT_AKKU;
 }
 
-static device_t* perform_standby(device_t *d) {
+static device_t* standby_exec(device_t *d) {
 	int power = d->adj ? (d->power < 50 ? +500 : -500) : (d->power ? d->total * -1 : d->total);
-	xlog("SOLAR starting standby check on %s with power=%d", d->name, power);
+	xlog("SOLAR executing standby check on %s with power=%d", d->name, power);
 	d->flags |= FLAG_STANDBY_CHECK; // set check flag
 	d->ramp_in = power;
 	ramp_device(d);
@@ -562,32 +573,33 @@ static device_t* standby() {
 	// try first powered adjustable device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj && !DEV_RESPONSE(DD))
-			return perform_standby(DD);
+			return standby_exec(DD);
 
 	// try first powered adjustable device in AUTO mode
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
-			return perform_standby(DD);
+			return standby_exec(DD);
 
 	// try first powered adjustable device in MANUAL mode
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Manual && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
-			return perform_standby(DD);
+			return standby_exec(DD);
 
 	// try first powered dumb device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && !DEV_RESPONSE(DD))
-			return perform_standby(DD);
+			return standby_exec(DD);
 
 	// try first powered dumb device
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power)
-			return perform_standby(DD);
+			return standby_exec(DD);
 
 	return 0;
 }
 
 static void steal() {
+	dstate->steal = 0; // reset
 
 	// calculate steal power for each device
 	int overall_steal = 0;
@@ -680,7 +692,7 @@ static void steal() {
 		ramp_device(t);
 
 		// wait even if no response expected when transferring power from one to another device, give akku time to release or consume power
-		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RESPONSE;
+		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
 		return;
 	}
 }
@@ -722,7 +734,6 @@ static void response(device_t *d) {
 		if (l3r)
 			d->l3rc++;
 
-		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : 0; // give akku time to release or consume power
 		return;
 	}
 
@@ -755,11 +766,8 @@ static void calculate_actions() {
 	if (dstate->lock || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return; // no action
 
-	// take over ramp power
-	dstate->ramp = pstate->ramp;
-
 	// ramp down has prio
-	if (dstate->ramp < 0) {
+	if (pstate->ramp < 0) {
 		dstate->flags |= FLAG_ACTION_RAMP;
 		return;
 	}
@@ -779,7 +787,7 @@ static void calculate_actions() {
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceding actions
-	if (dstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
+	if (pstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
 		dstate->flags |= FLAG_ACTION_RAMP;
 }
 
@@ -789,7 +797,7 @@ static void calculate_dstate() {
 	dstate->flags &= ~STATE_FLAGS_MASK;
 
 	// clear values
-	dstate->ramp = dstate->steal = dstate->cload = dstate->rload = 0;
+	dstate->cload = dstate->rload = 0;
 
 	// inverter status
 	dstate->inv = inv1->state * 10 + inv2->state;
@@ -891,6 +899,8 @@ static void minly() {
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
 			AKKU->climit = params->akku_cmax / 2;
 		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+			AKKU->climit = params->akku_cmax / 3;
+		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
 			AKKU->climit = params->akku_cmax / 4;
 	}
 
