@@ -552,6 +552,10 @@ static void calculate_pstate_online() {
 		xdebug("SOLAR set FLAG_STABLE");
 	}
 
+	// do not continue if invalid
+	if (!PSTATE_VALID)
+		return;
+
 	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
 	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
 	HICUT(pstate->surp, pstate->pv)

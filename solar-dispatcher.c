@@ -588,7 +588,6 @@ static device_t* standby() {
 }
 
 static void steal() {
-	dstate->steal = 0;
 
 	// calculate steal power for each device
 	int overall_steal = 0;
@@ -650,6 +649,7 @@ static void steal() {
 			continue;
 
 		// collect steal power from victims
+		dstate->steal = 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
 			dstate->steal += (*vv)->steal;
 
@@ -789,7 +789,7 @@ static void calculate_dstate() {
 	dstate->flags &= ~STATE_FLAGS_MASK;
 
 	// clear values
-	dstate->cload = dstate->rload = 0;
+	dstate->ramp = dstate->steal = dstate->cload = dstate->rload = 0;
 
 	// inverter status
 	dstate->inv = inv1->state * 10 + inv2->state;
