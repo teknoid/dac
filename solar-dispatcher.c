@@ -31,6 +31,7 @@
 #define OVERLOAD_STANDBY		150
 #define OVERLOAD_STEAL			110
 
+#define WAIT_RAMP				5
 #define WAIT_RESPONSE			6
 #define WAIT_THERMOSTAT			12
 #define WAIT_AKKU				15
@@ -539,11 +540,12 @@ static void ramp() {
 		rampdown();
 
 	// allow rampup after rampdown if power was released, but not when PV is going down
-
 	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL)
 		rampup();
 
-	// TODO idee: wenn power frei gegeben wurde (dstate->ramp > pstate->ramp) einen lock setzen um den nächsten delta ramp down zu verhindern der dann gar nicht nötig wäre
+	// wait if more power was released than requested
+	if (DSTATE_ACTION && pstate->ramp < 0 && dstate->ramp > RAMP)
+		dstate->lock = WAIT_RAMP;
 }
 
 static device_t* perform_standby(device_t *d) {
@@ -994,7 +996,7 @@ void solar_tasmota(tasmota_t *t) {
 		d->power = t->power;
 		d->load = t->power ? d->total : 0;
 	}
-	xlog("SOLAR update id=%06X name=%s relay=%d power=%d load=%d name=%s", t->id, t->name, t->relay, d->power, d->load, d->name);
+	xlog("SOLAR update id=%06X name=%s relay=%d power=%d load=%d device=%s", t->id, t->name, t->relay, d->power, d->load, d->name);
 }
 
 static void loop() {

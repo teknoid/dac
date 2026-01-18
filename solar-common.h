@@ -245,7 +245,7 @@ struct _pstate {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags   inv  lock  resp  ramp steal cload rload"
+#define DSTATE_HEADER	" flags   inv  lock  ramp steal cload rload"
 struct _dstate {
 	int flags;
 	int inv;
