@@ -254,81 +254,7 @@ static int update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	return 0;
 }
 
-static int scan_power(tasmota_t *t, const char *message, size_t msize) {
-	unsigned int ip;
-	char cp[8];
-
-#define CP_ON (cp[0] == 'O' && cp[1] == 'N')
-
-	// tele/5E40EC/STATE {"Time":"2025-12-28T01:12:48","Uptime":"28T13:59:11","UptimeSec":2469551,"POWER1":"OFF","POWER2":"OFF", ...
-	if (json_scanf(message, msize, "{POWER:%s}", &cp))
-		update_power(t, 1, CP_ON);
-	if (json_scanf(message, msize, "{POWER1:%s}", &cp))
-		update_power(t, 1, CP_ON);
-	if (json_scanf(message, msize, "{POWER2:%s}", &cp))
-		update_power(t, 2, CP_ON);
-	if (json_scanf(message, msize, "{POWER3:%s}", &cp))
-		update_power(t, 3, CP_ON);
-	if (json_scanf(message, msize, "{POWER4:%s}", &cp))
-		update_power(t, 4, CP_ON);
-
-	// stat/5E40EC/STATUS {"Status":{"Module":0,"DeviceName":"plug6","FriendlyName":["plug6",""],"Topic":"5E40EC","ButtonTopic":"0","Power":"00","PowerLock":"00", ...
-	if (json_scanf(message, msize, "{Power:%d}", &ip))
-		update_power(t, 1, ip);
-	if (json_scanf(message, msize, "{Power1:%d}", &ip))
-		update_power(t, 1, ip);
-	if (json_scanf(message, msize, "{Power2:%d}", &ip))
-		update_power(t, 2, ip);
-	if (json_scanf(message, msize, "{Power3:%d}", &ip))
-		update_power(t, 3, ip);
-	if (json_scanf(message, msize, "{Power4:%d}", &ip))
-		update_power(t, 4, ip);
-
-	return 0;
-}
-
-static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
-	char *status = NULL;
-	json_scanf(message, msize, "{Status:%Q}", &status);
-	if (status == NULL)
-		return 0;
-
-	scan_power(t, status, strlen(status));
-	free(status);
-
-	return 0;
-}
-
-static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t msize) {
-	char fmt[32], a[5];
-
-	for (int i = 0; i < 8; i++) {
-		snprintf(fmt, 32, "{Switch%d:%%Q}", i);
-		char *sw = NULL;
-
-		if (json_scanf(message, msize, fmt, &sw)) {
-
-			// Shelly1+2
-			if (!strcmp(ON, sw))
-				trigger(t, i, 1);
-			else if (!strcmp(OFF, sw))
-				trigger(t, i, 0);
-			else {
-
-				// Shelly4
-				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
-					if (!strcmp(ON, a))
-						trigger(t, i, 1);
-					else
-						trigger(t, i, 0);
-				}
-			}
-			free(sw);
-		}
-	}
-}
-
-static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
+static int scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 	char buffer[BUFSIZE];
 	char *analog = NULL;
 	char *ds18b20 = NULL;
@@ -402,6 +328,82 @@ static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
 	return 0;
 }
 
+static int scan_power(tasmota_t *t, const char *message, size_t msize) {
+	unsigned int ip;
+	char cp[8];
+
+#define CP_ON (cp[0] == 'O' && cp[1] == 'N')
+
+	// tele/5E40EC/STATE {"Time":"2025-12-28T01:12:48","Uptime":"28T13:59:11","UptimeSec":2469551,"POWER1":"OFF","POWER2":"OFF", ...
+	if (json_scanf(message, msize, "{POWER:%s}", &cp))
+		update_power(t, 1, CP_ON);
+	if (json_scanf(message, msize, "{POWER1:%s}", &cp))
+		update_power(t, 1, CP_ON);
+	if (json_scanf(message, msize, "{POWER2:%s}", &cp))
+		update_power(t, 2, CP_ON);
+	if (json_scanf(message, msize, "{POWER3:%s}", &cp))
+		update_power(t, 3, CP_ON);
+	if (json_scanf(message, msize, "{POWER4:%s}", &cp))
+		update_power(t, 4, CP_ON);
+
+	// stat/5E40EC/STATUS {"Status":{"Module":0,"DeviceName":"plug6","FriendlyName":["plug6",""],"Topic":"5E40EC","ButtonTopic":"0","Power":"00","PowerLock":"00", ...
+	if (json_scanf(message, msize, "{Power:%d}", &ip))
+		update_power(t, 1, ip);
+	if (json_scanf(message, msize, "{Power1:%d}", &ip))
+		update_power(t, 1, ip);
+	if (json_scanf(message, msize, "{Power2:%d}", &ip))
+		update_power(t, 2, ip);
+	if (json_scanf(message, msize, "{Power3:%d}", &ip))
+		update_power(t, 3, ip);
+	if (json_scanf(message, msize, "{Power4:%d}", &ip))
+		update_power(t, 4, ip);
+
+	return 0;
+}
+
+static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
+	char *status = NULL;
+
+	json_scanf(message, msize, "{Status:%Q}", &status);
+	if (status != NULL) {
+		scan_power(t, status, strlen(status));
+		free(status);
+	}
+
+	scan_sensor(t, message, msize);
+
+	return 0;
+}
+
+static void dispatch_button(tasmota_t *t, int idx, const char *message, size_t msize) {
+	char fmt[32], a[5];
+
+	for (int i = 0; i < 8; i++) {
+		snprintf(fmt, 32, "{Switch%d:%%Q}", i);
+		char *sw = NULL;
+
+		if (json_scanf(message, msize, fmt, &sw)) {
+
+			// Shelly1+2
+			if (!strcmp(ON, sw))
+				trigger(t, i, 1);
+			else if (!strcmp(OFF, sw))
+				trigger(t, i, 0);
+			else {
+
+				// Shelly4
+				if (json_scanf(sw, strlen(sw), "{Action:%s}", &a)) {
+					if (!strcmp(ON, a))
+						trigger(t, i, 1);
+					else
+						trigger(t, i, 0);
+				}
+			}
+			free(sw);
+		}
+	}
+}
+
 static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 	char *rf = NULL;
 
@@ -445,7 +447,7 @@ static int dispatch_tele(tasmota_t *t, const char *suffix, int idx, const char *
 		return scan_power(t, message, msize);
 
 	if (!strcmp("SENSOR", suffix))
-		return dispatch_sensor(t, message, msize);
+		return scan_sensor(t, message, msize);
 
 	if (!strcmp("RESULT", suffix))
 		return dispatch_result(t, message, msize);
@@ -508,7 +510,7 @@ static int dispatch_discovery(const char *topic, uint16_t tsize, const char *mes
 		t->online = 1;
 		xlog("TASMOTA discovery id=%06X name=%s", t->id, t->name);
 	} else if (ends_with("sensors", topic, tsize))
-		dispatch_sensor(t, message, msize);
+		scan_sensor(t, message, msize);
 
 	return 0;
 }
