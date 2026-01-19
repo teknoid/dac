@@ -520,8 +520,12 @@ static void calculate_pstate_online() {
 		xlog("SOLAR wasting power %d akku -> grid", waste);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (pstate->load <= 0) {
-		xlog("SOLAR zero/negative load detected %d", pstate->load);
+	if (pstate->load < 0) {
+		xlog("SOLAR negative load detected %d", pstate->load);
+		pstate->flags &= ~FLAG_VALID;
+	}
+	if (0 <= pstate->load && pstate->load <= NOISE) {
+		xlog("SOLAR suspicious small load detected %d", pstate->load);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (inv1->state != I_STATUS_MPPT) {
@@ -571,6 +575,7 @@ static void calculate_pstate_online() {
 
 	// ratio surplus / load
 	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
+	HICUT(pstate->rsl, 1000)
 }
 
 static void calculate_gstate() {
