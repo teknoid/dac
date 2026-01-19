@@ -245,6 +245,11 @@ static void update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	// update event
 	t->relay = relay;
 	t->power = power;
+
+#ifdef SOLAR
+		// forward to solar dispatcher - each relay separately!
+		solar_tasmota(t);
+#endif
 }
 
 static void scan_power(tasmota_t *t, const char *message, size_t msize) {
@@ -378,12 +383,7 @@ static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
 
 static int dispatch_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	update_power(t, relay, power);
-
-#ifdef SOLAR
-		// forward to solar dispatcher
-		solar_tasmota(t);
-#endif
-
+	// forward to solar dispatcher in update_power
 	return 0;
 }
 
