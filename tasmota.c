@@ -228,7 +228,14 @@ static int update_shutter(tasmota_t *t, unsigned int position) {
 // update tasmota relay power state
 static void update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	t->relay[relay] = power;
-	xdebug("TASMOTA %06X update relay%d state to %d", t->id, relay, power);
+
+	// set relay0 and relay1 identical - tamota responds always with POWER1 even if only one relay is configured
+	if (relay == 0)
+		t->relay[1] = power;
+	if (relay == 1)
+		t->relay[0] = power;
+
+	xlog("TASMOTA %06X update relay%d state to %d", t->id, relay, power);
 }
 
 static void scan_power(tasmota_t *t, const char *message, size_t msize) {
@@ -239,7 +246,7 @@ static void scan_power(tasmota_t *t, const char *message, size_t msize) {
 
 	// tele/5E40EC/STATE {"Time":"2025-12-28T01:12:48","Uptime":"28T13:59:11","UptimeSec":2469551,"POWER1":"OFF","POWER2":"OFF", ...
 	if (json_scanf(message, msize, "{POWER:%s}", &cp))
-		update_power(t, 1, CP_ON);
+		update_power(t, 0, CP_ON);
 	if (json_scanf(message, msize, "{POWER1:%s}", &cp))
 		update_power(t, 1, CP_ON);
 	if (json_scanf(message, msize, "{POWER2:%s}", &cp))
@@ -251,7 +258,7 @@ static void scan_power(tasmota_t *t, const char *message, size_t msize) {
 
 	// stat/5E40EC/STATUS {"Status":{"Module":0,"DeviceName":"plug6","FriendlyName":["plug6",""],"Topic":"5E40EC","ButtonTopic":"0","Power":"00","PowerLock":"00", ...
 	if (json_scanf(message, msize, "{Power:%d}", &ip))
-		update_power(t, 1, ip);
+		update_power(t, 0, ip);
 	if (json_scanf(message, msize, "{Power1:%d}", &ip))
 		update_power(t, 1, ip);
 	if (json_scanf(message, msize, "{Power2:%d}", &ip))
