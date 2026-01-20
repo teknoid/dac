@@ -1,5 +1,8 @@
 #include "tasmota-devices.h"
 
+// 1-4 plus 0 if device has only one relay
+#define RELAY_MAX			5
+
 typedef struct tasmota_config_t {
 	const unsigned int id;
 	const unsigned int relay;
@@ -22,15 +25,8 @@ struct _tasmota {
 	char *name;
 	tasmota_t *next;
 
-	// actual event
-	unsigned int relay;
-	unsigned int power;
-
 	// saved power states
-	unsigned int relay1;
-	unsigned int relay2;
-	unsigned int relay3;
-	unsigned int relay4;
+	unsigned int relay[RELAY_MAX];
 
 	// shutter position
 	unsigned int position;

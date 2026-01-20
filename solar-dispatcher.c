@@ -991,22 +991,24 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 
 // update device status from tasmota mqtt response
 void solar_tasmota(tasmota_t *t) {
-	device_t *d = get_by_id(t->id, t->relay);
-	if (!d) {
-		xdebug("SOLAR Warning! no device %06X relay %d configured!", t->id, t->relay);
-		return;
-	}
+	for (int r = 0; r < RELAY_MAX; r++) {
+		device_t *d = get_by_id(t->id, r);
+		if (!d) {
+			xdebug("SOLAR Warning! no device %06X relay %d configured!", t->id, r);
+			continue;
+		}
 
-	if (d->state == Initial)
-		d->state = Auto;
-	if (d->adj) {
-		d->power = t->gp8403_pc0;
-		d->load = t->gp8403_pc0 * d->total / 100;
-	} else {
-		d->power = t->power;
-		d->load = t->power ? d->total : 0;
+		if (d->state == Initial)
+			d->state = Auto;
+		if (d->adj) {
+			d->power = t->gp8403_pc0;
+			d->load = t->gp8403_pc0 * d->total / 100;
+		} else {
+			d->power = t->relay[r];
+			d->load = t->relay[r] ? d->total : 0;
+		}
+		xlog("SOLAR update id=%06X name=%s relay=%d power=%d load=%d device=%s", t->id, t->name, r, d->power, d->load, d->name);
 	}
-	xlog("SOLAR update id=%06X name=%s relay=%d power=%d load=%d device=%s", t->id, t->name, t->relay, d->power, d->load, d->name);
 }
 
 static void loop() {

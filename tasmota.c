@@ -104,8 +104,6 @@ static tasmota_t* get_by_id(unsigned int id) {
 
 	tasmota_t *tnew = malloc(sizeof(tasmota_t));
 	tnew->id = id;
-	tnew->relay = 0;
-	tnew->power = 0;
 	tnew->online = 0;
 	tnew->next = NULL;
 
@@ -153,14 +151,16 @@ static void trigger(tasmota_t *t, int button, int action) {
 	for (int i = 0; i < ARRAY_SIZE(tasmota_config); i++) {
 		tasmota_config_t tc = tasmota_config[i];
 		int power = 0;
-		if (tc.relay == 0 || tc.relay == 1)
-			power = t->relay1;
+		if (tc.relay == 0)
+			power = t->relay[0];
+		else if (tc.relay == 1)
+			power = t->relay[1];
 		else if (tc.relay == 2)
-			power = t->relay2;
+			power = t->relay[2];
 		else if (tc.relay == 3)
-			power = t->relay3;
+			power = t->relay[3];
 		else if (tc.relay == 4)
-			power = t->relay4;
+			power = t->relay[4];
 
 		if (tc.t1 == t->id && tc.t1b == button) {
 			if (power != 1)
@@ -227,29 +227,8 @@ static int update_shutter(tasmota_t *t, unsigned int position) {
 
 // update tasmota relay power state
 static void update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
-	if (relay == 0 || relay == 1) {
-		t->relay1 = power;
-		xdebug("TASMOTA %06X update relay1 state to %d", t->id, power);
-	} else if (relay == 2) {
-		t->relay2 = power;
-		xdebug("TASMOTA %06X update relay2 state to %d", t->id, power);
-	} else if (relay == 3) {
-		t->relay3 = power;
-		xdebug("TASMOTA %06X update relay3 state to %d", t->id, power);
-	} else if (relay == 4) {
-		t->relay4 = power;
-		xdebug("TASMOTA %06X update relay4 state to %d", t->id, power);
-	} else
-		xlog("TASMOTA %06X no relay %d", t->id, relay);
-
-	// update event
-	t->relay = relay;
-	t->power = power;
-
-#ifdef SOLAR
-		// forward to solar dispatcher - each relay separately!
-		solar_tasmota(t);
-#endif
+	t->relay[relay] = power;
+	xdebug("TASMOTA %06X update relay%d state to %d", t->id, relay, power);
 }
 
 static void scan_power(tasmota_t *t, const char *message, size_t msize) {
@@ -383,7 +362,12 @@ static int dispatch_sensor(tasmota_t *t, const char *message, size_t msize) {
 
 static int dispatch_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	update_power(t, relay, power);
-	// forward to solar dispatcher in update_power
+
+#ifdef SOLAR
+		// forward to solar dispatcher
+		solar_tasmota(t);
+#endif
+
 	return 0;
 }
 
@@ -767,14 +751,9 @@ static void loop() {
 			if (t->timer) {
 				t->timer--;
 				if (t->timer == 0) {
-					if (t->relay1)
-						tasmota_power(t->id, 1, 0);
-					if (t->relay2)
-						tasmota_power(t->id, 2, 0);
-					if (t->relay3)
-						tasmota_power(t->id, 3, 0);
-					if (t->relay4)
-						tasmota_power(t->id, 4, 0);
+					for (int r = 0; r < RELAY_MAX; r++)
+						if (t->relay[r])
+							tasmota_power(t->id, r, 0);
 				}
 			}
 			t = t->next;
