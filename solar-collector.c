@@ -485,11 +485,11 @@ static void calculate_pstate_online() {
 	}
 
 	// akku discharge / grid download / grid upload
-	if (avg->akku > RAMP && pstate->akku > RAMP * 2)
+	if (avg->akku > RAMP || pstate->akku > RAMP * 2)
 		pstate->flags |= FLAG_AKKU_DCHARGE;
-	if (avg->grid > RAMP && pstate->grid > RAMP * 2)
+	if (avg->grid > RAMP || pstate->grid > RAMP * 2)
 		pstate->flags |= FLAG_GRID_DLOAD;
-	if (avg->grid < -50 && pstate->grid < -100)
+	if (avg->grid < RAMP * -2 || pstate->grid < RAMP * -4)
 		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// load is completely satisfied from secondary inverter

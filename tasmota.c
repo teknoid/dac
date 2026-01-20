@@ -235,7 +235,7 @@ static void update_power(tasmota_t *t, unsigned int relay, unsigned int power) {
 	if (relay == 1)
 		t->relay[0] = power;
 
-	xlog("TASMOTA %06X update relay%d state to %d", t->id, relay, power);
+	xdebug("TASMOTA %06X update name=%s relay=%d power=%d", t->id, t->name, relay, power);
 }
 
 static void scan_power(tasmota_t *t, const char *message, size_t msize) {
@@ -332,6 +332,10 @@ static void scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 		xdebug("TASMOTA sensor GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", t->gp8403_vc0, t->gp8403_vc1, t->gp8403_pc0, t->gp8403_pc1);
 	}
 }
+
+// TODO idee: in module init() tasmota_hook(&update) aufrufen, update ist ein zeiger auf lokale funktion:
+// static void solar_update(tasmota_t *t);
+// tamota hält eine liste mit allen hook funktionen und ruft alle nach einem dispatch_* nacheinander auf
 
 static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
 	scan_power(t, message, msize);
