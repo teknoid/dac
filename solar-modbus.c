@@ -204,7 +204,7 @@ static void update_inverter1(sunspec_t *ss) {
 
 	default:
 		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		// ss->sleep = SLEEP_TIME_FAULT;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
 	pthread_mutex_unlock(&collector_lock);
@@ -265,7 +265,7 @@ static void update_inverter2(sunspec_t *ss) {
 
 	default:
 		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
-		// ss->sleep = SLEEP_TIME_FAULT;
+		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = pstate->mppt3v = pstate->mppt4v = 0;
 	}
 
 	pthread_mutex_unlock(&collector_lock);

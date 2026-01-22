@@ -787,12 +787,6 @@ static void calculate_pstate() {
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
 	pstate->grid = pstate->l1p + pstate->l2p + pstate->l3p;
 
-	// inverter status
-	if (!inv1->state)
-		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
-	if (!inv2->state)
-		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = pstate->mppt3v = pstate->mppt4v = 0;
-
 	// update self counter
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;

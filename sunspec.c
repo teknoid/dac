@@ -373,6 +373,18 @@ static void* poll(void *arg) {
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
 
+		// zero models and do a final update
+		if (ss->inverter)
+			ZEROP(ss->inverter);
+		if (ss->mppt)
+			ZEROP(ss->mppt);
+		if (ss->meter)
+			ZEROP(ss->meter);
+		if (ss->storage)
+			ZEROP(ss->storage);
+		if (ss->callback)
+			(ss->callback)(ss);
+
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
 		ss->mb = 0;
