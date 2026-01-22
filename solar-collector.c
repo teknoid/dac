@@ -607,20 +607,21 @@ static void calculate_gstate() {
 #endif
 
 	// calculate pv minimum, maximum and average
-	gstate->pvmin = UINT16_MAX;
-	gstate->pvmax = gstate->pvavg = 0;
+	int pvmin = UINT16_MAX, pvmax = 0, pvavg = 0;
 	for (int m = 0; m < 60; m++) {
 		pstate_t *p = PSTATE_MIN(m);
-		HICUT(gstate->pvmin, p->pv)
-		LOCUT(gstate->pvmax, p->pv)
-		gstate->pvavg += p->pv;
+		pvavg += p->pv;
+		if (p->pv < pvmin)
+			pvmin = p->pv;
+		if (p->pv > pvmax)
+			pvmax = p->pv;
 	}
-	gstate->pvavg /= 60;
-	gstate->pvmin += (gstate->pvmin / 10); // +10%
-	gstate->pvmax -= (gstate->pvmax / 10); // -10%
-	gstate->pvmin = round100(gstate->pvmin);
-	gstate->pvmax = round100(gstate->pvmax);
-	gstate->pvavg = round100(gstate->pvavg);
+	pvavg /= 60;
+	int pvmin10 = pvmin + pvmin / 10; // +10%
+	int pvmax10 = pvmax - pvmax / 10; // -10%
+	gstate->pvavg = round100(pvavg);
+	gstate->pvmin = round100(pvmin10 < pvavg ? pvmin10 : pvmin);
+	gstate->pvmax = round100(pvmax10 > pvavg ? pvmax10 : pvmax);
 
 	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
