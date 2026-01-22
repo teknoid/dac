@@ -224,7 +224,7 @@ static void collect_average_247() {
 	// pv validation
 	for (int h = 0; h < 24; h++) {
 		pstate_t *pavg = PSTATE_AVG_247(h);
-		int cpv = pavg->mpptp1 + pavg->mpptp2 + pavg->mpptp3 + pavg->mpptp4;
+		int cpv = pavg->mppt1p + pavg->mppt2p + pavg->mppt3p + pavg->mppt4p;
 		if (abs(cpv - pavg->pv) > 1)
 			xlog("SOLAR average 24/7   pv mismatch hour=%02d mppt1+mppt2+mppt3+mppt4=%d load=%d", h, cpv, pavg->load);
 	}
@@ -293,8 +293,8 @@ static void print_pstate() {
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (!GSTATE_OFFLINE) {
-		xlogl_int(line, "PV10", pstate->mpptp1 + pstate->mpptp2);
-		xlogl_int(line, "PV7", pstate->mpptp3 + pstate->mpptp4);
+		xlogl_int(line, "PV10", pstate->mppt1p + pstate->mppt2p);
+		xlogl_int(line, "PV7", pstate->mppt3p + pstate->mppt4p);
 		xlogl_int(line, "Surp", pstate->surp);
 		xlogl_int(line, "RSL", pstate->rsl);
 		xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
@@ -433,7 +433,7 @@ static void calculate_pstate_ramp() {
 
 	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
-	int akku = pstate->akku < -RAMP && pstate->mpptp1 + pstate->mpptp2 > pstate->akku * -1;
+	int akku = pstate->akku < -RAMP && pstate->mppt1p + pstate->mppt2p > pstate->akku * -1;
 	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
 	if (pstate->ramp < 0 && suppress_down) {
 		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, pstate->grid, plenty, akku);
@@ -789,26 +789,26 @@ static void calculate_pstate() {
 
 	// inverter status
 	if (!inv1->state)
-		pstate->ac1 = pstate->dc1 = pstate->mpptp1 = pstate->mpptp2 = pstate->mpptv1 = pstate->mpptv2 = pstate->akku = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	if (!inv2->state)
-		pstate->ac2 = pstate->dc2 = pstate->mpptp3 = pstate->mpptp4 = pstate->mpptv3 = pstate->mpptv4 = 0;
+		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = pstate->mppt3v = pstate->mppt4v = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;
 	if (pstate->grid < 0)
 		CS_NOW->produced += pstate->grid * -1;
-	CS_NOW->mppt1 += pstate->mpptp1;
-	CS_NOW->mppt2 += pstate->mpptp2;
-	CS_NOW->mppt3 += pstate->mpptp3;
-	CS_NOW->mppt4 += pstate->mpptp4;
+	CS_NOW->mppt1 += pstate->mppt1p;
+	CS_NOW->mppt2 += pstate->mppt2p;
+	CS_NOW->mppt3 += pstate->mppt3p;
+	CS_NOW->mppt4 += pstate->mppt4p;
 
 	// pv
-	ZSHAPE(pstate->mpptp1, NOISE)
-	ZSHAPE(pstate->mpptp2, NOISE)
-	ZSHAPE(pstate->mpptp3, NOISE)
-	ZSHAPE(pstate->mpptp4, NOISE)
-	pstate->pv = pstate->mpptp1 + pstate->mpptp2 + pstate->mpptp3 + pstate->mpptp4;
+	ZSHAPE(pstate->mppt1p, NOISE)
+	ZSHAPE(pstate->mppt2p, NOISE)
+	ZSHAPE(pstate->mppt3p, NOISE)
+	ZSHAPE(pstate->mppt4p, NOISE)
+	pstate->pv = pstate->mppt1p + pstate->mppt2p + pstate->mppt3p + pstate->mppt4p;
 
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;

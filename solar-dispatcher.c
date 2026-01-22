@@ -67,16 +67,16 @@ static device_t i2 = { .name = "fronius7" };
 
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .id = BOILER1, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100, .from = 10, .to = 15 };
-static device_t h1 = { .name = "tisch", .id = INFRARED, .r = 3, .total = 150, .rf = &ramp_heater, .adj = 0, .min = 200, .host = "infrared" };
-static device_t h2 = { .name = "küche", .id = INFRARED, .r = 2, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
-static device_t h3 = { .name = "wozi", .id = INFRARED, .r = 1, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
-static device_t h4 = { .name = "bad1", .id = BAD, .r = 1, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
-static device_t h5 = { .name = "bad2", .id = BAD, .r = 2, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
-static device_t h6 = { .name = "schlaf", .id = PLUG6, .r = 0, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "plug6" };
-static device_t h7 = { .name = "heizer", .id = PLUG9, .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
+static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
+static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
+static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
+static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
+static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
+static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
+static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
+static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
@@ -314,7 +314,7 @@ static void ramp_akku(device_t *akku) {
 		// akku is charging
 		if (AKKU_CHARGING) {
 			// all mppt1+mppt2 up to maximum
-			int max = pstate->mpptp1 + pstate->mpptp2;
+			int max = pstate->mppt1p + pstate->mppt2p;
 			HICUT(max, akku->total)
 			int remain = max - akku->load;
 			// akku draws more than mppt1+mppt2 when negative
@@ -922,14 +922,14 @@ static void minly() {
 		// go not below 7% in winter to avoid forced charging from grid
 		if (GSTATE_WINTER && gstate->soc < 70) {
 			akku_standby(AKKU);
-			if (pstate->mpptv1 < MPPT_VOLTAGE_STANDBY)
+			if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY)
 				inverter_off();
 		} else
 			akku_discharge(AKKU);
 	}
 
 	// awake from manual sleep
-	if (pstate->mpptv1 > MPPT_VOLTAGE_AWAKE)
+	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
