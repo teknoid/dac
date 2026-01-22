@@ -229,12 +229,12 @@ static void loop() {
 
 		pstate->grid = r->grid;
 		pstate->akku = r->akku;
-		pstate->p1 = r->p1;
-		pstate->p2 = r->p2;
-		pstate->p3 = r->p3;
-		pstate->v1 = r->v1;
-		pstate->v2 = r->v2;
-		pstate->v3 = r->v3;
+		pstate->l1p = r->p1;
+		pstate->l2p = r->p2;
+		pstate->l3p = r->p3;
+		pstate->l1p = r->v1;
+		pstate->l2p = r->v2;
+		pstate->l3p = r->v3;
 		pstate->f = r->f * 100.0 - 5000; // store only the diff
 
 		CM_NOW->mppt1 = r->mppt1_total / 3600; // Watt-seconds
@@ -428,15 +428,15 @@ static int grid() {
 		curl_perform(curl, &memory, &parse_inverter1);
 
 		p->grid = r->grid;
-		p->p1 = r->p1;
-		p->p2 = r->p2;
-		p->p3 = r->p3;
-		p->v1 = r->v1;
-		p->v2 = r->v2;
-		p->v3 = r->v3;
+		p->l1p = r->p1;
+		p->l2p = r->p2;
+		p->l3p = r->p3;
+		p->l1v = r->v1;
+		p->l2v = r->v2;
+		p->l3v = r->v3;
 		p->f = r->f * 100.0;
 
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->l1p, p->l2p, p->l3p, p->l1v, p->l2v, p->l3v, FLOAT100(p->f));
 	}
 	return 0;
 }

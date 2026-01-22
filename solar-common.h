@@ -147,9 +147,9 @@ struct _device {
 	int climit;
 	int dlimit;
 	int response;
-	int p1;
-	int p2;
-	int p3;
+	int l1p;
+	int l2p;
+	int l3p;
 	int l1rc;
 	int l2rc;
 	int l3rc;
@@ -211,7 +211,7 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   mp1   mp2   mp3   mp4   mv1   mv2   mv3   mv4    p1    p2    p3    v1    v2    v3     f  surp  load   rsl  ramp flags"
+#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   mp1   mp2   mp3   mp4   mv1   mv2   mv3   mv4   l1p   l2p   l3p   l1v   l2v   l3v     f  surp  load   rsl  ramp flags"
 struct _pstate {
 	int pv;
 	int grid;
@@ -228,12 +228,12 @@ struct _pstate {
 	int mpptv2;
 	int mpptv3;
 	int mpptv4;
-	int p1;
-	int p2;
-	int p3;
-	int v1;
-	int v2;
-	int v3;
+	int l1p;
+	int l2p;
+	int l3p;
+	int l1v;
+	int l2v;
+	int l3v;
 	int f;
 	int surp;
 	int load;

@@ -23,12 +23,12 @@
 #define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
-#define PX(x, y)				(x == 1 ? y.p1 : (x == 2 ? y.p2 : y.p3))
-#define SAMPLE(x)				x.p1  = SFI(ss->meter->WphA, ss->meter->W_SF); x.p2  = SFI(ss->meter->WphB, ss->meter->W_SF); x.p3  = SFI(ss->meter->WphC, ss->meter->W_SF);
-#define SAMPLE_ADD(x)			x.p1 += SFI(ss->meter->WphA, ss->meter->W_SF); x.p2 += SFI(ss->meter->WphB, ss->meter->W_SF); x.p3 += SFI(ss->meter->WphC, ss->meter->W_SF);
-#define SUBTRACT(x, y)			x.p1 -= y.p1; x.p2 -= y.p2; x.p3 -= y.p3;
-#define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W\n", i, x.p1, x.p2, x.p3);
-#define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W\n", s, x.p1, x.p2, x.p3);
+#define PX(x, y)				(x == 1 ? y.l1p : (x == 2 ? y.l2p : y.l3p))
+#define SAMPLE(x)				x.l1p  = SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p  = SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p  = SFI(ss->meter->WphC, ss->meter->W_SF);
+#define SAMPLE_ADD(x)			x.l1p += SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p += SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p += SFI(ss->meter->WphC, ss->meter->W_SF);
+#define SUBTRACT(x, y)			x.l1p -= y.l1p; x.l2p -= y.l2p; x.l3p -= y.l3p;
+#define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W\n", i, x.l1p, x.l2p, x.l3p);
+#define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W\n", s, x.l1p, x.l2p, x.l3p);
 
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
@@ -276,12 +276,12 @@ static void update_meter(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
-	pstate->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-	pstate->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-	pstate->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-	pstate->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-	pstate->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-	pstate->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
+	pstate->l2p = SFI(ss->meter->WphB, ss->meter->W_SF);
+	pstate->l3p = SFI(ss->meter->WphC, ss->meter->W_SF);
+	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF) * 10;
+	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF) * 10;
+	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF) * 10;
 	pstate->f = ss->meter->Hz - 5000; // store only the diff
 
 	CM_NOW->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
@@ -367,9 +367,9 @@ static int calibrate(char *name) {
 		PRINTI(i, offset_start)
 		sleep(1);
 	}
-	offset_start.p1 = offset_start.p1 / 10 + (offset_start.p1 % 10 < 5 ? 0 : 1);
-	offset_start.p2 = offset_start.p2 / 10 + (offset_start.p2 % 10 < 5 ? 0 : 1);
-	offset_start.p3 = offset_start.p3 / 10 + (offset_start.p3 % 10 < 5 ? 0 : 1);
+	offset_start.l1p = offset_start.l1p / 10 + (offset_start.l1p % 10 < 5 ? 0 : 1);
+	offset_start.l2p = offset_start.l2p / 10 + (offset_start.l2p % 10 < 5 ? 0 : 1);
+	offset_start.l3p = offset_start.l3p / 10 + (offset_start.l3p % 10 < 5 ? 0 : 1);
 	PRINTS("average offset_start --> ", offset_start);
 	sleep(5);
 
@@ -400,18 +400,18 @@ static int calibrate(char *name) {
 		PRINTI(i, offset_end)
 		sleep(1);
 	}
-	offset_end.p1 = offset_end.p1 / 10 + (offset_end.p1 % 10 < 5 ? 0 : 1);
-	offset_end.p2 = offset_end.p2 / 10 + (offset_end.p2 % 10 < 5 ? 0 : 1);
-	offset_end.p3 = offset_end.p3 / 10 + (offset_end.p3 % 10 < 5 ? 0 : 1);
+	offset_end.l1p = offset_end.l1p / 10 + (offset_end.l1p % 10 < 5 ? 0 : 1);
+	offset_end.l2p = offset_end.l2p / 10 + (offset_end.l2p % 10 < 5 ? 0 : 1);
+	offset_end.l3p = offset_end.l3p / 10 + (offset_end.l3p % 10 < 5 ? 0 : 1);
 	PRINTS("average offset_end --> ", offset_end);
 
 	// find phase
 	int p = 0;
-	if (measure[666].p1 > max_power / 2)
+	if (measure[666].l1p > max_power / 2)
 		p = 1;
-	if (measure[666].p2 > max_power / 2)
+	if (measure[666].l2p > max_power / 2)
 		p = 2;
-	if (measure[666].p3 > max_power / 2)
+	if (measure[666].l3p > max_power / 2)
 		p = 3;
 	if (!p)
 		printf("unable to detect phase\n");
@@ -489,15 +489,15 @@ static int grid() {
 		sunspec_read(ss);
 
 		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
-		p->p1 = SFI(ss->meter->WphA, ss->meter->W_SF);
-		p->p2 = SFI(ss->meter->WphB, ss->meter->W_SF);
-		p->p3 = SFI(ss->meter->WphC, ss->meter->W_SF);
-		p->v1 = SFI(ss->meter->PhVphA, ss->meter->V_SF);
-		p->v2 = SFI(ss->meter->PhVphB, ss->meter->V_SF);
-		p->v3 = SFI(ss->meter->PhVphC, ss->meter->V_SF);
+		p->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
+		p->l2p = SFI(ss->meter->WphB, ss->meter->W_SF);
+		p->l3p = SFI(ss->meter->WphC, ss->meter->W_SF);
+		p->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF);
+		p->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF);
+		p->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF);
 		p->f = ss->meter->Hz; // without scaling factor
 
-		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->p1, p->p2, p->p3, p->v1, p->v2, p->v3, FLOAT100(p->f));
+		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->l1p, p->l2p, p->l3p, p->l1v, p->l2v, p->l3v, FLOAT100(p->f));
 	}
 	return 0;
 }
@@ -561,10 +561,10 @@ static int latency() {
 		sunspec_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
-		int dp1 = abs(x.p1 - y.p1);
-		int dp2 = abs(x.p2 - y.p2);
-		int dp3 = abs(x.p3 - y.p3);
-		if (dp1 > 100 || dp2 > 100 || dp3 > 100)
+		int dl1p = abs(x.l1p - y.l1p);
+		int dl2p = abs(x.l2p - y.l2p);
+		int dl3p = abs(x.l3p - y.l3p);
+		if (dl1p > 100 || dl2p > 100 || dl3p > 100)
 			break;
 	}
 	printf("detected ON meter response after %dms\n", count * 100);
@@ -588,10 +588,10 @@ static int latency() {
 		sunspec_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
-		int dp1 = abs(x.p1 - y.p1);
-		int dp2 = abs(x.p2 - y.p2);
-		int dp3 = abs(x.p3 - y.p3);
-		if (dp1 > 100 || dp2 > 100 || dp3 > 100)
+		int dl1p = abs(x.l1p - y.l1p);
+		int dl2p = abs(x.l2p - y.l2p);
+		int dl3p = abs(x.l3p - y.l3p);
+		if (dl1p > 100 || dl2p > 100 || dl3p > 100)
 			break;
 	}
 	printf("detected OFF meter response after %dms\n", count * 100);

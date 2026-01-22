@@ -96,12 +96,12 @@ static void loop() {
 
 		pstate->grid = grid;
 		pstate->akku = 0;
-		pstate->p1 = 0;
-		pstate->p2 = 0;
-		pstate->p3 = 0;
-		pstate->v1 = 0;
-		pstate->v2 = 0;
-		pstate->v3 = 0;
+		pstate->l1p = 0;
+		pstate->l2p = 0;
+		pstate->l3p = 0;
+		pstate->l1v = 0;
+		pstate->l2v = 0;
+		pstate->l3v = 0;
 		pstate->f = 0;
 
 		pthread_mutex_unlock(&collector_lock);

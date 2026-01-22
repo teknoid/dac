@@ -208,7 +208,7 @@ static void collect_average_247() {
 	// grid validation
 	for (int h = 0; h < 24; h++) {
 		pstate_t *pavg = PSTATE_AVG_247(h);
-		int cgrid = pavg->p1 + pavg->p2 + pavg->p3;
+		int cgrid = pavg->l1p + pavg->l2p + pavg->l3p;
 		if (abs(cgrid - pavg->grid) > 2)
 			xlog("SOLAR average 24/7 grid mismatch hour=%02d p1+p2+p3=%d grid=%d", h, cgrid, pavg->grid);
 	}
@@ -451,7 +451,7 @@ static void calculate_pstate_online() {
 	idelta(delta, pstate, PSTATE_SEC_LAST1, PSTATE_SIZE, NOISE);
 
 	// check if we have delta ac power anywhere
-	if (delta->p1 || delta->p2 || delta->p3 || delta->ac1 || delta->ac2)
+	if (delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2)
 		pstate->flags |= FLAG_ACDELTA;
 
 	// calculate average values over last AVERAGE seconds
@@ -506,13 +506,13 @@ static void calculate_pstate_online() {
 		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	int psum = pstate->p1 + pstate->p2 + pstate->p3;
+	int psum = pstate->l1p + pstate->l2p + pstate->l3p;
 	if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
-		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->p1, pstate->p2, pstate->p3, psum, pstate->grid);
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->l1p, pstate->l2p, pstate->l3p, psum, pstate->grid);
 		pstate->flags &= ~FLAG_VALID;
 	}
-	if (abs(delta->p1) > SPIKE || abs(delta->p2) > SPIKE || abs(delta->p3) > SPIKE) {
-		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->p1, delta->p2, delta->p3);
+	if (abs(delta->l1p) > SPIKE || abs(delta->l2p) > SPIKE || abs(delta->l3p) > SPIKE) {
+		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
 		pstate->flags &= ~FLAG_VALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
@@ -785,7 +785,7 @@ static void calculate_pstate() {
 	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
 
 	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
-	pstate->grid = pstate->p1 + pstate->p2 + pstate->p3;
+	pstate->grid = pstate->l1p + pstate->l2p + pstate->l3p;
 
 	// inverter status
 	if (!inv1->state)
