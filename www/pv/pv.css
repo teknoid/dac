@@ -18,7 +18,7 @@ body, html {
 .flex-row	 				{ margin:0; padding:0; display:flex; flex-direction:row }
 .flex-column 				{ margin:0; padding:0; display:flex; flex-direction:column }
 
-.devices					{ margin-top:10px }
+.devices					{ margin-top:5px }
 
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
@@ -33,7 +33,7 @@ dl dd.d						{ cursor:default }
 /* desktop */
 @media (max-width: 2000px) {
 	.page					{ display:flex; flex-direction:row-reverse; margin-right:10px }
-	.powerflow				{ width:480px; position:fixed }
+	.powerflow				{ width:480px; position:fixed; top:-10px }
 	iframe					{ width:100%; height:480px }
 	.mosmix					{ overflow:scroll; position:relative; left:-490px }
 	.svg					{ max-width:1420px }
@@ -94,10 +94,10 @@ dl dd.d						{ cursor:default }
 .load-p, .load-m			{ background-color:skyblue }
 .cload-p, .cload-m			{ background-color:skyblue }
 .rload-p, .rload-m			{ background-color:skyblue }
-.mp1-p						{ background-color:#FAD967 }
-.mp2-p						{ background-color:#FAD967 }
-.mp3-p						{ background-color:#FAD967 }
-.mp4-p						{ background-color:#FAD967 }
+.m1p-p						{ background-color:#FAD967 }
+.m2p-p						{ background-color:#FAD967 }
+.m3p-p						{ background-color:#FAD967 }
+.m4p-p						{ background-color:#FAD967 }
 .surp-p						{ background-color:turquoise }
 .ramp-p						{ background-color:aquamarine }
 .ramp-m						{ background-color:lightsalmon }
