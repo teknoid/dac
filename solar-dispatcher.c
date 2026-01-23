@@ -164,6 +164,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
+	dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
@@ -264,6 +265,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
+	dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
 	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -549,10 +551,6 @@ static void ramp() {
 	// allow rampup after rampdown if power was released, but not when PV is going down
 	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL)
 		rampup();
-
-	// wait on each ramp, wait even more to give akku time to release or consume power
-	if (DSTATE_ACTION)
-		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
 }
 
 static device_t* standby_exec(device_t *d) {

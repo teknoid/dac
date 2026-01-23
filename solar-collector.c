@@ -493,6 +493,7 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_EXTRAPOWER;
 
 	// first set and then clear VALID flag when values suspicious
+	// TODO umdrehen: FLAG_INVALID und dann print_pstate() wenn gesetzt
 	pstate->flags |= FLAG_VALID;
 
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
@@ -821,7 +822,7 @@ static void calculate_pstate() {
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when delta / when invalid / on grid load / ramp
-	if (MINLY || PSTATE_ACDELTA || !PSTATE_VALID || PSTATE_GRID_DLOAD || pstate->ramp)
+	if (MINLY || PSTATE_ACDELTA || PSTATE_GRID_DLOAD || pstate->ramp)
 		print_pstate();
 }
 
