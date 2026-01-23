@@ -824,8 +824,8 @@ static void calculate_pstate() {
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
 
-	// print pstate once per minute / when delta / on grid load
-	if (MINLY || PSTATE_ACDELTA || pstate->grid > NOISE || pstate->ramp)
+	// print pstate once per minute / when delta / when invalid / on grid load / ramp
+	if (MINLY || PSTATE_ACDELTA || !PSTATE_VALID || PSTATE_GRID_DLOAD || pstate->ramp)
 		print_pstate();
 }
 
