@@ -39,7 +39,7 @@ set boxwidth 0.33 relative
 set grid
 set xtics nomirror
 set ytics nomirror
-set tics format "%2.0s%c"
+set ytics format "%2.0s%c"
 
 
 # mosmix history
@@ -159,12 +159,14 @@ p pstate u 1:(0):"grid" w filledc below ls 3 t "↓sum",\
       '' u 1:"l3p"       w lines lt 3 t "L3P"
 
 set ylabel "Grid - Voltage"
-set yrange [220:250] 
+set yrange [2200:2500] 
+set ytics format "%2.2t"
 set output "/run/mcp/pstate-voltage.svg"
 p pstate u 1:"l1v" w lines t "L1V", '' u 1:"l2v" w lines t "L2V", '' u 1:"l3v" w lines t "L3V"
 
 set ylabel "Grid - Frequency +/-"
 set yrange [-50:50]
+set ytics format "%2.0s%c"
 set output "/run/mcp/pstate-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
 
