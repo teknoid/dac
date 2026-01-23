@@ -386,10 +386,6 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// calculate ramp every 5 seconds - evaluate rsl and grid average values
-	if (time(NULL) % 5)
-		return;
-
 	// below 90 - coarse absolute down ramp
 	if (avg->rsl < 90 && avg->grid > RAMP) {
 		pstate->ramp = avg->grid * -1;
@@ -408,7 +404,7 @@ static void calculate_pstate_ramp() {
 
 	// fine step up / down
 	if (90 <= avg->rsl && avg->rsl <= 150) {
-		if (avg->grid > RAMP)
+		if (avg->grid > NOISE)
 			pstate->ramp = -RAMP; // single step down
 		if (avg->grid > RAMP * 2)
 			pstate->ramp = avg->grid / -2; // half down

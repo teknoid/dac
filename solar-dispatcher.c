@@ -550,13 +550,9 @@ static void ramp() {
 	if (dstate->ramp >= RAMP && !DSTATE_ALL_UP && !PSTATE_PVFALL)
 		rampup();
 
-	// wait if more power was released than requested
-	if (DSTATE_ACTION && pstate->ramp < 0 && dstate->ramp > RAMP)
-		dstate->lock = WAIT_RAMP;
-
-	// give akku time to release or consume power
-	if (DSTATE_ACTION && AKKU_CHARGING)
-		dstate->lock = WAIT_AKKU;
+	// wait on each ramp, wait even more to give akku time to release or consume power
+	if (DSTATE_ACTION)
+		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
 }
 
 static device_t* standby_exec(device_t *d) {
@@ -772,18 +768,17 @@ static void calculate_actions() {
 		return;
 	}
 
-	// cyclic actions
-	int cyclic = time(NULL) % 10;
+	// no action when invalid
+	if (!PSTATE_VALID)
+		return;
 
-	// permanent overload
+	// permanent overload - execute standby check
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-
-	// standby logic each 10 seconds (1, 11, 21, ...)
-	if (cyclic == 1 && overload && PSTATE_VALID && PSTATE_STABLE && !DSTATE_ALL_DOWN)
+	if (overload && PSTATE_STABLE && !DSTATE_ALL_DOWN)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
-	// steal logic each 10 seconds (2, 12, 22, ...)
-	if (cyclic == 2 && !overload && PSTATE_VALID && GSTATE_STABLE && !DSTATE_ALL_DOWN && !DSTATE_ALL_UP)
+	// steal logic every 10 seconds
+	if (time(NULL) % 10 == 0 && !overload && GSTATE_STABLE && !DSTATE_ALL_DOWN && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceding actions
