@@ -394,45 +394,39 @@ static void calculate_pstate_ramp() {
 			xlog("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// above 150 - coarse absolute up ramp
-	if (avg->rsl > 150 && avg->grid < RAMP * -2) {
-		pstate->ramp = avg->grid * -1;
+	// above 110 - coarse absolute up ramp
+	if (avg->rsl > 110 && PSTATE_GRID_ULOAD) {
+		pstate->ramp = PSTATE_STABLE ? (avg->grid / -1) : (avg->grid / -2);
 		ZSHAPE(pstate->ramp, RAMP)
 		if (pstate->ramp)
 			xlog("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
 	// fine step up / down
-	if (90 <= avg->rsl && avg->rsl <= 150) {
+	if (90 <= avg->rsl && avg->rsl <= 110) {
 		if (avg->grid > NOISE)
 			pstate->ramp = -RAMP; // single step down
-		if (avg->grid > RAMP * 2)
-			pstate->ramp = avg->grid / -2; // half down
 		if (avg->grid < -RAMP)
 			pstate->ramp = RAMP; // single step up
-		if (avg->grid < RAMP * -2)
-			pstate->ramp = avg->grid / -2; // half up
-		// no up below 105
-		if (avg->rsl < 105)
-			HICUT(pstate->ramp, 0)
 		if (pstate->ramp)
-			xlog("SOLAR step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
+			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// suppress ramp up if pv is falling / actual grid download / calculated load above average pv
-	int oa = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
-	int suppress_up = !PSTATE_VALID || PSTATE_PVFALL || pstate->grid > 0 || oa;
+	// suppress ramp up if pv is falling / actual grid download / too little surplus / calculated load above average pv
+	int little = avg->rsl < 105;
+	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
+	int suppress_up = PSTATE_INVALID || PSTATE_PVFALL || pstate->grid > 0 || little || over;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up ramp=%d valid=%d fall=%d grid=%d over=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVFALL, pstate->grid, oa);
+		xlog("SOLAR suppress up ramp=%d invalid=%d fall=%d grid=%d little=%d over=%d", pstate->ramp, PSTATE_INVALID, PSTATE_PVFALL, pstate->grid, little, over);
 		pstate->ramp = 0;
 	}
 
 	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
 	int akku = pstate->akku < -RAMP && pstate->mppt1p + pstate->mppt2p > pstate->akku * -1;
-	int suppress_down = !PSTATE_VALID || PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
+	int suppress_down = PSTATE_INVALID || PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, !PSTATE_VALID, PSTATE_PVRISE, pstate->grid, plenty, akku);
+		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, PSTATE_INVALID, PSTATE_PVRISE, pstate->grid, plenty, akku);
 		pstate->ramp = 0;
 	}
 }
@@ -492,46 +486,42 @@ static void calculate_pstate_online() {
 	if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
 		pstate->flags |= FLAG_EXTRAPOWER;
 
-	// first set and then clear VALID flag when values suspicious
-	// TODO umdrehen: FLAG_INVALID und dann print_pstate() wenn gesetzt
-	pstate->flags |= FLAG_VALID;
-
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
 	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
 	if (abs(sum) > SUSPICIOUS) {
 		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	int psum = pstate->l1p + pstate->l2p + pstate->l3p;
 	if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
 		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->l1p, pstate->l2p, pstate->l3p, psum, pstate->grid);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (abs(delta->l1p) > SPIKE || abs(delta->l2p) > SPIKE || abs(delta->l3p) > SPIKE) {
 		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
 		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
 		xlog("SOLAR wasting power %d akku -> grid", waste);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (pstate->load < 0) {
 		xlog("SOLAR negative load detected %d", pstate->load);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (0 <= pstate->load && pstate->load <= NOISE) {
 		xlog("SOLAR suspicious small load detected %d", pstate->load);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (inv1->state != I_STATUS_MPPT) {
 		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
-		pstate->flags &= ~FLAG_VALID;
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (inv2->state != I_STATUS_MPPT) {
 		// xlog("SOLAR Inverter2 state %d expected %d ", inv2->state, I_STATUS_MPPT);
-		// pstate->flags &= ~FLAG_VALID;
+		// pstate->flags |= FLAG_INVALID;
 	}
 
 	// calculate slopes over 3, 6 and 9 seconds
@@ -558,7 +548,7 @@ static void calculate_pstate_online() {
 	}
 
 	// do not continue if invalid
-	if (!PSTATE_VALID)
+	if (PSTATE_INVALID)
 		return;
 
 	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
@@ -821,8 +811,8 @@ static void calculate_pstate() {
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
 
-	// print pstate once per minute / when delta / when invalid / on grid load / ramp
-	if (MINLY || PSTATE_ACDELTA || PSTATE_GRID_DLOAD || pstate->ramp)
+	// print pstate once per minute / when invalid / when delta / on grid load / ramp
+	if (MINLY || PSTATE_INVALID || PSTATE_ACDELTA || PSTATE_GRID_DLOAD || pstate->ramp)
 		print_pstate();
 }
 

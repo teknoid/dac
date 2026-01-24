@@ -57,13 +57,13 @@
 #define GSTATE_STABLE			(gstate->flags & FLAG_STABLE)
 
 // pstate flags
-#define FLAG_ACDELTA			(1 << 0)
-#define FLAG_VALID				(1 << 1)
+#define FLAG_INVALID			(1 << 0)
+#define FLAG_ACDELTA			(1 << 1)
 #define FLAG_EXTRAPOWER			(1 << 2)
 #define FLAG_EMERGENCY			(1 << 3)
 
+#define PSTATE_INVALID			(pstate->flags & FLAG_INVALID)
 #define PSTATE_ACDELTA			(pstate->flags & FLAG_ACDELTA)
-#define PSTATE_VALID			(pstate->flags & FLAG_VALID)
 #define PSTATE_EXTRAPOWER		(pstate->flags & FLAG_EXTRAPOWER)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)

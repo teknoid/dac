@@ -766,8 +766,8 @@ static void calculate_actions() {
 		return;
 	}
 
-	// no action when invalid
-	if (!PSTATE_VALID)
+	// no action when not valid
+	if (PSTATE_INVALID)
 		return;
 
 	// permanent overload - execute standby check
