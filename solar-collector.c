@@ -386,6 +386,10 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
+	// no ramp when not valid
+	if (PSTATE_INVALID)
+		return;
+
 	// below 90 - coarse absolute down ramp
 	if (avg->rsl < 90 && avg->grid > RAMP) {
 		pstate->ramp = avg->grid * -1;
@@ -415,18 +419,18 @@ static void calculate_pstate_ramp() {
 	// suppress ramp up if pv is falling / actual grid download / too little surplus / calculated load above average pv
 	int little = avg->rsl < 105;
 	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
-	int suppress_up = PSTATE_INVALID || PSTATE_PVFALL || pstate->grid > 0 || little || over;
+	int suppress_up = PSTATE_PVFALL || pstate->grid > 0 || little || over;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up ramp=%d invalid=%d fall=%d grid=%d little=%d over=%d", pstate->ramp, PSTATE_INVALID, PSTATE_PVFALL, pstate->grid, little, over);
+		xlog("SOLAR suppress up ramp=%d fall=%d grid=%d little=%d over=%d", pstate->ramp, PSTATE_PVFALL, pstate->grid, little, over);
 		pstate->ramp = 0;
 	}
 
 	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
 	int plenty = avg->rsl > 200;
 	int akku = pstate->akku < -RAMP && pstate->mppt1p + pstate->mppt2p > pstate->akku * -1;
-	int suppress_down = PSTATE_INVALID || PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
+	int suppress_down = PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d valid=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, PSTATE_INVALID, PSTATE_PVRISE, pstate->grid, plenty, akku);
+		xlog("SOLAR suppress down ramp=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, PSTATE_PVRISE, pstate->grid, plenty, akku);
 		pstate->ramp = 0;
 	}
 }
