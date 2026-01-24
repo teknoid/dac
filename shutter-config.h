@@ -30,5 +30,5 @@ static shutter_t w1 = { .name = "rollo-w", .id = ROLLO_W, .down = 50, .down_from
 
 // program of the day for summer and winter            j  f  m  a  m  j  j  a  s  o  n  d
 static potd_t SUMMER = { .name = "summer", .months = { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0 }, .shutters = { &e1, &e2, &s1, &s2, &s3, &w1, NULL }, .lumi = 20000, .temp = 25 };
-static potd_t WINTER = { .name = "winter", .months = { 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1 }, .shutters = { &e1, &e2, &s1, &s2, &s3, &w1, NULL }, .lumi = 50, .temp = -1 };
+static potd_t WINTER = { .name = "winter", .months = { 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1 }, .shutters = { &e1, &e2, &s1, &s2, &s3, &w1, NULL }, .lumi = 10, .temp = -1 };
 
