@@ -106,7 +106,7 @@ valgrind:
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo test gpio-sunxi gpio-bcm2835 solar simulator sunspec mosmix template aqua ledstrip tasmota
+	rm -f mcp display switch sensors flamingo gpio-sunxi gpio-bcm2835 solar simulator sunspec mosmix template aqua ledstrip tasmota
 
 install:
 	@echo "[Installing and starting mcp]"

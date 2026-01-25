@@ -471,16 +471,20 @@ static int choose_program() {
 	if (GSTATE_SUMMER || gstate->today > acx3)
 		return select_program(&PLENTY);
 
-	// we will NOT survive - charge akku and boilers
+	// we will NOT survive
 	if (gstate->survive < SURVIVE150)
 		return select_program(&MODEST);
 
-	// PV less than akku capacity - charge akku and boilers
+	// PV less than akku capacity
 	if (gstate->today < acx1)
 		return select_program(&MODEST);
 
-	// PV less than twice akku capacity and forecast below 50% - charge akku and boilers
+	// PV less than twice akku capacity and forecast below 50%
 	if (gstate->today < acx2 && gstate->forecast < 500)
+		return select_program(&MODEST);
+
+	// PV less than twice akku capacity today and less than akku capacity tomorrow
+	if (gstate->today < acx2 && gstate->tomorrow < acx1)
 		return select_program(&MODEST);
 
 	// PV less than twice akku capacity - heat with infrared panels before noon, heat boilers afternoon

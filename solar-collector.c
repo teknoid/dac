@@ -667,7 +667,7 @@ static void calculate_gstate() {
 	// survival factor
 	int tocharge = gstate->needed - gstate->akku;
 	LOCUT(tocharge, 0)
-	int available = pstate->pv < NOISE ? 0 : gstate->eod - tocharge;
+	int available = pstate->pv > NOISE ? gstate->eod - tocharge : 0;
 	LOCUT(available, 0)
 	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
