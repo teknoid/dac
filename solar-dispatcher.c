@@ -838,7 +838,7 @@ static void daily() {
 
 	// dump phase response counter
 	for (device_t **dd = DEVICES; *dd; dd++)
-		xlog("SOLAR %s phase response counter p1=%d p2=%d p3=%d", DD->name, DD->l1rc, DD->l2rc, DD->l3rc);
+		xlog("SOLAR phase response counter l1=%02d l2=%02d l3=%02d %s", DD->l1rc, DD->l2rc, DD->l3rc, DD->name);
 }
 
 static void hourly() {
