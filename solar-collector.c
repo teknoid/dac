@@ -416,21 +416,23 @@ static void calculate_pstate_ramp() {
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// suppress ramp up if pv is falling / actual grid download / too little surplus / calculated load above average pv
+	// suppress ramp up if pv is falling / too little surplus / actual grid download / calculated load above average pv
 	int little = avg->rsl < 105;
+	int dgrid = pstate->grid > 0;
 	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
-	int suppress_up = PSTATE_PVFALL || pstate->grid > 0 || little || over;
+	int suppress_up = PSTATE_PVFALL || little || dgrid || over;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up ramp=%d fall=%d grid=%d little=%d over=%d", pstate->ramp, PSTATE_PVFALL, pstate->grid, little, over);
+		xlog("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, over);
 		pstate->ramp = 0;
 	}
 
-	// suppress ramp down if pv is rising / actual grid upload / plenty surplus
+	// suppress ramp down if pv is rising / extrapower / plenty surplus / actual grid upload / calculated load below average surplus
 	int plenty = avg->rsl > 200;
-	int akku = pstate->akku < -RAMP && pstate->mppt1p + pstate->mppt2p > pstate->akku * -1;
-	int suppress_down = PSTATE_PVRISE || pstate->grid < -100 || plenty || akku;
+	int ugrid = pstate->grid < -100;
+	int below = dstate->cload < avg->surp;
+	int suppress_down = PSTATE_PVRISE || PSTATE_EXTRAPOWER || plenty || ugrid || below;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d rise=%d grid=%d plenty=%d akku=%d", pstate->ramp, PSTATE_PVRISE, pstate->grid, plenty, akku);
+		xlog("SOLAR suppress down ramp=%d rise=%d extra=%d plenty=%d ugrid=%d below=%d", pstate->ramp, PSTATE_PVRISE, PSTATE_EXTRAPOWER, plenty, ugrid, below);
 		pstate->ramp = 0;
 	}
 }
@@ -487,7 +489,7 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// load is completely satisfied from secondary inverter
-	if ((-NOISE < pstate->ac1 && pstate->ac1 < NOISE) || pstate->load < pstate->ac2)
+	if (pstate->load < pstate->ac2)
 		pstate->flags |= FLAG_EXTRAPOWER;
 
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
@@ -546,7 +548,7 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_PVRISE;
 		xdebug("SOLAR set FLAG_PVRISE");
 	}
-	if (!pvrise && !pvfall && !gridrise && !gridfall) {
+	if (!pvrise && !pvfall && !gridrise && !gridfall && !PSTATE_ACDELTA) {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set FLAG_STABLE");
 	}
@@ -556,13 +558,9 @@ static void calculate_pstate_online() {
 		return;
 
 	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
-	pstate->surp = pstate->ac1 + pstate->ac2 - pstate->akku;
+	pstate->surp = pstate->ac1 + pstate->ac2; // - pstate->akku;
 	HICUT(pstate->surp, pstate->pv)
 	LOCUT(pstate->surp, 0)
-
-	// grid load or akku discharge is not surplus
-	if (PSTATE_GRID_DLOAD || PSTATE_AKKU_DCHARGE)
-		pstate->surp = 0;
 
 	// ratio surplus / load
 	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
@@ -669,10 +667,8 @@ static void calculate_gstate() {
 	// survival factor
 	int tocharge = gstate->needed - gstate->akku;
 	LOCUT(tocharge, 0)
-	int available = gstate->eod - tocharge;
+	int available = pstate->pv < NOISE ? 0 : gstate->eod - tocharge;
 	LOCUT(available, 0)
-	if (pstate->pv < NOISE)
-		available = 0; // pv not yet started - we only have akku
 	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
@@ -816,7 +812,7 @@ static void calculate_pstate() {
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
 
 	// print pstate once per minute / when invalid / when delta / on grid load / ramp
-	if (MINLY || PSTATE_INVALID || PSTATE_ACDELTA || PSTATE_GRID_DLOAD || pstate->ramp)
+	if (MINLY || PSTATE_INVALID || PSTATE_GRID_DLOAD || pstate->ramp)
 		print_pstate();
 }
 

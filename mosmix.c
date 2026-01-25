@@ -31,7 +31,8 @@
 #define FRMAX					9999
 #define FSMAX					3333
 
-#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
+// #define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000) * (tco * (m->TTT - 25) + 10000) / 10000
 
 #define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
