@@ -28,13 +28,12 @@
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
 
-#define FRMAX					9999
-#define FSMAX					3333
+#define FMAX					9999
 
-// #define EXPECT(r, s, tco)		(r * m->Rad1h / 1000 + s * (100 - m->SunD1) / 100) * (tco * (m->TTT - 25) + 10000) / 10000
-#define EXPECT(r, s, tco)		(r * m->Rad1h / 1000) * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECTR(r, tco)			(r * m->Rad1h / 1000)         * (tco * (m->TTT - 25) + 10000) / 10000
+#define EXPECTS(r, tco)			(s * (100 - m->SunD1) / 100)  * (tco * (m->TTT - 25) + 10000) / 10000
 
-#define SUM_EXP(m)				((m)->exp1 + (m)->exp2 + (m)->exp3 + (m)->exp4)
+#define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
 #define NOISE					10
@@ -82,12 +81,15 @@ static void parse(char **strings, size_t size) {
 }
 
 static int expect(mosmix_t *m, int r, int s, int tco) {
-	int x = EXPECT(r, s, tco);
-	if (x < 0) {
-		xdebug("MOSMIX expected < 0, recalculating with s = 0");
-		x = EXPECT(r, 0, tco);
-	}
-	return x > NOISE ? x : 0;
+	int rx = m->Rad1h ? EXPECTR(r, tco) : 0;
+	int sx = m->SunD1 ? EXPECTR(s, tco) : 0;
+	if (rx && sx)
+		return (rx + sx) / 2;
+	if (rx)
+		return rx;
+	if (sx)
+		return sx;
+	return 0;
 }
 
 // calculate expected pv as combination of raw mosmix values with mppt specific coefficients
@@ -218,83 +220,119 @@ static void* calculate_factors_slave(void *arg) {
 
 	xdebug("MOSMIX factors thread started hour=%d", *h);
 
-	// before going into loops: check if we have Rad1h for this hour
-	int rad1h = 0;
-	for (int d = 0; d < 7; d++)
-		rad1h += HISTORY(d, *h)->Rad1h;
-	if (!rad1h) {
-		*h = -1;
-		return (void*) 0;
+	factor_t *f = FACTORS(*h);
+	f->er1 = f->er2 = f->er3 = f->er4 = f->es1 = f->es2 = f->es3 = f->es4 = INT16_MAX;
+
+	for (int r = 0; r <= FMAX; r++) {
+
+		// sum up errors over one week
+		int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, *h);
+
+			// calculate Rad1h expected
+			int exp1 = EXPECTR(r, TCOPMAX1);
+			int exp2 = EXPECTR(r, TCOPMAX2);
+			int exp3 = EXPECTR(r, TCOPMAX3);
+			int exp4 = EXPECTR(r, TCOPMAX4);
+
+			// calculate absolute error
+			if (exp1 < 0)
+				e1 += INT16_MAX;
+			else
+				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+
+			if (exp2 < 0)
+				e2 += INT16_MAX;
+			else
+				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+
+			if (exp3 < 0)
+				e3 += INT16_MAX;
+			else
+				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+
+			if (exp4 < 0)
+				e4 += INT16_MAX;
+			else
+				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+		}
+
+		// take over coefficients from the smallest error
+		if (e1 < f->er1) {
+			f->r1 = r;
+			f->er1 = e1;
+		}
+		if (e2 < f->er2) {
+			f->r2 = r;
+			f->er2 = e2;
+		}
+		if (e3 < f->er3) {
+			f->r3 = r;
+			f->er3 = e3;
+		}
+		if (e4 < f->er4) {
+			f->r4 = r;
+			f->er4 = e4;
+		}
 	}
 
-	factor_t *f = FACTORS(*h);
-	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
+	for (int s = 0; s <= FMAX; s++) {
 
-	for (int r = 0; r <= FRMAX; r++) {
-		for (int s = -FSMAX; s <= FSMAX; s++) {
+		// sum up errors over one week
+		int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, *h);
 
-			// sum up errors over one week
-			int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-			for (int d = 0; d < 7; d++) {
-				mosmix_t *m = HISTORY(d, *h);
+			// calculate SunD1 expected
+			int exp1 = EXPECTS(s, TCOPMAX1);
+			int exp2 = EXPECTS(s, TCOPMAX2);
+			int exp3 = EXPECTS(s, TCOPMAX3);
+			int exp4 = EXPECTS(s, TCOPMAX4);
 
-				// calculate expected
-				int exp1 = EXPECT(r, s, TCOPMAX1);
-				int exp2 = EXPECT(r, s, TCOPMAX2);
-				int exp3 = EXPECT(r, s, TCOPMAX3);
-				int exp4 = EXPECT(r, s, TCOPMAX4);
+			// calculate absolute error
+			if (exp1 < 0)
+				e1 += INT16_MAX;
+			else
+				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
 
-//				if (r == 100 && s == 100)
-//					xdebug("MOSMIX Rad1h=%d SunD1=%d TTT=%d r=s=100 exp1=%d exp2=%d exp3=%d exp4=%d", m->Rad1h, m->SunD1, m->TTT, exp1, exp2, exp3, exp4);
+			if (exp2 < 0)
+				e2 += INT16_MAX;
+			else
+				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
 
-				// calculate absolute error
-				if (exp1 < 0)
-					e1 += INT16_MAX;
-				else
-					e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+			if (exp3 < 0)
+				e3 += INT16_MAX;
+			else
+				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
 
-				if (exp2 < 0)
-					e2 += INT16_MAX;
-				else
-					e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+			if (exp4 < 0)
+				e4 += INT16_MAX;
+			else
+				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+		}
 
-				if (exp3 < 0)
-					e3 += INT16_MAX;
-				else
-					e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-
-				if (exp4 < 0)
-					e4 += INT16_MAX;
-				else
-					e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
-			}
-
-			// take over coefficients from the smallest error
-			if (e1 < f->e1) {
-				f->r1 = r;
-				f->s1 = s;
-				f->e1 = e1;
-			}
-			if (e2 < f->e2) {
-				f->r2 = r;
-				f->s2 = s;
-				f->e2 = e2;
-			}
-			if (e3 < f->e3) {
-				f->r3 = r;
-				f->s3 = s;
-				f->e3 = e3;
-			}
-			if (e4 < f->e4) {
-				f->r4 = r;
-				f->s4 = s;
-				f->e4 = e4;
-			}
+		// take over coefficients from the smallest error
+		if (e1 < f->es1) {
+			f->s1 = s;
+			f->es1 = e1;
+		}
+		if (e2 < f->es2) {
+			f->s2 = s;
+			f->es2 = e2;
+		}
+		if (e3 < f->es3) {
+			f->s3 = s;
+			f->es3 = e3;
+		}
+		if (e4 < f->es4) {
+			f->s4 = s;
+			f->es4 = e4;
 		}
 	}
 
 	// fix disconnected MPPT4 noise
-	f->r4 = f->s4 = f->e4 = 0;
+	f->r4 = f->s4 = f->er4 = f->es4 = 0;
 
 	// indicate finish
 	*h = -1;

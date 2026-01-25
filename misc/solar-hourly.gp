@@ -78,16 +78,25 @@ p gstateh u 1:"soc"   t "soc"      w lines ls 6,\
 
 
 # mosmix factors
-set ylabel "Factors"
+set ylabel "Factors Rad1h"
 set xrange [5:22]
 set xtics 1
-set output "/run/mcp/mosmix-factors.svg" 
-p factors u 1:"r1" t "r1" w lines ls 10,\
-       '' u 1:"r2" t "r2" w lines ls 11,\
-       '' u 1:"r3" t "r3" w lines ls 12,\
-       '' u 1:"e1" t "e1" w lines ls 20,\
-       '' u 1:"e2" t "e2" w lines ls 21,\
-       '' u 1:"e3" t "e3" w lines ls 22
+set output "/run/mcp/mosmix-factors-Rad1h.svg" 
+p factors u 1:"r1"  t "r1" w lines ls 10,\
+       '' u 1:"r2"  t "r2" w lines ls 11,\
+       '' u 1:"r3"  t "r3" w lines ls 12,\
+       '' u 1:"er1" t "e1" w lines ls 20,\
+       '' u 1:"er2" t "e2" w lines ls 21,\
+       '' u 1:"er3" t "e3" w lines ls 22
+
+set ylabel "Factors SunD1"
+set output "/run/mcp/mosmix-factors-SunD1.svg" 
+p factors u 1:"s1"  t "s1" w lines ls 10,\
+       '' u 1:"s2"  t "s2" w lines ls 11,\
+       '' u 1:"s3"  t "s3" w lines ls 12,\
+       '' u 1:"es1" t "e1" w lines ls 20,\
+       '' u 1:"es2" t "e2" w lines ls 21,\
+       '' u 1:"es3" t "e3" w lines ls 22
 
 
 # mosmix forecast today

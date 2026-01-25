@@ -87,7 +87,7 @@ typedef struct mosmix_csv_t {
 
 typedef struct _factor factor_t;
 #define FACTOR_SIZE		(sizeof(factor_t) / sizeof(int))
-#define FACTOR_HEADER	"    r1    r2    r3    r4    s1    s2    s3    s4    e1    e2    e3    e4"
+#define FACTOR_HEADER	"    r1    r2    r3    r4    s1    s2    s3    s4   er1   er2   er3   er4   es1   es2   es3   es4"
 struct _factor {
 	int r1;
 	int r2;
@@ -97,10 +97,14 @@ struct _factor {
 	int s2;
 	int s3;
 	int s4;
-	int e1;
-	int e2;
-	int e3;
-	int e4;
+	int er1;
+	int er2;
+	int er3;
+	int er4;
+	int es1;
+	int es2;
+	int es3;
+	int es4;
 };
 
 void mosmix_store_state();
