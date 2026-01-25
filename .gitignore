@@ -1,5 +1,6 @@
 /*.o
 /.settings/language.settings.xml
+/test/
 /mcp
 /ledstrip
 /solar
