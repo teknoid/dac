@@ -53,15 +53,15 @@ static void winter(struct tm *now, potd_t *potd) {
 		return;
 	}
 
-	int down = now->tm_hour > 12 && sensors->lumi <= potd->lumi && sensors->tout <= potd->temp;
-	int up = !down && sensors->lumi >= potd->lumi;
+	int dn = now->tm_hour > 12 && sensors->lumi < potd->lumi && sensors->tout <= potd->temp;
+	int up = now->tm_hour < 12 && sensors->lumi > potd->lumi;
 	// xdebug("SHUTTER %s program temp=%.1f lumi=%d", potd->name, temp, lumi);
 
 	for (shutter_t **potds = potd->shutters; *potds != NULL; potds++) {
 		shutter_t *s = *potds;
 
 		// down
-		if (!s->lock_down && down) {
+		if (!s->lock_down && dn) {
 			xlog("SHUTTER trigger %s DOWN %s at temp=%.1f lumi=%d", potd->name, s->name, sensors->tout, sensors->lumi);
 			tasmota_shutter(s->id, SHUTTER_DOWN);
 			s->lock_down = 1;
