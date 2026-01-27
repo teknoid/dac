@@ -82,10 +82,10 @@ static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
 
 // heat first with infrared panels
-static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &a1, &b1, &b2, &b3, &h4, &h7, &h5, 0 };
+static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &b1, &b2, &b3, &a1, &h4, &h7, &h5, 0 };
 
 // heat up first boilers
-static device_t *DEVICES_BOILER[] = { &b1, &b2, &b3, &h2, &h3, &h6, &h1, &a1, &h4, &h7, &h5, 0 };
+static device_t *DEVICES_BOILER[] = { &b1, &b2, &b3, &a1, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
 
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h7, &h5, &b1, &b2, &b3, &a1, 0 };
@@ -466,6 +466,7 @@ static int choose_program() {
 
 	// return select_program(&GREEDY);
 	// return select_program(&MODEST);
+	// return select_program(&BOILER);
 
 	// summer or enough pv
 	if (GSTATE_SUMMER || gstate->today > acx3)
