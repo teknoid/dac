@@ -375,14 +375,15 @@ static void create_devices_json() {
 		return;
 
 	int i = 0;
-	fprintf(fp, "[");
+	fprintf(fp, "{\"potd\":\"%s\",", potd->name);
+	fprintf(fp, "\"devices\":[");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		if (i++)
 			fprintf(fp, ",");
 #define DEVICE_TEMPLATE	"{\"id\":\"%06X\", \"r\":\"%d\", \"name\":\"%s\", \"host\":\"%s\", \"state\":%d, \"power\":%d, \"flags\":%d, \"total\":%d, \"load\":%d, \"steal\":%d}"
 		fprintf(fp, DEVICE_TEMPLATE, DD->id, DD->r, DD->name, DD->host, DD->state, DD->power, DD->flags, DD->total, DD->load, DD->steal);
 	}
-	fprintf(fp, "]");
+	fprintf(fp, "]}");
 
 	fflush(fp);
 	fclose(fp);
@@ -991,8 +992,10 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	if (!strncmp("solar/cmd/potd", topic, tsize)) {
 
 		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "auto"
-		if (!strncmp("auto", message, msize))
+		if (!strncmp("auto", message, msize)) {
 			potd_manual = 0;
+			choose_program();
+		}
 
 		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "infrar"
 		if (!strncmp("infrar", message, msize))

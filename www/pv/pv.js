@@ -51,7 +51,9 @@ function update_devices() {
 			var data = JSON.parse(this.responseText);
 			var dl = document.querySelector('dl');
 			dl.innerHTML = '';
-			Object.entries(data).forEach(([k, v]) => {
+			var potd = data.potd.toLowerCase();
+			document.getElementById(potd).checked = true;
+			Object.entries(data.devices).forEach(([k, v]) => {
 				var dd = document.createElement("dd");
 				dd.classList.add(v.name);
 
