@@ -2,6 +2,28 @@ function imgClick() {
 	document.location.href = this.src;
 }
 
+function toggle(e) {
+	var id = e.currentTarget.getAttribute('data-id');
+	if (id != 0) {
+		var host = e.currentTarget.getAttribute('data-host');
+		var r = e.currentTarget.getAttribute('data-r');
+		var x = '/pv/pv.php?cmd=toggle&id=' + id + '&r=' + r;
+		var request = new XMLHttpRequest();
+		request.open("GET", x);
+		request.send();
+	}
+}
+
+function potd(e) {
+	var p = document.querySelector('input[name=potd]:checked').value
+	if (p != 0) {
+		var request = new XMLHttpRequest();
+		var x = '/pv/pv.php?cmd=potd&value=' + p;
+		request.open("GET", x);
+		request.send();
+	}
+}
+
 function update_sensors() {
 	var request = new XMLHttpRequest();
 	request.open("GET", "/pv/data/sensors.json");
@@ -20,17 +42,6 @@ function update_sensors() {
 	request.send();
 }
 
-function toggle(e) {
-	var host = e.currentTarget.getAttribute('data-host');
-	var id = e.currentTarget.getAttribute('data-id');
-	var r = e.currentTarget.getAttribute('data-r');
-	var x = '/pv/pv.php?id=' + id + '&r=' + r;
-	if (id != 0) {
-		var request = new XMLHttpRequest();
-		request.open("GET", x);
-		request.send();
-	}
-}
 
 function update_devices() {
 	var request = new XMLHttpRequest();
@@ -152,6 +163,10 @@ window.onload = function() {
 	var images = document.getElementsByClassName("svg");
 	for (var i=0; i<images.length; i++) 
 		images[i].addEventListener("click", imgClick.bind(images[i]), false);
+
+	var radios = document.forms["form-potd"].elements["potd"];
+	for(var i = 0, max = radios.length; i < max; i++)
+		radios[i].onclick = potd;
 
 	update_pstate();
 	update_dstate();

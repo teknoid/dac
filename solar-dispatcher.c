@@ -52,7 +52,7 @@ typedef struct potd_t {
 	const char *name;
 	device_t **devices;
 } potd_t;
-static potd_t *potd = 0;
+static potd_t *potd = 0, *potd_manual = 0;
 
 // device ramp function signatures
 static void ramp_heater(device_t *device);
@@ -464,9 +464,9 @@ static int select_program(const potd_t *p) {
 static int choose_program() {
 	int acx1 = params->akku_capacity, acx2 = acx1 * 2, acx3 = acx1 * 3;
 
-	// return select_program(&GREEDY);
-	// return select_program(&MODEST);
-	// return select_program(&BOILER);
+	// manual override
+	if (potd_manual)
+		return select_program(potd_manual);
 
 	// summer or enough pv
 	if (GSTATE_SUMMER || gstate->today > acx3)
@@ -848,6 +848,9 @@ static void daily() {
 	// dump phase response counter
 	for (device_t **dd = DEVICES; *dd; dd++)
 		xlog("SOLAR phase response counter l1=%02d l2=%02d l3=%02d %s", DD->l1rc, DD->l2rc, DD->l3rc, DD->name);
+
+	// set potd back to auto
+	potd_manual = 0;
 }
 
 static void hourly() {
@@ -975,20 +978,47 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	if (!strncmp("solar/params/minsoc", topic, tsize))
 		params->akku_minsoc = atoin(message, msize);
 
+	// mosquitto_pub -h mqtt -t "solar/cmd/toggle" -m "{'id':'B51597', 'r':'1'}"
+	if (!strncmp("solar/cmd/toggle", topic, tsize)) {
+		char *idc = NULL;
+		int r = 0;
+		json_scanf(message, msize, "{id:%Q, r:%d}", &idc, &r);
+		unsigned int id = (unsigned int) strtol(idc, NULL, 16);
+		solar_toggle_id(id, r);
+		free(idc);
+	}
+
+	if (!strncmp("solar/cmd/potd", topic, tsize)) {
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "auto"
+		if (!strncmp("auto", message, msize))
+			potd_manual = 0;
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "infrar"
+		if (!strncmp("infrar", message, msize))
+			potd_manual = potd = (potd_t*) &INFRAR;
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "boiler"
+		if (!strncmp("boiler", message, msize))
+			potd_manual = potd = (potd_t*) &BOILER;
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "greedy"
+		if (!strncmp("greedy", message, msize))
+			potd_manual = potd = (potd_t*) &GREEDY;
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "plenty"
+		if (!strncmp("plenty", message, msize))
+			potd_manual = potd = (potd_t*) &PLENTY;
+
+		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "modest"
+		if (!strncmp("modest", message, msize))
+			potd_manual = potd = (potd_t*) &MODEST;
+	}
+
 	// TODO weitere kommandos z.B.
 	// "reset" --> alle devices zurück in AUTO mode setzen
 	// "force_standby"
 	// akku in standby setzen oder limit setzen
-
-	char *idc = NULL, *cmd = NULL;
-	int r = 0;
-	json_scanf(message, msize, "{id:%Q, r:%d, cmd:%Q}", &idc, &r, &cmd);
-	if (idc) {
-		unsigned int id = (unsigned int) strtol(idc, NULL, 16);
-		solar_toggle_id(id, r);
-		free(idc);
-		free(cmd);
-	}
 }
 
 // update device status from tasmota mqtt response
