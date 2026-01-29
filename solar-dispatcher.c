@@ -989,31 +989,20 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 		free(idc);
 	}
 
+	// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "auto"
 	if (!strncmp("solar/cmd/potd", topic, tsize)) {
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "auto"
 		if (!strncmp("auto", message, msize)) {
 			potd_manual = 0;
 			choose_program();
 		}
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "infrar"
 		if (!strncmp("infrar", message, msize))
 			potd_manual = potd = (potd_t*) &INFRAR;
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "boiler"
 		if (!strncmp("boiler", message, msize))
 			potd_manual = potd = (potd_t*) &BOILER;
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "greedy"
 		if (!strncmp("greedy", message, msize))
 			potd_manual = potd = (potd_t*) &GREEDY;
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "plenty"
 		if (!strncmp("plenty", message, msize))
 			potd_manual = potd = (potd_t*) &PLENTY;
-
-		// mosquitto_pub -h mqtt -t "solar/cmd/potd" -m "modest"
 		if (!strncmp("modest", message, msize))
 			potd_manual = potd = (potd_t*) &MODEST;
 	}
