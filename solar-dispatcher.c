@@ -928,14 +928,14 @@ static void minly() {
 		// go not below 7% in winter to avoid forced charging from grid
 		if (GSTATE_WINTER && gstate->soc < 70) {
 			akku_standby(AKKU);
-			if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY)
+			if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 				inverter_off();
 		} else
 			akku_discharge(AKKU);
 	}
 
 	// awake from manual sleep
-	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE)
+	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
 	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE

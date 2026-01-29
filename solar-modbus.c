@@ -611,7 +611,7 @@ static int init() {
 
 	// stop if Fronius10 is not available
 	if (!inverter1)
-		return xerr("No connection to inverter1");
+		return xerr("SOLAR modbus no connection to inverter1");
 
 	// do not continue before we have SoC value from Fronius10
 	int retry = 100;
@@ -621,7 +621,7 @@ static int init() {
 			break;
 	}
 	if (!retry)
-		return xerr("No SoC from %d", inverter1->name);
+		return xerr("SOLAR modbus no SoC from %s", inverter1->name);
 
 	params->akku_capacity = AKKU_CAPACITY;
 	params->akku_cmax = AKKU_CHARGE_MAX;

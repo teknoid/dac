@@ -16,8 +16,8 @@
 #define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
-#define MINLY					(now->tm_sec == 0)
-#define HOURLY					(now->tm_min == 0 && now->tm_sec == 0)
+#define MINLY					(now->tm_sec  == 0)
+#define HOURLY					(now->tm_min  == 0 && now->tm_sec == 0)
 #define DAILY					(now->tm_hour == 0 && now->tm_min == 0 && now->tm_sec == 0)
 
 #define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
