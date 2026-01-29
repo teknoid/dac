@@ -15,13 +15,11 @@ body, html {
 	color: #3b3b3d;
 }
 
-.potd input					{ cursor:pointer }
-.potd label					{ margin: 0 10px 0 0 }
-
 .flex-row	 				{ margin:0; padding:0; display:flex; flex-direction:row }
 .flex-column 				{ margin:0; padding:0; display:flex; flex-direction:column }
 
 .devices					{ margin-top:5px }
+.potd input					{ cursor:pointer }
 
 dl .d						{ background:gainsboro; color:gray }
 dl .z						{ background:silver }
@@ -40,6 +38,9 @@ dl dd.d						{ cursor:default }
 	iframe					{ width:100%; height:480px }
 	.mosmix					{ overflow:scroll; position:relative; left:-490px }
 	.svg					{ max-width:1420px }
+
+	.potd					{ margin-top:3px !important; align-items:flex-end }
+	.potd label				{ margin: 0 10px 0 0 }
 	
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:120px }
@@ -55,6 +56,9 @@ dl dd.d						{ cursor:default }
 	iframe					{ width:100%; height:480px }
 	.mosmix					{ overflow:scroll; position:relative; left:0 }
 	.svg					{ max-width:880px }
+
+	.potd					{ margin-top:3px !important; align-items:flex-end }
+	.potd label				{ margin: 0 10px 0 0 }
 
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
@@ -72,6 +76,10 @@ dl dd.d						{ cursor:default }
 	.devices				{ margin:10px 7px }
 	.mosmix					{ position:relative; left:0 }
 	.svg					{ max-width:1000px }
+
+	.potd					{ align-items:center }
+	.potd input				{ margin: 0 10px 0 15px; transform:scale(2) }
+	.potd label				{ font-size:32px; margin:0 20px 0 0 }
 
 	dl 						{ font-size:32px }
 	dl dd					{ position:relative; width:75px; height:300px; margin:0 5px 0 0 }
