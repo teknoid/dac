@@ -335,11 +335,17 @@ static void scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 
 // TODO idee: in module init() tasmota_hook(&update) aufrufen, update ist ein zeiger auf lokale funktion:
 // static void solar_update(tasmota_t *t);
-// tamota hält eine liste mit allen hook funktionen und ruft alle nach einem dispatch_* nacheinander auf
+// tasmota hält eine liste mit allen hook funktionen und ruft alle nach einem dispatch_* nacheinander auf
 
 static int dispatch_status(tasmota_t *t, const char *message, size_t msize) {
 	scan_power(t, message, msize);
-	scan_sensor(t, message, msize);
+
+	char *sns = NULL;
+	json_scanf(message, msize, "{StatusSNS:%Q}", &sns);
+	if (sns != NULL) {
+		scan_sensor(t, sns, strlen(sns));
+		free(sns);
+	}
 
 #ifdef SOLAR
 		// forward to solar dispatcher

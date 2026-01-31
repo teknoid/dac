@@ -22,13 +22,23 @@
 // --------------------------
 // 3699	7265	50,9%	61,6%
 
+// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
+#define MOSMIX_HISTORY			"solar-mosmix-history.bin"
+
+// hexdump -v -e '12 "%6d ""\n"' /var/lib/mcp/solar-mosmix-factors.bin
+#define MOSMIX_FACTORS			"solar-mosmix-factors.bin"
+
+// csvfilter.sh /run/mcp/mosmix-history.csv 12
+#define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
+#define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
+#define MOSMIX_TODAY_CSV		"mosmix-today.csv"
+#define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
+
 // temperature coefficient per mppt, scaled as x100
 #define TCOPMAX1				-34
 #define TCOPMAX2				-30
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
-
-#define FMAX					9999
 
 #define EXPECTR(r, tco)			(r * m->Rad1h / 1000)         * (tco * (m->TTT - 25) + 10000) / 10000
 #define EXPECTS(r, tco)			(s * (100 - m->SunD1) / 100)  * (tco * (m->TTT - 25) + 10000) / 10000
@@ -36,10 +46,12 @@
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
+#define HISTORY_SIZE			(24 * 7)
+
 #define NOISE					10
 #define BASELOAD				250
-
-#define HISTORY_SIZE			(24 * 7)
+#define FMAX					9999
+#define MOSMIX_COLUMNS			6
 
 // all raw values from kml file
 static mosmix_csv_t mosmix_csv[256];

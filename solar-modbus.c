@@ -140,6 +140,7 @@ int akku_discharge(device_t *akku) {
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
 static void update_inverter1(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
+	ss->sleep = 0;
 
 	// mppt voltage is always available
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
@@ -189,8 +190,6 @@ static void update_inverter1(sunspec_t *ss) {
 		// pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
 		// pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
 		// pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
-
-		ss->sleep = 0;
 		break;
 
 	case I_STATUS_FAULT:
@@ -213,6 +212,7 @@ static void update_inverter1(sunspec_t *ss) {
 // inverter2 is Fronius Symo 7.0-3-M
 static void update_inverter2(sunspec_t *ss) {
 	pthread_mutex_lock(&collector_lock);
+	ss->sleep = 0;
 
 	// mppt voltage is always available
 	pstate->mppt3v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
@@ -250,8 +250,6 @@ static void update_inverter2(sunspec_t *ss) {
 			CM_NULL->mppt3 = CM_NOW->mppt3;
 		if (CM_NULL->mppt4 == 0)
 			CM_NULL->mppt4 = CM_NOW->mppt4;
-
-		ss->sleep = 0;
 		break;
 
 	case I_STATUS_FAULT:
@@ -526,6 +524,15 @@ static int storage_min(char *arg) {
 	return sunspec_storage_minimum_soc(ss, min);
 }
 
+// set minimum SoC
+static int inverter_on_off(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_read(ss);
+
+	int on = atoi(arg);
+	return sunspec_controls_conn(inverter1, on);
+}
+
 static int latency() {
 	int count;
 	time_t ts;
@@ -646,7 +653,7 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "ab:c:s:glt")) != -1) {
+	while ((c = getopt(argc, argv, "ab:c:gi:ls:t")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'a':
@@ -657,13 +664,15 @@ int solar_main(int argc, char **argv) {
 		case 'c':
 			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
 			return calibrate(optarg);
-		case 's':
-			return storage_min(optarg);
 		case 'g':
 			return grid();
+		case 'i':
+			return inverter_on_off(optarg);
 		case 'l':
 			control = 0; // disable storage control in loop mode
 			return mcp_main(argc, argv);
+		case 's':
+			return storage_min(optarg);
 		case 't':
 			return test();
 		default:

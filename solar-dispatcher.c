@@ -16,6 +16,15 @@
 #include "utils.h"
 #include "mcp.h"
 
+// TODO rewrite
+// - einlesen der device und potd config aus json
+// - potd() erzeugt eine doppelt verkettete liste mit next/last und globale zeiger auf head+tail
+// - rampdown: rekursiv tail->head solange <0, stealable gleich berechnen weil bleibt so
+// - rampup: rekursiv head->tail solange >0, stealable gleich berechnen weil bleibt so
+// - akku_stealable jede sekunde berechnen
+// - response, standby und steal zyklisch wie aktuell
+// - steal: so wie aktuell: 2 loops von head->tail für t und v=t+1 (damit power sofort ganz nach vorne kommt!)
+
 // JSON files for webui
 #define DSTATE_JSON				"dstate.json"
 #define DEVICES_JSON			"devices.json"
@@ -58,8 +67,6 @@ static potd_t *potd = 0, *potd_manual = 0;
 static void ramp_heater(device_t *device);
 static void ramp_boiler(device_t *device);
 static void ramp_akku(device_t *device);
-
-// TODO load from configuration file
 
 // inverters - producer
 static device_t i1 = { .name = "fronius10" };
@@ -203,7 +210,7 @@ static void ramp_boiler(device_t *boiler) {
 		return;
 
 	// charging boilers only between configured FROM / TO (winter always)
-	if (boiler->power == 0 && boiler->ramp_in > 0 && !GSTATE_WINTER && boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
+	if (boiler->power == 0 && boiler->ramp_in > 0 && boiler->from && boiler->to && !GSTATE_WINTER && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
 		boiler->state = Standby;
 		return;
 	}
@@ -393,14 +400,14 @@ static void print_dstate() {
 	char line[512], value[6]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
+	xlogl_int(line, "DLimit", AKKU->dlimit);
 	if (!GSTATE_OFFLINE) {
 		xlogl_int(line, "CLimit", AKKU->climit);
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
 		xlogl_int(line, "Ramp", dstate->ramp);
 		xlogl_int(line, "Steal", dstate->steal);
-	} else
-		xlogl_int(line, "DLimit", AKKU->dlimit);
+	}
 	strcat(line, "   ");
 	for (device_t **dd = potd->devices; *dd; dd++) {
 		switch (DD->state) {
@@ -664,13 +671,21 @@ static void steal() {
 		if (t->power == (t->adj ? 100 : 1))
 			continue;
 
+		// interlock device is powered up, thief cannot be ramped up
+		if (t->interlock && t->interlock->power)
+			continue;
+
 		// collect steal power from victims
 		dstate->steal = 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
 			dstate->steal += (*vv)->steal;
 
+		// nothing to steal
+		if (!dstate->steal)
+			continue;
+
 		// not enough to ramp up thief
-		int thief_min = t->min ? t->min : t->total;
+		int thief_min = t->min ? t->min : t->adj ? 0 : t->total;
 		if (dstate->steal < thief_min)
 			continue;
 
@@ -786,11 +801,11 @@ static void calculate_actions() {
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic every 10 seconds
-	if (time(NULL) % 10 == 0 && !DSTATE_ACTION_STANDBY && GSTATE_STABLE && !DSTATE_ALL_DOWN && !DSTATE_ALL_UP)
+	if (time(NULL) % 10 == 0 && !DSTATE_ACTION_STANDBY && GSTATE_STABLE && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceding actions
-	if (pstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL)
+	if (pstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_RAMP;
 }
 

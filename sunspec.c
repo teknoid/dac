@@ -367,8 +367,10 @@ static void* poll(void *arg) {
 			msleep(555);
 
 			// pause when set
-			if (ss->sleep)
-				sleep(ss->sleep);
+			while (ss->sleep > 0) {
+				ss->sleep--;
+				sleep(1);
+			}
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
@@ -632,7 +634,7 @@ int sunspec_controls_conn(sunspec_t *ss, int conn) {
 
 	xlog("SUNSPEC setting controls Conn %d", conn);
 	sunspec_write_reg(ss, ss->controls_addr + OFFSET(ss->controls, ss->controls->Conn), conn);
-	ss->sleep = 10; // update poll loop timer
+	ss->sleep = 10; // shrink poll loop timer
 	return read_controls(ss);
 }
 

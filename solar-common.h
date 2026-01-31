@@ -35,10 +35,10 @@
 
 // gstate flags
 #define FLAG_OFFLINE			(1 << 0)
-#define FLAG_BURNOUT			(1 << 1)
-#define FLAG_HEATING			(1 << 2)
-#define FLAG_WINTER				(1 << 3)
-#define FLAG_SUMMER				(1 << 4)
+#define FLAG_SUMMER				(1 << 1)
+#define FLAG_WINTER				(1 << 2)
+#define FLAG_BURNOUT			(1 << 3)
+#define FLAG_HEATING			(1 << 4)
 #define FLAG_CHARGE_AKKU		(1 << 5)
 #define FLAG_FORCE_OFF			(1 << 6)
 
@@ -59,12 +59,10 @@
 // pstate flags
 #define FLAG_INVALID			(1 << 0)
 #define FLAG_ACDELTA			(1 << 1)
-#define FLAG_EXTRAPOWER			(1 << 2)
-#define FLAG_EMERGENCY			(1 << 3)
+#define FLAG_EMERGENCY			(1 << 2)
 
 #define PSTATE_INVALID			(pstate->flags & FLAG_INVALID)
 #define PSTATE_ACDELTA			(pstate->flags & FLAG_ACDELTA)
-#define PSTATE_EXTRAPOWER		(pstate->flags & FLAG_EXTRAPOWER)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)

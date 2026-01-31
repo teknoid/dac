@@ -2,20 +2,6 @@
 #define MARIENBERG				"MARIENBERG.csv"
 #define BRAUNSDORF				"BRAUNSDORF.csv"
 
-#define MOSMIX_COLUMNS			6
-
-// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
-#define MOSMIX_HISTORY			"solar-mosmix-history.bin"
-
-// hexdump -v -e '12 "%6d ""\n"' /var/lib/mcp/solar-mosmix-factors.bin
-#define MOSMIX_FACTORS			"solar-mosmix-factors.bin"
-
-// csvfilter.sh /run/mcp/mosmix-history.csv 12
-#define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
-#define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
-#define MOSMIX_TODAY_CSV		"mosmix-today.csv"
-#define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
-
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
 // CSV					1     2     3     4     5     6     7     8     9    10    11    12    13    14    15    16    17    18    19    20

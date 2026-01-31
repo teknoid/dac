@@ -372,6 +372,15 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
+	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
+	pstate->surp = pstate->ac1 + pstate->ac2; // - pstate->akku;
+	HICUT(pstate->surp, pstate->pv)
+	LOCUT(pstate->surp, 0)
+
+	// ratio surplus / load
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
+	HICUT(pstate->rsl, 1000)
+
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = pstate->akku * -1;
@@ -386,20 +395,16 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// no ramp when not valid
-	if (PSTATE_INVALID)
-		return;
-
-	// below 90 - coarse absolute down ramp
-	if (avg->rsl < 90 && avg->grid > RAMP) {
+	// grid download and rsl below 90 - coarse absolute down ramp
+	if (PSTATE_GRID_DLOAD && avg->rsl < 90) {
 		pstate->ramp = avg->grid * -1;
 		ZSHAPE(pstate->ramp, RAMP)
 		if (pstate->ramp)
 			xlog("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// above 110 - coarse absolute up ramp
-	if (avg->rsl > 110 && PSTATE_GRID_ULOAD) {
+	// grid upload and rsl above 110 - coarse absolute up ramp
+	if (PSTATE_GRID_ULOAD && avg->rsl > 110) {
 		pstate->ramp = PSTATE_STABLE ? (avg->grid / -1) : (avg->grid / -2);
 		ZSHAPE(pstate->ramp, RAMP)
 		if (pstate->ramp)
@@ -416,23 +421,25 @@ static void calculate_pstate_ramp() {
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// suppress ramp up if pv is falling / too little surplus / actual grid download / calculated load above average pv
-	int little = avg->rsl < 105;
-	int dgrid = pstate->grid > 0;
-	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD;
-	int suppress_up = PSTATE_PVFALL || little || dgrid || over;
+	// suppress ramp up
+	int little = avg->rsl < 105; // too little surplus
+	int dgrid = pstate->grid > 0; // actual grid download
+	int waste = pstate->grid < -NOISE && pstate->akku > NOISE; // wasting power akku --> grid
+	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD; // calculated load above average pv
+	int suppress_up = PSTATE_PVFALL || little || dgrid || waste || over;
 	if (pstate->ramp > 0 && suppress_up) {
-		xlog("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, over);
+		xlog("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d waste=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, waste, over);
 		pstate->ramp = 0;
 	}
 
-	// suppress ramp down if pv is rising / extrapower / plenty surplus / actual grid upload / calculated load below average surplus
-	int plenty = avg->rsl > 200;
-	int ugrid = pstate->grid < -100;
-	int below = dstate->cload < avg->surp;
-	int suppress_down = PSTATE_PVRISE || PSTATE_EXTRAPOWER || plenty || ugrid || below;
+	// suppress ramp down
+	int plenty = avg->rsl > 200; // plenty surplus
+	int ugrid = pstate->grid < -100; // actual grid upload
+	int below = dstate->cload < avg->surp; // calculated load below average surplus
+	int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
+	int suppress_down = PSTATE_PVRISE || plenty || ugrid || below || extra;
 	if (pstate->ramp < 0 && suppress_down) {
-		xlog("SOLAR suppress down ramp=%d rise=%d extra=%d plenty=%d ugrid=%d below=%d", pstate->ramp, PSTATE_PVRISE, PSTATE_EXTRAPOWER, plenty, ugrid, below);
+		xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d below=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, below, extra);
 		pstate->ramp = 0;
 	}
 }
@@ -488,10 +495,6 @@ static void calculate_pstate_online() {
 	if (avg->grid < RAMP * -2 || pstate->grid < RAMP * -4)
 		pstate->flags |= FLAG_GRID_ULOAD;
 
-	// load is completely satisfied from secondary inverter
-	if (pstate->load < pstate->ac2)
-		pstate->flags |= FLAG_EXTRAPOWER;
-
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
 	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
@@ -507,11 +510,7 @@ static void calculate_pstate_online() {
 	if (abs(delta->l1p) > SPIKE || abs(delta->l2p) > SPIKE || abs(delta->l3p) > SPIKE) {
 		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
 		pstate->flags |= FLAG_INVALID;
-	}
-	if (pstate->grid < -NOISE && pstate->akku > NOISE) {
-		int waste = abs(pstate->grid) < pstate->akku ? abs(pstate->grid) : pstate->akku;
-		xlog("SOLAR wasting power %d akku -> grid", waste);
-		pstate->flags |= FLAG_INVALID;
+		pstate->grid /= 2; // damping 50%
 	}
 	if (pstate->load < 0) {
 		xlog("SOLAR negative load detected %d", pstate->load);
@@ -552,19 +551,6 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set FLAG_STABLE");
 	}
-
-	// do not continue if invalid
-	if (PSTATE_INVALID)
-		return;
-
-	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
-	pstate->surp = pstate->ac1 + pstate->ac2; // - pstate->akku;
-	HICUT(pstate->surp, pstate->pv)
-	LOCUT(pstate->surp, 0)
-
-	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
-	HICUT(pstate->rsl, 1000)
 }
 
 static void calculate_gstate() {
@@ -799,10 +785,11 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->grid, 2)
 	ZSHAPE(pstate->akku, 2)
 
-	// calculate online state and ramp power
+	// calculate online state and ramp power when valid
 	if (!GSTATE_OFFLINE) {
 		calculate_pstate_online();
-		calculate_pstate_ramp();
+		if (!PSTATE_INVALID)
+			calculate_pstate_ramp();
 	}
 
 	// calculations done
