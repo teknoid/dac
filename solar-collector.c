@@ -372,8 +372,8 @@ static void calculate_counter() {
 }
 
 static void calculate_pstate_ramp() {
-	// surplus is inverter ac output without akku, hi-cutted by pv, lo-cut 0
-	pstate->surp = pstate->ac1 + pstate->ac2; // - pstate->akku;
+	// surplus is pure inverters ac output, hi-cutted by pv - no akku discharge, lo-cut 0 - no forced akku charging
+	pstate->surp = pstate->ac1 + pstate->ac2;
 	HICUT(pstate->surp, pstate->pv)
 	LOCUT(pstate->surp, 0)
 
@@ -411,12 +411,12 @@ static void calculate_pstate_ramp() {
 			xlog("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
 
-	// fine step up / down
+	// single step up / down
 	if (90 <= avg->rsl && avg->rsl <= 110) {
 		if (avg->grid > NOISE)
-			pstate->ramp = -RAMP; // single step down
+			pstate->ramp = -RAMP;
 		if (avg->grid < -RAMP)
-			pstate->ramp = RAMP; // single step up
+			pstate->ramp = RAMP;
 		if (pstate->ramp)
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avg->rsl, avg->grid, pstate->grid, pstate->ramp);
 	}
