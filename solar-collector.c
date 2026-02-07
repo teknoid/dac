@@ -700,7 +700,7 @@ static void calculate_gstate() {
 				LOCUT(dlimit, params->baseload)
 				// take over falling limit (load goes down) or when grid goes above half baseload (load goes up again)
 				xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, m0->grid);
-				if (dlimit < params->akku_dlimit || m0->grid > params->baseload / 2)
+				if (!params->akku_dlimit || dlimit < params->akku_dlimit || m0->grid > params->baseload / 2)
 					params->akku_dlimit = dlimit;
 			}
 		}
