@@ -929,9 +929,11 @@ static void minly() {
 	calculate_counter();
 	calculate_gstate();
 
-	// clear delta sum and delta count
-	ZEROP(deltas);
-	ZEROP(deltac);
+	// reset delta sum and delta count every two minutes
+	if (now->tm_min % 2 == 0) {
+		ZEROP(deltas);
+		ZEROP(deltac);
+	}
 
 	// reset minimum + maximum every AVERAGE minutes
 	if (now->tm_min % AVERAGE == 0) {
