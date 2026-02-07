@@ -22,8 +22,8 @@
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
 #define DLIMIT					50
-#define DSSTABLE				5000
-#define DCSTABLE				30
+#define DSSTABLE				1000
+#define DCSTABLE				10
 
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
@@ -596,7 +596,6 @@ static void calculate_gstate() {
 	gstate->loadmin = round10(loadmin10 < avgm->load ? loadmin10 : min->load);
 	gstate->loadmax = round10(loadmax10 > avgm->load ? loadmax10 : max->load);
 	gstate->loadavg = round10(avgm->load);
-	xlog("SOLAR gstate load=%d min=%d max=%d avgm=%d", m0->load, gstate->loadmin, gstate->loadmax, gstate->loadavg);
 
 	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
@@ -660,15 +659,14 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// TODO testing
-//	xlog("SOLAR pstate delta count pv=%3d grid=%3d load=%3d", deltac->pv, deltac->grid, deltac->load);
-//	xlog("SOLAR pstate delta sum   pv=%3d grid=%3d load=%3d", deltas->pv, deltas->grid, deltas->load);
-//	xlog("SOLAR pstate min         pv=%3d grid=%3d load=%3d", min->pv, min->grid, min->load);
-//	xlog("SOLAR pstate max         pv=%3d grid=%3d load=%3d", max->pv, max->grid, max->load);
-
 	// offline when pv is permanent below params->minimum
 	int offline = m0->pv < params->minimum && m1->pv < params->minimum && m2->pv < params->minimum && m3->pv < params->minimum;
 	if (offline) {
+
+		// TODO testing
+		xlog("SOLAR Grid raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid);
+		xlog("SOLAR Load raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->load, avgm->load, max->load, deltac->load, deltas->load);
+		xlog("SOLAR Load gstate m0=%3d min=%3d avg=%3d max=%3d", m0->load, gstate->loadmin, gstate->loadavg, gstate->loadmax);
 
 		// check if grid and load are stable
 		int gstable = deltac->grid < DCSTABLE && deltas->grid < DSSTABLE;
@@ -714,6 +712,10 @@ static void calculate_gstate() {
 
 	} else {
 		// online
+
+		// TODO testing
+		xlog("SOLAR PV   raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
+		xlog("SOLAR PV   gstate m0=%3d min=%3d avg=%3d max=%3d", m0->pv, gstate->pvmin, gstate->pvavg, gstate->pvmax);
 
 		// calculate variance for current minute against last 3 minutes
 		ivariance(m1var, m0, m1, PSTATE_SIZE);
@@ -935,11 +937,9 @@ static void minly() {
 	calculate_counter();
 	calculate_gstate();
 
-	// reset delta sum and delta count every two minutes
-	if (now->tm_min % 2 == 0) {
-		ZEROP(deltac);
-		ZEROP(deltas);
-	}
+	// reset delta sum and delta count
+	ZEROP(deltac);
+	ZEROP(deltas);
 
 	// reset minimum + maximum every AVERAGE minutes
 	if (now->tm_min % AVERAGE == 0) {
