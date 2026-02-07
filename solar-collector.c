@@ -101,7 +101,7 @@ static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[6
 static params_t params_current;
 
 // local pstate delta / average / min / max / slope / variance pointer
-static pstate_t *delta = &pstates[1], *deltas = &pstates[2], *deltac = &pstates[3];
+static pstate_t *delta = &pstates[1], *deltac = &pstates[2], *deltas = &pstates[3];
 static pstate_t *avgs = &pstates[4], *avgm = &pstates[5], *min = &pstates[6], *max = &pstates[7];
 static pstate_t *slope3 = &pstates[8], *slope6 = &pstates[9], *slope9 = &pstates[10];
 static pstate_t *m1var = &pstates[11], *m2var = &pstates[12], *m3var = &pstates[13];
@@ -827,16 +827,16 @@ static void calculate_pstate() {
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 
 	// calculate delta, update delta sum, delta count, minimum and maximum in one loop
-	int *dp = (int*) delta, *dsp = (int*) deltas, *dcp = (int*) deltac, *minp = (int*) min, *maxp = (int*) max, *pp0 = (int*) pstate, *pp1 = (int*) PSTATE_SEC_LAST1;
+	int *dp = (int*) delta, *dcp = (int*) deltac, *dsp = (int*) deltas, *minp = (int*) min, *maxp = (int*) max, *pp0 = (int*) pstate, *pp1 = (int*) PSTATE_SEC_LAST1;
 	for (int x = 0; x < PSTATE_SIZE; x++) {
 		// delta
 		*dp = *pp0 - *pp1;
 		ZSHAPE(*dp, NOISE)
-		// delta sum
-		*dsp += *dp < 0 ? *dp * -1 : *dp;
 		// delta count
 		if (*dp)
 			*dcp += 1;
+		// delta sum
+		*dsp += *dp < 0 ? *dp * -1 : *dp;
 		//minimum
 		if (*pp0 < *minp)
 			*minp = *pp0;
@@ -931,8 +931,8 @@ static void minly() {
 
 	// reset delta sum and delta count every two minutes
 	if (now->tm_min % 2 == 0) {
-		ZEROP(deltas);
 		ZEROP(deltac);
+		ZEROP(deltas);
 	}
 
 	// reset minimum + maximum every AVERAGE minutes
