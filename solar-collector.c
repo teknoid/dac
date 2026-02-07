@@ -698,9 +698,9 @@ static void calculate_gstate() {
 				// survive but instable - set limit 10% below average load but not smaller than baseload
 				int dlimit = round10(gstate->loadavg - gstate->loadavg / 10);
 				LOCUT(dlimit, params->baseload)
-				// take over rising limits or when grid goes above half baseload
+				// take over falling limit (load goes down) or when grid goes above half baseload (load goes up again)
 				xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, m0->grid);
-				if (dlimit > params->akku_dlimit || m0->grid > params->baseload / 2)
+				if (dlimit < params->akku_dlimit || m0->grid > params->baseload / 2)
 					params->akku_dlimit = dlimit;
 			}
 		}
