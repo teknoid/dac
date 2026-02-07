@@ -588,13 +588,13 @@ static void calculate_gstate() {
 	// take over minimum, maximum, average
 	int pvmin10 = min->pv + min->pv / 10; // +10%
 	int pvmax10 = max->pv - max->pv / 10; // -10%
-	gstate->pvmin = round100(pvmin10 < avgm->pv ? pvmin10 : min->pv);
-	gstate->pvmax = round100(pvmax10 > avgm->pv ? pvmax10 : max->pv);
+	gstate->pvmin = round100(pvmin10 < m0->pv ? pvmin10 : min->pv);
+	gstate->pvmax = round100(pvmax10 > m0->pv ? pvmax10 : max->pv);
 	gstate->pvavg = round100(avgm->pv);
 	int loadmin10 = min->load + min->load / 10; // +10%
 	int loadmax10 = max->load - max->load / 10; // -10%
-	gstate->loadmin = round10(loadmin10 < avgm->load ? loadmin10 : min->load);
-	gstate->loadmax = round10(loadmax10 > avgm->load ? loadmax10 : max->load);
+	gstate->loadmin = round10(loadmin10 < m0->load ? loadmin10 : min->load);
+	gstate->loadmax = round10(loadmax10 > m0->load ? loadmax10 : max->load);
 	gstate->loadavg = round10(avgm->load);
 
 	// grid upload
@@ -697,12 +697,11 @@ static void calculate_gstate() {
 			else {
 				// survive but instable - set limit 10% below average load but not smaller than baseload
 				int dlimit = round10(gstate->loadavg - gstate->loadavg / 10);
-				// take over new value when difference greater DLIMIT
-				int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
-				xlog("SOLAR dlimit now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
-				if (diff >= DLIMIT)
+				LOCUT(dlimit, params->baseload)
+				// take over new value when bigger or grid goes above half baseload
+				if (dlimit > params->akku_dlimit || m0->grid > params->baseload / 2)
 					params->akku_dlimit = dlimit;
-				LOCUT(params->akku_dlimit, params->baseload)
+				xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, m0->grid);
 			}
 		}
 		if (params->akku_dlimit_override)
