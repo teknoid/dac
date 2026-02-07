@@ -887,15 +887,15 @@ static void hourly() {
 			ramp_device(DD);
 		}
 	}
-
-	// reset limits
-	if (now->tm_hour == 6)
-		params->akku_climit = params->akku_dlimit = 0;
 }
 
 static void minly() {
 	// update akku state
 	akku_state(AKKU);
+
+	// take over akku charge/discharge limits
+	AKKU->climit = params->akku_climit;
+	AKKU->dlimit = params->akku_dlimit;
 
 	// choose potd
 	choose_program();
@@ -908,38 +908,8 @@ static void minly() {
 		//	solar_override_seconds("wozi", WAIT_BURNOUT);
 	}
 
-	// clear values when offline
-	if (GSTATE_OFFLINE)
-		memset(dstate, 0, sizeof(dstate_t));
-
-	// charge limit
-	AKKU->climit = 0;
-	if (params->akku_climit)
-		AKKU->climit = params->akku_climit;
-	else {
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
-			AKKU->climit = params->akku_cmax / 2;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
-			AKKU->climit = params->akku_cmax / 3;
-		if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
-			AKKU->climit = params->akku_cmax / 4;
-	}
-
 	// set akku to DISCHARGE when offline or long term grid download
 	if (GSTATE_OFFLINE || GSTATE_GRID_DLOAD) {
-		if (params->akku_dlimit)
-			AKKU->dlimit = params->akku_dlimit;
-		else {
-			if (gstate->survive > SURVIVE110)
-				// reset limit
-				AKKU->dlimit = 0;
-			else if (gstate->survive < SURVIVE100) {
-				// set limit but not below baseload
-				AKKU->dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
-				LOCUT(AKKU->dlimit, params->baseload)
-			}
-		}
-
 		// go not below 7% in winter to avoid forced charging from grid
 		if (GSTATE_WINTER && gstate->soc < 70) {
 			akku_standby(AKKU);
@@ -957,6 +927,10 @@ static void minly() {
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			DD->flags &= ~FLAG_STANDBY_CHECKED;
+
+	// clear values when offline
+	if (GSTATE_OFFLINE)
+		memset(dstate, 0, sizeof(dstate_t));
 }
 
 // set device into MANUAL mode and toggle power
@@ -984,11 +958,11 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 
 	// mosquitto_pub -h mqtt -t "solar/params/climit" -m 2500
 	if (!strncmp("solar/params/climit", topic, tsize))
-		params->akku_climit = atoin(message, msize);
+		params->akku_climit_override = atoin(message, msize);
 
 	// mosquitto_pub -h mqtt -t "solar/params/dlimit" -m 500
 	if (!strncmp("solar/params/dlimit", topic, tsize))
-		params->akku_dlimit = atoin(message, msize);
+		params->akku_dlimit_override = atoin(message, msize);
 
 	// mosquitto_pub -h mqtt -t "solar/params/minsoc" -m 5
 	if (!strncmp("solar/params/minsoc", topic, tsize))

@@ -116,6 +116,8 @@ struct _params {
 	int akku_dmax;
 	int akku_climit;
 	int akku_dlimit;
+	int akku_climit_override;
+	int akku_dlimit_override;
 	int akku_minsoc; // TODO
 	int baseload;
 	int minimum;
@@ -183,12 +185,15 @@ struct _counter {
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
 #define GSTATE_SIZE		(sizeof(gstate_t) / sizeof(int))
-#define GSTATE_HEADER	"    pv pvmin pvavg pvmax ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca avail  need  minu  surv flags"
+#define GSTATE_HEADER	"    pv pvmin pvavg pvmax  lmin  lavg  lmax ↑grid ↓grid today  tomo   sod   eod   soc   ttl  succ  foca avail  need  minu  surv flags"
 struct _gstate {
 	int pv;
 	int pvmin;
 	int pvavg;
 	int pvmax;
+	int loadmin;
+	int loadavg;
+	int loadmax;
 	int produced;
 	int consumed;
 	int today;
