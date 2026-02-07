@@ -31,7 +31,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '22 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -674,7 +674,7 @@ static void calculate_gstate() {
 		int lstable = deltac->load < DCSTABLE && deltas->load < DSSTABLE;
 		if (gstable && lstable) {
 			gstate->flags |= FLAG_STABLE;
-			xlog("SOLAR set FLAG_STABLE delta count/sum grid=%d/%d load=%d/%d", deltac->grid, deltas->grid, deltac->load, deltas->load);
+			xdebug("SOLAR set FLAG_STABLE delta count/sum grid=%d/%d load=%d/%d", deltac->grid, deltas->grid, deltac->load, deltas->load);
 		}
 
 		// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
@@ -792,17 +792,6 @@ static void calculate_gstate() {
 	memcpy(GSTATE_MIN_NOW, gstate, sizeof(gstate_t));
 	if (HOURLY)
 		memcpy(GSTATE_HOUR_NOW, gstate, sizeof(gstate_t));
-
-	// clear delta sum and delta count
-	ZEROP(deltas);
-	ZEROP(deltac);
-
-	// reset minimum + maximum every AVERAGE minutes
-	if (now->tm_min % AVERAGE == 0) {
-		memcpy(min, pstate, sizeof(pstate_t));
-		memcpy(max, pstate, sizeof(pstate_t));
-		xlog("SOLAR reset minimum + maximum");
-	}
 
 	print_gstate();
 }
@@ -939,6 +928,17 @@ static void minly() {
 	// calculate counter and global state
 	calculate_counter();
 	calculate_gstate();
+
+	// clear delta sum and delta count
+	ZEROP(deltas);
+	ZEROP(deltac);
+
+	// reset minimum + maximum every AVERAGE minutes
+	if (now->tm_min % AVERAGE == 0) {
+		memcpy(min, pstate, sizeof(pstate_t));
+		memcpy(max, pstate, sizeof(pstate_t));
+		xlog("SOLAR reset minimum + maximum");
+	}
 
 #ifdef GNUPLOT_MINLY
 	// paint new diagrams
