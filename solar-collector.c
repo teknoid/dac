@@ -21,6 +21,7 @@
 #define STABLE					10
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
+#define DLIMIT					50
 #define DSSTABLE				5000
 #define DCSTABLE				30
 
@@ -264,9 +265,10 @@ static void print_gstate() {
 	xlogl_bits16(line, NULL, gstate->flags);
 	xlogl_int_noise(line, NOISE, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE, 0, "Grid↑", gstate->produced);
+	xlogl_int(line, "Load", gstate->loadavg);
+	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "Ti", sensors->tin);
 	xlogl_float(line, "To", sensors->tout);
-	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	if (GSTATE_OFFLINE) {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 		xlogl_int(line, "Akku", gstate->akku);
@@ -274,9 +276,7 @@ static void print_gstate() {
 		xlogl_percent10(line, "Surv", gstate->survive);
 	} else {
 		xlogl_int_b(line, "∑PV", gstate->pv);
-		xlogl_int(line, "PVmin", gstate->pvmin);
-		xlogl_int(line, "PVavg", gstate->pvavg);
-		xlogl_int(line, "PVmax", gstate->pvmax);
+		xlogl_int(line, "PV", gstate->pvavg);
 		xlogl_int(line, "Today", gstate->today);
 		xlogl_int(line, "Tomo", gstate->tomorrow);
 		xlogl_int(line, "SoD", gstate->sod);
@@ -596,6 +596,7 @@ static void calculate_gstate() {
 	gstate->loadmin = round10(loadmin10 < avgm->load ? loadmin10 : min->load);
 	gstate->loadmax = round10(loadmax10 > avgm->load ? loadmax10 : max->load);
 	gstate->loadavg = round10(avgm->load);
+	xlog("SOLAR gstate load=%d min=%d max=%d avgm=%d", m0->load, gstate->loadmin, gstate->loadmax, gstate->loadavg);
 
 	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
@@ -660,10 +661,10 @@ static void calculate_gstate() {
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// TODO testing
-	xlog("SOLAR pstate delta count pv=%3d grid=%3d load=%3d", deltac->pv, deltac->grid, deltac->load);
-	xlog("SOLAR pstate delta sum   pv=%3d grid=%3d load=%3d", deltas->pv, deltas->grid, deltas->load);
-	xlog("SOLAR pstate min         pv=%3d grid=%3d load=%3d", min->pv, min->grid, min->load);
-	xlog("SOLAR pstate max         pv=%3d grid=%3d load=%3d", max->pv, max->grid, max->load);
+//	xlog("SOLAR pstate delta count pv=%3d grid=%3d load=%3d", deltac->pv, deltac->grid, deltac->load);
+//	xlog("SOLAR pstate delta sum   pv=%3d grid=%3d load=%3d", deltas->pv, deltas->grid, deltas->load);
+//	xlog("SOLAR pstate min         pv=%3d grid=%3d load=%3d", min->pv, min->grid, min->load);
+//	xlog("SOLAR pstate max         pv=%3d grid=%3d load=%3d", max->pv, max->grid, max->load);
 
 	// offline when pv is permanent below params->minimum
 	int offline = m0->pv < params->minimum && m1->pv < params->minimum && m2->pv < params->minimum && m3->pv < params->minimum;
@@ -696,8 +697,13 @@ static void calculate_gstate() {
 				// survive and stable - no limit
 				params->akku_dlimit = 0;
 			else {
-				// survive but instable - load minimum and not below baseload
-				params->akku_dlimit = gstate->loadmin;
+				// survive but instable - set limit 10% below average load but not smaller than baseload
+				int dlimit = round10(gstate->loadavg - gstate->loadavg / 10);
+				// take over new value when difference greater DLIMIT
+				int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
+				xlog("SOLAR dlimit now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
+				if (diff >= DLIMIT)
+					params->akku_dlimit = dlimit;
 				LOCUT(params->akku_dlimit, params->baseload)
 			}
 		}
