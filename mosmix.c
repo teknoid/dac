@@ -94,7 +94,7 @@ static void parse(char **strings, size_t size) {
 
 static int expect(mosmix_t *m, int r, int s, int tco) {
 	int rx = m->Rad1h ? EXPECTR(r, tco) : 0;
-	int sx = m->SunD1 ? EXPECTR(s, tco) : 0;
+	int sx = m->SunD1 ? EXPECTS(s, tco) : 0;
 	if (rx && sx)
 		return (rx + sx) / 2;
 	if (rx)
