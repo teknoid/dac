@@ -67,8 +67,6 @@
 #define GSTATE_MIN_LAST2		(&gstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
 #define GSTATE_MIN_LAST3		(&gstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
 #define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
-#define GSTATE_HOUR_LAST		(&gstate_hours[24 * now->tm_wday + now->tm_hour - (now->tm_wday == 0 && now->tm_hour ==  0 ?  24 * 7 - 1 : 1)])
-#define GSTATE_HOUR_NEXT		(&gstate_hours[24 * now->tm_wday + now->tm_hour + (now->tm_wday == 6 && now->tm_hour == 23 ? -24 * 7 + 1 : 1)])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
 #define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
@@ -235,19 +233,19 @@ static void collect_average_247() {
 
 	strcpy(line, "SOLAR average 24/7 load:");
 	for (int h = 0; h < 24; h++) {
-		snprintf(value, 10, " %d", PSTATE_AVG_247(h)->load);
+		snprintf(value, 10, " %4d", PSTATE_AVG_247(h)->load);
 		strcat(line, value);
 	}
 	xlog(line);
 
 	strcpy(line, "SOLAR average 24/7 akku:");
 	for (int h = 0; h < 24; h++) {
-		snprintf(value, 10, " %d", PSTATE_AVG_247(h)->akku);
+		snprintf(value, 10, " %4d", PSTATE_AVG_247(h)->akku);
 		strcat(line, value);
 	}
 	xlog(line);
 
-	// calculate baseload and minimum
+	// calculate base load and minimum
 	int load3 = PSTATE_AVG_247(3)->load, load4 = PSTATE_AVG_247(4)->load, load5 = PSTATE_AVG_247(5)->load;
 	params->baseload = round10((load3 + load4 + load5) / 3);
 	if (params->baseload <= 0)
@@ -375,13 +373,10 @@ static void calculate_counter() {
 }
 
 static void calculate_gstate_offline() {
-	// history states
-	pstate_t *m0 = PSTATE_MIN_NOW;
-
 	// TODO testing
-	xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d m0=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid, m0->grid);
+	xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d m0=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid, PSTATE_MIN_NOW->grid);
 	xlog("SOLAR Load raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->load, avgm->load, max->load, deltac->load, deltas->load);
-	xlog("SOLAR Load gstate min=%3d avg=%3d max=%3d m0=%3d", gstate->loadmin, gstate->loadavg, gstate->loadmax, m0->load);
+	xlog("SOLAR Load gstate min=%3d avg=%3d max=%3d m0=%3d", gstate->loadmin, gstate->loadavg, gstate->loadmax, PSTATE_MIN_NOW->load);
 
 	// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 	// TODO start stunde berechnen damit leer wenn pv startet
@@ -393,7 +388,6 @@ static void calculate_gstate_offline() {
 		gstate->flags |= FLAG_OFFLINE; // offline
 
 	// check if grid and load are stable
-	// TODO kühlschrank einmaliges unstable verhindern
 	int gstable = deltac->grid < DCSTABLE || deltas->grid < DSSTABLE;
 	int lstable = deltac->load < DCSTABLE || deltas->load < DSSTABLE;
 	if (gstable && lstable) {
@@ -401,13 +395,16 @@ static void calculate_gstate_offline() {
 		xdebug("SOLAR set FLAG_STABLE delta count/sum grid=%d/%d load=%d/%d", deltac->grid, deltas->grid, deltac->load, deltas->load);
 	}
 
+	// now unstable and last minute too - suppress single events e.g. refrigerator start
+	int x2unstable = !(gstate->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST1->flags & FLAG_STABLE);
+
 	// akku discharge limit
-	if (gstate->survive > SURVIVE110 && GSTATE_STABLE) {
+	if (gstate->survive > SURVIVE110 && !x2unstable) {
 		// survive and stable - no limit
 		params->akku_dlimit = 0;
-	} else if (gstate->survive > SURVIVE110 && !GSTATE_STABLE) {
-		// survive but instable - set limit to actual load
-		int dlimit = round10(m0->load);
+	} else if (gstate->survive > SURVIVE110 && x2unstable) {
+		// survive but unstable - set limit to average load
+		int dlimit = round10(avgm->load);
 		// take over initial limit or falling limits (forcing grid download) or rising limits (lowering grid download)
 		int fall = dlimit < params->akku_dlimit && avgm->grid < params->baseload / 2;
 		int rise = dlimit > params->akku_dlimit && avgm->grid > params->baseload / 2;
@@ -418,7 +415,12 @@ static void calculate_gstate_offline() {
 		LOCUT(params->akku_dlimit, params->baseload)
 	} else if (gstate->survive < SURVIVE100) {
 		// not survive - stretch akku ttl to maximum
-		params->akku_dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
+		int dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
+		// take over initial limit or when delta 20+
+		int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
+		xlog("SOLAR dlimit now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
+		if (!params->akku_dlimit || diff >= 20)
+			params->akku_dlimit = dlimit;
 		// not below baseload
 		LOCUT(params->akku_dlimit, params->baseload)
 	}
@@ -429,16 +431,16 @@ static void calculate_gstate_offline() {
 }
 
 static void calculate_gstate_online() {
+	// TODO testing
+	xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d m0=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid, PSTATE_MIN_NOW->grid);
+	xlog("SOLAR PV   raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
+	xlog("SOLAR PV   gstate min=%3d avg=%3d max=%3d m0=%3d ", gstate->pvmin, gstate->pvavg, gstate->pvmax, PSTATE_MIN_NOW->pv);
+
 	// history states
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
 	pstate_t *m3 = PSTATE_MIN_LAST3;
-
-	// TODO testing
-	xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d m0=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid, m0->grid);
-	xlog("SOLAR PV   raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
-	xlog("SOLAR PV   gstate min=%3d avg=%3d max=%3d m0=%3d ", gstate->pvmin, gstate->pvavg, gstate->pvmax, m0->pv);
 
 	// calculate variance for current minute against last 3 minutes
 	ivariance(m1var, m0, m1, PSTATE_SIZE);
@@ -463,10 +465,10 @@ static void calculate_gstate_online() {
 		xdebug("SOLAR set FLAG_STABLE surplus now=%d m1=%d/%d m2=%d/%d m3=%d/%d", m0->surp, m1->surp, m1var->surp, m2->surp, m2var->surp, m3->surp, m3var->surp);
 	}
 
-	// force off when rsl is permanent below 90%
-	if (m0->rsl < 90 && m1->rsl < 90 && m2->rsl < 90 && m3->rsl < 90) {
+	// force off when average rsl is below 90%
+	if (avgm->rsl < 90) {
 		gstate->flags |= FLAG_FORCE_OFF;
-		xdebug("SOLAR set FLAG_FORCE_OFF rsl m0=%d m1=%d m2=%d m3=%d", m0->rsl, m1->rsl, m2->rsl, m3->rsl);
+		xdebug("SOLAR set FLAG_FORCE_OFF rsl=%d", avgm->rsl);
 	}
 
 	// heating
@@ -524,7 +526,6 @@ static void calculate_gstate() {
 	pstate_t *m0 = PSTATE_MIN_NOW;
 	pstate_t *m1 = PSTATE_MIN_LAST1;
 	pstate_t *m2 = PSTATE_MIN_LAST2;
-	pstate_t *m3 = PSTATE_MIN_LAST3;
 
 	// clear state flags and values
 	gstate->flags = 0;
@@ -552,6 +553,7 @@ static void calculate_gstate() {
 	iaggregate_rows(avgm, pstate_minutes, PSTATE_SIZE, 60, minu, AVERAGE);
 
 	// take over minimum, maximum, average
+	// TODO auslagern in eine mam struktur mit 60*24 einträgen
 	gstate->pvmin = round10(min->pv);
 	gstate->pvmax = round10(max->pv);
 	gstate->pvavg = round10(avgm->pv);
@@ -586,12 +588,10 @@ static void calculate_gstate() {
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE m0=%d m1=%d m2=%d", m0->akku, m1->akku, m2->akku);
 	}
 
-	// akku usable energy and estimated time to live based on last 3 minutes average akku discharge or load
+	// akku usable energy and estimated time to live based on average load or akku discharge
 	gstate->akku = round10(AKKU_AVAILABLE);
 	int msoc = akku_get_min_soc();
-	int akku = (m0->akku + m1->akku + m2->akku) / 3;
-	int load = (m0->load + m1->load + m2->load) / 3;
-	int al = akku > load ? akku : load;
+	int al = avgm->akku > avgm->load ? avgm->akku : avgm->load;
 	gstate->ttl = al && gstate->soc > msoc ? gstate->akku * 60 / al : 0; // in minutes
 
 	// collect mosmix forecasts
@@ -621,8 +621,8 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// offline when pv is permanent below params->minimum
-	int offline = m0->pv < params->minimum && m1->pv < params->minimum && m2->pv < params->minimum && m3->pv < params->minimum;
+	// offline when average pv is below minimum
+	int offline = avgm->pv < params->minimum;
 	if (offline)
 		calculate_gstate_offline();
 	else
@@ -958,7 +958,6 @@ static void minly() {
 	if (now->tm_min % AVERAGE == 0) {
 		memcpy(min, PSTATE_MIN_NOW, sizeof(pstate_t));
 		memcpy(max, PSTATE_MIN_NOW, sizeof(pstate_t));
-		xlog("SOLAR reset minimum + maximum");
 	}
 
 #ifdef GNUPLOT_MINLY
