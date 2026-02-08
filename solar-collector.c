@@ -695,8 +695,8 @@ static void calculate_gstate() {
 				// survive and stable - no limit
 				params->akku_dlimit = 0;
 			else {
-				// survive but instable - set limit 10% below average load but not smaller than baseload
-				int dlimit = round10(avgm->load - avgm->load / 10);
+				// survive but instable - set limit to actual load but not smaller than baseload
+				int dlimit = round10(m0->load);
 				LOCUT(dlimit, params->baseload)
 				// take over falling limits (forcing grid download) or rising limits (lowering grid download)
 				int fall = dlimit < params->akku_dlimit && avgm->grid < params->baseload / 2;
@@ -715,6 +715,7 @@ static void calculate_gstate() {
 		// online
 
 		// TODO testing
+		xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid);
 		xlog("SOLAR PV   raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
 		xlog("SOLAR PV   gstate min=%3d avg=%3d max=%3d m0=%3d ", gstate->pvmin, gstate->pvavg, gstate->pvmax, m0->pv);
 
