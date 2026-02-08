@@ -664,9 +664,9 @@ static void calculate_gstate() {
 	if (offline) {
 
 		// TODO testing
-		xlog("SOLAR Grid raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid);
-		xlog("SOLAR Load raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->load, avgm->load, max->load, deltac->load, deltas->load);
-		xlog("SOLAR Load gstate m0=%3d min=%3d avg=%3d max=%3d", m0->load, gstate->loadmin, gstate->loadavg, gstate->loadmax);
+		xlog("SOLAR Grid raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->grid, avgm->grid, max->grid, deltac->grid, deltas->grid);
+		xlog("SOLAR Load raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->load, avgm->load, max->load, deltac->load, deltas->load);
+		xlog("SOLAR Load gstate min=%3d avg=%3d max=%3d m0=%3d", gstate->loadmin, gstate->loadavg, gstate->loadmax, m0->load);
 
 		// check if grid and load are stable
 		int gstable = deltac->grid < DCSTABLE && deltas->grid < DSSTABLE;
@@ -715,8 +715,8 @@ static void calculate_gstate() {
 		// online
 
 		// TODO testing
-		xlog("SOLAR PV   raw           min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
-		xlog("SOLAR PV   gstate m0=%3d min=%3d avg=%3d max=%3d", m0->pv, gstate->pvmin, gstate->pvavg, gstate->pvmax);
+		xlog("SOLAR PV   raw    min=%3d avg=%3d max=%3d deltac=%3d deltas=%3d", min->pv, avgm->pv, max->pv, deltac->pv, deltas->pv);
+		xlog("SOLAR PV   gstate min=%3d avg=%3d max=%3d m0=%3d ", gstate->pvmin, gstate->pvavg, gstate->pvmax, m0->pv);
 
 		// calculate variance for current minute against last 3 minutes
 		ivariance(m1var, m0, m1, PSTATE_SIZE);
