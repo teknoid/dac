@@ -22,7 +22,7 @@
 #define SLOPE_PV				25
 #define SLOPE_GRID				25
 #define DLIMIT					50
-#define DSSTABLE				1000
+#define DSSTABLE				500
 #define DCSTABLE				10
 
 #define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
@@ -481,7 +481,9 @@ static void calculate_pstate_online() {
 		int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
 		if (akku_unregulated) {
 			xlog("SOLAR suppress FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
-		} else {
+		} else if (gstate->soc > 100) {
+			// no limit, not below 10%
+			params->akku_dlimit = 0;
 			pstate->flags |= FLAG_EMERGENCY;
 			xlog("SOLAR set FLAG_EMERGENCY agrid=%d cgrid=%d aakku=%d cakku=%d", agrid, cgrid, aakku, cakku);
 		}
@@ -669,8 +671,9 @@ static void calculate_gstate() {
 		xlog("SOLAR Load gstate min=%3d avg=%3d max=%3d m0=%3d", gstate->loadmin, gstate->loadavg, gstate->loadmax, m0->load);
 
 		// check if grid and load are stable
-		int gstable = deltac->grid < DCSTABLE && deltas->grid < DSSTABLE;
-		int lstable = deltac->load < DCSTABLE && deltas->load < DSSTABLE;
+		// TODO kühlschrank einmaliges unstable verhindern
+		int gstable = deltac->grid < DCSTABLE || deltas->grid < DSSTABLE;
+		int lstable = deltac->load < DCSTABLE || deltas->load < DSSTABLE;
 		if (gstable && lstable) {
 			gstate->flags |= FLAG_STABLE;
 			xdebug("SOLAR set FLAG_STABLE delta count/sum grid=%d/%d load=%d/%d", deltac->grid, deltas->grid, deltac->load, deltas->load);
@@ -686,25 +689,25 @@ static void calculate_gstate() {
 			gstate->flags |= FLAG_OFFLINE; // offline
 
 		// akku discharge limit
-		if (gstate->survive < SURVIVE100) {
-			// not survive - stretch akku ttl but go not below baseload
-			params->akku_dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
+		if (gstate->survive > SURVIVE110 && GSTATE_STABLE) {
+			// survive and stable - no limit
+			params->akku_dlimit = 0;
+		} else if (gstate->survive > SURVIVE110 && !GSTATE_STABLE) {
+			// survive but instable - set limit to actual load
+			int dlimit = round10(m0->load);
+			// take over initial limit or falling limits (forcing grid download) or rising limits (lowering grid download)
+			int fall = dlimit < params->akku_dlimit && avgm->grid < params->baseload / 2;
+			int rise = dlimit > params->akku_dlimit && avgm->grid > params->baseload / 2;
+			xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, avgm->grid);
+			if (!params->akku_dlimit || fall || rise)
+				params->akku_dlimit = dlimit;
+			// not below baseload
 			LOCUT(params->akku_dlimit, params->baseload)
-		} else if (gstate->survive > SURVIVE110) {
-			if (GSTATE_STABLE)
-				// survive and stable - no limit
-				params->akku_dlimit = 0;
-			else {
-				// survive but instable - set limit to actual load but not smaller than baseload
-				int dlimit = round10(m0->load);
-				LOCUT(dlimit, params->baseload)
-				// take over falling limits (forcing grid download) or rising limits (lowering grid download)
-				int fall = dlimit < params->akku_dlimit && avgm->grid < params->baseload / 2;
-				int rise = dlimit > params->akku_dlimit && avgm->grid > params->baseload / 2;
-				xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, avgm->grid);
-				if (!params->akku_dlimit || fall || rise)
-					params->akku_dlimit = dlimit;
-			}
+		} else if (gstate->survive < SURVIVE100) {
+			// not survive - stretch akku ttl to maximum
+			params->akku_dlimit = gstate->akku && gstate->minutes ? gstate->akku * 60 / gstate->minutes / 10 * 10 : 0;
+			// not below baseload
+			LOCUT(params->akku_dlimit, params->baseload)
 		}
 		if (params->akku_dlimit_override)
 			params->akku_dlimit = params->akku_dlimit_override; // override

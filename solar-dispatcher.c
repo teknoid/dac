@@ -515,10 +515,8 @@ static void emergency() {
 	xlog("SOLAR emergency shutdown");
 
 	// enable discharge no limit
-	if (!AKKU_DISCHARGING && gstate->soc > 70) {
-		AKKU->dlimit = 0;
-		akku_discharge(AKKU);
-	}
+	AKKU->dlimit = 0;
+	akku_discharge(AKKU);
 
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->ramp_in = DD->total * -1;
@@ -777,6 +775,8 @@ static void calculate_actions() {
 	// update akku
 	AKKU->load = pstate->akku * -1;
 	AKKU->power = AKKU->total ? AKKU->load * 100 / AKKU->total : 0; // saturation -100%..0..100%
+	AKKU->climit = params->akku_climit;
+	AKKU->dlimit = params->akku_dlimit;
 
 	// count down lock
 	if (dstate->lock > 0)
@@ -892,10 +892,6 @@ static void hourly() {
 static void minly() {
 	// update akku state
 	akku_state(AKKU);
-
-	// take over akku charge/discharge limits
-	AKKU->climit = params->akku_climit;
-	AKKU->dlimit = params->akku_dlimit;
 
 	// choose potd
 	choose_program();
