@@ -104,7 +104,7 @@ static params_t params_current;
 // local pstate delta / average / min / max / slope / variance pointer
 static pstate_t *delta = &pstates[1], *deltac = &pstates[2], *deltas = &pstates[3];
 static pstate_t *avgs = &pstates[4], *avgm = &pstates[5], *min = &pstates[6], *max = &pstates[7];
-static pstate_t *slope3 = &pstates[8], *slope6 = &pstates[9], *slope9 = &pstates[10];
+static pstate_t *s3slo = &pstates[8], *s6slo = &pstates[9], *s9slo = &pstates[10];
 static pstate_t *m1var = &pstates[11], *m2var = &pstates[12], *m3var = &pstates[13];
 
 // global counter/gstate/pstate/params pointer
@@ -552,15 +552,11 @@ static void calculate_gstate() {
 	iaggregate_rows(avgm, pstate_minutes, PSTATE_SIZE, 60, minu, AVERAGE);
 
 	// take over minimum, maximum, average
-	int pvmin10 = min->pv + min->pv / 10; // +10%
-	int pvmax10 = max->pv - max->pv / 10; // -10%
-	gstate->pvmin = round100(pvmin10 < avgm->pv ? pvmin10 : min->pv);
-	gstate->pvmax = round100(pvmax10 > avgm->pv ? pvmax10 : max->pv);
-	gstate->pvavg = round100(avgm->pv);
-	int loadmin10 = min->load + min->load / 10; // +10%
-	int loadmax10 = max->load - max->load / 10; // -10%
-	gstate->loadmin = round10(loadmin10 < avgm->load ? loadmin10 : min->load);
-	gstate->loadmax = round10(loadmax10 > avgm->load ? loadmax10 : max->load);
+	gstate->pvmin = round10(min->pv);
+	gstate->pvmax = round10(max->pv);
+	gstate->pvavg = round10(avgm->pv);
+	gstate->loadmin = round10(min->load);
+	gstate->loadmax = round10(max->load);
 	gstate->loadavg = round10(avgm->load);
 
 	// grid upload
@@ -798,15 +794,15 @@ static void calculate_pstate_online() {
 	}
 
 	// calculate slopes over 3, 6 and 9 seconds
-	islope(slope3, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
-	islope(slope6, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
-	islope(slope9, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
+	islope(s3slo, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
+	islope(s6slo, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
+	islope(s9slo, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
 
 	// tendency: falling or rising or stable, fall has prio
-	int pvfall = slope3->pv < -SLOPE_PV || slope6->pv < -SLOPE_PV || slope9->pv < -SLOPE_PV;
-	int pvrise = slope3->pv > SLOPE_PV || slope6->pv > SLOPE_PV || slope9->pv > SLOPE_PV;
-	int gridfall = slope3->grid < -SLOPE_GRID || slope6->grid < -SLOPE_GRID || slope9->grid < -SLOPE_GRID;
-	int gridrise = slope3->grid > SLOPE_GRID || slope6->grid > SLOPE_GRID || slope9->grid > SLOPE_GRID;
+	int pvfall = s3slo->pv < -SLOPE_PV || s6slo->pv < -SLOPE_PV || s9slo->pv < -SLOPE_PV;
+	int pvrise = s3slo->pv > SLOPE_PV || s6slo->pv > SLOPE_PV || s9slo->pv > SLOPE_PV;
+	int gridfall = s3slo->grid < -SLOPE_GRID || s6slo->grid < -SLOPE_GRID || s9slo->grid < -SLOPE_GRID;
+	int gridrise = s3slo->grid > SLOPE_GRID || s6slo->grid > SLOPE_GRID || s9slo->grid > SLOPE_GRID;
 	if (pvfall) {
 		pstate->flags |= FLAG_PVFALL;
 		xdebug("SOLAR set FLAG_PVFALL");
@@ -958,10 +954,10 @@ static void minly() {
 	ZEROP(deltac);
 	ZEROP(deltas);
 
-	// reset minimum + maximum every AVERAGE minutes
+	// reset minimum + maximum every AVERAGE minutes to last minute
 	if (now->tm_min % AVERAGE == 0) {
-		memcpy(min, pstate, sizeof(pstate_t));
-		memcpy(max, pstate, sizeof(pstate_t));
+		memcpy(min, PSTATE_MIN_NOW, sizeof(pstate_t));
+		memcpy(max, PSTATE_MIN_NOW, sizeof(pstate_t));
 		xlog("SOLAR reset minimum + maximum");
 	}
 

@@ -827,6 +827,37 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
+// partial aggregate minimum/average/maximum - add src rows backwards starting at row to dest and divide by count
+void iaggregate_mam(void *src, void *min, void *avg, void *max, int cols, int rows, int row, int count) {
+	if (!count)
+		return;
+
+	memset(min, 0, cols * sizeof(int));
+	memset(avg, 0, cols * sizeof(int));
+	memset(max, 0, cols * sizeof(int));
+
+	int y = row;
+	for (int z = 0; z < count; z++) {
+		int *minp = (int*) min, *avgp = (int*) avg, *maxp = (int*) max, *srcp = (int*) src + y * cols;
+		for (int x = 0; x < cols; x++) {
+			if (*srcp < *minp)
+				*minp = *srcp;
+			*avgp += *srcp;
+			if (*srcp > *maxp)
+				*maxp = *srcp;
+			minp++, avgp++, maxp++, srcp++;
+		}
+		if (y-- == 0)
+			y = rows - 1;
+	}
+
+	int *avgp = (int*) avg;
+	for (int x = 0; x < cols; x++) {
+		int z = *avgp * 10 / count;
+		*avgp++ = z / 10 + (z % 10 < 5 ? 0 : 1);
+	}
+}
+
 // partial average - add src rows backwards starting at row to dest and divide by count
 void iaggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
 	if (!count)
