@@ -266,6 +266,9 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = pstate->mppt3v = pstate->mppt4v = 0;
 	}
 
+	// fix disconnected MPPT4
+	pstate->mppt4p = pstate->mppt4v = 0;
+
 	pthread_mutex_unlock(&collector_lock);
 }
 
@@ -277,10 +280,10 @@ static void update_meter(sunspec_t *ss) {
 	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->l2p = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->l3p = SFI(ss->meter->WphC, ss->meter->W_SF);
-	pstate->l1v = SFI(ss->meter->PhVphA, ss->meter->V_SF) * 10;
-	pstate->l2v = SFI(ss->meter->PhVphB, ss->meter->V_SF) * 10;
-	pstate->l3v = SFI(ss->meter->PhVphC, ss->meter->V_SF) * 10;
-	pstate->f = ss->meter->Hz - 5000; // store only the diff
+	pstate->l1v = ss->meter->PhVphA; // keep decimals
+	pstate->l2v = ss->meter->PhVphB; // keep decimals
+	pstate->l3v = ss->meter->PhVphC; // keep decimals
+	pstate->f = ss->meter->Hz - 5000; // store difference
 
 	CM_NOW->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	CM_NOW->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);

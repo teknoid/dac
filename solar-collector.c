@@ -552,8 +552,10 @@ static void calculate_gstate() {
 	int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
 	iaggregate_rows(avgm, pstate_minutes, PSTATE_SIZE, 60, minu, AVERAGE);
 
-	// take over minimum, maximum, average
+	// take over minimum, maximum, average; limit 10m average to 10s average
 	// TODO auslagern in eine mam struktur mit 60*24 einträgen
+	HICUT(avgm->pv, avgs->pv);
+	HICUT(avgm->load, avgs->load);
 	gstate->pvmin = round10(min->pv);
 	gstate->pvmax = round10(max->pv);
 	gstate->pvavg = round10(avgm->pv);
@@ -700,7 +702,7 @@ static void calculate_pstate_ramp() {
 	// suppress ramp down
 	int plenty = avgs->rsl > 200; // plenty surplus
 	int ugrid = pstate->grid < -100; // actual grid upload
-	int below = dstate->cload < avgs->surp; // calculated load below average surplus
+	int below = dstate->cload < min->surp; // calculated load below minimum surplus
 	int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 	int suppress_down = PSTATE_PVRISE || plenty || ugrid || below || extra;
 	if (pstate->ramp < 0 && suppress_down) {
@@ -714,10 +716,6 @@ static void calculate_pstate_online() {
 	pstate_t *p1 = PSTATE_SEC_LAST1;
 	pstate_t *p2 = PSTATE_SEC_LAST2;
 	pstate_t *p3 = PSTATE_SEC_LAST3;
-
-	// check if we have delta ac power anywhere
-	if (delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2)
-		pstate->flags |= FLAG_ACDELTA;
 
 	// calculate average pstate over last AVERAGE seconds
 	// pv     -> suppress mppt tracking
@@ -799,6 +797,8 @@ static void calculate_pstate_online() {
 	islope(s9slo, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE10);
 
 	// tendency: falling or rising or stable, fall has prio
+	// int dcdelta = delta->mppt1p || delta->mppt2p || delta->mppt3p || delta->mppt4p; --> makes no sense, will be true most time
+	int acdelta = delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2;
 	int pvfall = s3slo->pv < -SLOPE_PV || s6slo->pv < -SLOPE_PV || s9slo->pv < -SLOPE_PV;
 	int pvrise = s3slo->pv > SLOPE_PV || s6slo->pv > SLOPE_PV || s9slo->pv > SLOPE_PV;
 	int gridfall = s3slo->grid < -SLOPE_GRID || s6slo->grid < -SLOPE_GRID || s9slo->grid < -SLOPE_GRID;
@@ -811,7 +811,7 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_PVRISE;
 		xdebug("SOLAR set FLAG_PVRISE");
 	}
-	if (!pvrise && !pvfall && !gridrise && !gridfall && !PSTATE_ACDELTA) {
+	if (!acdelta && !pvfall && !pvrise && !gridfall && !gridrise) {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set FLAG_STABLE");
 	}
@@ -852,7 +852,7 @@ static void calculate_pstate() {
 	for (int x = 0; x < PSTATE_SIZE; x++) {
 		// delta
 		*dp = *pp0 - *pp1;
-		ZSHAPE(*dp, NOISE10)
+		ZSHAPE(*dp, DELTA)
 		// delta count
 		if (*dp)
 			*dcp += 1;

@@ -5,7 +5,7 @@
 
 #define NOISE5					5
 #define NOISE10					10
-#define DELTA					20
+#define DELTA					15
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
@@ -59,11 +59,9 @@
 
 // pstate flags
 #define FLAG_INVALID			(1 << 0)
-#define FLAG_ACDELTA			(1 << 1)
 #define FLAG_EMERGENCY			(1 << 2)
 
 #define PSTATE_INVALID			(pstate->flags & FLAG_INVALID)
-#define PSTATE_ACDELTA			(pstate->flags & FLAG_ACDELTA)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
