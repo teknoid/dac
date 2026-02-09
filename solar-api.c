@@ -188,7 +188,7 @@ static void loop() {
 		WAIT_NEXT_SECOND
 
 		// skip wait to get fresh pstate data
-		if (pstate->grid > NOISE)
+		if (pstate->grid > NOISE10)
 			wait = 0;
 
 		// wait
@@ -201,7 +201,7 @@ static void loop() {
 		curl_perform(curl1, &memory, &parse_inverter1);
 
 		// inverter2 goes into sleep mode overnight - so read only when inverter1 produces PV
-		int offline = r->mppt1 < NOISE && r->mppt2 < NOISE;
+		int offline = r->mppt1 < NOISE10 && r->mppt2 < NOISE10;
 		if (!offline) {
 			curl_perform(curl2, &memory, &parse_inverter2);
 			// TODO prüfen - geht scheinbar wieder
