@@ -395,14 +395,18 @@ static void calculate_gstate_offline() {
 		xdebug("SOLAR set FLAG_STABLE delta count/sum grid=%d/%d load=%d/%d", deltac->grid, deltas->grid, deltac->load, deltas->load);
 	}
 
-	// now unstable and last minute too - suppress single events e.g. refrigerator start
-	int x2unstable = !(gstate->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST1->flags & FLAG_STABLE);
+	// constant stable or unstable over three minutes  - suppressing single events e.g. refrigerator start
+	int stable0 = gstate->flags & FLAG_STABLE;
+	int stable1 = GSTATE_MIN_LAST1->flags & FLAG_STABLE;
+	int stable2 = GSTATE_MIN_LAST2->flags & FLAG_STABLE;
+	int stable = stable0 && stable1 && stable2;
+	int unstable = !stable0 && !stable1 && !stable2;
 
 	// akku discharge limit
-	if (gstate->survive > SURVIVE110 && !x2unstable) {
+	if (gstate->survive > SURVIVE110 && stable) {
 		// survive and stable - no limit
 		params->akku_dlimit = 0;
-	} else if (gstate->survive > SURVIVE110 && x2unstable) {
+	} else if (gstate->survive > SURVIVE110 && unstable) {
 		// survive but unstable - set limit to average load
 		int dlimit = round10(avgm->load);
 		// take over initial limit or falling limits (forcing grid download) or rising limits (lowering grid download)
@@ -465,10 +469,10 @@ static void calculate_gstate_online() {
 		xdebug("SOLAR set FLAG_STABLE surplus now=%d m1=%d/%d m2=%d/%d m3=%d/%d", m0->surp, m1->surp, m1var->surp, m2->surp, m2var->surp, m3->surp, m3var->surp);
 	}
 
-	// force off when average rsl is below 90%
-	if (avgm->rsl < 90) {
+	// force off when average rsl goes below 95%
+	if (avgm->rsl < 95) {
 		gstate->flags |= FLAG_FORCE_OFF;
-		xdebug("SOLAR set FLAG_FORCE_OFF rsl=%d", avgm->rsl);
+		xlog("SOLAR set FLAG_FORCE_OFF rsl=%d", avgm->rsl);
 	}
 
 	// heating
@@ -548,20 +552,24 @@ static void calculate_gstate() {
 	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
 
-	// calculate average pstate over last AVERAGE minutes
+	// calculate average pstate over last AVERAGE minutes, cut analog to avgs by m0
 	int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
 	iaggregate_rows(avgm, pstate_minutes, PSTATE_SIZE, 60, minu, AVERAGE);
+	if (m0->grid > 0)
+		HICUT(avgm->grid, m0->grid)
+	if (m0->grid < 0)
+		LOCUT(avgm->grid, m0->grid)
+	HICUT(avgm->load, m0->load);
+	LOCUT(avgm->pv, m0->pv)
 
 	// take over minimum, maximum, average; limit 10m average to 10s average
-	// TODO auslagern in eine mam struktur mit 60*24 einträgen
-	HICUT(avgm->pv, avgs->pv);
-	HICUT(avgm->load, avgs->load);
-	gstate->pvmin = round10(min->pv);
-	gstate->pvmax = round10(max->pv);
-	gstate->pvavg = round10(avgm->pv);
+	// gstate->gridmin... TODO auslagern in eine mam struktur mit 60*24 einträgen
 	gstate->loadmin = round10(min->load);
 	gstate->loadmax = round10(max->load);
 	gstate->loadavg = round10(avgm->load);
+	gstate->pvmin = round10(min->pv);
+	gstate->pvmax = round10(max->pv);
+	gstate->pvavg = round10(avgm->pv);
 
 	// grid upload
 	int gu2 = m0->grid < -50 && m1->grid < -50 && m2->grid < -50;
@@ -680,10 +688,13 @@ static void calculate_pstate_ramp() {
 
 	// single step up / down
 	if (90 <= avgs->rsl && avgs->rsl <= 110) {
-		if (avgs->grid > 0)
+		if (avgs->grid > 5)
 			pstate->ramp = -RAMP;
 		if (avgs->grid < -RAMP)
 			pstate->ramp = RAMP;
+		// afternoon - pv is permanently falling - as long as we have extra power keep rsl above 100%
+		if (now->tm_hour > 13 && !pstate->ac1 && avgs->rsl < 100)
+			pstate->ramp = -RAMP;
 		if (pstate->ramp)
 			xlog("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avgs->rsl, avgs->grid, pstate->grid, pstate->ramp);
 	}
