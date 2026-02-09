@@ -3,7 +3,8 @@
 
 #define HISTORY_SIZE			(24 * 7)
 
-#define NOISE					10
+#define NOISE5					5
+#define NOISE10					10
 #define DELTA					20
 #define RAMP					25
 #define SUSPICIOUS				500

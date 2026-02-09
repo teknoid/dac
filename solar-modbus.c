@@ -197,7 +197,7 @@ static void update_inverter1(sunspec_t *ss) {
 		sunspec_read_reg(ss, 214, &active_state_code);
 		xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
-		if (pstate->mppt3p < NOISE)
+		if (pstate->mppt3p < NOISE10)
 			ss->sleep = SLEEP_TIME_SLEEPING;
 		break;
 
@@ -257,7 +257,7 @@ static void update_inverter2(sunspec_t *ss) {
 		// sunspec_read_reg(ss, 214, &active_state_code);
 		// xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
-		if (pstate->mppt1p < NOISE)
+		if (pstate->mppt1p < NOISE10)
 			ss->sleep = SLEEP_TIME_SLEEPING;
 		break;
 

@@ -261,8 +261,8 @@ static void print_gstate() {
 	char line[512]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "GSTATE ");
 	xlogl_bits16(line, NULL, gstate->flags);
-	xlogl_int_noise(line, NOISE, 1, "Grid↓", gstate->consumed);
-	xlogl_int_noise(line, NOISE, 0, "Grid↑", gstate->produced);
+	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
+	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
 	xlogl_int(line, "Load", gstate->loadavg);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "Ti", sensors->tin);
@@ -288,8 +288,8 @@ static void print_pstate() {
 	char line[512], value[10]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE ");
 	xlogl_bits16(line, NULL, pstate->flags);
-	xlogl_int_noise(line, NOISE, 1, "Grid", pstate->grid);
-	xlogl_int_noise(line, NOISE, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE10, 1, "Grid", pstate->grid);
+	xlogl_int_noise(line, NOISE10, 1, "Akku", pstate->akku);
 	xlogl_int(line, "Load", pstate->load);
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
@@ -298,7 +298,7 @@ static void print_pstate() {
 		xlogl_int(line, "PV7", pstate->mppt3p + pstate->mppt4p);
 		xlogl_int(line, "Surp", pstate->surp);
 		xlogl_int(line, "RSL", pstate->rsl);
-		xlogl_int_noise(line, NOISE, 0, "Ramp", pstate->ramp);
+		xlogl_int_noise(line, NOISE10, 0, "Ramp", pstate->ramp);
 	}
 	xlogl_end(line, strlen(line), 0);
 }
@@ -596,7 +596,7 @@ static void calculate_gstate() {
 
 	// collect mosmix forecasts
 	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod);
-	gstate->success = gstate->sod > params->minimum && gstate->pv > NOISE ? gstate->pv * 1000 / gstate->sod : 0;
+	gstate->success = gstate->sod > params->minimum && gstate->pv > 0 ? gstate->pv * 1000 / gstate->sod : 0;
 	HICUT(gstate->success, 2000)
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
@@ -608,13 +608,13 @@ static void calculate_gstate() {
 	}
 	mosmix_needed(now, params->baseload, &gstate->needed, &gstate->minutes, akkus, loads);
 	// take over last value when zero but pv not yet started
-	if (pstate->pv < NOISE && !gstate->needed)
+	if (pstate->pv < 0 && !gstate->needed)
 		gstate->needed = GSTATE_MIN_LAST1->needed;
 
 	// survival factor
 	int tocharge = gstate->needed - gstate->akku;
 	LOCUT(tocharge, 0)
-	int available = pstate->pv > NOISE ? gstate->eod - tocharge : 0;
+	int available = pstate->pv > 0 ? gstate->eod - tocharge : 0;
 	LOCUT(available, 0)
 	gstate->survive = gstate->needed ? (available + gstate->akku) * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
@@ -678,7 +678,7 @@ static void calculate_pstate_ramp() {
 
 	// single step up / down
 	if (90 <= avgs->rsl && avgs->rsl <= 110) {
-		if (avgs->grid > NOISE)
+		if (avgs->grid > 0)
 			pstate->ramp = -RAMP;
 		if (avgs->grid < -RAMP)
 			pstate->ramp = RAMP;
@@ -689,7 +689,7 @@ static void calculate_pstate_ramp() {
 	// suppress ramp up
 	int little = avgs->rsl < 105; // too little surplus
 	int dgrid = pstate->grid > 0; // actual grid download
-	int waste = pstate->grid < -NOISE && pstate->akku > NOISE; // wasting power akku --> grid
+	int waste = pstate->grid < 0 && pstate->akku > 0; // wasting power akku --> grid
 	int over = dstate->cload > gstate->pvavg && !GSTATE_GRID_ULOAD; // calculated load above average pv
 	int suppress_up = PSTATE_PVFALL || little || dgrid || waste || over;
 	if (pstate->ramp > 0 && suppress_up) {
@@ -780,7 +780,7 @@ static void calculate_pstate_online() {
 		xlog("SOLAR negative load detected %d", pstate->load);
 		pstate->flags |= FLAG_INVALID;
 	}
-	if (0 <= pstate->load && pstate->load <= NOISE) {
+	if (0 <= pstate->load && pstate->load < 0) {
 		xlog("SOLAR suspicious small load detected %d", pstate->load);
 		pstate->flags |= FLAG_INVALID;
 	}
@@ -794,9 +794,9 @@ static void calculate_pstate_online() {
 	}
 
 	// calculate slopes over 3, 6 and 9 seconds
-	islope(s3slo, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE);
-	islope(s6slo, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE);
-	islope(s9slo, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE);
+	islope(s3slo, pstate, PSTATE_SEC_LAST3, PSTATE_SIZE, 3, NOISE10);
+	islope(s6slo, pstate, PSTATE_SEC_LAST6, PSTATE_SIZE, 6, NOISE10);
+	islope(s9slo, pstate, PSTATE_SEC_LAST9, PSTATE_SIZE, 9, NOISE10);
 
 	// tendency: falling or rising or stable, fall has prio
 	int pvfall = s3slo->pv < -SLOPE_PV || s6slo->pv < -SLOPE_PV || s9slo->pv < -SLOPE_PV;
@@ -838,10 +838,10 @@ static void calculate_pstate() {
 	CS_NOW->mppt4 += pstate->mppt4p;
 
 	// pv
-	ZSHAPE(pstate->mppt1p, NOISE)
-	ZSHAPE(pstate->mppt2p, NOISE)
-	ZSHAPE(pstate->mppt3p, NOISE)
-	ZSHAPE(pstate->mppt4p, NOISE)
+	ZSHAPE(pstate->mppt1p, NOISE5)
+	ZSHAPE(pstate->mppt2p, NOISE5)
+	ZSHAPE(pstate->mppt3p, NOISE5)
+	ZSHAPE(pstate->mppt4p, NOISE5)
 	pstate->pv = pstate->mppt1p + pstate->mppt2p + pstate->mppt3p + pstate->mppt4p;
 
 	// load is inverter ac output plus grid
@@ -852,7 +852,7 @@ static void calculate_pstate() {
 	for (int x = 0; x < PSTATE_SIZE; x++) {
 		// delta
 		*dp = *pp0 - *pp1;
-		ZSHAPE(*dp, NOISE)
+		ZSHAPE(*dp, NOISE10)
 		// delta count
 		if (*dp)
 			*dcp += 1;
@@ -869,8 +869,11 @@ static void calculate_pstate() {
 	}
 
 	// shape
-	ZSHAPE(pstate->grid, 2)
-	ZSHAPE(pstate->akku, 2)
+	ZSHAPE(pstate->ac1, NOISE5)
+	ZSHAPE(pstate->ac2, NOISE5)
+	ZSHAPE(pstate->akku, NOISE5)
+	ZSHAPE(pstate->grid, NOISE5)
+	ZSHAPE(pstate->load, NOISE5)
 
 	// calculate online state and ramp power when valid
 	if (!GSTATE_OFFLINE) {

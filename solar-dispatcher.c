@@ -30,8 +30,9 @@
 #define DEVICES_JSON			"devices.json"
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load >  NOISE)
-#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < -NOISE)
+#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > 0)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < 0)
+#define AKKU_REGULATE			(pstate->akku < 0 && pstate->ac1 > 0)
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
@@ -175,7 +176,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
+	dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
@@ -276,7 +277,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
+	dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
 	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -326,6 +327,9 @@ static void ramp_akku(device_t *akku) {
 
 		// akku is charging
 		if (AKKU_CHARGING) {
+			// akku already consumes all available pv
+			if (!pstate->ac1)
+				return;
 			// all mppt1+mppt2 up to maximum
 			int max = pstate->mppt1p + pstate->mppt2p;
 			HICUT(max, akku->total)
@@ -615,7 +619,7 @@ static void steal() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
-		int steal_akku = AKKU_CHARGING;
+		int steal_akku = AKKU_REGULATE;
 		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
 		if (steal_akku || steal_device) {
 			if (DD->min) {
@@ -638,9 +642,10 @@ static void steal() {
 		device_t *t = *tt; // thief
 
 		// thief is akku: when charging and not saturated (limited or maximum charge power reached) and inverter produces ac output
-		if (t == AKKU && AKKU_CHARGING && AKKU->power < 90 && pstate->ac1 > params->minimum) {
+		if (t == AKKU && AKKU_CHARGING && AKKU->power < 90 && pstate->ac1 > 0) {
 			// can not steal more than inverters ac output
 			dstate->steal = pstate->ac1;
+			LOCUT(dstate->steal, RAMP)
 
 			// jump to last entry
 			device_t **vv = potd->devices;
@@ -709,7 +714,7 @@ static void steal() {
 		ramp_device(t);
 
 		// wait even if no response expected when transferring power from one to another device, give akku time to release or consume power
-		dstate->lock = AKKU_CHARGING ? WAIT_AKKU : WAIT_RAMP;
+		dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
 		return;
 	}
 }
