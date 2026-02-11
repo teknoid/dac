@@ -827,15 +827,15 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
-// partial aggregate minimum/average/maximum - add src rows backwards starting at row to dest and divide by count, track minimum, maximum and calculate spread
-void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spr, int cols, int rows, int row, int count) {
+// aggregate minimum/average/maximum/spread - add src rows backwards starting at row to dest and divide by count, track minimum, maximum and calculate spread
+void iaggregate_mams(void *dst, void *src, void *min, void *max, void *spr, int cols, int rows, int row, int count) {
 	if (!count)
 		return;
 
-	int *minp, *maxp, *avgp, *sprp;
+	int *dstp, *minp, *maxp, *sprp;
 
 	// memset cannot set integer values, only characters, so only setting zeroes will work !!!
-	memset(avg, 0, cols * sizeof(int));
+	memset(dst, 0, cols * sizeof(int));
 	memset(spr, 0, cols * sizeof(int));
 	minp = (int*) min, maxp = (int*) max;
 	for (int i = 0; i < cols; i++) {
@@ -845,24 +845,24 @@ void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spr, int 
 
 	int y = row;
 	for (int z = 0; z < count; z++) {
-		minp = (int*) min, maxp = (int*) max, avgp = (int*) avg;
+		minp = (int*) min, maxp = (int*) max, dstp = (int*) dst;
 		int *srcp = (int*) src + y * cols;
 		for (int x = 0; x < cols; x++) {
 			if (*srcp < *minp)
 				*minp = *srcp;
 			if (*srcp > *maxp)
 				*maxp = *srcp;
-			*avgp += *srcp;
-			minp++, maxp++, avgp++, srcp++;
+			*dstp += *srcp;
+			minp++, maxp++, dstp++, srcp++;
 		}
 		if (y-- == 0)
 			y = rows - 1;
 	}
 
-	minp = (int*) min, maxp = (int*) max, avgp = (int*) avg, sprp = (int*) spr;
+	dstp = (int*) dst, minp = (int*) min, maxp = (int*) max, sprp = (int*) spr;
 	for (int x = 0; x < cols; x++) {
-		int z = *avgp * 10 / count;
-		*avgp++ = z / 10 + (z % 10 < 5 ? 0 : 1);
+		int z = *dstp * 10 / count;
+		*dstp++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 		*sprp++ = *maxp++ - *minp++;
 	}
 }

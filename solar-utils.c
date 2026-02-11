@@ -18,6 +18,9 @@ typedef struct gstate_old_t {
 	int pvmin;
 	int pvavg;
 	int pvmax;
+	int loadmin;
+	int loadavg;
+	int loadmax;
 	int produced;
 	int consumed;
 	int today;
@@ -120,12 +123,6 @@ static int migrate() {
 		gstate_old_t *o = &gold[i];
 		gstate_t *n = &gnew[i];
 		n->pv = o->pv;
-		n->pvmin = o->pvmin;
-		n->pvmax = o->pvmax;
-		n->pvavg = o->pvavg;
-//		n->loadmin = o->loadmin;
-//		n->loadavg = o->loadavg;
-//		n->loadmax = o->loadmax;
 		n->produced = o->produced;
 		n->consumed = o->consumed;
 		n->today = o->today;
