@@ -832,7 +832,7 @@ void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spr, int 
 	if (!count)
 		return;
 
-	int *minp = (int*) min, *maxp = (int*) max, *avgp = (int*) avg, *sprp = (int*) spr;
+	int *minp, *maxp, *avgp, *sprp;
 
 	// memset cannot set integer values, only characters, so only setting zeroes will work !!!
 	memset(avg, 0, cols * sizeof(int));
