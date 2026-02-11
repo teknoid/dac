@@ -432,7 +432,7 @@ int elevate_realtime(int cpu) {
 
 	// Set our thread to MAX priority
 	struct sched_param sp;
-	ZEROP(&sp);
+	ZERO(sp);
 	sp.sched_priority = sched_get_priority_max(SCHED_FIFO);
 	if (sched_setscheduler(0, SCHED_FIFO, &sp))
 		return -1;
@@ -827,34 +827,43 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 	return 0;
 }
 
-// partial aggregate minimum/average/maximum - add src rows backwards starting at row to dest and divide by count
-void iaggregate_mam(void *src, void *min, void *avg, void *max, int cols, int rows, int row, int count) {
+// partial aggregate minimum/average/maximum - add src rows backwards starting at row to dest and divide by count, track minimum, maximum and calculate spread
+void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spr, int cols, int rows, int row, int count) {
 	if (!count)
 		return;
 
-	memset(min, 0, cols * sizeof(int));
+	int *minp = (int*) min, *maxp = (int*) max, *avgp = (int*) avg, *sprp = (int*) spr;
+
+	// memset cannot set integer values, only characters, so only setting zeroes will work !!!
 	memset(avg, 0, cols * sizeof(int));
-	memset(max, 0, cols * sizeof(int));
+	memset(spr, 0, cols * sizeof(int));
+	minp = (int*) min, maxp = (int*) max;
+	for (int i = 0; i < cols; i++) {
+		*minp++ = INT16_MAX;
+		*maxp++ = INT16_MIN;
+	}
 
 	int y = row;
 	for (int z = 0; z < count; z++) {
-		int *minp = (int*) min, *avgp = (int*) avg, *maxp = (int*) max, *srcp = (int*) src + y * cols;
+		minp = (int*) min, maxp = (int*) max, avgp = (int*) avg;
+		int *srcp = (int*) src + y * cols;
 		for (int x = 0; x < cols; x++) {
 			if (*srcp < *minp)
 				*minp = *srcp;
-			*avgp += *srcp;
 			if (*srcp > *maxp)
 				*maxp = *srcp;
-			minp++, avgp++, maxp++, srcp++;
+			*avgp += *srcp;
+			minp++, maxp++, avgp++, srcp++;
 		}
 		if (y-- == 0)
 			y = rows - 1;
 	}
 
-	int *avgp = (int*) avg;
+	minp = (int*) min, maxp = (int*) max, avgp = (int*) avg, sprp = (int*) spr;
 	for (int x = 0; x < cols; x++) {
 		int z = *avgp * 10 / count;
 		*avgp++ = z / 10 + (z % 10 < 5 ? 0 : 1);
+		*sprp++ = *maxp++ - *minp++;
 	}
 }
 
@@ -915,6 +924,19 @@ void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1++ - *sptr2++;
 		*dptr++ = shape * -1 < z && z < shape ? 0 : z;
+	}
+}
+
+// calculate src1 - src2 and store to dest, count non zero deltas to dc, sum of non zero deltas to ds
+void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2, *dcptr = (int*) dc, *dsptr = (int*) ds;
+	for (int x = 0; x < cols; x++) {
+		int z = *sptr1 - *sptr2;
+		*dptr = shape * -1 < z && z < shape ? 0 : z;
+		if (*dptr)
+			*dcptr += 1;
+		*dsptr += *dptr < 0 ? *dptr * -1 : *dptr;
+		dptr++, sptr1++, sptr2++, dcptr++, dsptr++;
 	}
 }
 

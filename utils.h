@@ -160,12 +160,13 @@ int load_blob(const char *filename, void *data, size_t size);
 int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);
 
-void iaggregate_mam(void *src, void *min, void *avg, void *max, int cols, int rows, int row, int count);
+void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spread, int cols, int rows, int row, int count);
 void iaggregate_rows(void *target, void *table, int cols, int rows, int row, int count);
 void iaggregate(void *dst, void *src, int cols, int rows);
 void icumulate(void *dst, void *src, int cols, int rows);
 void iadd(void *dst, void *src, int cols);
 void idelta(void *dst, void *src1, void *src2, int cols, int shape);
+void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape);
 void islope(void *dst, void *src1, void *src2, int cols, int divisor, int shape);
 void ivariance(void *dst, void *src1, void *src2, int cols);
 void idiv_const(void *dst, int cols, int divisor);
