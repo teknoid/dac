@@ -834,7 +834,7 @@ void iaggregate_mams(void *dst, void *src, void *min, void *max, void *spr, int 
 
 	int *dstp, *minp, *maxp, *sprp;
 
-	// memset cannot set integer values, only characters, so only setting zeroes will work !!!
+	// initialize - memset cannot set integer values, only characters, so only setting zeroes will work !!!
 	memset(dst, 0, cols * sizeof(int));
 	memset(spr, 0, cols * sizeof(int));
 	minp = (int*) min, maxp = (int*) max;
@@ -843,47 +843,29 @@ void iaggregate_mams(void *dst, void *src, void *min, void *max, void *spr, int 
 		*maxp++ = INT16_MIN;
 	}
 
+	// aggregate
 	int y = row;
 	for (int z = 0; z < count; z++) {
-		minp = (int*) min, maxp = (int*) max, dstp = (int*) dst;
+		dstp = (int*) dst, minp = (int*) min, maxp = (int*) max;
 		int *srcp = (int*) src + y * cols;
 		for (int x = 0; x < cols; x++) {
+			*dstp += *srcp;
 			if (*srcp < *minp)
 				*minp = *srcp;
 			if (*srcp > *maxp)
 				*maxp = *srcp;
-			*dstp += *srcp;
 			minp++, maxp++, dstp++, srcp++;
 		}
 		if (y-- == 0)
 			y = rows - 1;
 	}
 
+	// divide + spread
 	dstp = (int*) dst, minp = (int*) min, maxp = (int*) max, sprp = (int*) spr;
 	for (int x = 0; x < cols; x++) {
 		int z = *dstp * 10 / count;
 		*dstp++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 		*sprp++ = *maxp++ - *minp++;
-	}
-}
-
-// partial average - add src rows backwards starting at row to dest and divide by count
-void iaggregate_rows(void *dst, void *src, int cols, int rows, int row, int count) {
-	if (!count)
-		return;
-	memset(dst, 0, cols * sizeof(int));
-	int y = row;
-	for (int z = 0; z < count; z++) {
-		int *dptr = (int*) dst, *sptr = (int*) src + y * cols;
-		for (int x = 0; x < cols; x++)
-			*dptr++ += *sptr++;
-		if (y-- == 0)
-			y = rows - 1;
-	}
-	int *ptr = (int*) dst;
-	for (int x = 0; x < cols; x++) {
-		int z = *ptr * 10 / count;
-		*ptr++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 	}
 }
 

@@ -161,7 +161,6 @@ int store_blob(const char *filename, void *data, size_t size);
 int store_blob_offset(const char *filename, void *data, size_t rsize, int count, int offset);
 
 void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spread, int cols, int rows, int row, int count);
-void iaggregate_rows(void *target, void *table, int cols, int rows, int row, int count);
 void iaggregate(void *dst, void *src, int cols, int rows);
 void icumulate(void *dst, void *src, int cols, int rows);
 void iadd(void *dst, void *src, int cols);

@@ -534,7 +534,7 @@ static void calculate_gstate() {
 	int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
 	iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, minu, AVERAGE);
 
-	// calculate slope and variance five seconds ago
+	// calculate slope and variance five minutes ago
 	islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
 	ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
 
@@ -580,7 +580,7 @@ static void calculate_gstate() {
 		xdebug("SOLAR set FLAG_AKKU_DCHARGE m0=%d m1=%d m2=%d", m0->akku, m1->akku, m2->akku);
 	}
 
-	// akku usable energy and estimated time to live based on average load or akku discharge
+	// akku usable energy and estimated time to live based on 10min average load or akku discharge
 	gstate->akku = round10(AKKU_AVAILABLE);
 	int msoc = akku_get_min_soc();
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;
@@ -613,7 +613,7 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->akku, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// offline when average pv is below minimum
+	// offline when 10min average pv goes below minimum
 	int offline = avgmm->pv < params->minimum;
 	if (offline)
 		calculate_gstate_offline();
@@ -695,7 +695,7 @@ static void calculate_pstate_ramp() {
 	// suppress ramp down
 	int plenty = avgss->rsl > 200; // plenty surplus
 	int ugrid = pstate->grid < -100; // actual grid upload
-	int below = dstate->cload < minm->surp; // calculated load below minimum surplus
+	int below = dstate->cload < minmm->surp; // calculated load below 10min minimum surplus
 	int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 	int suppress_down = PSTATE_PVRISE || plenty || ugrid || below || extra;
 	if (pstate->ramp < 0 && suppress_down) {
@@ -832,7 +832,7 @@ static void calculate_pstate() {
 
 	// TODO testing
 #define PSTATE_TEMPLATE " now=%3d min=%3d avg=%3d max=%3d spread=%3d deltac=%3d deltas=%3d slope=%3d var=%d"
-	xlog("SOLAR Grid" PSTATE_TEMPLATE, pstate->grid, minss->grid, avgss->grid, maxss->grid, spreadss->grid, deltac->grid, deltas->grid, slos->grid, vars->grid);
+//	xlog("SOLAR Grid" PSTATE_TEMPLATE, pstate->grid, minss->grid, avgss->grid, maxss->grid, spreadss->grid, deltac->grid, deltas->grid, slos->grid, vars->grid);
 //	xlog("SOLAR Load" PSTATE_TEMPLATE, pstate->load, minss->load, avgss->load, maxss->load, spreadss->load, deltac->load, deltas->load, slos->load, vars->load);
 
 	// calculate online state and ramp power when valid
