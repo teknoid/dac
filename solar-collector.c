@@ -72,6 +72,7 @@
 #define GSTATE_MIN_NOW			(&gstate_minutes[now->tm_min])
 #define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define GSTATE_MIN_LAST2		(&gstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
+#define GSTATE_MIN_LAST3		(&gstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
 #define GSTATE_MIN_LAST5		(&gstate_minutes[now->tm_min > 4 ? now->tm_min - 5 : (now->tm_min - 5 + 60)])
 #define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
@@ -83,6 +84,7 @@
 #define PSTATE_SEC_NOW			(&pstate_seconds[now->tm_sec])
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
+#define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
 #define PSTATE_SEC_LAST5		(&pstate_seconds[now->tm_sec > 4 ? now->tm_sec - 5 : (now->tm_sec - 5 + 60)])
 #define PSTATE_MIN_NOW			(&pstate_minutes[now->tm_min])
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
@@ -97,10 +99,10 @@
 #define PSTATE_AVG_247(h)		(&pstate_average_247[h])
 
 // stable/unstable
-#define PSTATE_3S_STABLE		( (pstate->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE))
-#define PSTATE_3S_UNSTABLE		(!(pstate->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST1->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE))
-#define GSTATE_3M_STABLE		( (gstate->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE))
-#define GSTATE_3M_UNSTABLE		(!(gstate->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE))
+#define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 
 #define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
 
@@ -117,8 +119,8 @@ static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3]
 static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7];
 static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
 static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[14];
-static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17], *deltam = &pstates[18];
-static pstate_t *slos = &pstates[19], *vars = &pstates[20], *slom = &pstates[21], *varm = &pstates[22], *slomm = &pstates[23], *varmm = &pstates[24];
+static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17], *deltam = &pstates[18], *deltamm = &pstates[19];
+static pstate_t *slos = &pstates[20], *vars = &pstates[21], *slom = &pstates[22], *varm = &pstates[23], *slomm = &pstates[24], *varmm = &pstates[25];
 
 // global counter/gstate/pstate/params pointer
 counter_t counter[10];
@@ -304,6 +306,15 @@ static void print_gstate() {
 		snprintf(value, 10, "  ");
 	strcat(line, value);
 	xlogl_end(line, strlen(line), 0);
+
+	// TODO debugging
+#define GT " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%3d slope=%3d var=%3d deltac=%3d deltas=%3d"
+	if (!GSTATE_OFFLINE) {
+		xlog("GSTATE PV1" GT, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, PSTATE_MIN_LAST1->pv, slom->pv, varm->pv, deltac->pv, deltas->pv);
+		xlog("GSTATE PV5" GT, pstate->pv, minmm->pv, avgmm->pv, maxmm->pv, spreadmm->pv, 0, slomm->pv, varmm->pv, deltac->pv, deltas->pv);
+	}
+	xlog("GSTATE LOAD1" GT, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, PSTATE_MIN_LAST1->load, slom->load, varm->load, deltac->load, deltas->load);
+	xlog("GSTATE LOAD5" GT, pstate->load, minmm->load, avgmm->load, maxmm->load, spreadmm->load, 0, slomm->load, varmm->load, deltac->load, deltas->load);
 }
 
 static void print_pstate() {
@@ -538,16 +549,6 @@ static void calculate_gstate_online() {
 }
 
 static void calculate_gstate() {
-	// clear state flags and values
-	gstate->flags = 0;
-
-	// summer / winter mode
-	if (SUMMER)
-		gstate->flags |= FLAG_SUMMER;
-
-	if (WINTER)
-		gstate->flags |= FLAG_WINTER;
-
 	// day total: consumed / produced / pv
 #ifdef COUNTER_METER
 	gstate->consumed = CM_DAY->consumed;
@@ -559,25 +560,15 @@ static void calculate_gstate() {
 	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
 
-	// calculate delta, slope and variance one minute ago
-	idelta(deltam, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, DELTAM);
-	islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5, NOISE10);
-	ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE);
+	// clear state flags
+	gstate->flags = 0;
 
-	// calculate slope and variance five minutes ago
-	islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
-	ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
+	// summer / winter mode
+	if (SUMMER)
+		gstate->flags |= FLAG_SUMMER;
 
-	// aggregate minimum/average/maximum/spread over last 5 minutes
-	int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
-	iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, minu, 5);
-
-	// TODO testing
-#define GT " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%3d slope=%3d var=%3d deltac=%3d deltas=%3d"
-	xlog("SOLAR PV1  " GT, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, PSTATE_MIN_LAST1->pv, slom->pv, varm->pv, deltac->pv, deltas->pv);
-	xlog("SOLAR PV5  " GT, pstate->pv, minmm->pv, avgmm->pv, maxmm->pv, spreadmm->pv, PSTATE_MIN_LAST5->pv, slomm->pv, varmm->pv, deltac->pv, deltas->pv);
-	xlog("SOLAR LOAD1" GT, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, PSTATE_MIN_LAST1->load, slom->load, varm->load, deltac->load, deltas->load);
-	xlog("SOLAR LOAD5" GT, pstate->load, minmm->load, avgmm->load, maxmm->load, spreadmm->load, PSTATE_MIN_LAST5->load, slomm->load, varmm->load, deltac->load, deltas->load);
+	if (WINTER)
+		gstate->flags |= FLAG_WINTER;
 
 	// akku discharge / grid download / grid upload
 	if (avgmm->akku > RAMP || PSTATE_MIN_NOW->akku > params->baseload)
@@ -818,21 +809,24 @@ static void calculate_pstate() {
 	islope(slos, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5, NOISE10);
 	ivariance(vars, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE);
 
+	// calculate delta, slope and variance
+	if (MINLY) {
+		// one minute ago
+		idelta(deltam, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, DELTAM);
+		islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5, NOISE10);
+		ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE);
+		// five minutes ago
+		idelta(deltamm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, DELTAM);
+		islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
+		ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
+	}
+
 	// shape
 	ZSHAPE(pstate->ac1, NOISE5)
 	ZSHAPE(pstate->ac2, NOISE5)
 	ZSHAPE(pstate->akku, NOISE5)
 	ZSHAPE(pstate->grid, NOISE5)
 	ZSHAPE(pstate->load, NOISE5)
-
-	// aggregate minimum/average/maximum/spread over last 10 seconds
-	int seco = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet fully calculated
-	iaggregate_mams(avgss, pstate_seconds, minss, maxss, spreadss, PSTATE_SIZE, 60, seco, 10);
-
-	// TODO testing
-#define PT " now=%3d min=%3d avg=%3d max=%3d spread=%3d deltac=%3d deltas=%3d slope=%3d var=%d"
-//	xlog("SOLAR Grid" PT, pstate->grid, minss->grid, avgss->grid, maxss->grid, spreadss->grid, deltac->grid, deltas->grid, slos->grid, vars->grid);
-//	xlog("SOLAR Load" PT, pstate->load, minss->load, avgss->load, maxss->load, spreadss->load, deltac->load, deltas->load, slos->load, vars->load);
 
 	// akku discharge / grid download / grid upload
 	if (avgss->akku > RAMP || pstate->akku > RAMP * 2)
@@ -951,19 +945,27 @@ static void aggregate_state() {
 		dump_array(&gdc, GSTATE_SIZE, "[++]", 0);
 	}
 
-	// aggregate 60 minutes into one hour
 	if (HOURLY) {
+		// aggregate 60 minutes into one hour
 		iaggregate_mams(PSTATE_HOUR_NOW, pstate_minutes, minh, maxh, spreadh, PSTATE_SIZE, 60, 0, 60);
 		// dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
 		// dump_array(PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 	}
 
-	// aggregate 60 seconds into one minute
 	if (MINLY) {
+		// aggregate 60 seconds into one minute
 		iaggregate_mams(PSTATE_MIN_NOW, pstate_seconds, minm, maxm, spreadm, PSTATE_SIZE, 60, 0, 60);
 		// dump_table(pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
 		// dump_array(PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+
+		// aggregate last 5 minutes
+		int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
+		iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, minu, 5);
 	}
+
+	// aggregate last 10 seconds
+	int seco = now->tm_sec > 0 ? now->tm_sec - 1 : 59; // current second is not yet calculated
+	iaggregate_mams(avgss, pstate_seconds, minss, maxss, spreadss, PSTATE_SIZE, 60, seco, 10);
 }
 
 static void loop() {
