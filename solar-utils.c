@@ -15,12 +15,6 @@
 
 typedef struct gstate_old_t {
 	int pv;
-	int pvmin;
-	int pvavg;
-	int pvmax;
-	int loadmin;
-	int loadavg;
-	int loadmax;
 	int produced;
 	int consumed;
 	int today;
@@ -31,7 +25,7 @@ typedef struct gstate_old_t {
 	int ttl;
 	int success;
 	int forecast;
-	int akku;
+	int available;
 	int needed;
 	int minutes;
 	int survive;
@@ -133,7 +127,7 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->forecast = o->forecast;
-		n->akku = o->akku;
+		n->available = o->available;
 		n->needed = o->needed;
 		n->minutes = o->minutes;
 		n->survive = o->survive;

@@ -22,21 +22,22 @@
 #define SURVIVE100				1000
 
 // common flags
-#define FLAG_AKKU_DCHARGE		(1 << 10)
-#define FLAG_GRID_DLOAD			(1 << 11)
-#define FLAG_GRID_ULOAD			(1 << 12)
-#define FLAG_PVFALL				(1 << 13)
-#define FLAG_PVRISE				(1 << 14)
 #define FLAG_STABLE				(1 << 15)
+#define FLAG_PVRISE				(1 << 14)
+#define FLAG_PVFALL				(1 << 13)
+#define FLAG_GRID_ULOAD			(1 << 12)
+#define FLAG_GRID_DLOAD			(1 << 11)
+#define FLAG_AKKU_DCHARGE		(1 << 10)
 
 // gstate flags
+#define FLAG_STABLE_3M			(1 << 7)
+#define FLAG_CHARGE_AKKU		(1 << 6)
+#define FLAG_HEATING			(1 << 5)
+#define FLAG_BURNOUT			(1 << 4)
+#define FLAG_WINTER				(1 << 3)
+#define FLAG_SUMMER				(1 << 2)
+#define FLAG_FORCE_OFF			(1 << 1)
 #define FLAG_OFFLINE			(1 << 0)
-#define FLAG_SUMMER				(1 << 1)
-#define FLAG_WINTER				(1 << 2)
-#define FLAG_BURNOUT			(1 << 3)
-#define FLAG_HEATING			(1 << 4)
-#define FLAG_CHARGE_AKKU		(1 << 5)
-#define FLAG_FORCE_OFF			(1 << 6)
 
 #define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 #define GSTATE_BURNOUT			(gstate->flags & FLAG_BURNOUT)
@@ -45,6 +46,7 @@
 #define GSTATE_SUMMER			(gstate->flags & FLAG_SUMMER)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
 #define GSTATE_FORCE_OFF		(gstate->flags & FLAG_FORCE_OFF)
+#define GSTATE_STABLE_3M		(gstate->flags & FLAG_STABLE_3M)
 #define GSTATE_AKKU_DCHARGE		(gstate->flags & FLAG_AKKU_DCHARGE)
 #define GSTATE_GRID_DLOAD		(gstate->flags & FLAG_GRID_DLOAD)
 #define GSTATE_GRID_ULOAD		(gstate->flags & FLAG_GRID_ULOAD)
@@ -53,10 +55,12 @@
 #define GSTATE_STABLE			(gstate->flags & FLAG_STABLE)
 
 // pstate flags
+#define FLAG_STABLE_3S			(1 << 7)
+#define FLAG_EMERGENCY			(1 << 1)
 #define FLAG_INVALID			(1 << 0)
-#define FLAG_EMERGENCY			(1 << 2)
 
 #define PSTATE_INVALID			(pstate->flags & FLAG_INVALID)
+#define PSTATE_STABLE_3S		(pstate->flags & FLAG_STABLE_3S)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
@@ -67,16 +71,16 @@
 
 // dstate action flags
 #define ACTION_FLAGS_MASK		0x00FF
-#define FLAG_ACTION				(1 << 0)
-#define FLAG_ACTION_RAMP		(1 << 1)
-#define FLAG_ACTION_STANDBY		(1 << 2)
 #define FLAG_ACTION_STEAL		(1 << 3)
+#define FLAG_ACTION_STANDBY		(1 << 2)
+#define FLAG_ACTION_RAMP		(1 << 1)
+#define FLAG_ACTION				(1 << 0)
 
 // dstate state flags
 #define STATE_FLAGS_MASK		0xFF00
-#define FLAG_ALL_DOWN			(1 << 8)
-#define FLAG_ALL_STANDBY		(1 << 9)
 #define FLAG_ALL_UP				(1 << 10)
+#define FLAG_ALL_STANDBY		(1 << 9)
+#define FLAG_ALL_DOWN			(1 << 8)
 
 #define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)
@@ -87,10 +91,10 @@
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
 
 // device flags
-#define FLAG_RESPONSE_OK		(1 << 0)
-#define FLAG_FORCE				(1 << 1)
-#define FLAG_STANDBY_CHECK		(1 << 2)
 #define FLAG_STANDBY_CHECKED	(1 << 3)
+#define FLAG_STANDBY_CHECK		(1 << 2)
+#define FLAG_FORCE				(1 << 1)
+#define FLAG_RESPONSE_OK		(1 << 0)
 
 #define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE_OK)
 #define DEV_FORCE(d)			(d->flags & FLAG_FORCE)
@@ -192,7 +196,7 @@ struct _gstate {
 	int ttl;
 	int success;
 	int forecast;
-	int akku;
+	int available;
 	int needed;
 	int minutes;
 	int survive;

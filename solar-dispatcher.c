@@ -802,11 +802,11 @@ static void calculate_actions() {
 
 	// permanent overload - execute standby check
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-	if (overload && PSTATE_STABLE && !DSTATE_ALL_DOWN)
+	if (overload && PSTATE_STABLE && PSTATE_STABLE_3S && !DSTATE_ALL_DOWN)
 		dstate->flags |= FLAG_ACTION_STANDBY;
 
 	// steal logic every 10 seconds
-	if (time(NULL) % 10 == 0 && !DSTATE_ACTION_STANDBY && GSTATE_STABLE && !DSTATE_ALL_UP)
+	if (time(NULL) % 10 == 0 && !DSTATE_ACTION_STANDBY && GSTATE_STABLE && GSTATE_STABLE_3M && !DSTATE_ALL_UP)
 		dstate->flags |= FLAG_ACTION_STEAL;
 
 	// ramp up when no other preceding actions

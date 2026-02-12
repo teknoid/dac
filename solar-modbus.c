@@ -326,6 +326,11 @@ static int calibrate(char *name) {
 	pstate_t offset_start, offset_end, measure[1000];
 	int raster[101];
 
+	// disable akku discharge
+	sunspec_t *ssbyd = sunspec_init("fronius10", 1);
+	sunspec_read(ssbyd);
+	sunspec_storage_limit_discharge(ssbyd, 0);
+
 	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("fronius10", 200);
 	sunspec_read(ss);
