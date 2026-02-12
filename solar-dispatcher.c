@@ -32,7 +32,7 @@
 #define AKKU_STANDBY			(AKKU->state == Standby)
 #define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > 0)
 #define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < 0)
-#define AKKU_REGULATE			(pstate->akku < 0 && pstate->ac1 > 0)
+#define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
@@ -176,7 +176,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
+	dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
@@ -277,7 +277,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
+	dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
 	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -619,7 +619,7 @@ static void steal() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
-		int steal_akku = AKKU_REGULATE;
+		int steal_akku = !AKKU_PASSIVE;
 		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
 		if (steal_akku || steal_device) {
 			if (DD->min) {
@@ -714,7 +714,7 @@ static void steal() {
 		ramp_device(t);
 
 		// wait even if no response expected when transferring power from one to another device, give akku time to release or consume power
-		dstate->lock = AKKU_REGULATE ? WAIT_AKKU : WAIT_RAMP;
+		dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
 		return;
 	}
 }

@@ -5,12 +5,7 @@
 
 #define NOISE5					5
 #define NOISE10					10
-#define DELTA					15
 #define RAMP					25
-#define SUSPICIOUS				500
-#define SPIKE					500
-#define EMERGENCY				1000
-#define EMERGENCY2X				2000
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
 
