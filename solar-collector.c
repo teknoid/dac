@@ -100,7 +100,7 @@ static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7]
 static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
 static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[14];
 static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17];
-static pstate_t *slos = &pstates[18], *slom = &pstates[19], *vars = &pstates[20], *varm = &pstates[21];
+static pstate_t *slos = &pstates[18], *vars = &pstates[19], *slom = &pstates[20], *varm = &pstates[21], *slomm = &pstates[22], *varmm = &pstates[23];
 
 // global counter/gstate/pstate/params pointer
 counter_t counter[10];
@@ -535,20 +535,22 @@ static void calculate_gstate() {
 	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
 
+	// calculate slope and variance one minute ago
+	islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5, NOISE10);
+	ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE);
+
 	// calculate slope and variance five minutes ago
-	islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
-	ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
+	islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
+	ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
 
 	// calculate average pstate over last 5 minutes
 	int minu = now->tm_min > 0 ? now->tm_min - 1 : 59; // current minute is not yet written
 	iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, minu, 5);
 
 	// TODO testing
-#define GSTATE_TEMPLATE " now=%3d min=%3d avg=%3d max=%3d spread=%3d slope=%3d var=%d"
-	xlog("SOLAR Grid1" GSTATE_TEMPLATE, pstate->grid, minm->grid, PSTATE_MIN_NOW->grid, maxm->grid, spreadm->grid, slom->grid, varm->grid);
-	xlog("SOLAR Grid5" GSTATE_TEMPLATE, pstate->grid, minmm->grid, avgmm->grid, maxmm->grid, spreadmm->grid, slom->grid, varm->grid);
-//	xlog("SOLAR Load" GSTATE_TEMPLATE, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, slom->load, varm->load);
-//	xlog("SOLAR PV  " GSTATE_TEMPLATE, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, slom->pv, varm->pv);
+#define GSTATE_TEMPLATE " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%d slope=%3d var=%d"
+	xlog("SOLAR SURP1" GSTATE_TEMPLATE, pstate->surp, minm->surp, PSTATE_MIN_NOW->surp, maxm->surp, spreadm->surp, PSTATE_MIN_LAST1->surp, slom->surp, varm->surp);
+	xlog("SOLAR SURP5" GSTATE_TEMPLATE, pstate->surp, minmm->surp, avgmm->surp, maxmm->surp, spreadmm->surp, PSTATE_MIN_LAST5->surp, slomm->surp, varmm->surp);
 
 	// akku discharge / grid download / grid upload
 	if (avgmm->akku > RAMP || PSTATE_MIN_NOW->akku > params->baseload)
