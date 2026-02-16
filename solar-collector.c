@@ -58,6 +58,7 @@
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define PSTATE_S_CSV			"pstate-seconds.csv"
 #define PSTATE_AVG247_CSV		"pstate-avg-247.csv"
+#define STATS_CSV				"statistics.csv"
 
 // JSON files for webui
 #define PSTATE_AVG_JSON			"pstate-avg.json"
@@ -97,6 +98,7 @@
 #define PSTATE_DAY_HOUR(d, h)	(&pstate_hours[24 * (d) + (h)])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
 #define PSTATE_AVG_247(h)		(&pstate_average_247[h])
+#define STATS_NOW				(&stats_minutes[now->tm_min])
 
 // stable/unstable
 #define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
@@ -108,11 +110,12 @@
 
 static struct tm now_tm, *now = &now_tm;
 
-// local counter/gstate/pstate/params memory
+// local params/counter/gstate/pstate/statistics memory
+static params_t params_current;
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
-static params_t params_current;
+static stats_t stats_minutes[60];
 
 // statistics per 10s 1m 5m 1h,  delta, slope and variance pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
@@ -202,8 +205,11 @@ static void create_gnuplot_csv() {
 			store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
 		if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
 			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+		if (!offset || access(RUN SLASH STATS_CSV, F_OK))
+			store_csv_header(STATS_HEADER, RUN SLASH STATS_CSV);
 		append_table_csv(gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
 		append_table_csv(pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
+		append_table_csv(stats_minutes, STATS_SIZE, 60, offset, RUN SLASH STATS_CSV);
 		// gstate today and week, pstate week
 		store_table_csv(GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_T_CSV);
 		store_table_csv(gstate_hours, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_H_CSV);
@@ -333,16 +339,18 @@ static void print_pstate() {
 	xlogl_end(line, strlen(line), 0);
 }
 
+// take over minimum, maximum, average
 static void calculate_statistics() {
-// take over minimum, maximum, average; limit 10m average to 10s average
-//  gstate->gridmin... TODO auslagern in eine mams struktur mit 60*24 einträgen
-//	gstate->loadavg = round10(PSTATE_MIN_NOW->load);
-//	gstate->loadmin = round10(minm->load);
-//	gstate->loadmax = round10(maxm->load);
-//	gstate->pvavg = round10(PSTATE_MIN_NOW->pv);
-//	gstate->pvmin = round10(minm->pv);
-//	gstate->pvmax = round10(maxm->pv);
-//  json
+	stats_t *stats = STATS_NOW;
+	stats->pv = round10(PSTATE_MIN_NOW->pv);
+	stats->pvmin = round10(minm->pv);
+	stats->pvmax = round10(maxm->pv);
+	stats->grid = round10(PSTATE_MIN_NOW->grid);
+	stats->gridmin = round10(minm->grid);
+	stats->gridmax = round10(maxm->grid);
+	stats->load = round10(PSTATE_MIN_NOW->load);
+	stats->loadmin = round10(minm->load);
+	stats->loadmax = round10(maxm->load);
 }
 
 static void calculate_counter() {
