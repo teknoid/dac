@@ -8,6 +8,7 @@ pstate="/run/mcp/pstate-minutes.csv"
 gstate="/run/mcp/gstate-minutes.csv"
 gstateh="/run/mcp/gstate-hours.csv"
 avg247="/run/mcp/pstate-avg-247.csv"
+stats="/run/mcp/statistics.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
@@ -190,6 +191,13 @@ set ytics format "%2.0s%c"
 set output "/run/mcp/grid-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
 
+# statistics
+set ylabel "Statistics"
+set yrange [*:*]
+set output "/run/mcp/statistics.svg"
+p stats u :2:3:4  t "pv"          w yerrorlines, \
+     '' u :5:6:7  t "grid"        w yerrorlines, \
+     '' u :8:9:10 t "load"        w yerrorlines
 
 # 24/7 pstate averages
 set ylabel "PState Avg 24/7"

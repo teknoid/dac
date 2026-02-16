@@ -237,6 +237,22 @@ struct _pstate {
 	int flags;
 };
 
+// statistics avg/min/max
+typedef struct _stats stats_t;
+#define STATS_SIZE		(sizeof(stats_t) / sizeof(int))
+#define STATS_HEADER	"    pv  pmin  pmax  grid  gmin  gmax  load  lmin  lmax"
+struct _stats {
+	int pv;
+	int pvmin;
+	int pvmax;
+	int grid;
+	int gridmin;
+	int gridmax;
+	int load;
+	int loadmin;
+	int loadmax;
+};
+
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
