@@ -153,23 +153,15 @@ p pstate u 1:(0):"pv"   t "pv"    w filledc ls 1 axes x1y2,\
       '' u 1:"succ"     t "succ"  w lines   lt 2,\
       '' u 1:"foca"     t "foca"  w lines   ls 3,\
       1000              t "100%"  w lines   lt 8
-      
-set ylabel "PV"
+
+set ylabel "Statistics"
 set yrange [*:*]
 unset y2range
 set terminal svg size 1920,400
-set output "/run/mcp/pv.svg"
-p pstate u 1:(0):"pv"   t "pv"    w filledc ls 1,\
-  gstate u 1:"pvmin"    t "pvmin" w lines   ls 2,\
-      '' u 1:"pvmax"    t "pvmax" w lines   ls 3,\
-      '' u 1:"pvavg"    t "pvavg" w lines   ls 4
-
-set ylabel "Load"
-set output "/run/mcp/load.svg"
-p pstate u 1:(0):"load" t "load"  w filledc lt 6,\
-  gstate u 1:"lmin"     t "lmin"  w lines   ls 2,\
-      '' u 1:"lmax"     t "lmax"  w lines   ls 3,\
-      '' u 1:"lavg"     t "lavg"  w lines   ls 4
+set output "/run/mcp/statistics.svg"
+p stats u 1:2:3:4       t "pv"    w yerrorlines, \
+     '' u 1:5:6:7       t "grid"  w yerrorlines, \
+     '' u 1:8:9:10      t "load"  w yerrorlines
       
 set ylabel "Grid - Power"
 set output "/run/mcp/grid-power.svg"
@@ -190,14 +182,6 @@ set yrange [-50:50]
 set ytics format "%2.0s%c"
 set output "/run/mcp/grid-frequency.svg"
 p pstate u 1:"f"   w lines t "f"
-
-# statistics
-set ylabel "Statistics"
-set yrange [*:*]
-set output "/run/mcp/statistics.svg"
-p stats u :2:3:4  t "pv"          w yerrorlines, \
-     '' u :5:6:7  t "grid"        w yerrorlines, \
-     '' u :8:9:10 t "load"        w yerrorlines
 
 # 24/7 pstate averages
 set ylabel "PState Avg 24/7"
