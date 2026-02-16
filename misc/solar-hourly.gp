@@ -159,9 +159,9 @@ set yrange [*:*]
 unset y2range
 set terminal svg size 1920,400
 set output "/run/mcp/statistics.svg"
-p stats u 1:2:3:4       t "pv"    w yerrorlines, \
-     '' u 1:5:6:7       t "grid"  w yerrorlines, \
-     '' u 1:8:9:10      t "load"  w yerrorlines
+p stats u 1:2:3:4       t "pv"    w yerrorlines ls 1, \
+     '' u 1:8:9:10      t "load"  w yerrorlines lt 6, \
+     '' u 1:5:6:7       t "grid"  w yerrorlines ls 3
       
 set ylabel "Grid - Power"
 set output "/run/mcp/grid-power.svg"
