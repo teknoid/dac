@@ -532,7 +532,7 @@ static void calculate_gstate_online() {
 		if (time_window && soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xlog("SOLAR charge akku soc6=%d empty=%d critical=%d low=%d weekend=%d time=%d", soc6, empty, critical, low, weekend, time_window);
+	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low=%d weekend=%d time=%d", soc6, empty, critical, low, weekend, time_window);
 
 	// akku charge limit
 	params->akku_climit = 0;

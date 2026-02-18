@@ -288,6 +288,7 @@ void inverter_on();
 int akku_get_min_soc();
 void akku_set_min_soc(int min);
 void akku_state(device_t *akku);
-int akku_standby(device_t *akku);
 int akku_charge(device_t *akku);
 int akku_discharge(device_t *akku);
+int akku_auto(device_t *akku);
+int akku_standby(device_t *akku);

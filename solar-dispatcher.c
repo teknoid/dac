@@ -30,8 +30,8 @@
 #define DEVICES_JSON			"devices.json"
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > 0)
-#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < 0)
+#define AKKU_CHARGING			((AKKU->state == Auto || AKKU->state == Charge)    && AKKU->load > 0)
+#define AKKU_DISCHARGING		((AKKU->state == Auto || AKKU->state == Discharge) && AKKU->load < 0)
 #define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
 
 #define OVERRIDE				600
@@ -909,14 +909,18 @@ static void minly() {
 		//	solar_override_seconds("wozi", WAIT_BURNOUT);
 	}
 
-	// set akku to DISCHARGE when offline or long term grid download
-	if (GSTATE_OFFLINE || GSTATE_GRID_DLOAD) {
-		// go not below 7% in winter to avoid forced charging from grid
+	// set akku to AUTO when online but grid download
+	if (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE)
+		akku_auto(AKKU);
+
+	if (GSTATE_OFFLINE) {
 		if (GSTATE_WINTER && gstate->soc < 70) {
+			// go not below 7% in winter to avoid forced charging from grid
 			akku_standby(AKKU);
 			if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 				inverter_off();
 		} else
+			// enable discharge
 			akku_discharge(AKKU);
 	}
 

@@ -109,6 +109,11 @@ int akku_discharge(device_t *akku) {
 	return 0;
 }
 
+int akku_auto(device_t *akku) {
+	akku->state = Auto;
+	return sunspec_storage_auto(inverter1);
+}
+
 int akku_standby(device_t *akku) {
 	akku->state = Standby;
 	akku->total = 0;
