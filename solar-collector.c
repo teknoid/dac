@@ -447,24 +447,22 @@ static void calculate_gstate_offline() {
 	} else if (gstate->survive > SURVIVE110 && GSTATE_3M_UNSTABLE) {
 		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start - set limit to average load
 		int dlimit = round10(PSTATE_MIN_NOW->load);
+		LOCUT(dlimit, params->baseload)
 		// take over initial limit or falling limits (forcing grid download) or rising limits (lowering grid download)
 		int fall = dlimit < params->akku_dlimit && PSTATE_MIN_NOW->grid < params->baseload / 2;
 		int rise = dlimit > params->akku_dlimit && PSTATE_MIN_NOW->grid > params->baseload / 2;
-		xlog("SOLAR dlimit now=%d new=%d grid=%d", params->akku_dlimit, dlimit, PSTATE_MIN_NOW->grid);
+		xlog("SOLAR dlimit now=%d new=%d grid=%d baseload=%d", params->akku_dlimit, dlimit, PSTATE_MIN_NOW->grid, params->baseload);
 		if (!params->akku_dlimit || fall || rise)
 			params->akku_dlimit = dlimit;
-		// not below baseload
-		LOCUT(params->akku_dlimit, params->baseload)
 	} else if (gstate->survive < SURVIVE100) {
 		// not survive - stretch akku ttl to maximum
 		int dlimit = gstate->available && gstate->minutes ? gstate->available * 60 / gstate->minutes / 10 * 10 : 0;
+		LOCUT(dlimit, params->baseload)
 		// take over initial limit or when delta 20+
 		int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
-		xlog("SOLAR dlimit now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
+		xlog("SOLAR dlimit now=%d new=%d diff=%d baseload=%d", params->akku_dlimit, dlimit, diff, params->baseload);
 		if (!params->akku_dlimit || diff >= 20)
 			params->akku_dlimit = dlimit;
-		// not below baseload
-		LOCUT(params->akku_dlimit, params->baseload)
 	}
 	if (params->akku_dlimit_override)
 		params->akku_dlimit = params->akku_dlimit_override; // override
