@@ -14,7 +14,7 @@
 #define SOLAR
 #define FLAMINGO
 #define LCD
-#define I2C						"/dev/i2c-7"
+#define I2C						"/dev/i2c-3"
 #define MIXER					"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
 #define MQTT_HOST				"localhost"
 #define TEMP_IN					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->htu21_temp : UINT16_MAX)

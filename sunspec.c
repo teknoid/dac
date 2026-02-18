@@ -24,16 +24,17 @@ static void swap_string(char *string, int size) {
 
 // zero dynamic models and do a manual update
 static void zero_models(sunspec_t *ss) {
-	if (ss->inverter)
-		ZEROP(ss->inverter);
-	if (ss->mppt)
-		ZEROP(ss->mppt);
-	if (ss->storage)
-		ZEROP(ss->storage);
-	if (ss->meter)
-		ZEROP(ss->meter);
-	if (ss->callback)
-		(ss->callback)(ss);
+// TODO segfault
+//	if (ss->inverter)
+//		ZEROP(ss->inverter);
+//	if (ss->mppt)
+//		ZEROP(ss->mppt);
+//	if (ss->storage)
+//		ZEROP(ss->storage);
+//	if (ss->meter)
+//		ZEROP(ss->meter);
+//	if (ss->callback)
+//		(ss->callback)(ss);
 }
 
 static int collect_models(sunspec_t *ss) {

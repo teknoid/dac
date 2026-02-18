@@ -97,26 +97,23 @@ void akku_state(device_t *akku) {
 	}
 }
 
+// delegate
 int akku_charge(device_t *akku) {
-	akku->state = Charge;
-	sunspec_storage_charge(inverter1, akku->climit);
-	return 0;
+	return sunspec_storage_charge(inverter1, akku->climit);
 }
 
+// delegate
 int akku_discharge(device_t *akku) {
-	akku->state = Discharge;
-	sunspec_storage_discharge(inverter1, akku->dlimit);
-	return 0;
+	return sunspec_storage_discharge(inverter1, akku->dlimit);
 }
 
+// delegate
 int akku_auto(device_t *akku) {
-	akku->state = Auto;
 	return sunspec_storage_auto(inverter1);
 }
 
+// delegate
 int akku_standby(device_t *akku) {
-	akku->state = Standby;
-	akku->total = 0;
 	return sunspec_storage_standby(inverter1);
 }
 
