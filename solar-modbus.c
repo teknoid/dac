@@ -55,12 +55,7 @@ void akku_state(device_t *akku) {
 	xdebug("SOLAR akku storctl=%d inwrte=%d outwrte=%d", STORCTL, INWRTE, OUTWRTE);
 
 	switch (STORCTL) {
-	case STORAGE_LIMIT_NONE:
-		akku->state = Auto;
-		akku->total = params->akku_cmax;
-		break;
-
-	case STORAGE_LIMIT_BOTH:
+	case (FLAG_LIMIT_CHARGE | FLAG_LIMIT_DISCHARGE):
 		if (INWRTE == 0 && OUTWRTE == 0) {
 			akku->state = Standby;
 			akku->total = 0;
@@ -76,7 +71,7 @@ void akku_state(device_t *akku) {
 		}
 		break;
 
-	case STORAGE_LIMIT_CHARGE:
+	case FLAG_LIMIT_CHARGE:
 		if (INWRTE == 0) {
 			akku->state = Discharge;
 			akku->total = params->akku_dmax;
@@ -86,7 +81,7 @@ void akku_state(device_t *akku) {
 		}
 		break;
 
-	case STORAGE_LIMIT_DISCHARGE:
+	case FLAG_LIMIT_DISCHARGE:
 		if (OUTWRTE == 0) {
 			akku->state = Charge;
 			akku->total = params->akku_cmax;
@@ -97,44 +92,27 @@ void akku_state(device_t *akku) {
 		break;
 
 	default:
-		akku->state = Disabled;
+		akku->state = Auto;
+		akku->total = params->akku_cmax;
 	}
+}
+
+int akku_charge(device_t *akku) {
+	akku->state = Charge;
+	sunspec_storage_charge(inverter1, akku->climit);
+	return 0;
+}
+
+int akku_discharge(device_t *akku) {
+	akku->state = Discharge;
+	sunspec_storage_discharge(inverter1, akku->dlimit);
+	return 0;
 }
 
 int akku_standby(device_t *akku) {
 	akku->state = Standby;
 	akku->total = 0;
-
-	xdebug("SOLAR set akku STANDBY");
-	return sunspec_storage_limit_both(inverter1, 0, 0);
-}
-
-int akku_charge(device_t *akku) {
-	akku->state = Charge;
-
-	if (akku->climit) {
-		akku->total = akku->climit;
-		xdebug("SOLAR set akku CHARGE limit %d", akku->climit);
-		return sunspec_storage_limit_both(inverter1, akku->climit, 0);
-	} else {
-		akku->total = params->akku_cmax;
-		xdebug("SOLAR set akku CHARGE");
-		return sunspec_storage_limit_discharge(inverter1, 0);
-	}
-}
-
-int akku_discharge(device_t *akku) {
-	akku->state = Discharge;
-
-	if (akku->dlimit) {
-		akku->total = akku->dlimit;
-		xdebug("SOLAR set akku DISCHARGE limit %d", akku->dlimit);
-		return sunspec_storage_limit_both(inverter1, 0, akku->dlimit);
-	} else {
-		akku->total = params->akku_dmax;
-		xdebug("SOLAR set akku DISCHARGE");
-		return sunspec_storage_limit_charge(inverter1, 0);
-	}
+	return sunspec_storage_standby(inverter1);
 }
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
@@ -297,22 +275,89 @@ static void update_meter(sunspec_t *ss) {
 	pthread_mutex_unlock(&collector_lock);
 }
 
-static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t poffset, int voffset, int delay) {
-	char message[16];
-	int voltage, index;
+static int evaluate(char *name) {
+	char filename[32];
+	int closest, target;
+	pstate_t measure[1000];
+	int raster[101];
 
+	// TODO cmdline parameter
+	int max_power = 2000;
+	int onepercent = max_power / 100;
+
+	// read
+	snprintf(filename, 32, "/tmp/%s.bin", name);
+	load_blob(filename, measure, sizeof(measure));
+
+	// find phase
+	pstate_t sum;
+	ZERO(sum);
+	for (int i = 1; i < 1000; i++)
+		iadd(&sum, &measure[i], PSTATE_SIZE);
+	int p = 0;
+	if (sum.l1p > sum.l2p && sum.l1p > sum.l3p)
+		p = 1;
+	if (sum.l2p > sum.l1p && sum.l1p > sum.l3p)
+		p = 2;
+	if (sum.l3p > sum.l1p && sum.l3p > sum.l2p)
+		p = 3;
+	if (!p)
+		printf("unable to detect phase\n");
+	else
+		printf("detected phase %d\n", p);
+
+	// round power values
+	for (int i = 1; i < 1000; i++) {
+		measure[i].l1p = round10(measure[i].l1p);
+		measure[i].l2p = round10(measure[i].l2p);
+		measure[i].l3p = round10(measure[i].l3p);
+	}
+
+	// build raster table
+	raster[0] = 0;
+	raster[100] = 10000;
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power for table index (percent)
+		target = onepercent * i;
+
+		// find closest power to target power
+		for (int j = 0; j < 1000; j++)
+			if (measure[i].l1p == target)
+				printf("%d W match %d mV\n", target, j);
+
+		printf(" --> %dW %dmV\n", target, raster[i]);
+	}
+
+	// dump table
+	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
+	printf("%d, ", raster[0]);
+	for (int i = 1; i <= 100; i++) {
+		printf("%d, ", raster[i]);
+		if (i % 10 == 0)
+			printf("\\\n   ");
+	}
+
+	return 0;
+}
+
+static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t poffset, int voffset, int mod, int delay) {
+	char message[16];
 	for (int i = 0; i < 100; i++) {
-		voltage = (voffset + i) * 10;
+		if (i % mod != 0)
+			continue;
+		int idx = voffset + i;
+		int voltage = idx * 10;
 		snprintf(message, 16, "v:%d:%d", voltage, 0);
-		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		index = (voffset + i) - (3000 / delay - 1) > 0 ? 3000 / delay - 1 : 0;
+		// sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 		msleep(delay);
 		sunspec_read(ss);
-		SAMPLE(measure[index])
-		SUBTRACT(measure[index], poffset)
-		PRINTI(voltage, measure[index])
+		SAMPLE(measure[idx])
+		SUBTRACT(measure[idx], poffset)
+		PRINTI(voltage, measure[idx])
 	}
 }
+
 // Kalibrierung über SmartMeter mit Laptop im Akku-Betrieb:
 // - Nur Nachts
 // - Akku aus
@@ -321,15 +366,15 @@ static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure
 // - Rechner aus
 static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
-	char message[16];
-	int closest, target;
+	char message[16], filename[32];
 	pstate_t offset_start, offset_end, measure[1000];
-	int raster[101];
 
 	// disable akku discharge
-	sunspec_t *ssbyd = sunspec_init("fronius10", 1);
-	sunspec_read(ssbyd);
-	sunspec_storage_limit_discharge(ssbyd, 0);
+//	printf("disable akku discharge\n");
+//	sunspec_t *ssbyd = sunspec_init("fronius10", 1);
+//	sunspec_read(ssbyd);
+//	sunspec_storage_limit_discharge(ssbyd, 0);
+//	sleep(5);
 
 	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("fronius10", 200);
@@ -352,14 +397,6 @@ static int calibrate(char *name) {
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
-	// get maximum power, calculate 1%
-	//	printf("waiting for heat up 100%%...\n");
-	//	snprintf(message, 16, "v:10000:0");
-	//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-	//	sleep(5);
-	//	sunspec_read(ss);
-	//	grid = SFI(ss->meter->W, ss->meter->W_SF);
-	//	int max_power = round100(grid - offset_start);
 	// TODO cmdline parameter
 	int max_power = 2000;
 	int onepercent = max_power / 100;
@@ -381,16 +418,13 @@ static int calibrate(char *name) {
 
 	// do a full drive over SSR characteristic load curve from cold to hot and capture power
 	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
-	drive(sock, sa, ss, measure, offset_start, 0, 100);
-	drive(sock, sa, ss, measure, offset_start, 100, 100);
-	drive(sock, sa, ss, measure, offset_start, 200, 3000);
-	drive(sock, sa, ss, measure, offset_start, 300, 500);
-	drive(sock, sa, ss, measure, offset_start, 400, 500);
-	drive(sock, sa, ss, measure, offset_start, 500, 500);
-	drive(sock, sa, ss, measure, offset_start, 600, 500);
-	drive(sock, sa, ss, measure, offset_start, 700, 500);
-	drive(sock, sa, ss, measure, offset_start, 800, 100);
-	drive(sock, sa, ss, measure, offset_start, 900, 100);
+	ZERO(measure);
+	drive(sock, sa, ss, measure, offset_start, 200, 1, 1000);
+	drive(sock, sa, ss, measure, offset_start, 300, 2, 1000);
+	drive(sock, sa, ss, measure, offset_start, 400, 3, 1000);
+	drive(sock, sa, ss, measure, offset_start, 500, 5, 1000);
+	drive(sock, sa, ss, measure, offset_start, 600, 7, 1000);
+	drive(sock, sa, ss, measure, offset_start, 700, 10, 1000);
 
 	// switch off
 	snprintf(message, 16, "v:0:0");
@@ -409,73 +443,14 @@ static int calibrate(char *name) {
 	offset_end.l1p = offset_end.l1p / 10 + (offset_end.l1p % 10 < 5 ? 0 : 1);
 	offset_end.l2p = offset_end.l2p / 10 + (offset_end.l2p % 10 < 5 ? 0 : 1);
 	offset_end.l3p = offset_end.l3p / 10 + (offset_end.l3p % 10 < 5 ? 0 : 1);
-	PRINTS("average offset_end --> ", offset_end);
+	PRINTS("average offset_start --> ", offset_start);
+	PRINTS("average offset_end   --> ", offset_end);
 
-	// find phase
-	int p = 0;
-	if (measure[666].l1p > max_power / 2)
-		p = 1;
-	if (measure[666].l2p > max_power / 2)
-		p = 2;
-	if (measure[666].l3p > max_power / 2)
-		p = 3;
-	if (!p)
-		printf("unable to detect phase\n");
-	else
-		printf("detected phase %d\n", p);
-
-	// build raster table
-	raster[0] = 0;
-	raster[100] = 10000;
-	for (int i = 1; i < 100; i++) {
-
-		// calculate next target power for table index (percent)
-		target = onepercent * i;
-
-		// find closest power to target power
-		int min_diff = max_power;
-		for (int j = 0; j < 1000; j++) {
-			int diff = abs(PX(p, measure[j]) - target);
-			if (diff < min_diff) {
-				min_diff = diff;
-				closest = j;
-			}
-		}
-		int mc = PX(p, measure[closest]);
-
-		// find all closest voltages that match target power +/- 5 watt
-		int sum = 0, count = 0;
-		printf("target power %04d closest %04d range +/-5 watt around closest: ", target, mc);
-		for (int j = 0; j < 1000; j++) {
-			int mj = PX(p, measure[j]);
-			if (mc - 5 < mj && mj < mc + 5) {
-				printf(" %d:%d", mj, j * 10);
-				sum += j * 10;
-				count++;
-			}
-		}
-
-		// average of all closest voltages
-		if (count) {
-			int z = (sum * 10) / count;
-			raster[i] = z / 10 + (z % 10 < 5 ? 0 : 1);
-		}
-		printf(" --> %dW %dmV\n", target, raster[i]);
-	}
-
-	int poffset_start = PX(p, offset_start);
-	int poffset_end = PX(p, offset_end);
-	if (poffset_start != poffset_end)
-		printf("!!! WARNING !!! measuring tainted with parasitic power between start %d and end %d \n", poffset_start, poffset_end);
-
-	// dump table
-	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[0]);
-	for (int i = 1; i <= 100; i++) {
-		printf("%d, ", raster[i]);
-		if (i % 10 == 0)
-			printf("\\\n   ");
-	}
+	// write
+	snprintf(filename, 32, "/tmp/%s.csv", name);
+	store_table_csv(measure, PSTATE_SIZE, 1000, PSTATE_HEADER, filename);
+	snprintf(filename, 32, "/tmp/%s.bin", name);
+	store_blob(filename, measure, sizeof(measure));
 
 	// cleanup
 	close(sock);
@@ -517,10 +492,10 @@ static int battery(char *arg) {
 
 	int wh = atoi(arg);
 	if (wh > 0)
-		return sunspec_storage_limit_discharge(ss, wh);
+		return sunspec_storage_discharge(ss, wh);
 	if (wh < 0)
-		return sunspec_storage_limit_charge(ss, wh * -1);
-	return sunspec_storage_limit_reset(ss);
+		return sunspec_storage_charge(ss, wh * -1);
+	return sunspec_storage_auto(ss);
 }
 
 // set minimum SoC
@@ -661,7 +636,7 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "ab:c:gi:ls:t")) != -1) {
+	while ((c = getopt(argc, argv, "ab:c:e:gi:ls:t")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'a':
@@ -670,8 +645,11 @@ int solar_main(int argc, char **argv) {
 			// -X: limit charge, +X: limit discharge, 0: no limits
 			return battery(optarg);
 		case 'c':
-			// execute as: stdbuf -i0 -o0 -e0 ./solar -c boiler1 > boiler1.txt
+			// ./solar -c boiler1
 			return calibrate(optarg);
+		case 'e':
+			// ./solar -e boiler1
+			return evaluate(optarg);
 		case 'g':
 			return grid();
 		case 'i':

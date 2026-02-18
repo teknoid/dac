@@ -28,10 +28,8 @@
 #define SLEEP_TIME_FAULT		10		// 10 sec
 #define SLEEP_TIME_SLEEPING		900		// 15 min
 
-#define STORAGE_LIMIT_BOTH		3
-#define STORAGE_LIMIT_DISCHARGE	2
-#define STORAGE_LIMIT_CHARGE	1
-#define STORAGE_LIMIT_NONE		0
+#define FLAG_LIMIT_CHARGE		(1 << 0)
+#define FLAG_LIMIT_DISCHARGE	(1 << 1)
 
 //
 // sunspec models generated from Fronius documentation copied to misc/sunspec-struct-template.ods
@@ -452,9 +450,9 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 int sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
 
-int sunspec_storage_limit_both(sunspec_t *ss, int inWRte, int outWRte);
-int sunspec_storage_limit_charge(sunspec_t *ss, int wcha);
-int sunspec_storage_limit_discharge(sunspec_t *ss, int inWRte);
-int sunspec_storage_limit_reset(sunspec_t *ss);
+int sunspec_storage_charge(sunspec_t *ss, int limit);
+int sunspec_storage_discharge(sunspec_t *ss, int limit);
+int sunspec_storage_auto(sunspec_t *ss);
+int sunspec_storage_standby(sunspec_t *ss);
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc);
 int sunspec_controls_conn(sunspec_t *ss, int conn);
