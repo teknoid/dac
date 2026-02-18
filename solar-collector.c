@@ -309,13 +309,13 @@ static void print_gstate() {
 	xlogl_end(line, strlen(line), 0);
 
 	// TODO debugging; remark: last LOAD5/PV5 points to LOAD1/PV1 avg-5 seconds!
-#define GT " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%3d slope=%3d var=%3d deltac=%3d deltas=%3d"
-	if (!GSTATE_OFFLINE) {
-		xlog("GSTATE PV1" GT, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, PSTATE_MIN_LAST1->pv, slom->pv, varm->pv, deltac->pv, deltas->pv);
-		xlog("GSTATE PV5" GT, pstate->pv, minmm->pv, avgmm->pv, maxmm->pv, spreadmm->pv, PSTATE_MIN_LAST5->pv, slomm->pv, varmm->pv, deltac->pv, deltas->pv);
-	}
-	xlog("GSTATE LOAD1" GT, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, PSTATE_MIN_LAST1->load, slom->load, varm->load, deltac->load, deltas->load);
-	xlog("GSTATE LOAD5" GT, pstate->load, minmm->load, avgmm->load, maxmm->load, spreadmm->load, PSTATE_MIN_LAST5->load, slomm->load, varmm->load, deltac->load, deltas->load);
+//#define GT " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%3d slope=%3d var=%3d deltac=%3d deltas=%3d"
+//	if (!GSTATE_OFFLINE) {
+//		xlog("GSTATE PV1" GT, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, PSTATE_MIN_LAST1->pv, slom->pv, varm->pv, deltac->pv, deltas->pv);
+//		xlog("GSTATE PV5" GT, pstate->pv, minmm->pv, avgmm->pv, maxmm->pv, spreadmm->pv, PSTATE_MIN_LAST5->pv, slomm->pv, varmm->pv, deltac->pv, deltas->pv);
+//	}
+//	xlog("GSTATE LOAD1" GT, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, PSTATE_MIN_LAST1->load, slom->load, varm->load, deltac->load, deltas->load);
+//	xlog("GSTATE LOAD5" GT, pstate->load, minmm->load, avgmm->load, maxmm->load, spreadmm->load, PSTATE_MIN_LAST5->load, slomm->load, varmm->load, deltac->load, deltas->load);
 }
 
 static void print_pstate() {
