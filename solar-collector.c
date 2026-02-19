@@ -703,7 +703,15 @@ static void calculate_pstate_ramp() {
 }
 
 static void calculate_pstate_online() {
-	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
+	// akku discharge / grid download / grid upload
+	if (avgss->akku > RAMP || pstate->akku > RAMP * 2)
+		pstate->flags |= FLAG_AKKU_DCHARGE;
+	if (avgss->grid > RAMP || pstate->grid > RAMP * 2)
+		pstate->flags |= FLAG_GRID_DLOAD;
+	if (avgss->grid < RAMP * -2 || pstate->grid < RAMP * -4)
+		pstate->flags |= FLAG_GRID_ULOAD;
+
+	// meter latency / mppt tracking / too fast pv delta / grid spikes / whatever
 	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
 	if (abs(sum) > SUSPICIOUS) {
@@ -728,10 +736,10 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int waste = pstate->grid < -RAMP && pstate->akku > pstate->grid * -1; // wasting power akku to grid
-	int illegal = pstate->grid > RAMP && pstate->akku < pstate->grid * -1; // charging akku from grid
-	if (waste || illegal) {
-		xlog("SOLAR akku is unbalanced waste=%d illegal=%d", waste, illegal);
+	int waste = pstate->grid < 0 && pstate->akku > 0; // wasting akku power to grid
+	int drag = pstate->grid > 0 && pstate->akku < 0; // akku drags power from grid
+	if (waste || drag) {
+		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d drag=%d", pstate->grid, pstate->akku, waste, drag);
 		pstate->flags |= FLAG_INVALID;
 	}
 
@@ -744,18 +752,6 @@ static void calculate_pstate_online() {
 		// xlog("SOLAR Inverter2 state %d expected %d ", inv2->state, I_STATUS_MPPT);
 		// pstate->flags |= FLAG_INVALID;
 	}
-
-	// no further calculation when invalid
-	if (PSTATE_INVALID)
-		return;
-
-	// akku discharge / grid download / grid upload
-	if (avgss->akku > RAMP || pstate->akku > RAMP * 2)
-		pstate->flags |= FLAG_AKKU_DCHARGE;
-	if (avgss->grid > RAMP || pstate->grid > RAMP * 2)
-		pstate->flags |= FLAG_GRID_DLOAD;
-	if (avgss->grid < RAMP * -2 || pstate->grid < RAMP * -4)
-		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// tendency: falling or rising or stable, fall has prio
 	int pvfall = delta->pv < -100 || vars->pv < -VARIANCE;
@@ -780,6 +776,10 @@ static void calculate_pstate_online() {
 	// stable over 3 seconds
 	if (PSTATE_3S_STABLE)
 		pstate->flags |= FLAG_STABLE_3S;
+
+	// no further calculation when invalid
+	if (PSTATE_INVALID)
+		return;
 
 	// emergency shutdown: average/current grid download or akku discharge
 	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
