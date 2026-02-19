@@ -119,6 +119,13 @@ int akku_standby(device_t *akku) {
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
 static void update_inverter1(sunspec_t *ss) {
+	if (!ss->inverter) {
+		inv1->state = pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
+		xlog("ZERO inverter1");
+		return;
+	}
+	inv1->state = ss->inverter->St;
+
 	pthread_mutex_lock(&collector_lock);
 	ss->sleep = 0;
 
@@ -126,7 +133,6 @@ static void update_inverter1(sunspec_t *ss) {
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
 	pstate->mppt2v = SFI(ss->mppt->m2_DCV, ss->mppt->DCV_SF);
 
-	inv1->state = ss->inverter->St;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
@@ -191,6 +197,13 @@ static void update_inverter1(sunspec_t *ss) {
 
 // inverter2 is Fronius Symo 7.0-3-M
 static void update_inverter2(sunspec_t *ss) {
+	if (!ss->inverter) {
+		inv2->state = pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
+		xlog("ZERO inverter2");
+		return;
+	}
+	inv2->state = ss->inverter->St;
+
 	pthread_mutex_lock(&collector_lock);
 	ss->sleep = 0;
 
@@ -198,10 +211,9 @@ static void update_inverter2(sunspec_t *ss) {
 	pstate->mppt3v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
 	pstate->mppt4v = SFI(ss->mppt->m2_DCV, ss->mppt->DCV_SF);
 
-	inv2->state = ss->inverter->St;
 	switch (ss->inverter->St) {
 	case I_STATUS_OFF:
-		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p;
+		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
 		break;
 
 	case I_STATUS_STANDBY:
@@ -254,6 +266,9 @@ static void update_inverter2(sunspec_t *ss) {
 
 // meter is Fronius Smart Meter TS 65A-3
 static void update_meter(sunspec_t *ss) {
+	if (!ss->meter)
+		return;
+
 	pthread_mutex_lock(&collector_lock);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);

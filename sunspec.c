@@ -22,21 +22,6 @@ static void swap_string(char *string, int size) {
 		SWAP16(*x);
 }
 
-// zero dynamic models and do a manual update
-static void zero_models(sunspec_t *ss) {
-// TODO segfault
-//	if (ss->inverter)
-//		ZEROP(ss->inverter);
-//	if (ss->mppt)
-//		ZEROP(ss->mppt);
-//	if (ss->storage)
-//		ZEROP(ss->storage);
-//	if (ss->meter)
-//		ZEROP(ss->meter);
-//	if (ss->callback)
-//		(ss->callback)(ss);
-}
-
 static int collect_models(sunspec_t *ss) {
 	uint16_t index[2] = { 0, 0 };
 	uint16_t *id = &index[0];
@@ -312,9 +297,9 @@ static void* poll(void *arg) {
 	while (1) {
 		errors_all = 0;
 
-		// reset inverter state
-		if (ss->inverter)
-			ss->inverter->St = 0;
+		// initially execute callback zeroing values
+		if (ss->callback)
+			(ss->callback)(ss);
 
 		ss->mb = modbus_new_tcp(ss->ip, 502);
 		modbus_set_response_timeout(ss->mb, 5, 0);
@@ -326,7 +311,6 @@ static void* poll(void *arg) {
 
 		if (modbus_connect(ss->mb) == -1) {
 			xlog("SUNSPEC %s connection failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
-			zero_models(ss);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
@@ -335,7 +319,6 @@ static void* poll(void *arg) {
 
 		if (collect_models(ss) == -1) {
 			xlog("SUNSPEC %s collect_models() error: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
-			zero_models(ss);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
@@ -391,7 +374,6 @@ static void* poll(void *arg) {
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
-		zero_models(ss);
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
 		ss->mb = 0;
