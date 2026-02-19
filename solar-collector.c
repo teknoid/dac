@@ -707,11 +707,12 @@ static void calculate_pstate_online() {
 	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
 	if (egrid || eakku) {
 		int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
-		if (akku_unregulated) {
-			xlog("SOLAR suppress FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
-		} else if (gstate->soc > 100) {
-			// no limit, not below 10%
-			params->akku_dlimit = 0;
+		if (akku_unregulated)
+			xlog("SOLAR suppress EMERGENCY - akku unregulated egrid=%d eakku=%d", egrid, eakku);
+		else if (gstate->soc < 100)
+			xlog("SOLAR suppress EMERGENCY - akku below 10%");
+		else {
+			params->akku_dlimit = 0; // no limit
 			pstate->flags |= FLAG_EMERGENCY;
 			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
 		}
@@ -734,12 +735,8 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 		pstate->grid /= 2; // damping 50%
 	}
-	if (pstate->load < 0) {
-		xlog("SOLAR negative load detected %d", pstate->load);
-		pstate->flags |= FLAG_INVALID;
-	}
-	if (0 <= pstate->load && pstate->load < 0) {
-		xlog("SOLAR suspicious small load detected %d", pstate->load);
+	if (pstate->load < RAMP) {
+		xlog(pstate->load < 0 ? "SOLAR negative load detected %d" : "SOLAR suspicious small load detected %d", pstate->load);
 		pstate->flags |= FLAG_INVALID;
 	}
 	if (inv1->state != I_STATUS_MPPT) {
@@ -809,7 +806,7 @@ static void calculate_pstate() {
 	LOCUT(pstate->surp, 0)
 
 	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
+	pstate->rsl = pstate->load > 0 ? pstate->surp * 100 / pstate->load : 0;
 	HICUT(pstate->rsl, 1000)
 
 	// calculate delta, update delta sum, delta count in one loop

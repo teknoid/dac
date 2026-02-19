@@ -428,7 +428,9 @@ static void print_dstate() {
 			snprintf(value, 6, " %c", DD->power ? 'M' : 'm');
 			break;
 		case Auto:
-			if (DD->adj) {
+			if (DD == AKKU) {
+				snprintf(value, 6, " A");
+			} else if (DD->adj) {
 				if (DEV_RESPONSE(DD))
 					snprintf(value, 6, " %3d!", DD->power);
 				else
@@ -518,9 +520,11 @@ static void emergency() {
 
 	xlog("SOLAR emergency shutdown");
 
-	// enable discharge no limit
-	AKKU->dlimit = 0;
-	akku_discharge(AKKU);
+	// enable discharge no limit when all devices are down
+	if (DSTATE_ALL_DOWN) {
+		AKKU->dlimit = 0;
+		akku_discharge(AKKU);
+	}
 
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->ramp_in = DD->total * -1;
@@ -723,9 +727,6 @@ static void response(device_t *d) {
 	if (!d->ramp_out)
 		return;
 
-	// clear response flag
-	d->flags &= ~FLAG_RESPONSE_OK;
-
 	// check if we got a response on any phase - should be at least 2/3 of ramp_out
 	int d1 = pstate->l1p - d->l1p;
 	int d2 = pstate->l2p - d->l2p;
@@ -737,17 +738,27 @@ static void response(device_t *d) {
 
 	// is the device currently in standby check?
 	int standby_check = DEV_STANDBY_CHECK(d);
-
-	// response OK
-	if (l1r || l2r || l3r) {
-		if (standby_check) {
+	if (standby_check) {
+		if (l1r || l2r || l3r) {
 			xlog("SOLAR %s standby check negative, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
-			d->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
-			d->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
-		} else
-			xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d", d->name, l1r ? "L1" : "", l2r ? "L2" : "", l3r ? "L3" : "", d1, d2, d3, delta);
+			d->flags |= FLAG_RESPONSE_OK;
+		} else {
+			xlog("SOLAR %s standby check positive, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
+			d->flags &= ~FLAG_RESPONSE_OK;
+			d->flags |= FLAG_FORCE;
+			d->ramp_in = d->total * -1;
+			ramp_device(d);
+			d->response = 0;
+			d->state = Standby;
+		}
+		d->flags &= ~FLAG_STANDBY_CHECK; // remove check flag
+		d->flags |= FLAG_STANDBY_CHECKED; // do not repeat the check
+		return;
+	}
 
-		// flag with response OK and increment phase response counter
+	// flag with response OK and increment phase response counter
+	if (l1r || l2r || l3r) {
+		xlog("SOLAR %s response ok at %s%s%s, delta %d %d %d exp %d", d->name, l1r ? "L1" : "", l2r ? "L2" : "", l3r ? "L3" : "", d1, d2, d3, delta);
 		d->flags |= FLAG_RESPONSE_OK;
 		if (l1r)
 			d->l1rc++;
@@ -755,21 +766,12 @@ static void response(device_t *d) {
 			d->l2rc++;
 		if (l3r)
 			d->l3rc++;
-
 		return;
 	}
 
-	// no response
-	if (standby_check) {
-		xlog("SOLAR standby check positive for %s, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
-		d->flags |= FLAG_FORCE;
-		d->ramp_in = d->total * -1;
-		ramp_device(d);
-		d->state = Standby;
-		return;
-	}
-
+	// clear response flag
 	xlog("SOLAR no response from %s", d->name);
+	d->flags &= ~FLAG_RESPONSE_OK;
 }
 
 static void calculate_actions() {
