@@ -104,6 +104,9 @@ static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h7, &h5, &b
 // prio on akku and boilers
 static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
 
+// devices for BURNOUT mode
+static device_t *DEVICES_BURNOUT[] = { &h2, &h3, 0 };
+
 // define POTDs
 static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
 static const potd_t BOILER = { .name = "BOILER", .devices = DEVICES_BOILER };
@@ -344,12 +347,9 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// do not start charging when not indicated
-		if (!GSTATE_CHARGE_AKKU)
-			return;
-
-		// do not start charging together with other ramps
-		if (DSTATE_ACTION)
+		// do not start charging when not indicated, below minimum or together with other ramps
+		int skip = !GSTATE_CHARGE_AKKU || akku->ramp_in < AKKU->min || DSTATE_ACTION;
+		if (skip)
 			return;
 
 		// start charging
@@ -363,17 +363,22 @@ static void ramp_akku(device_t *akku) {
 
 // call device specific ramp_xxx() function
 static void ramp_device(device_t *d) {
+	if (!d)
+		return;
 	if (GSTATE_FORCE_OFF)
 		d->flags |= FLAG_FORCE;
 	(d->rf)(d);
 }
 
-// toggle full power of a device
+// toggle full power of a device and set into MANUAL mode
 static void toggle_device(device_t *d) {
+	if (!d)
+		return;
 	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
 	d->ramp_in = !d->power ? d->total : d->total * -1;
 	d->flags |= FLAG_FORCE;
 	(d->rf)(d);
+	d->state = Manual;
 }
 
 static void create_dstate_json() {
@@ -469,7 +474,7 @@ static int select_program(const potd_t *p) {
 
 	xlog("SOLAR selecting %s program of the day", p->name);
 	potd = (potd_t*) p;
-	dstate->lock = WAIT_RESPONSE;
+	dstate->lock = WAIT_RAMP;
 
 	return 0;
 }
@@ -514,18 +519,50 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
+static void offline() {
+	// xlog("SOLAR offline");
+
+	if (GSTATE_WINTER && gstate->soc < 70) {
+		// go not below 7% in winter to avoid forced charging from grid
+		akku_standby(AKKU);
+		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
+			inverter_off();
+	} else
+		// enable discharge
+		akku_discharge(AKKU);
+
+	// clear dstate
+	ZEROP(dstate);
+}
+
+static void burnout() {
+	xlog("SOLAR burnout");
+
+	// enable discharge no limit
+	params->akku_dlimit = AKKU->dlimit = 0;
+	akku_discharge(AKKU);
+
+	// switch on devices
+	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
+		DD->ramp_in = DD->total;
+		ramp_device(DD);
+	}
+}
+
 static void emergency() {
-	if (dstate->lock)
-		return; // not when locked - e.g. akku starts charging
+	// not when locked or invalid - e.g. akku starts charging
+	if (dstate->lock || PSTATE_INVALID)
+		return;
 
-	xlog("SOLAR emergency shutdown");
+	xlog("SOLAR emergency");
 
-	// enable discharge no limit when all devices are down
-	if (DSTATE_ALL_DOWN) {
-		AKKU->dlimit = 0;
+	// enable discharge no limit when all devices down and soc above 10%
+	if (DSTATE_ALL_DOWN && gstate->soc > 100) {
+		params->akku_dlimit = AKKU->dlimit = 0;
 		akku_discharge(AKKU);
 	}
 
+	// shut down all devices
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->ramp_in = DD->total * -1;
 		ramp_device(DD);
@@ -789,18 +826,15 @@ static void calculate_actions() {
 	if (dstate->lock > 0)
 		dstate->lock--;
 
-	if (dstate->lock || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
-		return; // no action
+	// no action
+	if (dstate->lock || PSTATE_INVALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
+		return;
 
 	// ramp down has prio
 	if (pstate->ramp < 0) {
 		dstate->flags |= FLAG_ACTION_RAMP;
 		return;
 	}
-
-	// no action when not valid
-	if (PSTATE_INVALID)
-		return;
 
 	// permanent overload - execute standby check
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
@@ -903,28 +937,17 @@ static void minly() {
 	// choose potd
 	choose_program();
 
-	if (GSTATE_BURNOUT) {
-		xlog("SOLAR burnout");
-		AKKU->dlimit = 0;
-		akku_discharge(AKKU); // enable discharge no limit
-		//	solar_override_seconds("küche", WAIT_BURNOUT);
-		//	solar_override_seconds("wozi", WAIT_BURNOUT);
-	}
-
-	// set akku to AUTO when online but grid download
-	if (GSTATE_GRID_DLOAD && !GSTATE_OFFLINE)
+	// set akku to AUTO when online but grid download anf FORCE_OFF set
+	if (!GSTATE_OFFLINE && GSTATE_GRID_DLOAD && GSTATE_FORCE_OFF)
 		akku_auto(AKKU);
 
-	if (GSTATE_OFFLINE) {
-		if (GSTATE_WINTER && gstate->soc < 70) {
-			// go not below 7% in winter to avoid forced charging from grid
-			akku_standby(AKKU);
-			if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
-				inverter_off();
-		} else
-			// enable discharge
-			akku_discharge(AKKU);
-	}
+	// offline
+	if (GSTATE_OFFLINE)
+		offline();
+
+	// burnout
+	if (GSTATE_BURNOUT)
+		burnout();
 
 	// awake from manual sleep
 	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
@@ -934,29 +957,17 @@ static void minly() {
 	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
 		for (device_t **dd = DEVICES; *dd; dd++)
 			DD->flags &= ~FLAG_STANDBY_CHECKED;
-
-	// clear values when offline
-	if (GSTATE_OFFLINE)
-		memset(dstate, 0, sizeof(dstate_t));
 }
 
-// set device into MANUAL mode and toggle power
+// toggle device power
 void solar_toggle_name(const char *name) {
 	device_t *d = get_by_name(name);
-	if (!d)
-		return;
-
-	d->state = Manual;
 	toggle_device(d);
 }
 
-// set device into MANUAL mode and toggle power
+// toggle device power
 void solar_toggle_id(unsigned int id, int relay) {
 	device_t *d = get_by_id(id, relay);
-	if (!d)
-		return;
-
-	d->state = Manual;
 	toggle_device(d);
 }
 

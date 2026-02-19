@@ -426,11 +426,11 @@ static void calculate_gstate_offline() {
 	// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 	// TODO start stunde berechnen damit leer wenn pv startet
 	int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-	int burnout_possible = sensors->tin < 18.0 && gstate->soc > 150;
-	if (burnout_time && burnout_possible && AKKU_BURNOUT)
-		gstate->flags |= FLAG_BURNOUT; // burnout
+	int burnout_yes = sensors->tin < 18.0 && gstate->soc > 150;
+	if (AKKU_BURNOUT && burnout_time && burnout_yes)
+		gstate->flags |= FLAG_BURNOUT;
 	else
-		gstate->flags |= FLAG_OFFLINE; // offline
+		gstate->flags |= FLAG_OFFLINE;
 
 	// check if grid and load are stable
 	int gstable = deltac->grid < DCSTABLE || deltas->grid < DSSTABLE || spreadm->grid < GSTATE_SPREAD;
@@ -630,6 +630,7 @@ static void calculate_pstate_ramp() {
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = pstate->akku * -1;
+		HICUT(pstate->ramp, -RAMP)
 		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avgss->akku, pstate->akku, pstate->ramp);
 		return;
 	}
@@ -637,9 +638,14 @@ static void calculate_pstate_ramp() {
 	// always ramp down on grid download
 	if (PSTATE_GRID_DLOAD) {
 		pstate->ramp = pstate->grid * -1;
+		HICUT(pstate->ramp, -RAMP)
 		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avgss->grid, pstate->grid, pstate->ramp);
 		return;
 	}
+
+	// suppress ramp if permanent unstable
+	if (PSTATE_3S_UNSTABLE)
+		return;
 
 	// grid download and rsl below 90 - coarse absolute down ramp
 	if (PSTATE_GRID_DLOAD && avgss->rsl < 90) {
@@ -672,13 +678,6 @@ static void calculate_pstate_ramp() {
 
 	if (!pstate->ramp)
 		return;
-
-	// suppress ramp if permanent unstable
-	if (PSTATE_3S_UNSTABLE) {
-		xlog("SOLAR suppress ramp - permanent unstable ramp=%d", pstate->ramp);
-		pstate->ramp = 0;
-		return;
-	}
 
 	// suppress ramp up
 	int little = avgss->rsl < 105; // too little surplus
@@ -736,10 +735,10 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int waste = pstate->grid < 0 && pstate->akku > 0; // wasting akku power to grid
-	int drag = pstate->grid > 0 && pstate->akku < 0; // akku drags power from grid
-	if (waste || drag) {
-		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d drag=%d", pstate->grid, pstate->akku, waste, drag);
+	int waste = pstate->grid < -RAMP && pstate->akku > RAMP; // wasting akku power to grid
+	int draw = pstate->grid > RAMP && pstate->akku < -RAMP; // akku draws power from grid
+	if (waste || draw) {
+		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, waste, draw);
 		pstate->flags |= FLAG_INVALID;
 	}
 
@@ -777,21 +776,12 @@ static void calculate_pstate_online() {
 	if (PSTATE_3S_STABLE)
 		pstate->flags |= FLAG_STABLE_3S;
 
-	// no further calculation when invalid
-	if (PSTATE_INVALID)
-		return;
-
 	// emergency shutdown: average/current grid download or akku discharge
 	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
 	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
 	if (egrid || eakku) {
-		if (gstate->soc < 100)
-			xlog("SOLAR suppress EMERGENCY - akku below 10%");
-		else {
-			params->akku_dlimit = 0; // no limit
-			pstate->flags |= FLAG_EMERGENCY;
-			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d soc=%d", egrid, eakku, gstate->soc);
-		}
+		pstate->flags |= FLAG_EMERGENCY;
+		xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
 	}
 }
 
@@ -827,12 +817,12 @@ static void calculate_pstate() {
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 
-	// ratio surplus / load - calculate only for plausible load
-	if (pstate->load > RAMP) {
+	// ratio surplus / load - calculate only when load is positive
+	if (pstate->load > 0) {
 		pstate->rsl = pstate->surp * 100 / pstate->load;
 		HICUT(pstate->rsl, 1000)
 	} else
-		xlog("SOLAR skip rsl calculation last=%d", pstate->rsl);
+		xlog("SOLAR skip rsl calculation load=%d rsl=%d", pstate->load, pstate->rsl);
 
 	// calculate delta, update delta sum, delta count in one loop
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);

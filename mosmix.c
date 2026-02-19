@@ -40,8 +40,9 @@
 #define TCOPMAX3				-34
 #define TCOPMAX4				0
 
-#define EXPECTR(r, tco)			(r * m->Rad1h / 1000)         * (tco * (m->TTT - 25) + 10000) / 10000
-#define EXPECTS(r, tco)			(s * (100 - m->SunD1) / 100)  * (tco * (m->TTT - 25) + 10000) / 10000
+// output power = rated power * (100 + tco * (t - 25) / 100) / 100;
+#define EXPECTR(m, r, tco)		r * (m)->Rad1h * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 1000
+#define EXPECTS(m, s, tco)		s * (m)->SunD1 * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 100
 
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -93,15 +94,11 @@ static void parse(char **strings, size_t size) {
 }
 
 static int expect(mosmix_t *m, int r, int s, int tco) {
-	int rx = m->Rad1h ? EXPECTR(r, tco) : 0;
-	int sx = m->SunD1 ? EXPECTS(s, tco) : 0;
-	if (rx && sx)
-		return (rx + sx) / 2;
-	if (rx)
-		return rx;
-	if (sx)
-		return sx;
-	return 0;
+	int rx = m->Rad1h ? EXPECTR(m, r, tco) : 0;
+	int sx = m->SunD1 ? EXPECTS(m, s, tco) : 0;
+	int xx = rx && sx ? (rx + sx) / 2 : rx ? rx : sx;
+	xdebug("MOSMIX expect rad1h=%d rx=%d sund1=%d sx=%d xx=%d", m->Rad1h, rx, m->SunD1, sx, xx);
+	return xx;
 }
 
 // calculate expected pv as combination of raw mosmix values with mppt specific coefficients
@@ -242,32 +239,17 @@ static void* calculate_factors_slave(void *arg) {
 		for (int d = 0; d < 7; d++) {
 			mosmix_t *m = HISTORY(d, *h);
 
-			// calculate Rad1h expected
-			int exp1 = EXPECTR(r, TCOPMAX1);
-			int exp2 = EXPECTR(r, TCOPMAX2);
-			int exp3 = EXPECTR(r, TCOPMAX3);
-			int exp4 = EXPECTR(r, TCOPMAX4);
+			// calculate expected from Rad1h
+			int exp1 = EXPECTR(m, r, TCOPMAX1);
+			int exp2 = EXPECTR(m, r, TCOPMAX2);
+			int exp3 = EXPECTR(m, r, TCOPMAX3);
+			int exp4 = EXPECTR(m, r, TCOPMAX4);
 
 			// calculate absolute error
-			if (exp1 < 0)
-				e1 += INT16_MAX;
-			else
-				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-
-			if (exp2 < 0)
-				e2 += INT16_MAX;
-			else
-				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-
-			if (exp3 < 0)
-				e3 += INT16_MAX;
-			else
-				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-
-			if (exp4 < 0)
-				e4 += INT16_MAX;
-			else
-				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+			e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+			e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+			e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+			e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
 		}
 
 		// take over coefficients from the smallest error
@@ -296,32 +278,17 @@ static void* calculate_factors_slave(void *arg) {
 		for (int d = 0; d < 7; d++) {
 			mosmix_t *m = HISTORY(d, *h);
 
-			// calculate SunD1 expected
-			int exp1 = EXPECTS(s, TCOPMAX1);
-			int exp2 = EXPECTS(s, TCOPMAX2);
-			int exp3 = EXPECTS(s, TCOPMAX3);
-			int exp4 = EXPECTS(s, TCOPMAX4);
+			// calculate expected from SunD1
+			int exp1 = EXPECTS(m, s, TCOPMAX1);
+			int exp2 = EXPECTS(m, s, TCOPMAX2);
+			int exp3 = EXPECTS(m, s, TCOPMAX3);
+			int exp4 = EXPECTS(m, s, TCOPMAX4);
 
 			// calculate absolute error
-			if (exp1 < 0)
-				e1 += INT16_MAX;
-			else
-				e1 += m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-
-			if (exp2 < 0)
-				e2 += INT16_MAX;
-			else
-				e2 += m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-
-			if (exp3 < 0)
-				e3 += INT16_MAX;
-			else
-				e3 += m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-
-			if (exp4 < 0)
-				e4 += INT16_MAX;
-			else
-				e4 += m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+			e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+			e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+			e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+			e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
 		}
 
 		// take over coefficients from the smallest error
@@ -741,10 +708,25 @@ static int test() {
 	printf("io  %d\n", x * f / 100);
 	printf("io  %d\n", (x * f) / 100);
 	printf("nio %d\n", x * (f / 100));
+	printf("nio %d\n", (f / 100) * x);
+
+	float ftc = -.35, fpr = 400.0, ft = 60.0;
+	float floss = ftc * (ft - 25.0);
+	float fout1 = fpr + (fpr * floss / 100.0);
+	float fout2 = fpr * (1 + ftc * (ft - 25.0) / 100.0);
+	float fout3 = fpr * (1 + ftc * (ft - 25) / 100);
+	printf("ftc=%.2f fpr=%.2f ft=%.2f --> loss=%.2f out1=%.2f out2=%.2f out3=%.2f\n", ftc, fpr, ft, floss, fout1, fout2, fout3);
+
+	int itc = -35, ipr = 400, it = 60;
+	int iloss = itc * (it - 25.0) / 100;
+	int iout = ipr * (100 + itc * (ft - 25) / 100) / 100;
+	printf("itc=%d ipr=%d it=%d --> iloss=%d iout=%d\n", itc, ipr, it, iloss, iout);
 
 	// load state and update forecasts
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 1);
+
+	return 0;
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;

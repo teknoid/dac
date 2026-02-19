@@ -121,13 +121,13 @@ int akku_standby(device_t *akku) {
 static void update_inverter1(sunspec_t *ss) {
 	if (!ss->inverter) {
 		inv1->state = pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
-		xlog("ZERO inverter1");
 		return;
 	}
+
 	inv1->state = ss->inverter->St;
+	ss->sleep = 0;
 
 	pthread_mutex_lock(&collector_lock);
-	ss->sleep = 0;
 
 	// mppt voltage is always available
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
@@ -199,13 +199,13 @@ static void update_inverter1(sunspec_t *ss) {
 static void update_inverter2(sunspec_t *ss) {
 	if (!ss->inverter) {
 		inv2->state = pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
-		xlog("ZERO inverter2");
 		return;
 	}
+
 	inv2->state = ss->inverter->St;
+	ss->sleep = 0;
 
 	pthread_mutex_lock(&collector_lock);
-	ss->sleep = 0;
 
 	// mppt voltage is always available
 	pstate->mppt3v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
