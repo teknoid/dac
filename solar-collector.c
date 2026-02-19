@@ -735,10 +735,6 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 		pstate->grid /= 2; // damping 50%
 	}
-	if (pstate->load < RAMP) {
-		xlog(pstate->load < 0 ? "SOLAR negative load detected %d" : "SOLAR suspicious small load detected %d", pstate->load);
-		pstate->flags |= FLAG_INVALID;
-	}
 	if (inv1->state != I_STATUS_MPPT) {
 		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
 		pstate->flags |= FLAG_INVALID;
@@ -797,8 +793,14 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4p, NOISE5)
 	pstate->pv = pstate->mppt1p + pstate->mppt2p + pstate->mppt3p + pstate->mppt4p;
 
-	// load is inverter ac output plus grid
-	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
+	// load is inverter ac output plus grid - take over only if plausible
+	int load = pstate->ac1 + pstate->ac2 + pstate->grid;
+	if (load > RAMP)
+		pstate->load = load;
+	else {
+		xlog("SOLAR suspicious load detected now=%d last=%d", load, pstate->load);
+		pstate->flags |= FLAG_INVALID;
+	}
 
 	// surplus is pure inverters ac output, hi-cutted by pv - no akku discharge, lo-cut 0 - no forced akku charging
 	pstate->surp = pstate->ac1 + pstate->ac2;
@@ -806,7 +808,7 @@ static void calculate_pstate() {
 	LOCUT(pstate->surp, 0)
 
 	// ratio surplus / load
-	pstate->rsl = pstate->load > 0 ? pstate->surp * 100 / pstate->load : 0;
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
 	HICUT(pstate->rsl, 1000)
 
 	// calculate delta, update delta sum, delta count in one loop
