@@ -703,30 +703,6 @@ static void calculate_pstate_ramp() {
 }
 
 static void calculate_pstate_online() {
-	// akku discharge / grid download / grid upload
-	if (avgss->akku > RAMP || pstate->akku > RAMP * 2)
-		pstate->flags |= FLAG_AKKU_DCHARGE;
-	if (avgss->grid > RAMP || pstate->grid > RAMP * 2)
-		pstate->flags |= FLAG_GRID_DLOAD;
-	if (avgss->grid < RAMP * -2 || pstate->grid < RAMP * -4)
-		pstate->flags |= FLAG_GRID_ULOAD;
-
-	// emergency shutdown: average/current grid download or akku discharge
-	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
-	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
-	if (egrid || eakku) {
-		int akku_unregulated = pstate->grid > EMERGENCY && pstate->akku < -EMERGENCY;
-		if (akku_unregulated)
-			xlog("SOLAR suppress EMERGENCY - akku unregulated egrid=%d eakku=%d", egrid, eakku);
-		else if (gstate->soc < 100)
-			xlog("SOLAR suppress EMERGENCY - akku below 10%");
-		else {
-			params->akku_dlimit = 0; // no limit
-			pstate->flags |= FLAG_EMERGENCY;
-			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
-		}
-	}
-
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / etc.
 	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
@@ -734,32 +710,52 @@ static void calculate_pstate_online() {
 		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
 		pstate->flags |= FLAG_INVALID;
 	}
+
 	int gdiff = pstate->grid - pstate->l1p - pstate->l2p - pstate->l3p;
 	if (gdiff < -RAMP || gdiff > RAMP) {
 		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, gdiff);
 		pstate->flags |= FLAG_INVALID;
 	}
+
 	if (abs(delta->l1p) > SPIKE || abs(delta->l2p) > SPIKE || abs(delta->l3p) > SPIKE) {
 		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
 		pstate->flags |= FLAG_INVALID;
 		pstate->grid /= 2; // damping 50%
 	}
-	int waste = pstate->grid < -RAMP && pstate->akku > RAMP; // wasting power akku --> grid
-	int illegal = pstate->grid > RAMP && pstate->akku < -RAMP; // charging akku from grid
+
+	if (pstate->load < 0) {
+		xlog("SOLAR negative load detected %d", pstate->load);
+		pstate->flags |= FLAG_INVALID;
+	}
+
+	int waste = pstate->grid < -RAMP && pstate->akku > pstate->grid * -1; // wasting power akku to grid
+	int illegal = pstate->grid > RAMP && pstate->akku < pstate->grid * -1; // charging akku from grid
 	if (waste || illegal) {
 		xlog("SOLAR akku is unbalanced waste=%d illegal=%d", waste, illegal);
 		pstate->flags |= FLAG_INVALID;
 	}
+
 	if (inv1->state != I_STATUS_MPPT) {
 		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
 		pstate->flags |= FLAG_INVALID;
 	}
+
 	if (inv2->state != I_STATUS_MPPT) {
 		// xlog("SOLAR Inverter2 state %d expected %d ", inv2->state, I_STATUS_MPPT);
 		// pstate->flags |= FLAG_INVALID;
 	}
-	if (PSTATE_3S_STABLE)
-		pstate->flags |= FLAG_STABLE_3S;
+
+	// no further calculation when invalid
+	if (PSTATE_INVALID)
+		return;
+
+	// akku discharge / grid download / grid upload
+	if (avgss->akku > RAMP || pstate->akku > RAMP * 2)
+		pstate->flags |= FLAG_AKKU_DCHARGE;
+	if (avgss->grid > RAMP || pstate->grid > RAMP * 2)
+		pstate->flags |= FLAG_GRID_DLOAD;
+	if (avgss->grid < RAMP * -2 || pstate->grid < RAMP * -4)
+		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// tendency: falling or rising or stable, fall has prio
 	int pvfall = delta->pv < -100 || vars->pv < -VARIANCE;
@@ -772,12 +768,30 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_PVRISE;
 		xdebug("SOLAR set pstate FLAG_PVRISE");
 	}
+
 	// acdelta - delta on any ac lines (dc makes no sense, will be true most time)
 	int stable = spreadss->pv < PSTATE_SPREAD && spreadss->grid < PSTATE_SPREAD && spreadss->load < PSTATE_SPREAD;
 	int acdelta = delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2;
 	if (stable && !pvfall && !pvrise && !acdelta) {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set pstate FLAG_STABLE");
+	}
+
+	// stable over 3 seconds
+	if (PSTATE_3S_STABLE)
+		pstate->flags |= FLAG_STABLE_3S;
+
+	// emergency shutdown: average/current grid download or akku discharge
+	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
+	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
+	if (egrid || eakku) {
+		if (gstate->soc < 100)
+			xlog("SOLAR suppress EMERGENCY - akku below 10%");
+		else {
+			params->akku_dlimit = 0; // no limit
+			pstate->flags |= FLAG_EMERGENCY;
+			xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d soc=%d", egrid, eakku, gstate->soc);
+		}
 	}
 }
 
@@ -786,7 +800,7 @@ static void calculate_pstate() {
 	pthread_mutex_lock(&collector_lock);
 
 	// clear flags and values
-	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
+	pstate->flags = pstate->ramp = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
@@ -805,23 +819,20 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4p, NOISE5)
 	pstate->pv = pstate->mppt1p + pstate->mppt2p + pstate->mppt3p + pstate->mppt4p;
 
-	// load is inverter ac output plus grid - take over only if plausible
-	int load = pstate->ac1 + pstate->ac2 + pstate->grid;
-	if (load > RAMP)
-		pstate->load = load;
-	else {
-		xlog("SOLAR suspicious load detected now=%d last=%d", load, pstate->load);
-		pstate->flags |= FLAG_INVALID;
-	}
-
 	// surplus is pure inverters ac output, hi-cutted by pv - no akku discharge, lo-cut 0 - no forced akku charging
 	pstate->surp = pstate->ac1 + pstate->ac2;
 	HICUT(pstate->surp, pstate->pv)
 	LOCUT(pstate->surp, 0)
 
-	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
-	HICUT(pstate->rsl, 1000)
+	// load is inverter ac output plus grid
+	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
+
+	// ratio surplus / load - calculate only for plausible load
+	if (pstate->load > RAMP) {
+		pstate->rsl = pstate->surp * 100 / pstate->load;
+		HICUT(pstate->rsl, 1000)
+	} else
+		xlog("SOLAR skip rsl calculation last=%d", pstate->rsl);
 
 	// calculate delta, update delta sum, delta count in one loop
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
