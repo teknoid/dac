@@ -634,10 +634,10 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// always ramp down on grid download greater than akku charging
-	if (PSTATE_GRID_DLOAD && pstate->grid > pstate->akku * -1) {
+	// always ramp down on grid download
+	if (PSTATE_GRID_DLOAD) {
 		pstate->ramp = pstate->grid * -1;
-		xdebug("SOLAR grid download ramp agrid=%d grid=%d akku=%d ramp=%d", avgss->grid, pstate->grid, pstate->akku, pstate->ramp);
+		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avgss->grid, pstate->grid, pstate->ramp);
 		return;
 	}
 
@@ -670,14 +670,23 @@ static void calculate_pstate_ramp() {
 			xdebug("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->ramp);
 	}
 
+	if (!pstate->ramp)
+		return;
+
+	// suppress ramp if permanent unstable
+	if (PSTATE_3S_UNSTABLE) {
+		xlog("SOLAR suppress ramp - permanent unstable ramp=%d", pstate->ramp);
+		pstate->ramp = 0;
+		return;
+	}
+
 	// suppress ramp up
 	int little = avgss->rsl < 105; // too little surplus
 	int dgrid = pstate->grid > 0; // actual grid download
-	int waste = pstate->grid < 0 && pstate->akku > 0; // wasting power akku --> grid
 	int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above 5min average pv
-	int suppress_up = PSTATE_PVFALL || little || dgrid || waste || over;
+	int suppress_up = PSTATE_PVFALL || little || dgrid || over;
 	if (pstate->ramp > 0 && suppress_up) {
-		xdebug("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d waste=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, waste, over);
+		xdebug("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, over);
 		pstate->ramp = 0;
 	}
 
@@ -725,15 +734,21 @@ static void calculate_pstate_online() {
 		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
 		pstate->flags |= FLAG_INVALID;
 	}
-	int psum = pstate->l1p + pstate->l2p + pstate->l3p;
-	if (psum < pstate->grid - params->minimum || psum > pstate->grid + params->minimum) {
-		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d", pstate->l1p, pstate->l2p, pstate->l3p, psum, pstate->grid);
+	int gdiff = pstate->grid - pstate->l1p - pstate->l2p - pstate->l3p;
+	if (gdiff < -RAMP || gdiff > RAMP) {
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, gdiff);
 		pstate->flags |= FLAG_INVALID;
 	}
 	if (abs(delta->l1p) > SPIKE || abs(delta->l2p) > SPIKE || abs(delta->l3p) > SPIKE) {
 		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
 		pstate->flags |= FLAG_INVALID;
 		pstate->grid /= 2; // damping 50%
+	}
+	int waste = pstate->grid < -RAMP && pstate->akku > RAMP; // wasting power akku --> grid
+	int illegal = pstate->grid > RAMP && pstate->akku < -RAMP; // charging akku from grid
+	if (waste || illegal) {
+		xlog("SOLAR akku is unbalanced waste=%d illegal=%d", waste, illegal);
+		pstate->flags |= FLAG_INVALID;
 	}
 	if (inv1->state != I_STATUS_MPPT) {
 		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
@@ -772,9 +787,6 @@ static void calculate_pstate() {
 
 	// clear flags and values
 	pstate->flags = pstate->surp = pstate->rsl = pstate->ramp = 0;
-
-	// workaround 31.10.2025 10:28:59 SOLAR suspicious meter values detected p1=-745 p2=-466 p3=1211 sum=0 grid=6554
-	pstate->grid = pstate->l1p + pstate->l2p + pstate->l3p;
 
 	// update self counter
 	if (pstate->grid > 0)
