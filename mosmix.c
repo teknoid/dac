@@ -96,6 +96,12 @@ static void parse(char **strings, size_t size) {
 static int expect(mosmix_t *m, int r, int s, int tco) {
 	int rx = m->Rad1h ? EXPECTR(m, r, tco) : 0;
 	int sx = m->SunD1 ? EXPECTS(m, s, tco) : 0;
+	return rx;
+
+// hours with lower Rad1H and zero SunD1 give higher expected when calculating average - this is definitively wrong!!!
+//	   i Rad1h SunD1   TTT mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4 diff1 diff2 diff3 diff4  err1  err2  err3  err4
+//	0013   630     5     3   713   470   400     0   938   328   166     0  -225   142   234     0    76   143   240   100
+//	0013   390     0     7     0     0     0     0   994   348   176     0     0     0     0     0   100   100   100   100
 	int xx = rx && sx ? (rx + sx) / 2 : rx ? rx : sx;
 	xdebug("MOSMIX expect rad1h=%d rx=%d sund1=%d sx=%d xx=%d", m->Rad1h, rx, m->SunD1, sx, xx);
 	return xx;
