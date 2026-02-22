@@ -43,6 +43,7 @@
 // output power = rated power * (100 + tco * (t - 25) / 100) / 100;
 #define EXPECTR(m, r, tco)		r * (m)->Rad1h * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 1000
 #define EXPECTS(m, s, tco)		s * (m)->SunD1 * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 100
+#define EXPECTRS(m, r, s, tco)	EXPECTR(m, r, tco) + EXPECTR(m, r, tco) * s * (m)->SunD1 / 10000
 
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -52,6 +53,8 @@
 #define NOISE					10
 #define BASELOAD				250
 #define FMAX					9999
+#define FRMAX					9999
+#define FSMAX					999
 #define MOSMIX_COLUMNS			6
 
 // all raw values from kml file
@@ -94,9 +97,10 @@ static void parse(char **strings, size_t size) {
 }
 
 static int expect(mosmix_t *m, int r, int s, int tco) {
-	int rx = m->Rad1h ? EXPECTR(m, r, tco) : 0;
-	int sx = m->SunD1 ? EXPECTS(m, s, tco) : 0;
-	return rx;
+	int rx = EXPECTR(m, r, tco);
+	int sx = EXPECTS(m, s, tco);
+	int rsx = EXPECTRS(m, r, s, tco);
+	return rsx;
 
 // hours with lower Rad1H and zero SunD1 give higher expected when calculating average - this is definitively wrong!!!
 //	   i Rad1h SunD1   TTT mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4 diff1 diff2 diff3 diff4  err1  err2  err3  err4
@@ -230,14 +234,14 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
-static void* calculate_factors_slave(void *arg) {
+static void* calculate_factors_slave_x(void *arg) {
 	int *h = (int*) arg;
 
 	xdebug("MOSMIX factors thread started hour=%d", *h);
 
 	factor_t *f = FACTORS(*h);
-	f->er1 = f->er2 = f->er3 = f->er4 = f->es1 = f->es2 = f->es3 = f->es4 = INT16_MAX;
 
+	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 	for (int r = 0; r <= FMAX; r++) {
 
 		// sum up errors over one week
@@ -259,24 +263,25 @@ static void* calculate_factors_slave(void *arg) {
 		}
 
 		// take over coefficients from the smallest error
-		if (e1 < f->er1) {
+		if (e1 < f->e1) {
 			f->r1 = r;
-			f->er1 = e1;
+			f->e1 = e1;
 		}
-		if (e2 < f->er2) {
+		if (e2 < f->e2) {
 			f->r2 = r;
-			f->er2 = e2;
+			f->e2 = e2;
 		}
-		if (e3 < f->er3) {
+		if (e3 < f->e3) {
 			f->r3 = r;
-			f->er3 = e3;
+			f->e3 = e3;
 		}
-		if (e4 < f->er4) {
+		if (e4 < f->e4) {
 			f->r4 = r;
-			f->er4 = e4;
+			f->e4 = e4;
 		}
 	}
 
+	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 	for (int s = 0; s <= FMAX; s++) {
 
 		// sum up errors over one week
@@ -298,26 +303,92 @@ static void* calculate_factors_slave(void *arg) {
 		}
 
 		// take over coefficients from the smallest error
-		if (e1 < f->es1) {
+		if (e1 < f->e1) {
 			f->s1 = s;
-			f->es1 = e1;
+			f->e1 = e1;
 		}
-		if (e2 < f->es2) {
+		if (e2 < f->e2) {
 			f->s2 = s;
-			f->es2 = e2;
+			f->e2 = e2;
 		}
-		if (e3 < f->es3) {
+		if (e3 < f->e3) {
 			f->s3 = s;
-			f->es3 = e3;
+			f->e3 = e3;
 		}
-		if (e4 < f->es4) {
+		if (e4 < f->e4) {
 			f->s4 = s;
-			f->es4 = e4;
+			f->e4 = e4;
 		}
 	}
 
 	// fix disconnected MPPT4 noise
-	f->r4 = f->s4 = f->er4 = f->es4 = 0;
+	f->r4 = f->s4 = f->e4 = 0;
+
+	// indicate finish
+	*h = -1;
+	return (void*) 0;
+}
+
+static void* calculate_factors_slave(void *arg) {
+	int *h = (int*) arg;
+
+	xdebug("MOSMIX factors thread started hour=%d", *h);
+
+	factor_t *f = FACTORS(*h);
+	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
+
+	for (int r = 0; r <= FRMAX; r++)
+		for (int s = -FSMAX; s <= FSMAX; s++) {
+
+			// sum up errors over one week
+			int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+			for (int d = 0; d < 7; d++) {
+				mosmix_t *m = HISTORY(d, *h);
+
+				// calculate expected from Rad1h vs. SunD1
+				int exp1 = EXPECTRS(m, r, s, TCOPMAX1);
+				int exp2 = EXPECTRS(m, r, s, TCOPMAX2);
+				int exp3 = EXPECTRS(m, r, s, TCOPMAX3);
+				int exp4 = EXPECTRS(m, r, s, TCOPMAX4);
+
+				// calculate absolute error
+				e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
+				e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
+				e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
+				e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+			}
+
+			// take over coefficients from the smallest error
+			if (e1 < f->e1) {
+				f->r1 = r;
+				f->s1 = s;
+				f->e1 = e1;
+			}
+			if (e2 < f->e2) {
+				f->r2 = r;
+				f->s2 = s;
+				f->e2 = e2;
+			}
+			if (e3 < f->e3) {
+				f->r3 = r;
+				f->s3 = s;
+				f->e3 = e3;
+			}
+			if (e4 < f->e4) {
+				f->r4 = r;
+				f->s4 = s;
+				f->e4 = e4;
+			}
+		}
+
+	// fix disconnected MPPT4 noise
+	f->r4 = f->s4 = f->e4 = 0;
+
+	// fix initial s factors
+	f->s1 = f->s1 == -FSMAX ? 0 : f->s1;
+	f->s2 = f->s2 == -FSMAX ? 0 : f->s2;
+	f->s3 = f->s3 == -FSMAX ? 0 : f->s3;
+	f->s4 = f->s4 == -FSMAX ? 0 : f->s4;
 
 	// indicate finish
 	*h = -1;
@@ -731,6 +802,15 @@ static int test() {
 	// load state and update forecasts
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 1);
+
+	int h = 12;
+	calculate_factors_slave_x(&h);
+	recalc_expected();
+	mosmix_dump_history_hours(12);
+	h = 12;
+	calculate_factors_slave(&h);
+	recalc_expected();
+	mosmix_dump_history_hours(12);
 
 	return 0;
 

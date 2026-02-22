@@ -34,6 +34,10 @@ set style line 20 linecolor rgb "#ae5a41" lw 1 dt 2		# MPPT1 dashed
 set style line 21 linecolor rgb "#c3cb71" lw 1 dt 2		# MPPT2 dashed
 set style line 22 linecolor rgb "#1b85b8" lw 1 dt 2		# MPPT3 dashed
 
+set style line 30 linecolor rgb "#ae5a41" lw 1 dt 3		# MPPT1 dashed
+set style line 31 linecolor rgb "#c3cb71" lw 1 dt 3		# MPPT2 dashed
+set style line 32 linecolor rgb "#1b85b8" lw 1 dt 3		# MPPT3 dashed
+
 set style fill solid 1.0
 set boxwidth 0.33 relative
 
@@ -79,31 +83,28 @@ p gstateh u 1:"soc"   t "soc"      w lines ls 6,\
 
 
 # mosmix factors
-set ylabel "Factors Rad1h"
+set ylabel "Factors"
 set xrange [5:22]
 set xtics 1
-set output "/run/mcp/mosmix-factors-Rad1h.svg" 
-p factors u 1:"r1"  t "r1" w lines ls 10,\
-       '' u 1:"r2"  t "r2" w lines ls 11,\
-       '' u 1:"r3"  t "r3" w lines ls 12,\
-       '' u 1:"er1" t "e1" w lines ls 20,\
-       '' u 1:"er2" t "e2" w lines ls 21,\
-       '' u 1:"er3" t "e3" w lines ls 22
-
-set ylabel "Factors SunD1"
-set output "/run/mcp/mosmix-factors-SunD1.svg" 
-p factors u 1:"s1"  t "s1" w lines ls 10,\
-       '' u 1:"s2"  t "s2" w lines ls 11,\
-       '' u 1:"s3"  t "s3" w lines ls 12,\
-       '' u 1:"es1" t "e1" w lines ls 20,\
-       '' u 1:"es2" t "e2" w lines ls 21,\
-       '' u 1:"es3" t "e3" w lines ls 22
-
+set terminal svg size 1920,400
+set output "/run/mcp/mosmix-factors-1.svg" 
+p factors u 1:"e1"  t "e1" w lines ls 10,\
+       '' u 1:"r1"  t "r1" w lines ls 20,\
+       '' u 1:"s1"  t "s1" w lines ls 30
+set output "/run/mcp/mosmix-factors-2.svg" 
+p factors u 1:"e2"  t "e2" w lines ls 11,\
+       '' u 1:"r2"  t "r2" w lines ls 21,\
+       '' u 1:"s2"  t "s2" w lines ls 31
+set output "/run/mcp/mosmix-factors-3.svg" 
+p factors u 1:"e3"  t "e3" w lines ls 12,\
+       '' u 1:"r3"  t "r3" w lines ls 22,\
+       '' u 1:"s3"  t "s3" w lines ls 32
 
 # mosmix forecast today
 set ylabel "Today"
 set yrange [0:10000]
 set y2range [0:100]
+set terminal svg size 1920,800
 set output "/run/mcp/mosmix-today.svg" 
 p today    u 1:"SunD1"  t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"Rad1h"  t "Rad1h" w impulses ls 9,\
