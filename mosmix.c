@@ -234,6 +234,7 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
+// separate: first Rad1h then SunD1
 static void* calculate_factors_slave_x(void *arg) {
 	int *h = (int*) arg;
 
@@ -329,6 +330,7 @@ static void* calculate_factors_slave_x(void *arg) {
 	return (void*) 0;
 }
 
+// combined: Rad1h + SunD1
 static void* calculate_factors_slave(void *arg) {
 	int *h = (int*) arg;
 
