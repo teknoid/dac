@@ -12,7 +12,7 @@ stats="/run/mcp/statistics.csv"
 
 #set terminal wxt size 1200,400
 #set terminal pngcairo size 1000,400
-set terminal svg size 1920,800
+set terminal svg size 1920,400
 set datafile separator whitespace
 set key autotitle columnhead
 
@@ -54,7 +54,6 @@ set ylabel "Today"
 set xrange [5:22]
 set yrange [0:10000]
 set y2range [0:100]
-set terminal svg size 1920,800
 set output "/run/mcp/mosmix-today.svg" 
 p today    u 1:"SunD1"  t "SunD1" w boxes fillcolor "orange" axes x1y2,\
         '' u 1:"Rad1h"  t "Rad1h" w impulses ls 9,\
@@ -75,7 +74,6 @@ p tomorrow u 1:"SunD1"  t "SunD1" w boxes fillcolor "orange" axes x1y2,\
 # mosmix factors
 set ylabel "Factors - Errors"
 set yrange [*:*] 
-set terminal svg size 1920,400
 set output "/run/mcp/mosmix-factors-errors.svg"
 p factors u 1:"e1"  t "e1" w lines ls 11,\
        '' u 1:"e2"  t "e2" w lines ls 12,\
@@ -162,7 +160,6 @@ p pstate u 1:(0):"pv"   t "pv"    w filledc ls 1 axes x1y2,\
 set ylabel "Statistics"
 set yrange [*:*]
 unset y2range
-set terminal svg size 1920,400
 set output "/run/mcp/statistics.svg"
 p stats u 1:2:3:4       t "pv"    w yerrorlines ls 1, \
      '' u 1:8:9:10      t "load"  w yerrorlines lt 6, \
