@@ -100,7 +100,7 @@ static int expect(mosmix_t *m, int r, int s, int tco) {
 	int rsx = EXPECTRS(m, r, s, tco);
 	int rx = EXPECTR(m, r, tco);
 	int sx = EXPECTS(m, s, tco);
-	if (rsx > rx)
+	if (rsx >= rx || rx == 0)
 		return rsx;
 
 	xlog("MOSMIX expect: rx > rsx rad1h=%d sund1=%d rsx=%d rx=%d sx=%d", m->Rad1h, m->SunD1, rsx, rx, sx);
@@ -331,8 +331,7 @@ static void* calculate_factors_slave_x(void *arg) {
 	// fix disconnected MPPT4 noise
 	f->r4 = f->s4 = f->e4 = 0;
 
-	// indicate finish
-	*h = -1;
+	*h = -1; // indicate finish
 	return (void*) 0;
 }
 
@@ -342,6 +341,21 @@ static void* calculate_factors_slave(void *arg) {
 
 	xdebug("MOSMIX factors thread started hour=%d", *h);
 
+	// average over one week for this hour
+	mosmix_t avg, *a = &avg;
+	ZERO(avg);
+	for (int d = 0; d < 7; d++)
+		iadd(a, HISTORY(d, *h), MOSMIX_SIZE);
+	idiv_const(a, MOSMIX_SIZE, 7);
+	dump_array(a, MOSMIX_SIZE, "[ØØ]", 0);
+
+	// do we have Rad1h for this hour?
+	if (!a->Rad1h) {
+		*h = -1; // indicate finish
+		return (void*) 0;
+	}
+
+	mosmix_t err, *e = &err;
 	factor_t *f = FACTORS(*h);
 	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
 
@@ -349,43 +363,43 @@ static void* calculate_factors_slave(void *arg) {
 		for (int s = -FSMAX; s <= FSMAX; s++) {
 
 			// sum up errors over one week
-			int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
+			e->err1 = e->err2 = e->err3 = e->err4 = 0; // no memset -> performance!
 			for (int d = 0; d < 7; d++) {
 				mosmix_t *m = HISTORY(d, *h);
 
 				// calculate expected from Rad1h vs. SunD1
-				int exp1 = EXPECTRS(m, r, s, TCOPMAX1);
-				int exp2 = EXPECTRS(m, r, s, TCOPMAX2);
-				int exp3 = EXPECTRS(m, r, s, TCOPMAX3);
-				int exp4 = EXPECTRS(m, r, s, TCOPMAX4);
+				m->exp1 = EXPECTRS(m, r, s, TCOPMAX1);
+				m->exp2 = EXPECTRS(m, r, s, TCOPMAX2);
+				m->exp3 = EXPECTRS(m, r, s, TCOPMAX3);
+				m->exp4 = EXPECTRS(m, r, s, TCOPMAX4);
 
 				// calculate absolute error
-				e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-				e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-				e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-				e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
+				e->err1 += m->exp1 < 0 ? INT16_MAX : m->mppt1 > m->exp1 ? (m->mppt1 - m->exp1) : (m->exp1 - m->mppt1);
+				e->err2 += m->exp2 < 0 ? INT16_MAX : m->mppt2 > m->exp2 ? (m->mppt2 - m->exp2) : (m->exp2 - m->mppt2);
+				e->err3 += m->exp3 < 0 ? INT16_MAX : m->mppt3 > m->exp3 ? (m->mppt3 - m->exp3) : (m->exp3 - m->mppt3);
+				e->err4 += m->exp4 < 0 ? INT16_MAX : m->mppt4 > m->exp4 ? (m->mppt4 - m->exp4) : (m->exp4 - m->mppt4);
 			}
 
 			// take over coefficients from the smallest error
-			if (e1 < f->e1) {
+			if (e->err1 < f->e1) {
+				f->e1 = e->err1;
 				f->r1 = r;
 				f->s1 = s;
-				f->e1 = e1;
 			}
-			if (e2 < f->e2) {
+			if (e->err2 < f->e2) {
+				f->e2 = e->err2;
 				f->r2 = r;
 				f->s2 = s;
-				f->e2 = e2;
 			}
-			if (e3 < f->e3) {
+			if (e->err3 < f->e3) {
+				f->e3 = e->err3;
 				f->r3 = r;
 				f->s3 = s;
-				f->e3 = e3;
 			}
-			if (e4 < f->e4) {
+			if (e->err4 < f->e4) {
+				f->e4 = e->err4;
 				f->r4 = r;
 				f->s4 = s;
-				f->e4 = e4;
 			}
 		}
 
@@ -398,8 +412,7 @@ static void* calculate_factors_slave(void *arg) {
 	f->s3 = f->s3 == -FSMAX ? 0 : f->s3;
 	f->s4 = f->s4 == -FSMAX ? 0 : f->s4;
 
-	// indicate finish
-	*h = -1;
+	*h = -1; // indicate finish
 	return (void*) 0;
 }
 
