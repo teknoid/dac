@@ -927,6 +927,14 @@ static void hourly() {
 			DD->ramp_in = DD->total * -1;
 			ramp_device(DD);
 		}
+
+		// force all heaters off and set to standby when heating is not indicated
+		if (!GSTATE_HEATING && !DD->adj) {
+			DD->flags |= FLAG_FORCE;
+			DD->ramp_in = DD->total * -1;
+			ramp_device(DD);
+			DD->state = Standby;
+		}
 	}
 }
 
