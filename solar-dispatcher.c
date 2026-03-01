@@ -30,8 +30,8 @@
 #define DEVICES_JSON			"devices.json"
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			((AKKU->state == Auto || AKKU->state == Charge)    && AKKU->load > 0)
-#define AKKU_DISCHARGING		((AKKU->state == Auto || AKKU->state == Discharge) && AKKU->load < 0)
+#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > RAMP)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < RAMP)
 #define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
 
 #define OVERRIDE				600
@@ -149,8 +149,8 @@ static void ramp_heater(device_t *heater) {
 		return;
 
 	// heating disabled
-	if (heater->state == Auto && heater->ramp_in > 0 && !GSTATE_HEATING)
-		heater->state = Standby;
+	if (!GSTATE_HEATING)
+		return;
 
 	// keep on when already on
 	if (heater->power == 1 && heater->ramp_in > 0)
@@ -519,8 +519,36 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
+static void online() {
+	xlog("SOLAR dispatcher online");
+
+	// device loop
+	for (device_t **dd = DEVICES; *dd; dd++) {
+
+		// reset power state to force device ramp down
+		if (GSTATE_FORCE_OFF)
+			DD->power = -1;
+
+		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
+		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
+			DD->flags &= ~FLAG_STANDBY_CHECKED;
+
+		// set heaters back to auto when heating is indicated
+		if (!DD->adj && DD->state == Standby && GSTATE_HEATING)
+			DD->state = Auto;
+
+		// force all heaters off and set to standby when heating is not indicated
+		if (!DD->adj && DD->state == Auto && !GSTATE_HEATING) {
+			DD->flags |= FLAG_FORCE;
+			DD->ramp_in = DD->total * -1;
+			ramp_device(DD);
+			DD->state = Standby;
+		}
+	}
+}
+
 static void offline() {
-	// xlog("SOLAR offline");
+	xlog("SOLAR dispatcher offline");
 
 	if (GSTATE_WINTER && gstate->soc < 70) {
 		// go not below 7% in winter to avoid forced charging from grid
@@ -530,6 +558,18 @@ static void offline() {
 	} else
 		// enable discharge
 		akku_discharge(AKKU);
+
+	// device loop
+	for (device_t **dd = DEVICES; *dd; dd++) {
+
+		// force off
+		DD->flags |= FLAG_FORCE;
+		DD->ramp_in = DD->total * -1;
+		ramp_device(DD);
+
+		// clear flags
+		DD->flags = 0;
+	}
 
 	// clear dstate
 	ZEROP(dstate);
@@ -912,59 +952,40 @@ static void daily() {
 
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
-	for (device_t **dd = DEVICES; *dd; dd++) {
 
-		// clear flags
-		DD->flags = 0;
-
-		// set all devices back to automatic
+	// set all devices back to automatic
+	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
-
-		// force off when offline
-		if (GSTATE_OFFLINE) {
-			DD->flags |= FLAG_FORCE;
-			DD->ramp_in = DD->total * -1;
-			ramp_device(DD);
-		}
-
-		// force all heaters off and set to standby when heating is not indicated
-		if (!GSTATE_HEATING && !DD->adj) {
-			DD->flags |= FLAG_FORCE;
-			DD->ramp_in = DD->total * -1;
-			ramp_device(DD);
-			DD->state = Standby;
-		}
-	}
 }
 
 static void minly() {
+	xdebug("SOLAR dispatcher executing minly tasks...");
+
 	// update akku state
 	akku_state(AKKU);
-
-	// choose potd
-	choose_program();
-
-	// set akku to AUTO when online but grid download anf FORCE_OFF set
-	if (!GSTATE_OFFLINE && GSTATE_GRID_DLOAD && GSTATE_FORCE_OFF)
-		akku_auto(AKKU);
-
-	// offline
-	if (GSTATE_OFFLINE)
-		offline();
-
-	// burnout
-	if (GSTATE_BURNOUT)
-		burnout();
 
 	// awake from manual sleep
 	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
-	// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
-	if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
-		for (device_t **dd = DEVICES; *dd; dd++)
-			DD->flags &= ~FLAG_STANDBY_CHECKED;
+	// choose potd
+	choose_program();
+
+	// TODO wann?
+	// if (xxx)
+	//		akku_auto(AKKU);
+
+	// burnout
+	if (GSTATE_BURNOUT) {
+		burnout();
+		return;
+	}
+
+	if (GSTATE_OFFLINE)
+		offline();
+	else
+		online();
 }
 
 // toggle device power

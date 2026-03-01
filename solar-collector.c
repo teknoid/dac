@@ -106,8 +106,6 @@
 #define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 #define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 
-#define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
-
 static struct tm now_tm, *now = &now_tm;
 
 // local params/counter/gstate/pstate/statistics memory
@@ -647,58 +645,54 @@ static void calculate_pstate_ramp() {
 	if (PSTATE_3S_UNSTABLE)
 		return;
 
-	// grid download and rsl below 90 - coarse absolute down ramp
-	if (PSTATE_GRID_DLOAD && avgss->rsl < 90) {
-		pstate->ramp = avgss->grid * -1;
-		ZSHAPE(pstate->ramp, RAMP)
-		if (pstate->ramp)
-			xdebug("SOLAR average grid down ramp rsl=%d agrid=%d grid=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->ramp);
-	}
+	// pv tendency look ahead ramp
+	if ((avgss->rsl == 100 || avgss->rsl == 101 || avgss->rsl == 102) && GSTATE_PVFALL)
+		pstate->ramp = -RAMP;
+	if ((avgss->rsl == 98 || avgss->rsl == 99 || avgss->rsl == 100) && GSTATE_PVRISE)
+		pstate->ramp = RAMP;
 
-	// grid upload and rsl above 110 - coarse absolute up ramp
-	if (PSTATE_GRID_ULOAD && avgss->rsl > 110) {
+	// akku is passive - keep a little bit grid upload
+	if (!pstate->akku && avgss->rsl <= 100 && avgss->grid > 0)
+		pstate->ramp = -RAMP;
+	if (!pstate->akku && avgss->rsl > 105 && avgss->grid < -RAMP)
+		pstate->ramp = RAMP;
+
+	// akku is active - regulate around 0
+	if (pstate->akku && avgss->rsl <= 100 && avgss->grid > RAMP * 2)
+		pstate->ramp = -RAMP;
+	if (pstate->akku && avgss->rsl > 105 && avgss->grid < RAMP * -2)
+		pstate->ramp = RAMP;
+
+	// coarse absolute ramp below 90 or above 110
+	if (avgss->rsl < 90 || avgss->rsl > 110) {
 		pstate->ramp = PSTATE_STABLE && PSTATE_STABLE_3S ? (avgss->grid / -1) : (avgss->grid / -2);
 		ZSHAPE(pstate->ramp, RAMP)
-		if (pstate->ramp)
-			xdebug("SOLAR average grid up ramp rsl=%d agrid=%d grid=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->ramp);
 	}
-
-	// single step up / down
-	if (90 <= avgss->rsl && avgss->rsl <= 110) {
-		if (avgss->grid > 5)
-			pstate->ramp = -RAMP;
-		if (avgss->grid < -RAMP)
-			pstate->ramp = RAMP;
-		// keep rsl above 100% when akku does not regulate (either full or extra power)
-		if (avgss->rsl < 100 && AKKU_PASSIVE)
-			pstate->ramp = -RAMP;
-		if (pstate->ramp)
-			xdebug("SOLAR single step ramp rsl=%d agrid=%d grid=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->ramp);
-	}
-
-	if (!pstate->ramp)
-		return;
 
 	// suppress ramp up
-	int little = avgss->rsl < 105; // too little surplus
-	int dgrid = pstate->grid > 0; // actual grid download
-	int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above 5min average pv
-	int suppress_up = PSTATE_PVFALL || little || dgrid || over;
-	if (pstate->ramp > 0 && suppress_up) {
-		xdebug("SOLAR suppress up ramp=%d fall=%d little=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, little, dgrid, over);
-		pstate->ramp = 0;
+	if (pstate->ramp > 0) {
+		int dgrid = pstate->grid > 0; // actual grid download
+		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above 5min average pv
+		if (PSTATE_PVFALL || dgrid || over) {
+			xlog("SOLAR suppress up ramp=%d fall=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, dgrid, over);
+			pstate->ramp = 0;
+		}
 	}
 
 	// suppress ramp down
-	int plenty = avgss->rsl > 200; // plenty surplus
-	int ugrid = pstate->grid < -100; // actual grid upload
-	int below = dstate->cload < minmm->surp; // calculated load below 5min minimum surplus
-	int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
-	int suppress_down = PSTATE_PVRISE || plenty || ugrid || below || extra;
-	if (pstate->ramp < 0 && suppress_down) {
-		xdebug("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d below=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, below, extra);
-		pstate->ramp = 0;
+	if (pstate->ramp < 0) {
+		int plenty = avgss->rsl > 200; // plenty surplus
+		int ugrid = pstate->grid < -100; // actual grid upload
+		int below = dstate->cload < minmm->surp; // calculated load below 5min minimum surplus
+		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
+		if (PSTATE_PVRISE || plenty || ugrid || below || extra) {
+			xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d below=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, below, extra);
+			pstate->ramp = 0;
+		}
 	}
+
+	if (pstate->ramp)
+		xlog("SOLAR ramp rsl=%d agrid=%d grid=%d akku=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->akku, pstate->ramp);
 }
 
 static void calculate_pstate_online() {
