@@ -74,6 +74,10 @@ struct _tasmota {
 	int gp8403_vc1;
 	int gp8403_pc0;
 	int gp8403_pc1;
+
+	// SGP30 Air Quality Sensor
+	uint32_t sgp30_eco2;
+	uint32_t sgp30_tvoc;
 };
 
 int openbeken_power_toggle(unsigned int id);
