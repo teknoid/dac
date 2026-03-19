@@ -75,16 +75,16 @@ static device_t i2 = { .name = "fronius7" };
 
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
-static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
-static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
-static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
-static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
-static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
-static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
-static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
+static device_t b1 = { .name = "boiler1", .id = BOILER1, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100, .from = 10, .to = 15 };
+static device_t h1 = { .name = "tisch", .id = INFRARED, .r = 3, .total = 150, .rf = &ramp_heater, .adj = 0, .min = 200, .host = "infrared" };
+static device_t h2 = { .name = "küche", .id = INFRARED, .r = 2, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
+static device_t h3 = { .name = "wozi", .id = INFRARED, .r = 1, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
+static device_t h4 = { .name = "bad1", .id = BAD, .r = 1, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
+static device_t h5 = { .name = "bad2", .id = BAD, .r = 2, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
+static device_t h6 = { .name = "schlaf", .id = PLUG6, .r = 0, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "plug6" };
+static device_t h7 = { .name = "heizer", .id = PLUG9, .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
@@ -145,11 +145,12 @@ static void ramp_heater(device_t *heater) {
 	if (!heater->ramp_in || heater->state == Disabled || heater->state == Initial || heater->state == Standby)
 		return;
 
-	if (heater->state == Manual && !DEV_FORCE(heater))
+	// device is in manual mode except force
+	if (heater->state == Manual && heater->power != -1)
 		return;
 
 	// heating disabled
-	if (!GSTATE_HEATING)
+	if (heater->state == Auto && heater->ramp_in > 0 && !GSTATE_HEATING)
 		return;
 
 	// keep on when already on
@@ -165,7 +166,7 @@ static void ramp_heater(device_t *heater) {
 		return;
 
 	// not enough power available to switch on
-	int min = !DEV_FORCE(heater) && heater->min ? heater->min : heater->total;
+	int min = heater->min && heater->state == Auto ? heater->min : heater->total;
 	if (heater->ramp_in > 0 && heater->ramp_in < min)
 		return;
 
@@ -183,7 +184,6 @@ static void ramp_heater(device_t *heater) {
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
-	heater->flags &= ~FLAG_FORCE;
 
 	// store phase power to detect response
 	heater->l1p = pstate->l1p;
@@ -198,7 +198,8 @@ static void ramp_boiler(device_t *boiler) {
 	if (!boiler->ramp_in || boiler->state == Disabled || boiler->state == Initial || boiler->state == Standby)
 		return;
 
-	if (boiler->state == Manual && !DEV_FORCE(boiler))
+	// device is in manual mode except force
+	if (boiler->state == Manual && boiler->power != -1)
 		return;
 
 	// cannot send UDP if we don't have an IP
@@ -246,7 +247,7 @@ static void ramp_boiler(device_t *boiler) {
 	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->min && boiler->state == Auto && !GSTATE_OFFLINE && !DEV_FORCE(boiler) ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->min && boiler->state == Auto && !GSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
 	HICUT(power, 100)
 	LOCUT(power, min)
 
@@ -285,7 +286,6 @@ static void ramp_boiler(device_t *boiler) {
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
-	boiler->flags &= ~FLAG_FORCE;
 
 	// store phase power to detect response
 	boiler->l1p = pstate->l1p;
@@ -366,7 +366,7 @@ static void ramp_device(device_t *d) {
 	if (!d)
 		return;
 	if (GSTATE_FORCE_OFF)
-		d->flags |= FLAG_FORCE;
+		d->power = -1; // force update
 	(d->rf)(d);
 }
 
@@ -376,9 +376,9 @@ static void toggle_device(device_t *d) {
 		return;
 	xlog("SOLAR toggle id=%06X relay=%d power=%d load=%d name=%s", d->id, d->r, d->power, d->load, d->name);
 	d->ramp_in = !d->power ? d->total : d->total * -1;
-	d->flags |= FLAG_FORCE;
+	d->state = Manual; // set into manual mode
+	d->power = -1; // force update
 	(d->rf)(d);
-	d->state = Manual;
 }
 
 static void create_dstate_json() {
@@ -539,7 +539,6 @@ static void online() {
 
 		// force all heaters off and set to standby when heating is not indicated
 		if (!DD->adj && DD->state == Auto && !GSTATE_HEATING) {
-			DD->flags |= FLAG_FORCE;
 			DD->ramp_in = DD->total * -1;
 			ramp_device(DD);
 			DD->state = Standby;
@@ -562,8 +561,11 @@ static void offline() {
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
 
-		// force off
-		DD->flags |= FLAG_FORCE;
+		// reset power state to force device ramp down
+		if (GSTATE_FORCE_OFF)
+			DD->power = -1;
+
+		// switch off
 		DD->ramp_in = DD->total * -1;
 		ramp_device(DD);
 
@@ -822,7 +824,7 @@ static void response(device_t *d) {
 		} else {
 			xlog("SOLAR %s standby check positive, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 			d->flags &= ~FLAG_RESPONSE_OK;
-			d->flags |= FLAG_FORCE;
+			d->power = -1; // force update
 			d->ramp_in = d->total * -1;
 			ramp_device(d);
 			d->response = 0;
