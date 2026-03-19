@@ -519,30 +519,17 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
-static void online() {
-	xlog("SOLAR dispatcher online");
+static void burnout() {
+	xlog("SOLAR dispatcher burnout");
 
-	// device loop
-	for (device_t **dd = DEVICES; *dd; dd++) {
+	// enable discharge no limit
+	params->akku_dlimit = AKKU->dlimit = 0;
+	akku_discharge(AKKU);
 
-		// reset power state to force device ramp down
-		if (GSTATE_FORCE_OFF)
-			DD->power = -1;
-
-		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
-		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
-			DD->flags &= ~FLAG_STANDBY_CHECKED;
-
-		// set heaters back to auto when heating is indicated
-		if (!DD->adj && DD->state == Standby && GSTATE_HEATING)
-			DD->state = Auto;
-
-		// force all heaters off and set to standby when heating is not indicated
-		if (!DD->adj && DD->state == Auto && !GSTATE_HEATING) {
-			DD->ramp_in = DD->total * -1;
-			ramp_device(DD);
-			DD->state = Standby;
-		}
+	// switch on devices
+	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
+		DD->ramp_in = DD->total;
+		ramp_device(DD);
 	}
 }
 
@@ -577,17 +564,30 @@ static void offline() {
 	ZEROP(dstate);
 }
 
-static void burnout() {
-	xlog("SOLAR burnout");
+static void online() {
+	xlog("SOLAR dispatcher online");
 
-	// enable discharge no limit
-	params->akku_dlimit = AKKU->dlimit = 0;
-	akku_discharge(AKKU);
+	// device loop
+	for (device_t **dd = DEVICES; *dd; dd++) {
 
-	// switch on devices
-	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
-		DD->ramp_in = DD->total;
-		ramp_device(DD);
+		// reset power state to force device ramp down
+		if (GSTATE_FORCE_OFF)
+			DD->power = -1;
+
+		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
+		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
+			DD->flags &= ~FLAG_STANDBY_CHECKED;
+
+		// set heaters back to auto when heating is indicated
+		if (!DD->adj && DD->state == Standby && GSTATE_HEATING)
+			DD->state = Auto;
+
+		// force all heaters off and set to standby when heating is not indicated
+		if (!DD->adj && DD->state == Auto && !GSTATE_HEATING) {
+			DD->ramp_in = DD->total * -1;
+			ramp_device(DD);
+			DD->state = Standby;
+		}
 	}
 }
 
@@ -978,13 +978,10 @@ static void minly() {
 	// if (xxx)
 	//		akku_auto(AKKU);
 
-	// burnout
-	if (GSTATE_BURNOUT) {
+	// operation mode
+	if (GSTATE_BURNOUT)
 		burnout();
-		return;
-	}
-
-	if (GSTATE_OFFLINE)
+	else if (GSTATE_OFFLINE)
 		offline();
 	else
 		online();

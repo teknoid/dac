@@ -423,9 +423,11 @@ static void calculate_counter() {
 static void calculate_gstate_offline() {
 	// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
 	// TODO start stunde berechnen damit leer wenn pv startet
+	int burnout_recover = gstate->today > params->akku_capacity * 2;
 	int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-	int burnout_yes = sensors->tin < 18.0 && gstate->soc > 150;
-	if (AKKU_BURNOUT && burnout_time && burnout_yes)
+	int burnout_temp = sensors->tin < 20.0;
+	int burnout_soc = gstate->soc > 150;
+	if (AKKU_BURNOUT && burnout_recover && burnout_time && burnout_temp && burnout_soc)
 		gstate->flags |= FLAG_BURNOUT;
 	else
 		gstate->flags |= FLAG_OFFLINE;
