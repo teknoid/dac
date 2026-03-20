@@ -247,7 +247,7 @@ static void ramp_boiler(device_t *boiler) {
 	int power = boiler->power + step;
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
-	int min = boiler->min && boiler->state == Auto && !GSTATE_OFFLINE ? boiler->min * 100 / boiler->total : 0;
+	int min = boiler->min && boiler->state == Auto && !GSTATE_FORCE_OFF ? boiler->min * 100 / boiler->total : 0;
 	HICUT(power, 100)
 	LOCUT(power, min)
 
@@ -365,8 +365,6 @@ static void ramp_akku(device_t *akku) {
 static void ramp_device(device_t *d) {
 	if (!d)
 		return;
-	if (GSTATE_FORCE_OFF)
-		d->power = -1; // force update
 	(d->rf)(d);
 }
 
@@ -441,10 +439,12 @@ static void print_dstate() {
 				else
 					snprintf(value, 6, " %3d", DD->power);
 			} else {
-				if (DEV_RESPONSE(DD))
-					snprintf(value, 6, " %c", DD->power ? 'X' : '_');
+				if (DD->power == 1)
+					snprintf(value, 6, " %c", DEV_RESPONSE(DD) ? 'X' : 'x');
+				else if (DD->power == 0)
+					snprintf(value, 6, " %c", '_');
 				else
-					snprintf(value, 6, " %c", DD->power ? 'x' : '_');
+					snprintf(value, 6, " %d", DD->power);
 			}
 			break;
 		case Charge:
@@ -548,10 +548,6 @@ static void offline() {
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
 
-		// reset power state to force device ramp down
-		if (GSTATE_FORCE_OFF)
-			DD->power = -1;
-
 		// switch off
 		DD->ramp_in = DD->total * -1;
 		ramp_device(DD);
@@ -569,10 +565,6 @@ static void online() {
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
-
-		// reset power state to force device ramp down
-		if (GSTATE_FORCE_OFF)
-			DD->power = -1;
 
 		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
