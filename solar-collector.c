@@ -445,16 +445,15 @@ static void calculate_gstate_offline() {
 		// survive and stable over three minutes - no limit
 		params->akku_dlimit = 0;
 	} else if (gstate->survive > SURVIVE110 && GSTATE_3M_UNSTABLE) {
-		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start - set limit to average load
-		int dlimit = round10(PSTATE_MIN_NOW->load);
+		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start
+		int adjust = minm->grid - minm->grid / 10;
+		ZSHAPE(adjust, RAMP)
+		xlog("SOLAR unstable gmin=%d gavg=%d gmax=%d adjust=%d", minm->grid, PSTATE_MIN_NOW->grid, maxm->grid, adjust);
+		// initially set limit to average load, otherwise push grid uploads to grid downloads by lowering discharge rate
+		int dlimit = round10(params->akku_dlimit ? params->akku_dlimit + adjust : PSTATE_MIN_NOW->load);
 		LOCUT(dlimit, params->baseload)
-		// take over initial limit or falling limits (forcing grid download) or rising limits (lowering grid download)
-		int fall = dlimit < params->akku_dlimit && PSTATE_MIN_NOW->grid < params->baseload / 2;
-		int rise = dlimit > params->akku_dlimit && PSTATE_MIN_NOW->grid > params->baseload / 2;
-		if (!params->akku_dlimit || fall || rise) {
-			xlog("SOLAR dlimit now=%d new=%d grid=%d baseload=%d", params->akku_dlimit, dlimit, PSTATE_MIN_NOW->grid, params->baseload);
-			params->akku_dlimit = dlimit;
-		}
+		xlog("SOLAR dlimit now=%d new=%d grid=%d baseload=%d", params->akku_dlimit, dlimit, PSTATE_MIN_NOW->grid, params->baseload);
+		params->akku_dlimit = dlimit;
 	} else if (gstate->survive < SURVIVE100) {
 		// not survive - stretch akku ttl to maximum
 		int dlimit = gstate->available && gstate->minutes ? gstate->available * 60 / gstate->minutes / 10 * 10 : 0;
