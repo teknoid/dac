@@ -38,7 +38,7 @@
 #define STANDBY_NORESPONSE		5
 
 #define OVERLOAD_STANDBY_FORCE	1000
-#define OVERLOAD_STANDBY		150
+#define OVERLOAD_STANDBY		133
 #define OVERLOAD_STEAL			110
 
 #define WAIT_RAMP				5
@@ -347,10 +347,16 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// do not start charging when not indicated, below minimum or together with other ramps
-		int skip = !GSTATE_CHARGE_AKKU || akku->ramp_in < AKKU->min || DSTATE_ACTION;
+		// do not start charging when below minimum or together with other ramps
+		int skip = akku->ramp_in < AKKU->min || DSTATE_ACTION;
 		if (skip)
 			return;
+
+		// set into standby when charging not indicated
+		if (!GSTATE_CHARGE_AKKU) {
+			akku_standby(akku);
+			return;
+		}
 
 		// start charging
 		if (!akku_charge(akku)) {
@@ -534,7 +540,7 @@ static void burnout() {
 }
 
 static void offline() {
-	xlog("SOLAR dispatcher offline");
+	xdebug("SOLAR dispatcher offline");
 
 	if (GSTATE_WINTER && gstate->soc < 70) {
 		// go not below 7% in winter to avoid forced charging from grid
@@ -547,6 +553,8 @@ static void offline() {
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD == AKKU)
+			continue;
 
 		// switch off
 		DD->ramp_in = DD->total * -1;
@@ -561,10 +569,12 @@ static void offline() {
 }
 
 static void online() {
-	xlog("SOLAR dispatcher online");
+	xdebug("SOLAR dispatcher online");
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD == AKKU)
+			continue;
 
 		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
 		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
@@ -610,7 +620,7 @@ static void rampup() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
+		xdebug("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
 		if (DD->ramp_out)
 			msleep(111);
 		dd++;
@@ -629,7 +639,7 @@ static void rampdown() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
+		xdebug("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
 		if (DD->ramp_out)
 			msleep(111);
 	}
@@ -718,6 +728,7 @@ static void steal() {
 
 		// thief is akku: when charging and not saturated (limited or maximum charge power reached) and inverter produces ac output
 		if (t == AKKU && AKKU_CHARGING && AKKU->power < 90 && pstate->ac1 > 0) {
+			xlog("SOLAR AKKU steal state=%d load=%d power=%d", AKKU->state, AKKU->load, AKKU->power);
 			// can not steal more than inverters ac output
 			dstate->steal = pstate->ac1;
 			LOCUT(dstate->steal, RAMP)

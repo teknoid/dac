@@ -17,7 +17,7 @@
 
 #define AKKU_BURNOUT			1
 
-#define DELTAS					15
+#define DELTAS					20
 #define DELTAM					50
 #define RAMP					25
 #define SUSPICIOUS				500
@@ -444,17 +444,21 @@ static void calculate_gstate_offline() {
 	if (gstate->survive > SURVIVE110 && GSTATE_3M_STABLE) {
 		// survive and stable over three minutes - no limit
 		params->akku_dlimit = 0;
+
 	} else if (gstate->survive > SURVIVE110 && GSTATE_3M_UNSTABLE) {
+
 		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start
 		int adjust = minm->grid - minm->grid / 10;
 		ZSHAPE(adjust, RAMP)
-		xlog("SOLAR unstable gmin=%d gavg=%d gmax=%d adjust=%d", minm->grid, PSTATE_MIN_NOW->grid, maxm->grid, adjust);
 		// initially set limit to average load, otherwise push grid uploads to grid downloads by lowering discharge rate
 		int dlimit = round10(params->akku_dlimit ? params->akku_dlimit + adjust : PSTATE_MIN_NOW->load);
 		LOCUT(dlimit, params->baseload)
-		xlog("SOLAR dlimit now=%d new=%d grid=%d baseload=%d", params->akku_dlimit, dlimit, PSTATE_MIN_NOW->grid, params->baseload);
+		int delta = maxm->grid - minm->grid;
+		xlog("SOLAR unstable   grid min=%d max=%d delta=%d   dlimit now=%d adjust=%d new=%d", minm->grid, maxm->grid, delta, params->akku_dlimit, adjust, dlimit);
 		params->akku_dlimit = dlimit;
+
 	} else if (gstate->survive < SURVIVE100) {
+
 		// not survive - stretch akku ttl to maximum
 		int dlimit = gstate->available && gstate->minutes ? gstate->available * 60 / gstate->minutes / 10 * 10 : 0;
 		LOCUT(dlimit, params->baseload)
@@ -465,6 +469,7 @@ static void calculate_gstate_offline() {
 			params->akku_dlimit = dlimit;
 		}
 	}
+
 	if (params->akku_dlimit_override)
 		params->akku_dlimit = params->akku_dlimit_override; // override
 	if (GSTATE_BURNOUT)
@@ -666,9 +671,14 @@ static void calculate_pstate_ramp() {
 
 	// coarse absolute ramp below 90 or above 110
 	if (avgss->rsl < 90 || avgss->rsl > 110) {
-		pstate->ramp = PSTATE_STABLE && PSTATE_STABLE_3S ? (avgss->grid / -1) : (avgss->grid / -2);
-		ZSHAPE(pstate->ramp, RAMP)
+		if (avgss->grid > 0)
+			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // grid download - double down when pv falling
+		else if (avgss->grid < 0)
+			pstate->ramp = PSTATE_STABLE_3S ? (avgss->grid / -1) : (avgss->grid / -2); // grid upload - half when unstable last 3 seconds
 	}
+
+	// shape
+	ZSHAPE(pstate->ramp, RAMP)
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
@@ -684,7 +694,7 @@ static void calculate_pstate_ramp() {
 	if (pstate->ramp < 0) {
 		int plenty = avgss->rsl > 200; // plenty surplus
 		int ugrid = pstate->grid < -100; // actual grid upload
-		int below = dstate->cload < minmm->surp; // calculated load below 5min minimum surplus
+		int below = dstate->cload < (minmm->surp - minmm->surp / 10); // calculated load below 5min minimum surplus
 		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 		if (PSTATE_PVRISE || plenty || ugrid || below || extra) {
 			xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d below=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, below, extra);
@@ -693,7 +703,7 @@ static void calculate_pstate_ramp() {
 	}
 
 	if (pstate->ramp)
-		xlog("SOLAR ramp rsl=%d agrid=%d grid=%d akku=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->akku, pstate->ramp);
+		xdebug("SOLAR ramp rsl=%d agrid=%d grid=%d akku=%d ramp=%d", avgss->rsl, avgss->grid, pstate->grid, pstate->akku, pstate->ramp);
 }
 
 static void calculate_pstate_online() {
@@ -748,24 +758,26 @@ static void calculate_pstate_online() {
 	}
 
 	// tendency: falling or rising or stable, fall has prio
+	xlog("SOLAR pstate falling or rising: delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
 	int pvfall = delta->pv < -100 || vars->pv < -VARIANCE;
 	int pvrise = delta->pv > 100 || vars->pv > VARIANCE;
 	if (pvfall) {
 		pstate->flags |= FLAG_PVFALL;
-		xdebug("SOLAR set pstate FLAG_PVFALL");
+		xlog("SOLAR set pstate FLAG_PVFALL delta=%d vars=%d", delta->pv, vars->pv);
 	}
 	if (!pvfall && pvrise) {
 		pstate->flags |= FLAG_PVRISE;
-		xdebug("SOLAR set pstate FLAG_PVRISE");
+		xlog("SOLAR set pstate FLAG_PVRISE delta=%d vars=%d", delta->pv, vars->pv);
 	}
 
 	// acdelta - delta on any ac lines (dc makes no sense, will be true most time)
-	int stable = spreadss->pv < PSTATE_SPREAD && spreadss->grid < PSTATE_SPREAD && spreadss->load < PSTATE_SPREAD;
+//	int stable = spreadss->pv < PSTATE_SPREAD && spreadss->grid < PSTATE_SPREAD && spreadss->load < PSTATE_SPREAD;
 	int acdelta = delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2;
-	if (stable && !pvfall && !pvrise && !acdelta) {
+	if (!pvfall && !pvrise && !acdelta) {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set pstate FLAG_STABLE");
-	}
+	} else
+		xdebug("SOLAR unstable pvfall=%d pvrise=%d acdelta=%d", pvfall, pvrise, acdelta);
 
 	// stable over 3 seconds
 	if (PSTATE_3S_STABLE)
@@ -823,27 +835,27 @@ static void calculate_pstate() {
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
 
 	// calculate slope and variance five seconds ago
-	islope(slos, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5, NOISE10);
+	islope(slos, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5, NOISE5);
 	ivariance(vars, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE);
 
 	// calculate delta, slope and variance
 	if (MINLY) {
 		// one minute ago
 		idelta(deltam, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, DELTAM);
-		islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5, NOISE10);
+		islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5, NOISE5);
 		ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE);
 		// five minutes ago
 		idelta(deltamm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, DELTAM);
-		islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE10);
+		islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5, NOISE5);
 		ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
 	}
 
-	// shape
+	// shape - akku makes big noise!
 	ZSHAPE(pstate->ac1, NOISE5)
 	ZSHAPE(pstate->ac2, NOISE5)
-	ZSHAPE(pstate->akku, NOISE5)
 	ZSHAPE(pstate->grid, NOISE5)
 	ZSHAPE(pstate->load, NOISE5)
+	ZSHAPE(pstate->akku, NOISE15)
 
 	// calculate online state and ramp power when valid
 	if (!GSTATE_OFFLINE) {

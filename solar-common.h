@@ -5,6 +5,7 @@
 
 #define NOISE5					5
 #define NOISE10					10
+#define NOISE15					15
 #define RAMP					25
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
@@ -91,8 +92,8 @@
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
 
 // device flags
-#define FLAG_STANDBY_CHECKED	(1 << 3)
-#define FLAG_STANDBY_CHECK		(1 << 2)
+#define FLAG_STANDBY_CHECKED	(1 << 2)
+#define FLAG_STANDBY_CHECK		(1 << 1)
 #define FLAG_RESPONSE_OK		(1 << 0)
 
 #define DEV_RESPONSE(d)			(d->flags & FLAG_RESPONSE_OK)

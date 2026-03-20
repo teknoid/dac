@@ -26,7 +26,7 @@
 #include "mcp.h"
 
 #ifndef MQTT_HOST
-#define	MQTT_HOST			"mqtt"
+#define	MQTT_HOST			"localhost"
 #endif
 
 #ifndef MQTT_PORT
