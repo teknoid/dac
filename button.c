@@ -16,6 +16,7 @@
 
 #include <linux/input-event-codes.h>
 
+#include "tasmota-devices.h"
 #include "ledstrip.h"
 #include "tasmota.h"
 #include "button.h"
@@ -67,10 +68,7 @@ static void handle_button(unsigned char c) {
 		system("/m/party.sh");
 		break;
 	case 32:
-		power_toggle_http("192.168.25.228");
-		break;
-	case 32 + SHIFT:
-		power_toggle_http("192.168.25.227");
+		power_toggle_http(LICHT_TISCH_IP);
 		break;
 	case 64:
 		ledstrip_toggle();

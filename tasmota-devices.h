@@ -48,7 +48,10 @@
 
 // openbekens
 #define LICHT_DECKE		0x9412FC5B
+#define LICHT_DECKE_IP	"192.168.25.245"
 #define LICHT_TISCH		0x4263E59C
+#define LICHT_TISCH_IP	"192.168.25.240"
+
 
 // PICAM sensors tasmota emulation
 #define PICAM_SENSORS	0x5213D6

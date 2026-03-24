@@ -10,12 +10,12 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include "tasmota-devices.h"
 #include "ledstrip.h"
 #include "utils.h"
 #include "curl.h"
 #include "mcp.h"
 
-#define STRIP			"192.168.25.227"
 #define DELAY_FADE		3000
 #define DELAY_BLINK		500
 #define SINGLE			0
@@ -159,7 +159,7 @@ static void fade_loop() {
 // http://192.168.25.239/cm?cmnd=backlog+power+ON
 int ledstrip_on() {
 	char url[128];
-	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+ON", STRIP);
+	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+ON", LICHT_DECKE_IP);
 	curl_oneshot(url);
 	power = 1;
 	xlog("LEDSTRIP switched ON");
@@ -169,7 +169,7 @@ int ledstrip_on() {
 // http://192.168.25.239/cm?cmnd=backlog+power+OFF
 int ledstrip_off() {
 	char url[128];
-	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+OFF", STRIP);
+	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+OFF", LICHT_DECKE_IP);
 	curl_oneshot(url);
 	power = 0;
 	mode = None;
@@ -294,7 +294,7 @@ static int init() {
 
 	sock_addr_in.sin_family = AF_INET;
 	sock_addr_in.sin_port = htons(4048);
-	sock_addr_in.sin_addr.s_addr = inet_addr(STRIP);
+	sock_addr_in.sin_addr.s_addr = inet_addr(LICHT_DECKE_IP);
 
 	return 0;
 }
