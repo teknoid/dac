@@ -606,9 +606,9 @@ static int latency() {
 	return 0;
 }
 static int init() {
-	inverter1 = sunspec_init_poll("Fronius-34334410", 1, &update_inverter1);
-	inverter2 = sunspec_init_poll("Fronius7", 2, &update_inverter2);
-	meter = sunspec_init_poll("Fronius-34334410", 200, &update_meter);
+	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
+	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
+	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 
 	// use the same lock as both run against same IP address
 	meter->lock = inverter1->lock;

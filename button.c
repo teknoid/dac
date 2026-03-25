@@ -68,7 +68,7 @@ static void handle_button(unsigned char c) {
 		system("/m/party.sh");
 		break;
 	case 32:
-		power_toggle_http(LICHT_TISCH_IP);
+		power_toggle_http(LICHT_TISCH_HOST);
 		break;
 	case 64:
 		ledstrip_toggle();

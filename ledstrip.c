@@ -159,7 +159,7 @@ static void fade_loop() {
 // http://192.168.25.239/cm?cmnd=backlog+power+ON
 int ledstrip_on() {
 	char url[128];
-	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+ON", LICHT_DECKE_IP);
+	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+ON", LICHT_DECKE_HOST);
 	curl_oneshot(url);
 	power = 1;
 	xlog("LEDSTRIP switched ON");
@@ -169,7 +169,7 @@ int ledstrip_on() {
 // http://192.168.25.239/cm?cmnd=backlog+power+OFF
 int ledstrip_off() {
 	char url[128];
-	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+OFF", LICHT_DECKE_IP);
+	snprintf(url, 128, "http://%s/cm?cmnd=backlog+power+OFF", LICHT_DECKE_HOST);
 	curl_oneshot(url);
 	power = 0;
 	mode = None;
@@ -292,9 +292,10 @@ static int init() {
 	if (sock == 0)
 		return xerr("LEDSTRIP Error creating UDP socket");
 
+	const char *addr = resolve_ip(LICHT_DECKE_HOST);
 	sock_addr_in.sin_family = AF_INET;
 	sock_addr_in.sin_port = htons(4048);
-	sock_addr_in.sin_addr.s_addr = inet_addr(LICHT_DECKE_IP);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 
 	return 0;
 }
