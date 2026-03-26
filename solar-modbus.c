@@ -642,9 +642,9 @@ static int init() {
 }
 
 static void stop() {
-	sunspec_stop(inverter1);
-	sunspec_stop(inverter2);
 	sunspec_stop(meter);
+	sunspec_stop(inverter2);
+	sunspec_stop(inverter1);
 }
 
 static int test() {

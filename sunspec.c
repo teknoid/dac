@@ -294,6 +294,9 @@ static void* poll(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
 		return (void*) 0;
 
+	if (pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL))
+		return (void*) 0;
+
 	while (1) {
 		errors_all = 0;
 

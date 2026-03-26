@@ -758,7 +758,7 @@ static void calculate_pstate_online() {
 	}
 
 	// tendency: falling or rising or stable, fall has prio
-	xlog("SOLAR pstate falling or rising: delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
+//	xlog("SOLAR pstate falling or rising: delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
 	int pvfall = delta->pv < -100 || vars->pv < -VARIANCE;
 	int pvrise = delta->pv > 100 || vars->pv > VARIANCE;
 	if (pvfall) {
