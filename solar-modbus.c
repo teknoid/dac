@@ -611,7 +611,8 @@ static int init() {
 	meter = sunspec_init_poll("fronius10", 200, &update_meter);
 
 	// use the same lock as both run against same IP address
-	meter->lock = inverter1->lock;
+	// meter does not work on odroid then
+//	meter->lock = inverter1->lock;
 
 	// allow storage control
 	inverter1->control = control;
