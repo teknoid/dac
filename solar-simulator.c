@@ -80,8 +80,6 @@ static void loop() {
 			load = (100 + rand() % 100 + 1) * -1;
 		grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
 
-		pthread_mutex_lock(&collector_lock);
-
 		gstate->soc = 500;
 
 		pstate->ac1 = mppt1 + mppt2;
@@ -103,8 +101,6 @@ static void loop() {
 		pstate->l2v = 0;
 		pstate->l3v = 0;
 		pstate->f = 0;
-
-		pthread_mutex_unlock(&collector_lock);
 	}
 }
 
