@@ -123,14 +123,15 @@ static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[
 static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17], *deltam = &pstates[18], *deltamm = &pstates[19];
 static pstate_t *slos = &pstates[20], *vars = &pstates[21], *slom = &pstates[22], *varm = &pstates[23], *slomm = &pstates[24], *varmm = &pstates[25];
 
+// thread synchronization with semaphores
+static sequential_t sequential;
+
 // global counter/gstate/pstate/params pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
-
-// mutex for updating / calculating pstate and counter
-pthread_mutex_t collector_lock;
+sequential_t *sq = &sequential;
 
 static void load_state() {
 	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
@@ -352,7 +353,6 @@ static void calculate_statistics() {
 }
 
 static void calculate_counter() {
-	pthread_mutex_lock(&collector_lock);
 
 	// meter counter daily - calculate delta to NULL entry
 	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
@@ -416,8 +416,6 @@ static void calculate_counter() {
 			memcpy(CS_NULL, CS_NOW, sizeof(counter_t));
 		}
 	}
-
-	pthread_mutex_unlock(&collector_lock);
 }
 
 static void calculate_gstate_offline() {
@@ -793,9 +791,6 @@ static void calculate_pstate_online() {
 }
 
 static void calculate_pstate() {
-	// lock while calculating new values
-	pthread_mutex_lock(&collector_lock);
-
 	// clear flags and values
 	pstate->flags = pstate->ramp = 0;
 
@@ -823,6 +818,13 @@ static void calculate_pstate() {
 
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
+
+	// shape
+	ZSHAPE(pstate->ac1, NOISE5)
+	ZSHAPE(pstate->ac2, NOISE5)
+	ZSHAPE(pstate->grid, NOISE5)
+	ZSHAPE(pstate->load, NOISE5)
+	ZSHAPE(pstate->akku, NOISE5)
 
 	// ratio surplus / load - calculate only when load is positive
 	if (pstate->load > 0) {
@@ -856,9 +858,6 @@ static void calculate_pstate() {
 		if (!PSTATE_INVALID)
 			calculate_pstate_ramp();
 	}
-
-	// calculations done
-	pthread_mutex_unlock(&collector_lock);
 
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
@@ -996,6 +995,11 @@ static void loop() {
 	// collector main loop
 	while (1) {
 
+		sem_wait(&sq->collector);
+
+		// wait for both inverter1 and meter threads are finished
+		msleep(111);
+
 		// PROFILING_START
 
 		// get actual time and store global
@@ -1019,16 +1023,15 @@ static void loop() {
 		if (DAILY)
 			daily();
 
+		// trigger dispatcher thread
+		sem_post(&sq->dispatcher);
+
 		// web output
 		create_pstate_json();
 		create_gstate_json();
 		create_powerflow_json();
 
 		// PROFILING_LOG(" collector main loop")
-
-		// wait for next second
-		while (now_ts == time(NULL))
-			msleep(111);
 	}
 }
 
@@ -1037,12 +1040,12 @@ static int init() {
 	time_t now_ts = time(NULL);
 	localtime_r(&now_ts, &now_tm);
 
-	pthread_mutex_init(&collector_lock, NULL);
-
 	load_state();
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	collect_average_247();
+
+	sem_init(&sq->collector, 0, 0);
 
 	return 0;
 }
@@ -1052,7 +1055,7 @@ static void stop() {
 	store_state();
 	mosmix_store_state();
 
-	pthread_mutex_destroy(&collector_lock);
+	sem_close(&sq->collector);
 }
 
 MCP_REGISTER(solar_collector, 11, &init, &stop, &loop);

@@ -1108,6 +1108,9 @@ static void loop() {
 
 	// dispatcher main loop
 	while (1) {
+
+		sem_wait(&sq->dispatcher);
+
 		// PROFILING_START
 
 		// get actual time and store global
@@ -1152,13 +1155,6 @@ static void loop() {
 		memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 
 		// PROFILING_LOG("dispatcher main loop")
-
-		// wait for next second
-		while (now_ts == time(NULL))
-			msleep(111);
-
-		// wait for collector calculation
-		msleep(11);
 	}
 }
 
@@ -1190,12 +1186,16 @@ static int init() {
 	b1.interlock = &b2;
 	b2.interlock = &b1;
 
+	sem_init(&sq->dispatcher, 0, 0);
+
 	return 0;
 }
 
 static void stop() {
 	if (sock)
 		close(sock);
+
+	sem_close(&sq->dispatcher);
 }
 
-MCP_REGISTER(solar_dispatcher, 11, &init, &stop, &loop);
+MCP_REGISTER(solar_dispatcher, 12, &init, &stop, &loop);

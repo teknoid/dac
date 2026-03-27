@@ -1,3 +1,5 @@
+#include <semaphore.h>
+
 #include "tasmota.h"
 #include "solar.h"
 
@@ -266,6 +268,14 @@ struct _dstate {
 	int rload;
 };
 
+// thread synchronization with semaphores
+typedef struct sequential_t {
+	sem_t modbus;
+	sem_t collector;
+	sem_t dispatcher;
+} sequential_t;
+extern sequential_t *sq;
+
 // global inverter pointers
 extern device_t *inv1;
 extern device_t *inv2;
@@ -276,9 +286,6 @@ extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;
 extern params_t *params;
-
-// mutex for updating / calculating pstate and counter
-extern pthread_mutex_t collector_lock;
 
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 void inverter_off();

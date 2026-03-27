@@ -127,8 +127,6 @@ static void update_inverter1(sunspec_t *ss) {
 	inv1->state = ss->inverter->St;
 	ss->sleep = 0;
 
-	pthread_mutex_lock(&collector_lock);
-
 	// mppt voltage is always available
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
 	pstate->mppt2v = SFI(ss->mppt->m2_DCV, ss->mppt->DCV_SF);
@@ -192,14 +190,8 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
-	// shape
-	ZSHAPE(pstate->ac1, NOISE5)
-	ZSHAPE(pstate->ac2, NOISE5)
-	ZSHAPE(pstate->grid, NOISE5)
-	ZSHAPE(pstate->load, NOISE5)
-	ZSHAPE(pstate->akku, NOISE5)
-
-	pthread_mutex_unlock(&collector_lock);
+	// trigger collector thread
+	sem_post(&sq->collector);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
@@ -211,8 +203,6 @@ static void update_inverter2(sunspec_t *ss) {
 
 	inv2->state = ss->inverter->St;
 	ss->sleep = 0;
-
-	pthread_mutex_lock(&collector_lock);
 
 	// mppt voltage is always available
 	pstate->mppt3v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
@@ -268,18 +258,15 @@ static void update_inverter2(sunspec_t *ss) {
 	// fix disconnected MPPT4
 	pstate->mppt4p = pstate->mppt4v = 0;
 
-	// shape
-	ZSHAPE(pstate->ac2, NOISE5)
-
-	pthread_mutex_unlock(&collector_lock);
+	// this is the longest running thread of all - but it goes into standby overnight
+	// TODO find semaphore solution to continue after all 3 sunspec threads have finished
+	// sem_post(&sq->collector);
 }
 
 // meter is Fronius Smart Meter TS 65A-3
 static void update_meter(sunspec_t *ss) {
 	if (!ss->meter)
 		return;
-
-	pthread_mutex_lock(&collector_lock);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
@@ -299,7 +286,7 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	pthread_mutex_unlock(&collector_lock);
+//	sem_post(&sq->collector);
 }
 
 static int evaluate(char *name) {

@@ -213,8 +213,6 @@ static void loop() {
 			// reset pstates, keep counters
 			r->mppt3 = r->mppt4 = r->ac2 = r->dc2 = 0;
 
-		pthread_mutex_lock(&collector_lock);
-
 		gstate->soc = r->soc * 10.0; // store x10 scaled
 
 		pstate->ac1 = r->ac1;
@@ -243,8 +241,6 @@ static void loop() {
 		CM_NOW->mppt4 = r->mppt4_total;
 		CM_NOW->consumed = r->cons;
 		CM_NOW->produced = r->prod;
-
-		pthread_mutex_unlock(&collector_lock);
 
 		// update NULL counter if empty
 		if (CM_NULL->mppt1 == 0)
