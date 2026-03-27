@@ -115,8 +115,8 @@ dl dd.d						{ cursor:default }
 .steal-p					{ background-color:cyan }
 
 .pv-p						{ background-color:#FAD967 }
-.↓grid-p					{ background-color:lightsalmon }
-.↑grid-p					{ background-color:palegreen }
+.dgrid-p					{ background-color:lightsalmon }
+.ugrid-p					{ background-color:palegreen }
 .today-p					{ background-color:lightgrey }
 .tomo-p						{ background-color:lightgrey }
 .eod-p						{ background-color:lightgrey }
