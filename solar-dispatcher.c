@@ -907,41 +907,48 @@ static void calculate_dstate() {
 	dstate->inv = inv1->state * 10 + inv2->state;
 
 	// skip single devices calculation when offline
-	if (GSTATE_OFFLINE)
-		return;
+	if (!GSTATE_OFFLINE) {
 
-	dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
-	for (device_t **dd = DEVICES; *dd; dd++) {
+		dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
+		for (device_t **dd = DEVICES; *dd; dd++) {
 
-		// decrement response counter and check when reached 0
-		if (DD->response)
-			if (--DD->response == 0)
-				response(DD);
+			// decrement response counter and check when reached 0
+			if (DD->response)
+				if (--DD->response == 0)
+					response(DD);
 
-		// check only devices in AUTO/MANUAL/STANDBY mode
-		int check = DD->state == Auto || DD->state == Manual || DD->state == Standby;
-		if (!check)
-			continue;
+			// check only devices in AUTO/MANUAL/STANDBY mode
+			int check = DD->state == Auto || DD->state == Manual || DD->state == Standby;
+			if (!check)
+				continue;
 
-		// calculated load
-		if (DD != AKKU)
-			dstate->cload += DD->load;
+			// calculated load
+			if (DD != AKKU)
+				dstate->cload += DD->load;
 
-		// flags for all devices up/down/standby
-		if (DD->power > 0)
-			dstate->flags &= ~FLAG_ALL_DOWN;
-		if (!DD->power || (DD->adj && DD->power != 100))
-			dstate->flags &= ~FLAG_ALL_UP;
-		if (DD->state != Standby)
-			dstate->flags &= ~FLAG_ALL_STANDBY;
+			// flags for all devices up/down/standby
+			if (DD->power > 0)
+				dstate->flags &= ~FLAG_ALL_DOWN;
+			if (!DD->power || (DD->adj && DD->power != 100))
+				dstate->flags &= ~FLAG_ALL_UP;
+			if (DD->state != Standby)
+				dstate->flags &= ~FLAG_ALL_STANDBY;
+		}
+
+		// add load (max baseload) when devices active
+		if (!DSTATE_ALL_DOWN)
+			dstate->cload += pstate->load < params->baseload ? pstate->load : params->baseload;
+
+		// ratio between calculated load and actual load
+		dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
 	}
 
-	// add load (max baseload) when devices active
-	if (!DSTATE_ALL_DOWN)
-		dstate->cload += pstate->load < params->baseload ? pstate->load : params->baseload;
+	// print dstate once per minute / on device action
+	if (MINLY || DSTATE_ACTION)
+		print_dstate();
 
-	// ratio between calculated load and actual load
-	dstate->rload = pstate->load ? dstate->cload * 100 / pstate->load : 0;
+	// copy to history
+	memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 }
 
 static void daily() {
@@ -1118,9 +1125,6 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
-		// calculate device state
-		calculate_dstate();
-
 		// calculate actions
 		calculate_actions();
 
@@ -1144,16 +1148,16 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-		// print dstate once per minute / on device action
-		if (MINLY || DSTATE_ACTION)
-			print_dstate();
+		// calculate device state
+		calculate_dstate();
+
+//		struct timeval foo;
+//		gettimeofday(&foo, NULL);
+//		xlog("SOLAR dispatcher %d", foo.tv_usec);
 
 		// web output
 		create_dstate_json();
 		create_devices_json();
-
-		// copy to history
-		memcpy(DSTATE_NOW, dstate, sizeof(dstate_t));
 
 		// PROFILING_LOG("dispatcher main loop")
 	}

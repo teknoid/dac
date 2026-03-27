@@ -1018,6 +1018,10 @@ static void loop() {
 		// trigger dispatcher thread - essential calculation phase ends here
 		sem_post(&sq->dispatcher);
 
+//		struct timeval foo;
+//		gettimeofday(&foo, NULL);
+//		xlog("SOLAR  collector %d", foo.tv_usec);
+
 		// web output
 		create_pstate_json();
 		create_gstate_json();
