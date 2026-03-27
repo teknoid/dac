@@ -916,10 +916,6 @@ static void hourly() {
 	if (now->tm_hour == 6)
 		params->akku_climit_override = params->akku_dlimit_override = 0;
 
-#ifdef GNUPLOT_HOURLY
-	// paint new diagrams
-	system(GNUPLOT_HOURLY);
-#endif
 }
 
 static void minly() {
@@ -931,11 +927,6 @@ static void minly() {
 	// reset delta sum and delta count
 	ZEROP(deltac);
 	ZEROP(deltas);
-
-#ifdef GNUPLOT_MINLY
-	// paint new diagrams
-	system(GNUPLOT_MINLY);
-#endif
 }
 
 static void aggregate_state() {
@@ -995,6 +986,7 @@ static void loop() {
 	// collector main loop
 	while (1) {
 
+		// wait for trigger
 		sem_wait(&sq->collector);
 
 		// wait for both inverter1 and meter threads are finished
@@ -1023,13 +1015,23 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-		// trigger dispatcher thread
+		// trigger dispatcher thread - essential calculation phase ends here
 		sem_post(&sq->dispatcher);
 
 		// web output
 		create_pstate_json();
 		create_gstate_json();
 		create_powerflow_json();
+
+#ifdef GNUPLOT_MINLY
+		if (MINLY)
+			system(GNUPLOT_MINLY);
+#endif
+
+#ifdef GNUPLOT_HOURLY
+		if (HOURLY)
+			system(GNUPLOT_HOURLY);
+#endif
 
 		// PROFILING_LOG(" collector main loop")
 	}

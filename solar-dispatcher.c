@@ -1109,6 +1109,7 @@ static void loop() {
 	// dispatcher main loop
 	while (1) {
 
+		// wait for trigger
 		sem_wait(&sq->dispatcher);
 
 		// PROFILING_START
