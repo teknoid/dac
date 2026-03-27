@@ -1084,25 +1084,23 @@ void store_array_json(void *array, int size, const char *header, const char *fil
 		return;
 	}
 
-	// TODO anders lösen
-	int i = 0;
-	char *str = strdup(header); // strtok() needs write access to the string(!)
-	char *w = strtok(str, " ");
+	int *p = (int*) array;
+	char head[10];
 
 	fprintf(fp, "{");
-	int *p = (int*) array;
-	while (w != NULL && i < size) {
-		fprintf(fp, "\"%s\":\"%d\"", w, *p++);
+	for (int i = 0; i < size; i++) {
+		strncpy(head, header + i * 6, 6);
+		char *h = head;
+		while (*h == ' ')
+			h++;
+		fprintf(fp, "\"%s\":\"%d\"", h, *p++);
 		if (i != size - 1)
 			fprintf(fp, ", ");
-		w = strtok(NULL, " ");
-		i++;
 	}
 	fprintf(fp, "}");
 
 	fflush(fp);
 	fclose(fp);
-	free(str);
 	//xdebug("UTILS stored %s", filename);
 }
 
