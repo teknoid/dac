@@ -192,6 +192,13 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
+	// shape
+	ZSHAPE(pstate->ac1, NOISE5)
+	ZSHAPE(pstate->ac2, NOISE5)
+	ZSHAPE(pstate->grid, NOISE5)
+	ZSHAPE(pstate->load, NOISE5)
+	ZSHAPE(pstate->akku, NOISE5)
+
 	pthread_mutex_unlock(&collector_lock);
 }
 
@@ -260,6 +267,9 @@ static void update_inverter2(sunspec_t *ss) {
 
 	// fix disconnected MPPT4
 	pstate->mppt4p = pstate->mppt4v = 0;
+
+	// shape
+	ZSHAPE(pstate->ac2, NOISE5)
 
 	pthread_mutex_unlock(&collector_lock);
 }

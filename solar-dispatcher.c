@@ -1108,8 +1108,6 @@ static void loop() {
 
 	// dispatcher main loop
 	while (1) {
-		msleep(222); // wait for collector calculation
-
 		// PROFILING_START
 
 		// get actual time and store global
@@ -1158,6 +1156,9 @@ static void loop() {
 		// wait for next second
 		while (now_ts == time(NULL))
 			msleep(111);
+
+		// wait for collector calculation
+		msleep(11);
 	}
 }
 

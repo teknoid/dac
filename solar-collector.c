@@ -850,13 +850,6 @@ static void calculate_pstate() {
 		ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
 	}
 
-	// shape - akku makes big noise!
-	ZSHAPE(pstate->ac1, NOISE5)
-	ZSHAPE(pstate->ac2, NOISE5)
-	ZSHAPE(pstate->grid, NOISE5)
-	ZSHAPE(pstate->load, NOISE5)
-	ZSHAPE(pstate->akku, NOISE15)
-
 	// calculate online state and ramp power when valid
 	if (!GSTATE_OFFLINE) {
 		calculate_pstate_online();
