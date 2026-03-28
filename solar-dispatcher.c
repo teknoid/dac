@@ -673,14 +673,14 @@ static device_t* standby() {
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj && !DEV_RESPONSE(DD))
 			return standby_exec(DD);
 
-	// try first powered adjustable device in AUTO mode
+	// try first powered adjustable device not yet checked
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
 			return standby_exec(DD);
 
-	// try first powered adjustable device in MANUAL mode
+	// try first powered adjustable device without any restrictions
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Manual && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
+		if (DD->state == Auto && DD->power && DD->adj)
 			return standby_exec(DD);
 
 	// try first powered dumb device without RESPONSE flag
