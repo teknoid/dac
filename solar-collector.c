@@ -1012,11 +1012,11 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-		struct timeval foo;
-		gettimeofday(&foo, NULL);
-		xlog("SOLAR  collector %d", foo.tv_usec);
+//		struct timeval foo;
+//		gettimeofday(&foo, NULL);
+//		xlog("SOLAR  collector %d", foo.tv_usec);
 
-		// trigger dispatcher thread - essential calculation phase ends here
+		// trigger dispatcher thread - calculation done, critical path continues there
 		sem_post(&sq->dispatcher);
 
 		// web output

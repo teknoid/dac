@@ -371,8 +371,6 @@ static void* poll(void *arg) {
 			// wait for new second
 			while (ss->ts == time(NULL))
 				msleep(33);
-
-			xlog("");
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);

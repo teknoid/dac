@@ -193,9 +193,9 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
-	struct timeval foo;
-	gettimeofday(&foo, NULL);
-	xlog("SOLAR   inverter %d", foo.tv_usec);
+//	struct timeval foo;
+//	gettimeofday(&foo, NULL);
+//	xlog("SOLAR   inverter %d", foo.tv_usec);
 
 	// wait for meter
 	sem_wait(&sq->meter);
@@ -294,14 +294,14 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	struct timeval foo;
-	gettimeofday(&foo, NULL);
-	xlog("SOLAR      meter %d", foo.tv_usec);
+//	struct timeval foo;
+//	gettimeofday(&foo, NULL);
+//	xlog("SOLAR      meter %d", foo.tv_usec);
 
 	// wait for inverter
 	sem_wait(&sq->inverter);
 
-	// trigger collector thread
+	// trigger collector thread - new values acquired, critical path continues there
 	sem_post(&sq->collector);
 }
 
