@@ -989,9 +989,6 @@ static void loop() {
 		// wait for trigger
 		sem_wait(&sq->collector);
 
-		// wait for both inverter1 and meter threads are finished
-		msleep(111);
-
 		// PROFILING_START
 
 		// get actual time and store global
@@ -1015,12 +1012,12 @@ static void loop() {
 		if (DAILY)
 			daily();
 
+		struct timeval foo;
+		gettimeofday(&foo, NULL);
+		xlog("SOLAR  collector %d", foo.tv_usec);
+
 		// trigger dispatcher thread - essential calculation phase ends here
 		sem_post(&sq->dispatcher);
-
-//		struct timeval foo;
-//		gettimeofday(&foo, NULL);
-//		xlog("SOLAR  collector %d", foo.tv_usec);
 
 		// web output
 		create_pstate_json();

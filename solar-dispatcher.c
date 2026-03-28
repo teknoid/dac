@@ -1151,9 +1151,9 @@ static void loop() {
 		// calculate device state
 		calculate_dstate();
 
-//		struct timeval foo;
-//		gettimeofday(&foo, NULL);
-//		xlog("SOLAR dispatcher %d", foo.tv_usec);
+		struct timeval foo;
+		gettimeofday(&foo, NULL);
+		xlog("SOLAR dispatcher %d", foo.tv_usec);
 
 		// web output
 		create_dstate_json();

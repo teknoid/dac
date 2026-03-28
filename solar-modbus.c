@@ -124,6 +124,9 @@ static void update_inverter1(sunspec_t *ss) {
 		return;
 	}
 
+	// trigger self
+	sem_post(&sq->inverter);
+
 	inv1->state = ss->inverter->St;
 	ss->sleep = 0;
 
@@ -190,8 +193,12 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
-	// trigger collector thread
-	sem_post(&sq->collector);
+	struct timeval foo;
+	gettimeofday(&foo, NULL);
+	xlog("SOLAR   inverter %d", foo.tv_usec);
+
+	// wait for meter
+	sem_wait(&sq->meter);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
@@ -200,6 +207,8 @@ static void update_inverter2(sunspec_t *ss) {
 		inv2->state = pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
 		return;
 	}
+
+	// do not use any semaphore here as Fronius7 is going into sleep mode overnight
 
 	inv2->state = ss->inverter->St;
 	ss->sleep = 0;
@@ -257,16 +266,15 @@ static void update_inverter2(sunspec_t *ss) {
 
 	// fix disconnected MPPT4
 	pstate->mppt4p = pstate->mppt4v = 0;
-
-	// this is the longest running thread of all - but it goes into standby overnight
-	// TODO find semaphore solution to continue after all 3 sunspec threads have finished
-	// sem_post(&sq->collector);
 }
 
 // meter is Fronius Smart Meter TS 65A-3
 static void update_meter(sunspec_t *ss) {
 	if (!ss->meter)
 		return;
+
+	// trigger self
+	sem_post(&sq->meter);
 
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
@@ -286,7 +294,15 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-//	sem_post(&sq->collector);
+	struct timeval foo;
+	gettimeofday(&foo, NULL);
+	xlog("SOLAR      meter %d", foo.tv_usec);
+
+	// wait for inverter
+	sem_wait(&sq->inverter);
+
+	// trigger collector thread
+	sem_post(&sq->collector);
 }
 
 static int evaluate(char *name) {
@@ -636,6 +652,9 @@ static int init() {
 	// minimum SoC: 5%
 	sunspec_storage_minimum_soc(inverter1, 5);
 
+	sem_init(&sq->inverter, 0, 0);
+	sem_init(&sq->meter, 0, 0);
+
 	return 0;
 }
 
@@ -643,6 +662,9 @@ static void stop() {
 	sunspec_stop(meter);
 	sunspec_stop(inverter2);
 	sunspec_stop(inverter1);
+
+	sem_close(&sq->inverter);
+	sem_close(&sq->meter);
 }
 
 static int test() {

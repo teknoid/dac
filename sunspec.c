@@ -362,15 +362,17 @@ static void* poll(void *arg) {
 
 //			PROFILING_LOG(ss->name)
 
-			// wait for new second
-			while (ss->ts == time(NULL))
-				msleep(111);
-
 			// pause when set
 			while (ss->sleep > 0) {
 				ss->sleep--;
 				sleep(1);
 			}
+
+			// wait for new second
+			while (ss->ts == time(NULL))
+				msleep(33);
+
+			xlog("");
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
