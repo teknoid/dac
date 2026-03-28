@@ -280,9 +280,10 @@ static void scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 	char *htu21 = NULL;
 	char *gp8403 = NULL;
 	char *sgp30 = NULL;
+	char *sgp41 = NULL;
 
-#define PATTERN_SENSORS "{ANALOG:%Q, DS18B20:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q, SGP30:%Q}"
-	json_scanf(message, msize, PATTERN_SENSORS, &analog, &ds18b20, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403, &sgp30);
+#define PATTERN_SENSORS "{ANALOG:%Q, DS18B20:%Q, BH1750:%Q, BMP280:%Q, BMP085:%Q, SHT3X:%Q, HTU21:%Q, GP8403:%Q, SGP30:%Q, SGP41:%Q}"
+	json_scanf(message, msize, PATTERN_SENSORS, &analog, &ds18b20, &bh1750, &bmp280, &bmp085, &sht31, &htu21, &gp8403, &sgp30, &sgp41);
 
 	if (analog != NULL) {
 		json_scanf(analog, strlen(analog), "{A0:%d}", &t->ml8511_uv);
@@ -335,8 +336,14 @@ static void scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 
 	if (sgp30 != NULL) {
 		json_scanf(sgp30, strlen(sgp30), "{eCO2:%d, TVOC:%d}", &t->sgp30_eco2, &t->sgp30_tvoc);
-		free(gp8403);
-		xdebug("TASMOTA sensor GP8403 vc0=%d vc1=%d, pc0=%d pc1=%d", t->gp8403_vc0, t->gp8403_vc1, t->gp8403_pc0, t->gp8403_pc1);
+		free(sgp30);
+		xdebug("TASMOTA sensor SGP30 eCO2=%d TVOC=%d", t->sgp30_eco2, t->sgp30_tvoc);
+	}
+
+	if (sgp41 != NULL) {
+		json_scanf(sgp41, strlen(sgp41), "{NOx:%d, TVOC:%d}", &t->sgp41_nox, &t->sgp41_tvoc);
+		free(sgp41);
+		xdebug("TASMOTA sensor SGP41 NOx=%d TVOC=%d", t->sgp41_nox, t->sgp41_tvoc);
 	}
 }
 
@@ -792,16 +799,16 @@ static void loop() {
 		// air quality every 15 minutes
 		char line1[17], line2[17];
 		if (now->tm_min % 15 == 0 && now->tm_sec == 0) {
-			tasmota_t *tair = tasmota_get_by_id(DEVKIT1);
-			if (!tair)
+			tasmota_t *t = tasmota_get_by_id(DEVKIT1);
+			if (!t)
 				continue;
-			if (tair->sgp30_tvoc > 2500) {
-				snprintf(line1, 16, "SGP30 eCO2 %d", tair->sgp30_eco2);
-				snprintf(line2, 16, "SGP30 TVOC %d", tair->sgp30_tvoc);
+			if (t->sgp41_tvoc > 2500) {
+				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
+				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
 				notify(line1, line2, "rüüüülps.wav");
-			} else if (tair->sgp30_tvoc > 1500) {
-				snprintf(line1, 16, "SGP30 eCO2 %d", tair->sgp30_eco2);
-				snprintf(line2, 16, "SGP30 TVOC %d", tair->sgp30_tvoc);
+			} else if (t->sgp41_tvoc > 1500) {
+				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
+				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
 				notify(line1, line2, "furz hihihi.wav");
 			}
 		}
