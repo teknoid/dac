@@ -4,7 +4,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <time.h>
 
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
@@ -193,9 +195,7 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
-//	struct timeval foo;
-//	gettimeofday(&foo, NULL);
-//	xlog("SOLAR   inverter %d", foo.tv_usec);
+	MICROSECONDS("  inverter")
 
 	// wait for meter
 	sem_wait(&sq->meter);
@@ -294,9 +294,7 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-//	struct timeval foo;
-//	gettimeofday(&foo, NULL);
-//	xlog("SOLAR      meter %d", foo.tv_usec);
+	MICROSECONDS("     meter")
 
 	// wait for inverter
 	sem_wait(&sq->inverter);

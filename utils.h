@@ -77,6 +77,11 @@
 		while (ts_now == time(NULL)) \
 			msleep(111);
 
+#define MICROSECONDS(s) \
+		struct timeval tval; \
+		gettimeofday(&tval, NULL); \
+		xlog("%s micros %d", s, tval.tv_usec);
+
 #define PROFILING_START \
 		struct timespec ts_profiling; \
 		int64_t ts_profiling_start, ts_profiling_end, ts_profiling_ns, ts_profiling_us, ts_profiling_ms; \

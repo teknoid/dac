@@ -6,6 +6,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <sys/time.h>
+
 #include "solar-common.h"
 #include "sensors.h"
 #include "sunspec.h"
@@ -1008,9 +1010,7 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-//		struct timeval foo;
-//		gettimeofday(&foo, NULL);
-//		xlog("SOLAR  collector %d", foo.tv_usec);
+		MICROSECONDS(" collector")
 
 		// trigger dispatcher thread - calculation done, critical path continues there
 		sem_post(&sq->dispatcher);

@@ -1090,6 +1090,7 @@ void store_array_json(void *array, int size, const char *header, const char *fil
 	fprintf(fp, "{");
 	for (int i = 0; i < size; i++) {
 		strncpy(head, header + i * 6, 6);
+		head[6] = 0;
 		char *h = head;
 		while (*h == ' ')
 			h++;

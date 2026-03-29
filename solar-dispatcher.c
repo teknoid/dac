@@ -4,9 +4,10 @@
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
-#include <time.h>
 #include <math.h>
+#include <time.h>
 
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
@@ -1151,9 +1152,7 @@ static void loop() {
 		// calculate device state
 		calculate_dstate();
 
-//		struct timeval foo;
-//		gettimeofday(&foo, NULL);
-//		xlog("SOLAR dispatcher %d", foo.tv_usec);
+		MICROSECONDS("dispatcher")
 
 		// web output
 		create_dstate_json();
