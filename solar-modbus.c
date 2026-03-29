@@ -195,7 +195,7 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 
-	MICROSECONDS("  inverter")
+	// MICROSECONDS("  inverter")
 
 	// wait for meter
 	sem_wait(&sq->meter);
@@ -294,7 +294,7 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	MICROSECONDS("     meter")
+	// MICROSECONDS("     meter")
 
 	// wait for inverter
 	sem_wait(&sq->inverter);

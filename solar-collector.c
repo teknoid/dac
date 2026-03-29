@@ -1010,7 +1010,7 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-		MICROSECONDS(" collector")
+		// MICROSECONDS(" collector")
 
 		// trigger dispatcher thread - calculation done, critical path continues there
 		sem_post(&sq->dispatcher);

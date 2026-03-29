@@ -873,27 +873,33 @@ static void calculate_actions() {
 		dstate->lock--;
 
 	// no action
-	if (dstate->lock || PSTATE_INVALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
+	if (dstate->lock || PSTATE_INVALID || PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return;
 
-	// ramp down has prio
-	if (pstate->ramp < 0) {
+	// permanent overload - execute standby check forcing system to be balanced before doing any ramps
+	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
+	if (overload && !DSTATE_ALL_DOWN && PSTATE_STABLE_3S) {
+		dstate->flags |= FLAG_ACTION_STANDBY;
+		return;
+	}
+
+	// ramp down
+	if (pstate->ramp < 0 && !DSTATE_ALL_DOWN) {
 		dstate->flags |= FLAG_ACTION_RAMP;
 		return;
 	}
 
-	// permanent overload - execute standby check
-	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-	if (overload && PSTATE_STABLE && PSTATE_STABLE_3S && !DSTATE_ALL_DOWN)
-		dstate->flags |= FLAG_ACTION_STANDBY;
+	// ramp up
+	if (pstate->ramp > 0 && !DSTATE_ALL_UP) {
+		dstate->flags |= FLAG_ACTION_RAMP;
+		return;
+	}
 
 	// steal logic every 10 seconds
-	if (time(NULL) % 10 == 0 && !DSTATE_ACTION_STANDBY && GSTATE_STABLE && GSTATE_STABLE_3M && !DSTATE_ALL_UP)
+	if (time(NULL) % 10 == 0 && !DSTATE_ALL_UP && GSTATE_STABLE && GSTATE_STABLE_3M) {
 		dstate->flags |= FLAG_ACTION_STEAL;
-
-	// ramp up when no other preceding actions
-	if (pstate->ramp > 0 && !DSTATE_ACTION_STANDBY && !DSTATE_ACTION_STEAL && !DSTATE_ALL_UP)
-		dstate->flags |= FLAG_ACTION_RAMP;
+		return;
+	}
 }
 
 static void calculate_dstate() {
@@ -1152,7 +1158,7 @@ static void loop() {
 		// calculate device state
 		calculate_dstate();
 
-		MICROSECONDS("dispatcher")
+		// MICROSECONDS("dispatcher")
 
 		// web output
 		create_dstate_json();
