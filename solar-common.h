@@ -268,14 +268,13 @@ struct _dstate {
 	int rload;
 };
 
-// thread synchronization with semaphores
+// semaphores
 typedef struct sequential_t {
 	sem_t inverter;
 	sem_t meter;
 	sem_t collector;
 	sem_t dispatcher;
 } sequential_t;
-extern sequential_t *sq;
 
 // global inverter pointers
 extern device_t *inv1;
@@ -287,6 +286,9 @@ extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;
 extern params_t *params;
+
+// global thread synchronization with semaphores
+extern sequential_t *sq;
 
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 void inverter_off();

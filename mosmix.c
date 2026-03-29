@@ -433,6 +433,7 @@ static void* calculate_factors_master(void *arg) {
 	// how many processors can we use
 	int nprocs = get_nprocs();
 
+	// thread control loop every second
 	while (1) {
 		strcpy(line, "MOSMIX factors thread control ");
 		int completed = 1;

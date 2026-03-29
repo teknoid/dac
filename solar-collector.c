@@ -115,7 +115,7 @@ static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
 static stats_t stats_minutes[60];
 
-// statistics per 10s 1m 5m 1h,  delta, slope and variance pointer
+// local statistics memory per 10s 1m 5m 1h,  delta, slope and variance pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
 static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7];
 static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
@@ -123,14 +123,16 @@ static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[
 static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17], *deltam = &pstates[18], *deltamm = &pstates[19];
 static pstate_t *slos = &pstates[20], *vars = &pstates[21], *slom = &pstates[22], *varm = &pstates[23], *slomm = &pstates[24], *varmm = &pstates[25];
 
-// thread synchronization with semaphores
+// local semaphores memory
 static sequential_t sequential;
 
-// global counter/gstate/pstate/params pointer
+// global counter/gstate/pstate/params/semaphore pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
+
+// global semaphore pointer
 sequential_t *sq = &sequential;
 
 static void load_state() {
@@ -887,12 +889,6 @@ static void daily() {
 	store_state();
 	mosmix_store_state();
 
-	// save pstate SVG
-	char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
-	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
-	system(command);
-	xdebug("SOLAR saved pstate SVG: %s", command);
-
 	// recalculate mosmix factors
 	mosmix_factors(0);
 }
@@ -1019,7 +1015,7 @@ static void loop() {
 		// trigger dispatcher thread - calculation done, critical path continues there
 		sem_post(&sq->dispatcher);
 
-		// web output
+		// web output - outside critical path
 		create_pstate_json();
 		create_gstate_json();
 		create_powerflow_json();
@@ -1033,6 +1029,14 @@ static void loop() {
 		if (HOURLY)
 			system(GNUPLOT_HOURLY);
 #endif
+
+		// save pstate SVG - outside critical path
+		if (DAILY) {
+			char command[64], c = '0' + (now->tm_wday > 0 ? now->tm_wday - 1 : 6);
+			snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
+			system(command);
+			xdebug("SOLAR saved pstate SVG: %s", command);
+		}
 
 		// PROFILING_LOG(" collector main loop")
 	}
