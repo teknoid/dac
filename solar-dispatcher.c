@@ -873,7 +873,7 @@ static void calculate_actions() {
 		dstate->lock--;
 
 	// no action
-	if (dstate->lock || PSTATE_INVALID || PSTATE_STABLE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
+	if (dstate->lock || PSTATE_INVALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return;
 
 	// permanent overload - execute standby check forcing system to be balanced before doing any ramps
@@ -896,7 +896,7 @@ static void calculate_actions() {
 	}
 
 	// steal logic every 10 seconds
-	if (time(NULL) % 10 == 0 && !DSTATE_ALL_UP && GSTATE_STABLE && GSTATE_STABLE_3M) {
+	if (time(NULL) % 10 == 0 && !DSTATE_ALL_UP && GSTATE_STABLE_3M) {
 		dstate->flags |= FLAG_ACTION_STEAL;
 		return;
 	}

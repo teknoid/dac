@@ -923,14 +923,13 @@ void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, i
 }
 
 // calculate src1 - src2 and divide by divisor
-void islope(void *dst, void *src1, void *src2, int cols, int divisor, int shape) {
+void islope(void *dst, void *src1, void *src2, int cols, int divisor) {
 	if (!divisor)
 		return;
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
 		int z = (*sptr1++ - *sptr2++) * 10 / divisor;
-		z = z / 10 + (z % 10 < 5 ? 0 : 1);
-		*dptr++ = shape * -1 < z && z < shape ? 0 : z;
+		*dptr++ = z / 10 + (z % 10 < 5 ? 0 : 1);
 	}
 }
 

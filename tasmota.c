@@ -802,11 +802,12 @@ static void loop() {
 			tasmota_t *t = tasmota_get_by_id(DEVKIT1);
 			if (!t)
 				continue;
-			if (t->sgp41_tvoc > 2500) {
+			// SGP30 2500 / 1500
+			if (t->sgp41_tvoc > 300) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
 				notify(line1, line2, "rüüüülps.wav");
-			} else if (t->sgp41_tvoc > 1500) {
+			} else if (t->sgp41_tvoc > 200) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
 				notify(line1, line2, "furz hihihi.wav");
