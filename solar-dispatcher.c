@@ -76,16 +76,16 @@ static device_t i2 = { .name = "fronius7" };
 
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
-static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
-static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
-static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
-static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
-static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad" };
-static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
-static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
+static device_t b1 = { .name = "boiler1", .id = BOILER1, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3, .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100, .from = 10, .to = 15 };
+static device_t h1 = { .name = "tisch", .id = INFRARED, .r = 3, .total = 150, .rf = &ramp_heater, .adj = 0, .min = 200, .host = "infrared" };
+static device_t h2 = { .name = "küche", .id = INFRARED, .r = 2, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
+static device_t h3 = { .name = "wozi", .id = INFRARED, .r = 1, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
+static device_t h4 = { .name = "bad1", .id = BAD, .r = 1, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
+static device_t h5 = { .name = "bad2", .id = BAD, .r = 2, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
+static device_t h6 = { .name = "schlaf", .id = PLUG6, .r = 0, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "plug6" };
+static device_t h7 = { .name = "heizer", .id = PLUG9, .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
@@ -679,11 +679,6 @@ static device_t* standby() {
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
 			return standby_exec(DD);
 
-	// try first powered adjustable device without any restrictions
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power && DD->adj)
-			return standby_exec(DD);
-
 	// try first powered dumb device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && !DEV_RESPONSE(DD))
@@ -692,6 +687,11 @@ static device_t* standby() {
 	// try first powered dumb device
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power)
+			return standby_exec(DD);
+
+	// try first powered adjustable device without any restrictions
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && DD->power && DD->adj)
 			return standby_exec(DD);
 
 	return 0;
@@ -878,7 +878,7 @@ static void calculate_actions() {
 
 	// permanent overload - execute standby check forcing system to be balanced before doing any ramps
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
-	if (overload && !DSTATE_ALL_DOWN && PSTATE_STABLE_3S) {
+	if (overload && PSTATE_STABLE_3S && !PSTATE_GRID_DLOAD && !DSTATE_ALL_DOWN) {
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}
@@ -896,7 +896,7 @@ static void calculate_actions() {
 	}
 
 	// steal logic every 10 seconds
-	if (time(NULL) % 10 == 0 && !DSTATE_ALL_UP && GSTATE_STABLE_3M) {
+	if (time(NULL) % 10 == 0 && !GSTATE_PVFALL && !DSTATE_ALL_UP) {
 		dstate->flags |= FLAG_ACTION_STEAL;
 		return;
 	}

@@ -107,10 +107,11 @@
 #define STATS_NOW				(&stats_minutes[now->tm_min])
 
 // stable/unstable
-#define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
-#define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
-#define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
-#define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE)     &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE)     &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_GRIDDLOAD		( (GSTATE_MIN_LAST1->flags & FLAG_GRID_DLOAD) &&  (GSTATE_MIN_LAST2->flags & FLAG_GRID_DLOAD) &&  (GSTATE_MIN_LAST3->flags & FLAG_GRID_DLOAD))
 
 static struct tm now_tm, *now = &now_tm;
 
@@ -559,7 +560,7 @@ static void calculate_gstate_online() {
 	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
 		params->akku_climit = params->akku_cmax / 4;
 	if (900 < gstate->soc && gstate->soc < 999)
-		params->akku_climit = 1000; // charging slow between 90 and 100%
+		params->akku_climit = 666; // charging slow between 90 and 100%
 	if (params->akku_climit_override)
 		params->akku_climit = params->akku_climit_override;
 }
@@ -627,8 +628,8 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// offline when 5min average pv goes below minimum
-	int offline = avgmm->pv < params->minimum;
+	// offline when average pv goes below minimum or grid download over 3 minutes
+	int offline = avgmm->pv < params->minimum || GSTATE_3M_GRIDDLOAD;
 	if (offline)
 		calculate_gstate_offline();
 	else
@@ -827,12 +828,12 @@ static void calculate_pstate() {
 	// load is inverter ac output plus grid
 	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
 
-	// shape
+	// shape - akku makes big noise when full
 	ZSHAPE(pstate->ac1, NOISE5)
 	ZSHAPE(pstate->ac2, NOISE5)
 	ZSHAPE(pstate->grid, NOISE5)
 	ZSHAPE(pstate->load, NOISE5)
-	ZSHAPE(pstate->akku, NOISE5)
+	ZSHAPE(pstate->akku, NOISE20)
 
 	// ratio surplus / load - calculate only when load is positive
 	if (pstate->load > 0) {

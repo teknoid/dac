@@ -8,6 +8,7 @@
 #define NOISE5					5
 #define NOISE10					10
 #define NOISE15					15
+#define NOISE20					20
 #define RAMP					25
 
 #define BASELOAD				(GSTATE_WINTER ? 300 : 200)
