@@ -17,6 +17,7 @@
 #define I2C						"/dev/i2c-3"
 #define MIXER					"/usr/bin/amixer -q -D hw:CARD=USB2496play set PCM"
 #define MQTT_HOST				"mqtt"
+#define TVOC					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->sgp41_tvoc : UINT16_MAX)
 #define TEMP_IN					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->htu21_temp : UINT16_MAX)
 #define TEMP_OUT				(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_temp : UINT16_MAX)
 #define HUMI					(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_humi : UINT16_MAX)
@@ -29,6 +30,7 @@
 #define SOLAR
 #define FLAMINGO
 #define MQTT_HOST				"mqtt"
+#define TVOC					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->sgp41_tvoc : UINT16_MAX)
 #define TEMP_IN					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->htu21_temp : UINT16_MAX)
 #define TEMP_OUT				(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_temp : UINT16_MAX)
 #define HUMI					(tasmota_get_by_id(CARPORT) ? tasmota_get_by_id(CARPORT)->sht31_humi : UINT16_MAX)

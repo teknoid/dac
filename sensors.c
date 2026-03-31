@@ -13,6 +13,10 @@
 #include "i2c.h"
 #include "mcp.h"
 
+#ifndef TVOC
+#define TVOC					199
+#endif
+
 #ifndef TEMP_IN
 #define TEMP_IN					22.0
 #endif
@@ -252,10 +256,11 @@ static void write_sensors_json() {
 		return;
 
 	fprintf(fp, "\{");
+	fprintf(fp, JSON_INT("lumi") COMMA, sensors->lumi);
+	fprintf(fp, JSON_INT("tvoc") COMMA, sensors->tvoc);
 	fprintf(fp, JSON_FLOAT("tin") COMMA, sensors->tin);
 	fprintf(fp, JSON_FLOAT("tout") COMMA, sensors->tout);
 	fprintf(fp, JSON_FLOAT("humi") COMMA, sensors->humi);
-	fprintf(fp, JSON_INT("lumi") COMMA, sensors->lumi);
 	fprintf(fp, JSON_FLOAT(BMP085 "_TEMP") COMMA, sensors->bmp085_temp);
 	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensors->bmp085_baro);
 	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensors->bmp280_temp);
@@ -288,6 +293,7 @@ static void loop() {
 		publish_sensors();
 
 		// update abstract sensors
+		sensors->tvoc = TVOC;
 		sensors->tin = TEMP_IN;
 		sensors->tout = TEMP_OUT;
 		sensors->lumi = LUMI;
