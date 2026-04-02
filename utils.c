@@ -24,7 +24,7 @@
 
 #include "utils.h"
 
-#define SHAPE					20
+#define SHAPE_ABS					20
 
 // static int output = XLOG_STDOUT;
 // static int output = XLOG_SYSLOG;
@@ -908,7 +908,7 @@ void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1 - *sptr2;
 		int p = *sptr1 ? z * 100 / *sptr1 : 0;
-		int s = (shape * -1 < p && p < shape) || (-SHAPE < z && z < SHAPE);
+		int s = (shape * -1 < p && p < shape) || (-SHAPE_ABS < z && z < SHAPE_ABS);
 		*dptr = s ? 0 : z;
 		dptr++, sptr1++, sptr2++;
 	}
@@ -920,7 +920,7 @@ void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, i
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1 - *sptr2;
 		int p = *sptr1 ? z * 100 / *sptr1 : 0;
-		int s = (shape * -1 < p && p < shape) || (-SHAPE < z && z < SHAPE);
+		int s = (shape * -1 < p && p < shape) || (-SHAPE_ABS < z && z < SHAPE_ABS);
 		*dptr = s ? 0 : z;
 		if (*dptr)
 			*dcptr += 1;
