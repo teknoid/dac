@@ -19,8 +19,8 @@
 
 #define AKKU_BURNOUT			1
 
-#define DELTAS					20
-#define DELTAM					50
+#define DELTAS					1
+#define DELTAM					10
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
@@ -842,8 +842,9 @@ static void calculate_pstate() {
 	} else
 		xlog("SOLAR skip rsl calculation load=%d rsl=%d", pstate->load, pstate->rsl);
 
-	// calculate delta, update delta sum, delta count in one loop
+	// calculate delta, update delta sum, delta count in one loop, shape in percent
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
+	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
 
 	// calculate slope and variance five seconds ago
 	islope(slos, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);

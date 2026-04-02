@@ -900,21 +900,24 @@ void iadd(void *dst, void *src, int cols) {
 		*dptr++ += *sptr++;
 }
 
-// calculate src1 - src2 and store to dest
+// calculate src1 - src2 and store to dest, shape in percent
 void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
-		int z = *sptr1++ - *sptr2++;
-		*dptr++ = shape * -1 < z && z < shape ? 0 : z;
+		int z = *sptr1 - *sptr2;
+		int p = *sptr1 ? z * 100 / *sptr1 : 0;
+		*dptr = shape * -1 < p && p < shape ? 0 : z;
+		dptr++, sptr1++, sptr2++;
 	}
 }
 
-// calculate src1 - src2 and store to dest, count non zero deltas to dc, sum of non zero deltas to ds
+// calculate src1 - src2 and store to dest, count non zero deltas to dc, sum of non zero deltas to ds, shape in percent
 void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2, *dcptr = (int*) dc, *dsptr = (int*) ds;
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1 - *sptr2;
-		*dptr = shape * -1 < z && z < shape ? 0 : z;
+		int p = *sptr1 ? z * 100 / *sptr1 : 0;
+		*dptr = shape * -1 < p && p < shape ? 0 : z;
 		if (*dptr)
 			*dcptr += 1;
 		*dsptr += *dptr < 0 ? *dptr * -1 : *dptr;
@@ -1036,12 +1039,12 @@ void dump_table(void *table, int cols, int rows, int highlight_row, const char *
 	char c[cols * 8 + 16], v[16];
 
 	if (title)
-		xdebug(title);
+		xlog(title);
 
 	if (header) {
 		strcpy(c, " idx");
 		strcat(c, header);
-		xdebug(c);
+		xlog(c);
 	}
 
 	int *p = (int*) table;
@@ -1056,7 +1059,7 @@ void dump_table(void *table, int cols, int rows, int highlight_row, const char *
 		}
 		if (y == highlight_row)
 			strcat(c, RESET);
-		xdebug(c);
+		xlog(c);
 	}
 }
 
@@ -1064,7 +1067,7 @@ void dump_array(void *array, int size, const char *idx, const char *title) {
 	char c[size * 8 + 16], v[16];
 
 	if (title)
-		xdebug(title);
+		xlog(title);
 
 	snprintf(v, 16, "%s ", idx);
 	strcpy(c, v);
@@ -1073,7 +1076,7 @@ void dump_array(void *array, int size, const char *idx, const char *title) {
 		snprintf(v, 8, "%5d ", *p++);
 		strcat(c, v);
 	}
-	xdebug(c);
+	xlog(c);
 }
 
 void store_array_json(void *array, int size, const char *header, const char *filename) {
