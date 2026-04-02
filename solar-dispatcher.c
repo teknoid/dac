@@ -876,7 +876,14 @@ static void calculate_actions() {
 	if (dstate->lock || PSTATE_INVALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return;
 
-	// permanent overload - execute standby check forcing system to be balanced before doing any ramps
+	// permanent overload - force standby check without any restrictions
+	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE;
+	if (overload_force) {
+		dstate->flags |= FLAG_ACTION_STANDBY;
+		return;
+	}
+
+	// permanent overload - normal standby check when stable and no grid download
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
 	if (overload && PSTATE_STABLE_3S && !PSTATE_GRID_DLOAD && !DSTATE_ALL_DOWN) {
 		dstate->flags |= FLAG_ACTION_STANDBY;
