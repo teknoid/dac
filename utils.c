@@ -24,6 +24,8 @@
 
 #include "utils.h"
 
+#define SHAPE					20
+
 // static int output = XLOG_STDOUT;
 // static int output = XLOG_SYSLOG;
 static int output = XLOG_FILE;
@@ -900,24 +902,26 @@ void iadd(void *dst, void *src, int cols) {
 		*dptr++ += *sptr++;
 }
 
-// calculate src1 - src2 and store to dest, shape in percent
+// calculate src1 - src2 and store to dest, shape in percent or absolute 20
 void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1 - *sptr2;
 		int p = *sptr1 ? z * 100 / *sptr1 : 0;
-		*dptr = shape * -1 < p && p < shape ? 0 : z;
+		int s = (shape * -1 < p && p < shape) || (-SHAPE < z && z < SHAPE);
+		*dptr = s ? 0 : z;
 		dptr++, sptr1++, sptr2++;
 	}
 }
 
-// calculate src1 - src2 and store to dest, count non zero deltas to dc, sum of non zero deltas to ds, shape in percent
+// calculate src1 - src2 and store to dest, count non zero deltas to dc, sum of non zero deltas to ds, shape in percent or absolute 20
 void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2, *dcptr = (int*) dc, *dsptr = (int*) ds;
 	for (int x = 0; x < cols; x++) {
 		int z = *sptr1 - *sptr2;
 		int p = *sptr1 ? z * 100 / *sptr1 : 0;
-		*dptr = shape * -1 < p && p < shape ? 0 : z;
+		int s = (shape * -1 < p && p < shape) || (-SHAPE < z && z < SHAPE);
+		*dptr = s ? 0 : z;
 		if (*dptr)
 			*dcptr += 1;
 		*dsptr += *dptr < 0 ? *dptr * -1 : *dptr;
