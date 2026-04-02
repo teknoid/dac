@@ -878,7 +878,7 @@ static void calculate_actions() {
 
 	// permanent overload - force standby check without any restrictions
 	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE;
-	if (overload_force) {
+	if (overload_force && !DSTATE_ALL_DOWN) {
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}

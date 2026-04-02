@@ -20,7 +20,7 @@
 #define AKKU_BURNOUT			1
 
 #define DELTAS					1
-#define DELTAM					10
+#define DELTAM					5
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
@@ -523,9 +523,9 @@ static void calculate_gstate_online() {
 	if (sensors->tin > 26.0)
 		gstate->flags &= ~FLAG_HEATING;
 	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 25.0) // may/sept begin 16 o'clock
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 26.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 25.0) // apr/oct begin 14 o'clock
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 26.0) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
 	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
