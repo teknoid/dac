@@ -104,7 +104,7 @@
 #define DEV_STANDBY_CHECKED(d)	(d->flags & FLAG_STANDBY_CHECKED)
 
 enum e_state {
-	Disabled, Initial, Standby, Manual, Auto, Charge, Discharge
+	Initial, Disabled, Standby, Manual, Auto, Charge, Discharge
 };
 
 // parameters

@@ -82,8 +82,8 @@ static device_t b3 = { .name = "boiler3", .id = BOILER3, .r = 0, .total = 2000, 
 static device_t h1 = { .name = "tisch", .id = INFRARED, .r = 3, .total = 150, .rf = &ramp_heater, .adj = 0, .min = 200, .host = "infrared" };
 static device_t h2 = { .name = "küche", .id = INFRARED, .r = 2, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
 static device_t h3 = { .name = "wozi", .id = INFRARED, .r = 1, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "infrared" };
-static device_t h4 = { .name = "bad1", .id = BAD, .r = 1, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
-static device_t h5 = { .name = "bad2", .id = BAD, .r = 2, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad" };
+static device_t h4 = { .name = "bad1", .id = BAD, .r = 1, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad", .state = Disabled };
+static device_t h5 = { .name = "bad2", .id = BAD, .r = 2, .total = 700, .rf = &ramp_heater, .adj = 0, .min = 800, .host = "bad", .state = Disabled };
 static device_t h6 = { .name = "schlaf", .id = PLUG6, .r = 0, .total = 450, .rf = &ramp_heater, .adj = 0, .min = 500, .host = "plug6" };
 static device_t h7 = { .name = "heizer", .id = PLUG9, .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
 
@@ -1188,6 +1188,9 @@ static int init() {
 	// initialize all devices with start values
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
+		if (DD->state == Disabled)
+			continue;
+
 		DD->state = Initial;
 		DD->l1rc = DD->l2rc = DD->l3rc = 0;
 
