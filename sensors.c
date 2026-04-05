@@ -45,16 +45,20 @@
 #define JSON_FLOAT(k)			"\"" k "\":%.1f"
 #define COMMA					", "
 
+// hexdump -v -e '15 "%10d ""\n"' /var/lib/mcp/sensors.bin
+#define SENSORS_FILE			"sensors.bin"
+
 #define MEAN					10
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 
 static int i2cfd = 0;
 
-static sensors_t sensors_local;
+static sensors_t sensors_local[5];
 
-// global sensors pointer
-sensors_t *sensors = &sensors_local;
+// global sensors pointer, actual and 0, 6, 12, 18 o'clock
+sensors_t *sensors = &sensors_local[0];
+sensors_t *sensors0 = &sensors_local[1], *sensors6 = &sensors_local[2], *sensors12 = &sensors_local[3], *sensors18 = &sensors_local[4];
 
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux
@@ -280,10 +284,9 @@ static void loop() {
 	// wait for tasmota discovery
 	sleep(1);
 
-	// skip file generation in first round and wait for tasmota's next sensor transmission
-	int write_files = 0;
-
 	while (1) {
+		LOCALTIME
+
 		read_bmp085();
 
 		read_bh1750();
@@ -299,20 +302,41 @@ static void loop() {
 		sensors->lumi = LUMI;
 		sensors->humi = HUMI;
 
-		if (write_files) {
-			if (WRITE_JSON)
-				write_sensors_json();
+		// store sensors four times per day
+		if (now->tm_min == 0 || now->tm_min == 1)
+			switch (now->tm_hour) {
+			case 0:
+				memcpy(sensors0, sensors, sizeof(sensors_t));
+				xlog("stored sensors0");
+				break;
+			case 6:
+				memcpy(sensors6, sensors, sizeof(sensors_t));
+				xlog("stored sensors6");
+				break;
+			case 12:
+				memcpy(sensors12, sensors, sizeof(sensors_t));
+				xlog("stored sensors12");
+				break;
+			case 18:
+				memcpy(sensors18, sensors, sizeof(sensors_t));
+				xlog("stored sensors18");
+				break;
+			default:
+			}
 
-			if (WRITE_SYSFSLIKE)
-				write_sensors_sysfslike();
-		}
+		if (WRITE_JSON)
+			write_sensors_json();
+
+		if (WRITE_SYSFSLIKE)
+			write_sensors_sysfslike();
 
 		sleep(60);
-		write_files = 1;
 	}
 }
 
 static int init() {
+	load_blob(STATE SLASH SENSORS_FILE, sensors_local, sizeof(sensors_local));
+
 #if defined(PICAM) || defined(SENSORS_MAIN)
 	i2cfd = open(I2C, O_RDWR);
 	if (i2cfd < 0)
@@ -340,6 +364,8 @@ static int init() {
 }
 
 static void stop() {
+	store_blob(STATE SLASH SENSORS_FILE, sensors_local, sizeof(sensors_local));
+
 	if (i2cfd > 0)
 		close(i2cfd);
 }

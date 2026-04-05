@@ -23,7 +23,7 @@
 #define SHT31				"SHT31"
 
 typedef struct sensors_t {
-	// abtract sensors
+	// abstract sensors
 	int lumi;
 	int tvoc;
 	float tin;
@@ -49,4 +49,4 @@ typedef struct sensors_t {
 	uint32_t bmp280_baro_raw;
 
 } sensors_t;
-extern sensors_t *sensors;
+extern sensors_t *sensors, *sensors0, *sensors6, *sensors12, *sensors18;

@@ -514,11 +514,12 @@ static void calculate_gstate_online() {
 	}
 
 	// heating
+	int temp6 = sensors6->tout;
 	gstate->flags |= FLAG_HEATING;
 	// no need to heat
 	if (sensors->tin > 18.0 && SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (sensors->tin > 24.0 && sensors->tout > 15.0 && !SUMMER)
+	if (sensors->tin > 24.0 && temp6 > 10.0 && !SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
 	if (sensors->tin > 26.0)
 		gstate->flags &= ~FLAG_HEATING;
