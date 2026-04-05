@@ -54,11 +54,11 @@ static int mean;
 
 static int i2cfd = 0;
 
-static sensors_t sensors_local[5];
+static sensors_t sensors[5];
 
 // global sensors pointer, actual and 0, 6, 12, 18 o'clock
-sensors_t *sensors = &sensors_local[0];
-sensors_t *sensors0 = &sensors_local[1], *sensors6 = &sensors_local[2], *sensors12 = &sensors_local[3], *sensors18 = &sensors_local[4];
+sensors_t *sensor = &sensors[0];
+sensors_t *sensor0 = &sensors[1], *sensor6 = &sensors[2], *sensor12 = &sensors[3], *sensor18 = &sensors[4];
 
 // bisher gefühlt bei 100 Lux (19:55)
 // Straßenlampe Eisenstraße 0x40 = XX Lux
@@ -77,24 +77,24 @@ static void read_bh1750() {
 	// continuous high mode (resolution 1lx)
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_CHM);
 	msleep(180);
-	i2c_get_int(i2cfd, BH1750_ADDR, &sensors->bh1750_raw);
+	i2c_get_int(i2cfd, BH1750_ADDR, &sensor->bh1750_raw);
 
 	// continuous high mode 2 (resolution 0.5lx)
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_CHM2);
 	msleep(180);
-	i2c_get_int(i2cfd, BH1750_ADDR, &sensors->bh1750_raw2);
+	i2c_get_int(i2cfd, BH1750_ADDR, &sensor->bh1750_raw2);
 
 	// sleep
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_POWERDOWN);
 
-	if (sensors->bh1750_raw2 == UINT16_MAX)
-		sensors->bh1750_lux = sensors->bh1750_raw / 1.2;
+	if (sensor->bh1750_raw2 == UINT16_MAX)
+		sensor->bh1750_lux = sensor->bh1750_raw / 1.2;
 	else
-		sensors->bh1750_lux = sensors->bh1750_raw2 / 2.4;
+		sensor->bh1750_lux = sensor->bh1750_raw2 / 2.4;
 }
 
 static void mean_bh1750() {
-	bh1750_lux_mean[mean++] = sensors->bh1750_lux;
+	bh1750_lux_mean[mean++] = sensor->bh1750_lux;
 	if (mean == MEAN)
 		mean = 0;
 
@@ -102,7 +102,7 @@ static void mean_bh1750() {
 	for (int i = 0; i < MEAN; i++)
 		sum += bh1750_lux_mean[i];
 
-	sensors->bh1750_lux_mean = sum / MEAN;
+	sensor->bh1750_lux_mean = sum / MEAN;
 }
 
 // https://forums.raspberrypi.com/viewtopic.php?t=16968
@@ -138,18 +138,18 @@ static void read_bmp085() {
 	// temperature
 	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x2E);
 	msleep(5);
-	i2c_read_int(i2cfd, BMP085_ADDR, 0xF6, &sensors->bmp085_temp_raw);
-	int x1 = (((int) sensors->bmp085_temp_raw - (int) ac6) * (int) ac5) >> 15;
+	i2c_read_int(i2cfd, BMP085_ADDR, 0xF6, &sensor->bmp085_temp_raw);
+	int x1 = (((int) sensor->bmp085_temp_raw - (int) ac6) * (int) ac5) >> 15;
 	int x2 = ((int) mc << 11) / (x1 + md);
 	int b5 = x1 + x2;
-	sensors->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
+	sensor->bmp085_temp = ((b5 + 8) >> 4) / 10.0;
 
 	// pressure
 	uint8_t buf[3];
 	i2c_write(i2cfd, BMP085_ADDR, 0xF4, 0x34 + (BMP085_OVERSAMPLE << 6));
 	msleep(2 + (3 << BMP085_OVERSAMPLE));
 	i2c_read_block(i2cfd, BMP085_ADDR, 0xF6, buf, 3);
-	sensors->bmp085_baro_raw = ((buf[0] << 16) | (buf[1] << 8) | buf[2]) >> (8 - BMP085_OVERSAMPLE);
+	sensor->bmp085_baro_raw = ((buf[0] << 16) | (buf[1] << 8) | buf[2]) >> (8 - BMP085_OVERSAMPLE);
 	int b6 = b5 - 4000;
 	x1 = (b2 * (b6 * b6) >> 12) >> 11;
 	x2 = (ac2 * b6) >> 11;
@@ -159,7 +159,7 @@ static void read_bmp085() {
 	x2 = (b1 * ((b6 * b6) >> 12)) >> 16;
 	x3 = ((x1 + x2) + 2) >> 2;
 	unsigned int b4 = (ac4 * (unsigned int) (x3 + 32768)) >> 15;
-	unsigned int b7 = ((unsigned int) (sensors->bmp085_baro_raw - b3) * (50000 >> BMP085_OVERSAMPLE));
+	unsigned int b7 = ((unsigned int) (sensor->bmp085_baro_raw - b3) * (50000 >> BMP085_OVERSAMPLE));
 	int p;
 	if (b7 < 0x80000000)
 		p = (b7 << 1) / b4;
@@ -169,7 +169,7 @@ static void read_bmp085() {
 	x1 = (x1 * 3038) >> 16;
 	x2 = (-7357 * p) >> 16;
 	p += (x1 + x2 + 3791) >> 4;
-	sensors->bmp085_baro = p / 100.0;
+	sensor->bmp085_baro = p / 100.0;
 }
 
 static void publish_sensors_tasmotalike() {
@@ -181,10 +181,10 @@ static void publish_sensors_tasmotalike() {
 	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
 	snprintf(value, 64, "{");
 
-	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d}" COMMA, sensors->bh1750_raw);
+	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d}" COMMA, sensor->bh1750_raw);
 	strncat(value, v, 64);
 
-	snprintf(v, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensors->bmp085_temp, sensors->bmp085_baro);
+	snprintf(v, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensor->bmp085_temp, sensor->bmp085_baro);
 	strncat(value, v, 64);
 
 	snprintf(v, 64, "}");
@@ -207,50 +207,50 @@ static void publish_sensor(const char *sensor, const char *name, const char *val
 static void publish_sensors() {
 	char cvalue[8];
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_raw);
 	publish_sensor(BH1750, "lum_raw", cvalue);
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_raw2);
 	publish_sensor(BH1750, "lum_raw2", cvalue);
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_lux);
 	publish_sensor(BH1750, "lum_lux", cvalue);
 
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
+	snprintf(cvalue, 5, "%0.1f", sensor->bmp085_temp);
 	publish_sensor(BMP085, "temp", cvalue);
 
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
+	snprintf(cvalue, 8, "%0.1f", sensor->bmp085_baro);
 	publish_sensor(BMP085, "baro", cvalue);
 
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp280_temp);
+	snprintf(cvalue, 5, "%0.1f", sensor->bmp280_temp);
 	publish_sensor(BMP280, "temp", cvalue);
 
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp280_baro);
+	snprintf(cvalue, 8, "%0.1f", sensor->bmp280_baro);
 	publish_sensor(BMP280, "baro", cvalue);
 }
 
 static void write_sensors_sysfslike() {
 	char cvalue[8];
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_raw);
 	create_sysfslike(RAM, "lum_raw", cvalue, "%s", BH1750);
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_raw2);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_raw2);
 	create_sysfslike(RAM, "lum_raw2", cvalue, "%s", BH1750);
 
-	snprintf(cvalue, 6, "%u", sensors->bh1750_lux);
+	snprintf(cvalue, 6, "%u", sensor->bh1750_lux);
 	create_sysfslike(RAM, "lum_lux", cvalue, "%s", BH1750);
 
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp085_temp);
+	snprintf(cvalue, 5, "%0.1f", sensor->bmp085_temp);
 	create_sysfslike(RAM, "temp", cvalue, "%s", BMP085);
 
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp085_baro);
+	snprintf(cvalue, 8, "%0.1f", sensor->bmp085_baro);
 	create_sysfslike(RAM, "baro", cvalue, "%s", BMP085);
 
-	snprintf(cvalue, 5, "%0.1f", sensors->bmp280_temp);
+	snprintf(cvalue, 5, "%0.1f", sensor->bmp280_temp);
 	create_sysfslike(RAM, "temp", cvalue, "%s", BMP280);
 
-	snprintf(cvalue, 8, "%0.1f", sensors->bmp280_baro);
+	snprintf(cvalue, 8, "%0.1f", sensor->bmp280_baro);
 	create_sysfslike(RAM, "baro", cvalue, "%s", BMP280);
 }
 
@@ -260,16 +260,16 @@ static void write_sensors_json() {
 		return;
 
 	fprintf(fp, "\{");
-	fprintf(fp, JSON_INT("lumi") COMMA, sensors->lumi);
-	fprintf(fp, JSON_INT("tvoc") COMMA, sensors->tvoc);
-	fprintf(fp, JSON_FLOAT("tin") COMMA, sensors->tin);
-	fprintf(fp, JSON_FLOAT("tout") COMMA, sensors->tout);
-	fprintf(fp, JSON_FLOAT("humi") COMMA, sensors->humi);
-	fprintf(fp, JSON_FLOAT(BMP085 "_TEMP") COMMA, sensors->bmp085_temp);
-	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensors->bmp085_baro);
-	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensors->bmp280_temp);
-	fprintf(fp, JSON_FLOAT(BMP280 "_BARO") COMMA, sensors->bmp280_baro);
-	fprintf(fp, JSON_INT(BH1750 "_LUX"), sensors->bh1750_lux);
+	fprintf(fp, JSON_INT("lumi") COMMA, sensor->lumi);
+	fprintf(fp, JSON_INT("tvoc") COMMA, sensor->tvoc);
+	fprintf(fp, JSON_FLOAT("tin") COMMA, sensor->tin);
+	fprintf(fp, JSON_FLOAT("tout") COMMA, sensor->tout);
+	fprintf(fp, JSON_FLOAT("humi") COMMA, sensor->humi);
+	fprintf(fp, JSON_FLOAT(BMP085 "_TEMP") COMMA, sensor->bmp085_temp);
+	fprintf(fp, JSON_FLOAT(BMP085 "_BARO") COMMA, sensor->bmp085_baro);
+	fprintf(fp, JSON_FLOAT(BMP280 "_TEMP") COMMA, sensor->bmp280_temp);
+	fprintf(fp, JSON_FLOAT(BMP280 "_BARO") COMMA, sensor->bmp280_baro);
+	fprintf(fp, JSON_INT(BH1750 "_LUX"), sensor->bh1750_lux);
 	fprintf(fp, "}");
 	fflush(fp);
 	fclose(fp);
@@ -296,29 +296,29 @@ static void loop() {
 		publish_sensors();
 
 		// update abstract sensors
-		sensors->tvoc = TVOC;
-		sensors->tin = TEMP_IN;
-		sensors->tout = TEMP_OUT;
-		sensors->lumi = LUMI;
-		sensors->humi = HUMI;
+		sensor->tvoc = TVOC;
+		sensor->tin = TEMP_IN;
+		sensor->tout = TEMP_OUT;
+		sensor->lumi = LUMI;
+		sensor->humi = HUMI;
 
 		// store sensors four times per day
 		if (now->tm_min == 0 || now->tm_min == 1)
 			switch (now->tm_hour) {
 			case 0:
-				memcpy(sensors0, sensors, sizeof(sensors_t));
+				memcpy(sensor0, sensor, sizeof(sensors_t));
 				xlog("stored sensors0");
 				break;
 			case 6:
-				memcpy(sensors6, sensors, sizeof(sensors_t));
+				memcpy(sensor6, sensor, sizeof(sensors_t));
 				xlog("stored sensors6");
 				break;
 			case 12:
-				memcpy(sensors12, sensors, sizeof(sensors_t));
+				memcpy(sensor12, sensor, sizeof(sensors_t));
 				xlog("stored sensors12");
 				break;
 			case 18:
-				memcpy(sensors18, sensors, sizeof(sensors_t));
+				memcpy(sensor18, sensor, sizeof(sensors_t));
 				xlog("stored sensors18");
 				break;
 			default:
@@ -335,7 +335,7 @@ static void loop() {
 }
 
 static int init() {
-	load_blob(STATE SLASH SENSORS_FILE, sensors_local, sizeof(sensors_local));
+	load_blob(STATE SLASH SENSORS_FILE, sensors, sizeof(sensors));
 
 #if defined(PICAM) || defined(SENSORS_MAIN)
 	i2cfd = open(I2C, O_RDWR);
@@ -349,22 +349,22 @@ static int init() {
 	mean = 0;
 
 	// initialize sensor data
-	sensors->tin = UINT16_MAX;
-	sensors->tout = UINT16_MAX;
-	sensors->lumi = UINT16_MAX;
-	sensors->humi = UINT16_MAX;
+	sensor->tin = UINT16_MAX;
+	sensor->tout = UINT16_MAX;
+	sensor->lumi = UINT16_MAX;
+	sensor->humi = UINT16_MAX;
 
-	sensors->bh1750_lux = UINT16_MAX;
-	sensors->bmp085_temp = UINT16_MAX;
-	sensors->bmp085_baro = UINT16_MAX;
-	sensors->bmp280_temp = UINT16_MAX;
-	sensors->bmp280_baro = UINT16_MAX;
+	sensor->bh1750_lux = UINT16_MAX;
+	sensor->bmp085_temp = UINT16_MAX;
+	sensor->bmp085_baro = UINT16_MAX;
+	sensor->bmp280_temp = UINT16_MAX;
+	sensor->bmp280_baro = UINT16_MAX;
 
 	return 0;
 }
 
 static void stop() {
-	store_blob(STATE SLASH SENSORS_FILE, sensors_local, sizeof(sensors_local));
+	store_blob(STATE SLASH SENSORS_FILE, sensors, sizeof(sensors));
 
 	if (i2cfd > 0)
 		close(i2cfd);
@@ -376,18 +376,18 @@ int sensor_main(int argc, char **argv) {
 	sleep(1);
 
 	while (1) {
-		xlog(BH1750" raw  %d", sensors->bh1750_raw);
-		xlog(BH1750" raw2 %d", sensors->bh1750_raw2);
-		xlog(BH1750" lux  %d lx", sensors->bh1750_lux);
+		xlog(BH1750" raw  %d", sensor->bh1750_raw);
+		xlog(BH1750" raw2 %d", sensor->bh1750_raw2);
+		xlog(BH1750" lux  %d lx", sensor->bh1750_lux);
 
-		xlog(BMP085" temp %d (raw)", sensors->bmp085_temp_raw);
-		xlog(BMP085" baro %d (raw)", sensors->bmp085_baro_raw);
+		xlog(BMP085" temp %d (raw)", sensor->bmp085_temp_raw);
+		xlog(BMP085" baro %d (raw)", sensor->bmp085_baro_raw);
 
-		xlog(BMP085" temp %0.1f °C", sensors->bmp085_temp);
-		xlog(BMP085" baro %0.1f hPa", sensors->bmp085_baro);
+		xlog(BMP085" temp %0.1f °C", sensor->bmp085_temp);
+		xlog(BMP085" baro %0.1f hPa", sensor->bmp085_baro);
 
-		xlog(BMP280" temp %0.1f °C", sensors->bmp280_temp);
-		xlog(BMP280" baro %0.1f hPa", sensors->bmp280_baro);
+		xlog(BMP280" temp %0.1f °C", sensor->bmp280_temp);
+		xlog(BMP280" baro %0.1f hPa", sensor->bmp280_baro);
 
 		sleep(10);
 	}

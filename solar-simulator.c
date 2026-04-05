@@ -69,7 +69,7 @@ static void loop() {
 	while (1) {
 		WAIT_NEXT_SECOND
 
-		int mppt = sensors->lumi / 10;
+		int mppt = sensor->lumi / 10;
 		int mppt1 = mppt;
 		int mppt2 = mppt;
 		int mppt3 = mppt / 2;

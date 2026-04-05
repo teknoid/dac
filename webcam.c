@@ -56,7 +56,7 @@ static void webcam() {
 	sleep(15);
 
 	// state unknown (e.g. system startup) --> check need for switching on
-	if (sensors->lumi > WEBCAM_SUNRISE)
+	if (sensor->lumi > WEBCAM_SUNRISE)
 		webcam_start();
 	else
 		webcam_stop();
@@ -69,8 +69,8 @@ static void webcam() {
 		if (afternoon && webcam_on) {
 			// evening and on --> check if need to switch off
 			// xlog("awaiting WEBCAM_SUNDOWN at %i", value);
-			if (sensors->lumi < WEBCAM_SUNDOWN) {
-				xlog("reached WEBCAM_SUNDOWN at bh1750_raw2=%d", sensors->lumi);
+			if (sensor->lumi < WEBCAM_SUNDOWN) {
+				xlog("reached WEBCAM_SUNDOWN at bh1750_raw2=%d", sensor->lumi);
 				stop_timelapse();
 			}
 		}
@@ -78,8 +78,8 @@ static void webcam() {
 		if (!afternoon && !webcam_on) {
 			// morning and off --> check if need to switch on
 			// xlog("awaiting WEBCAM_SUNRISE at %i", value);
-			if (sensors->lumi > WEBCAM_SUNRISE) {
-				xlog("reached WEBCAM_SUNRISE at bh1750_raw2=%d", sensors->lumi);
+			if (sensor->lumi > WEBCAM_SUNRISE) {
+				xlog("reached WEBCAM_SUNRISE at bh1750_raw2=%d", sensor->lumi);
 				start_reset();
 			}
 		}

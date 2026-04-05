@@ -296,8 +296,8 @@ static void print_gstate() {
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
 	xlogl_int(line, "Load", PSTATE_MIN_NOW->load);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_float(line, "Ti", sensors->tin);
-	xlogl_float(line, "To", sensors->tout);
+	xlogl_float(line, "Ti", sensor->tin);
+	xlogl_float(line, "To", sensor->tout);
 	if (GSTATE_OFFLINE) {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 		xlogl_int(line, "Avail", gstate->available);
@@ -435,7 +435,7 @@ static void calculate_gstate_offline() {
 	// TODO start stunde berechnen damit leer wenn pv startet
 	int burnout_recover = gstate->today > params->akku_capacity * 2;
 	int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-	int burnout_temp = sensors->tin < 20.0;
+	int burnout_temp = sensor->tin < 20.0;
 	int burnout_soc = gstate->soc > 150;
 	if (AKKU_BURNOUT && burnout_recover && burnout_time && burnout_temp && burnout_soc)
 		gstate->flags |= FLAG_BURNOUT;
@@ -514,21 +514,21 @@ static void calculate_gstate_online() {
 	}
 
 	// heating
-	int temp6 = sensors6->tout;
+	int temp6 = sensor6->tout;
 	gstate->flags |= FLAG_HEATING;
 	// no need to heat
-	if (sensors->tin > 18.0 && SUMMER)
+	if (sensor->tin > 18.0 && SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (sensors->tin > 24.0 && temp6 > 10.0 && !SUMMER)
+	if (sensor->tin > 24.0 && temp6 > 10.0 && !SUMMER)
 		gstate->flags &= ~FLAG_HEATING;
-	if (sensors->tin > 26.0)
+	if (sensor->tin > 26.0)
 		gstate->flags &= ~FLAG_HEATING;
 	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensors->tin < 26.0) // may/sept begin 16 o'clock
+	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensor->tin < 26.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensors->tin < 26.0) // apr/oct begin 14 o'clock
+	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensor->tin < 26.0) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensors->tin < 28.0) // nov-mar always
+	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensor->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 
 	// akku charging

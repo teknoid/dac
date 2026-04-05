@@ -49,4 +49,4 @@ typedef struct sensors_t {
 	uint32_t bmp280_baro_raw;
 
 } sensors_t;
-extern sensors_t *sensors, *sensors0, *sensors6, *sensors12, *sensors18;
+extern sensors_t *sensor, *sensor0, *sensor6, *sensor12, *sensor18;

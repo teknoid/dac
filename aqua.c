@@ -36,9 +36,9 @@ static int get_rain(int valve, int hour) {
 		if (!h || !v)
 			continue; // valve not active for this hour
 
-		int temp_ok = sensors->tout >= a->t;
-		int humi_ok = sensors->humi <= a->h;
-		int lumi_ok = sensors->lumi >= a->l;
+		int temp_ok = sensor->tout >= a->t;
+		int humi_ok = sensor->humi <= a->h;
+		int lumi_ok = sensor->lumi >= a->l;
 
 		if (a->l == 0 && a->t == 0) {
 			// check only humidity
@@ -70,8 +70,8 @@ static int get_rain(int valve, int hour) {
 }
 
 static void process(int hour) {
-	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", sensors->tout, sensors->humi, sensors->lumi);
-	if (sensors->tout > 1000 || sensors->humi > 1000 || sensors->lumi == UINT16_MAX) {
+	xdebug("AQUA sensors temp=%.1f humi=%.1f lumi=%d", sensor->tout, sensor->humi, sensor->lumi);
+	if (sensor->tout > 1000 || sensor->humi > 1000 || sensor->lumi == UINT16_MAX) {
 		xlog("AQUA Warning no sensor data");
 		return;
 	}
