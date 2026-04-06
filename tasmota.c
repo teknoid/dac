@@ -16,6 +16,8 @@
 #include "mqtt.h"
 #include "mcp.h"
 
+#define LUMI_NOTIFY			2222
+
 #define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
 #define DISCOVERY			"discovery"
 #define ON					"ON"
@@ -505,8 +507,13 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 //		return notify("motion", "devkit1", "au.wav");
-	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON && sensor->lumi < 2000)
-		return notify("motion", "carport", "au.wav");
+	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON) {
+		if (sensor->lumi > LUMI_NOTIFY) {
+			xlog("TASMOTA suppress carport motion notify lumi=%d", sensor->lumi);
+			return 0;
+		} else
+			return notify("motion", "carport", "au.wav");
+	}
 
 	// scan for shutter position results
 	char *sh = NULL;

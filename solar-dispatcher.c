@@ -689,7 +689,7 @@ static device_t* standby() {
 		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD) && !DEV_RESPONSE(DD))
 			return standby_exec(DD);
 
-	// try first powered device
+	// try first powered device device not yet checked
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD))
 			return standby_exec(DD);

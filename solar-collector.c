@@ -21,7 +21,7 @@
 
 #define DELTAS					1
 #define DELTAM					5
-#define DELTACC					10
+#define DELTACC					12
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
@@ -539,7 +539,7 @@ static void calculate_gstate_online() {
 	int critical = gstate->survive < SURVIVE150;
 	int low = gstate->today < params->akku_capacity || gstate->tomorrow < params->akku_capacity; // today/tomorrow low pv expected
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
-	int time_window = now->tm_hour >= 9 && now->tm_hour < 15; // between 9 and 15 o'clock
+	int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 15 o'clock
 	if (WINTER || empty || critical || low || weekend)
 		// winter / empty / critical / low / weekend --> always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
@@ -562,8 +562,8 @@ static void calculate_gstate_online() {
 		params->akku_climit = params->akku_cmax / 3;
 	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
 		params->akku_climit = params->akku_cmax / 4;
-	if (900 < gstate->soc && gstate->soc < 999)
-		params->akku_climit = 666; // charging slow between 90 and 100%
+	if (800 < gstate->soc && gstate->soc < 999)
+		params->akku_climit = 666; // charging slow between 80 and 100%
 	if (params->akku_climit_override)
 		params->akku_climit = params->akku_climit_override;
 }
@@ -682,9 +682,11 @@ static void calculate_pstate_ramp() {
 	// coarse absolute ramp below 90 or above 110
 	if (avgss->rsl < 90 || avgss->rsl > 110) {
 		if (avgss->grid > 0)
-			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // grid download - double down when pv falling
+			// grid download - double down when pv falling
+			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1);
 		else if (avgss->grid < 0)
-			pstate->ramp = deltacc->pv > DELTACC ? (maxmm->grid * -1) : (avgss->grid * -1); // grid upload - maximum (->minimum when inverted) or average
+			// grid upload - maximum (->minimum when inverted) or average
+			pstate->ramp = deltacc->pv > DELTACC && maxmm->grid > avgss->grid ? (maxmm->grid * -1) : (avgss->grid * -1);
 	}
 
 	// shape
