@@ -671,27 +671,27 @@ static device_t* standby_exec(device_t *d) {
 static device_t* standby() {
 	// try first powered adjustable device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj && !DEV_RESPONSE(DD))
+		if (DD->state == Auto && DD->power && DD->adj && !DEV_STANDBY_CHECKED(DD) && !DEV_RESPONSE(DD))
 			return standby_exec(DD);
 
 	// try first powered adjustable device not yet checked
 	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && DD->adj)
-			return standby_exec(DD);
-
-	// try first powered dumb device without RESPONSE flag
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power && !DEV_RESPONSE(DD))
-			return standby_exec(DD);
-
-	// try first powered dumb device
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && !DEV_STANDBY_CHECKED(DD) && DD->power)
+		if (DD->state == Auto && DD->power && DD->adj && !DEV_STANDBY_CHECKED(DD))
 			return standby_exec(DD);
 
 	// try first powered adjustable device without any restrictions
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && DD->power && DD->adj)
+			return standby_exec(DD);
+
+	// try first powered device without RESPONSE flag
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD) && !DEV_RESPONSE(DD))
+			return standby_exec(DD);
+
+	// try first powered device
+	for (device_t **dd = DEVICES; *dd; dd++)
+		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD))
 			return standby_exec(DD);
 
 	return 0;
