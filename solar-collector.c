@@ -21,6 +21,7 @@
 
 #define DELTAS					1
 #define DELTAM					5
+#define DELTACC					20
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
@@ -122,13 +123,14 @@ static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
 static stats_t stats_minutes[60];
 
-// local statistics memory per 10s 1m 10m 1h,  delta, slope and variance pointer
+// local statistics memory, delta, slope and variance pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
 static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7];
 static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
 static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[14];
-static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltas = &pstates[17], *deltam = &pstates[18], *deltamm = &pstates[19];
-static pstate_t *slos = &pstates[20], *vars = &pstates[21], *slom = &pstates[22], *varm = &pstates[23], *slomm = &pstates[24], *varmm = &pstates[25];
+static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltacc = &pstates[17], *deltas = &pstates[18], *deltass = &pstates[19];
+static pstate_t *deltam = &pstates[20], *deltamm = &pstates[21];
+static pstate_t *slos = &pstates[22], *vars = &pstates[23], *slom = &pstates[24], *varm = &pstates[25], *slomm = &pstates[26], *varmm = &pstates[27];
 
 // local semaphores memory
 static sequential_t sequential;
@@ -682,7 +684,7 @@ static void calculate_pstate_ramp() {
 		if (avgss->grid > 0)
 			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // grid download - double down when pv falling
 		else if (avgss->grid < 0)
-			pstate->ramp = PSTATE_STABLE_3S ? (avgss->grid / -1) : (avgss->grid / -2); // grid upload - half when unstable last 3 seconds
+			pstate->ramp = deltacc->pv > DELTACC ? (maxmm->grid * -1) : (avgss->grid * -1); // grid upload - maximum (->minimum when inverted) or average
 	}
 
 	// shape
@@ -861,6 +863,15 @@ static void calculate_pstate() {
 		idelta(deltamm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, DELTAM);
 		islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5);
 		ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
+
+		// copy & reset delta sum and delta count every 10 minutes
+		if (now->tm_min % 10 == 0) {
+			memcpy(deltacc, deltac, sizeof(pstate_t));
+			memcpy(deltass, deltas, sizeof(pstate_t));
+			ZEROP(deltac);
+			ZEROP(deltas);
+			xlog("deltacc pv=%d grid=%d akku=%d grid maxmm=%d avgss=%d", deltacc->pv, deltacc->grid, deltacc->akku, maxmm->grid, avgss->grid);
+		}
 	}
 
 	// calculate online state and ramp power when valid
@@ -928,10 +939,6 @@ static void minly() {
 	calculate_counter();
 	calculate_gstate();
 	calculate_statistics();
-
-	// reset delta sum and delta count
-	ZEROP(deltac);
-	ZEROP(deltas);
 }
 
 static void aggregate_state() {
