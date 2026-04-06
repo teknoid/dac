@@ -67,6 +67,10 @@
   ((x) & 0x0002 ? '1' : '0'), \
   ((x) & 0x0001 ? '1' : '0')
 
+#define MINLY					(now->tm_sec  == 0)
+#define HOURLY					(now->tm_min  == 0 && now->tm_sec == 0)
+#define DAILY					(now->tm_hour == 0 && now->tm_min == 0 && now->tm_sec == 0)
+
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
 		struct tm tm_now, *now = &tm_now; \

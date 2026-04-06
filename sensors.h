@@ -24,11 +24,11 @@
 
 typedef struct sensors_t {
 	// abstract sensors
-	int lumi;
-	int tvoc;
 	float tin;
 	float tout;
 	float humi;
+	int lumi;
+	int tvoc;
 
 	// BH1750 luminousity
 	uint16_t bh1750_raw;

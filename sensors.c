@@ -296,11 +296,11 @@ static void loop() {
 		publish_sensors();
 
 		// update abstract sensors
-		sensor->tvoc = TVOC;
 		sensor->tin = TEMP_IN;
 		sensor->tout = TEMP_OUT;
-		sensor->lumi = LUMI;
 		sensor->humi = HUMI;
+		sensor->lumi = LUMI;
+		sensor->tvoc = TVOC;
 
 		// store sensors four times per day
 		if (now->tm_min == 0 || now->tm_min == 1)
@@ -310,6 +310,7 @@ static void loop() {
 				break;
 			case 6:
 				memcpy(sensor6, sensor, sizeof(sensors_t));
+				xlog("sensors6 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			case 12:
 				memcpy(sensor12, sensor, sizeof(sensors_t));
@@ -325,6 +326,10 @@ static void loop() {
 
 		if (WRITE_SYSFSLIKE)
 			write_sensors_sysfslike();
+
+		// store state once per day
+		if (DAILY)
+			store_blob(STATE SLASH SENSORS_FILE, sensors, sizeof(sensors));
 
 		sleep(60);
 	}
