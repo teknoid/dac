@@ -8,6 +8,7 @@
 #include "tasmota.h"
 #include "tasmota-config.h"
 #include "flamingo.h"
+#include "sensors.h"
 #include "frozen.h"
 #include "solar.h"
 #include "utils.h"
@@ -504,7 +505,7 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 //		return notify("motion", "devkit1", "au.wav");
-	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON)
+	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON && sensor->lumi < 2000)
 		return notify("motion", "carport", "au.wav");
 
 	// scan for shutter position results
