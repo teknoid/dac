@@ -307,16 +307,19 @@ static void loop() {
 			switch (now->tm_hour) {
 			case 0:
 				memcpy(sensor0, sensor, sizeof(sensors_t));
+				xlog("sensor0  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			case 6:
 				memcpy(sensor6, sensor, sizeof(sensors_t));
-				xlog("sensors6 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
+				xlog("sensor6  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			case 12:
 				memcpy(sensor12, sensor, sizeof(sensors_t));
+				xlog("sensor12 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			case 18:
 				memcpy(sensor18, sensor, sizeof(sensors_t));
+				xlog("sensor18 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			default:
 			}
