@@ -307,19 +307,15 @@ static void loop() {
 			switch (now->tm_hour) {
 			case 0:
 				memcpy(sensor0, sensor, sizeof(sensors_t));
-				xlog("stored sensors0");
 				break;
 			case 6:
 				memcpy(sensor6, sensor, sizeof(sensors_t));
-				xlog("stored sensors6");
 				break;
 			case 12:
 				memcpy(sensor12, sensor, sizeof(sensors_t));
-				xlog("stored sensors12");
 				break;
 			case 18:
 				memcpy(sensor18, sensor, sizeof(sensors_t));
-				xlog("stored sensors18");
 				break;
 			default:
 			}
