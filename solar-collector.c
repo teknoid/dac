@@ -21,7 +21,7 @@
 
 #define DELTAS					1
 #define DELTAM					5
-#define DELTACC					20
+#define DELTACC					10
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
