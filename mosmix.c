@@ -799,6 +799,39 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 	return 0;
 }
 
+static void factors_simple() {
+	int sum = 0;
+	for (int h = 0; h < 24; h++) {
+		int fd1[7], fd2[7], fd3[7], f1 = 0, f2 = 0, f3 = 0;
+		memset(fd1, 0, sizeof(fd1));
+		memset(fd2, 0, sizeof(fd2));
+		memset(fd3, 0, sizeof(fd3));
+
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, h);
+			fd1[d] = m->Rad1h ? m->mppt1 * 100 / m->Rad1h : 0;
+			f1 += fd1[d];
+			fd2[d] = m->Rad1h ? m->mppt2 * 100 / m->Rad1h : 0;
+			f2 += fd2[d];
+			fd3[d] = m->Rad1h ? m->mppt1 * 100 / m->Rad1h : 0;
+			f3 += fd3[d];
+		}
+		f1 /= 7;
+		f2 /= 7;
+		f3 /= 7;
+
+		mosmix_t *mt = TOMORROW(h);
+		int t1 = mt->Rad1h * f1 / 100;
+		int t2 = mt->Rad1h * f2 / 100;
+		int t3 = mt->Rad1h * f3 / 100;
+
+		sum += t1 + t2 + t3;
+		if (f1)
+			xlog("MOSMIX MPPT1 h=%d fd1=%d fd2=%d fd3=%d fd4=%d fd5=%d fd6=%d fd7=%d f=%d t=%d", h, fd1[0], fd1[1], fd1[2], fd1[3], fd1[4], fd1[5], fd1[6], f1, t1);
+	}
+	xlog("MOSMIX tomorrow expected %d", sum);
+}
+
 static int test() {
 	LOCALTIME
 
@@ -824,6 +857,9 @@ static int test() {
 	// load state and update forecasts
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 1);
+
+	factors_simple();
+	return 0;
 
 	int h = 12;
 	calculate_factors_slave_x(&h);
