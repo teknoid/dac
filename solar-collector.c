@@ -539,7 +539,7 @@ static void calculate_gstate_online() {
 	int critical = gstate->survive < SURVIVE150;
 	int low = gstate->today < params->akku_capacity || gstate->tomorrow < params->akku_capacity; // today/tomorrow low pv expected
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
-	int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 15 o'clock
+	int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 16 o'clock
 	if (WINTER || empty || critical || low || weekend)
 		// winter / empty / critical / low / weekend --> always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
