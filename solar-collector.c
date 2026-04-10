@@ -910,15 +910,12 @@ static void daily() {
 	// store state at least once per day
 	store_state();
 	mosmix_store_state();
-
-	// recalculate mosmix factors
-	mosmix_factors(0);
 }
 
 static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
 
-	// update forecasts and clear at midnight
+	// update forecasts and clear at midnight, recalculate factors
 	mosmix_load(now, WORK SLASH MARIENBERG, DAILY);
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2

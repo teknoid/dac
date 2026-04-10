@@ -25,25 +25,14 @@
 // hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
 #define MOSMIX_HISTORY			"solar-mosmix-history.bin"
 
-// hexdump -v -e '12 "%6d ""\n"' /var/lib/mcp/solar-mosmix-factors.bin
-#define MOSMIX_FACTORS			"solar-mosmix-factors.bin"
-
 // csvfilter.sh /run/mcp/mosmix-history.csv 12
 #define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
 #define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
 #define MOSMIX_TODAY_CSV		"mosmix-today.csv"
 #define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
 
-// temperature coefficient per mppt, scaled as x100
-#define TCOPMAX1				-34
-#define TCOPMAX2				-30
-#define TCOPMAX3				-34
-#define TCOPMAX4				0
-
-// output power = rated power * (100 + tco * (t - 25) / 100) / 100;
-#define EXPECTR(m, r, tco)		r * (m)->Rad1h * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 1000
-#define EXPECTS(m, s, tco)		s * (m)->SunD1 * (100 + tco * ((m)->TTT - 25) / 100) / 100 / 100
-#define EXPECTRS(m, r, s, tco)	EXPECTR(m, r, tco) + EXPECTR(m, r, tco) * s * (m)->SunD1 / 10000
+// temperature coefficient scaled as x100
+#define TCOP					-34
 
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
@@ -96,33 +85,21 @@ static void parse(char **strings, size_t size) {
 	m->RSunD = atoi(strings[5]);
 }
 
-static int expect(mosmix_t *m, int r, int s, int tco) {
-	int rsx = EXPECTRS(m, r, s, tco);
-	int rx = EXPECTR(m, r, tco);
-	int sx = EXPECTS(m, s, tco);
-	if (rsx >= rx || rx == 0)
-		return rsx;
-
-	xlog("MOSMIX expect: rx > rsx rad1h=%d sund1=%d rsx=%d rx=%d sx=%d", m->Rad1h, m->SunD1, rsx, rx, sx);
-	return rx;
-
-// hours with lower Rad1H and zero SunD1 give higher expected when calculating average - this is definitively wrong!!!
-//	   i Rad1h SunD1   TTT mppt1 mppt2 mppt3 mppt4  exp1  exp2  exp3  exp4 diff1 diff2 diff3 diff4  err1  err2  err3  err4
-//	0013   630     5     3   713   470   400     0   938   328   166     0  -225   142   234     0    76   143   240   100
-//	0013   390     0     7     0     0     0     0   994   348   176     0     0     0     0     0   100   100   100   100
-//	int rx = EXPECTR(m, r, tco);
-//	int sx = EXPECTS(m, s, tco);
-//	int xx = rx && sx ? (rx + sx) / 2 : rx ? rx : sx;
-//	xdebug("MOSMIX expect rad1h=%d rx=%d sund1=%d sx=%d xx=%d", m->Rad1h, rx, m->SunD1, sx, xx);
-//	return xx;
-}
-
 // calculate expected pv as combination of raw mosmix values with mppt specific coefficients
 static void expecteds(mosmix_t *m, factor_t *f) {
-	m->exp1 = expect(m, f->r1, f->s1, TCOPMAX1);
-	m->exp2 = expect(m, f->r2, f->s2, TCOPMAX2);
-	m->exp3 = expect(m, f->r3, f->s3, TCOPMAX3);
-	m->exp4 = expect(m, f->r4, f->s4, TCOPMAX4);
+	float fSunD1 = 1.0 + (float) m->SunD1 / 1000;
+	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100;
+
+	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1, ftco);
+
+	float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1 * ftco;
+	m->exp1 = round100(f1 / 100);
+	float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1 * ftco;
+	m->exp2 = round100(f2 / 100);
+	float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1 * ftco;
+	m->exp3 = round100(f3 / 100);
+	float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1 * ftco;
+	m->exp4 = round100(f4 / 100);
 }
 
 static void errors(mosmix_t *m) {
@@ -140,25 +117,39 @@ static void errors(mosmix_t *m) {
 }
 
 static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod) {
-	ZEROP(mtomorrow);
-	ZEROP(mtoday);
-	ZEROP(msod);
-	ZEROP(meod);
-
 	for (int h = 0; h < 24; h++) {
-		mosmix_t *m1 = TOMORROW(h);
+		factor_t *f = FACTORS(h);
 		mosmix_t *m0 = TODAY(h);
+		mosmix_t *m1 = TOMORROW(h);
 
-		sum(mtomorrow, m1);
-		sum(mtoday, m0);
+		// collect today
+		expecteds(m0, f);
+		mtoday->exp1 += m0->exp1;
+		mtoday->exp2 += m0->exp2;
+		mtoday->exp3 += m0->exp3;
+		mtoday->exp4 += m0->exp4;
 
-		if (h < now->tm_hour + 1)
+		// collect tomorrow
+		expecteds(m1, f);
+		mtomorrow->exp1 += m1->exp1;
+		mtomorrow->exp2 += m1->exp2;
+		mtomorrow->exp3 += m1->exp3;
+		mtomorrow->exp4 += m1->exp4;
+
+		// calculate sod/eod
+		if (h < now->tm_hour + 1) {
 			// full elapsed hours into sod
-			sum(msod, m0);
-		else if (h > now->tm_hour + 1)
+			msod->exp1 += m0->exp1;
+			msod->exp2 += m0->exp2;
+			msod->exp3 += m0->exp3;
+			msod->exp4 += m0->exp4;
+		} else if (h > now->tm_hour + 1) {
 			// full remaining hours into eod
-			sum(meod, m0);
-		else {
+			meod->exp1 += m0->exp1;
+			meod->exp2 += m0->exp2;
+			meod->exp3 += m0->exp3;
+			meod->exp4 += m0->exp4;
+		} else {
 			// current hour - split at current minute
 			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
 			int xs2 = m0->exp2 * now->tm_min / 60, xe2 = m0->exp2 - xs2;
@@ -240,252 +231,79 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
-// separate: first Rad1h then SunD1
-static void* calculate_factors_slave_x(void *arg) {
-	int *h = (int*) arg;
-
-	xdebug("MOSMIX factors thread started hour=%d", *h);
-
-	factor_t *f = FACTORS(*h);
-
-	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-	for (int r = 0; r <= FMAX; r++) {
-
-		// sum up errors over one week
-		int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-		for (int d = 0; d < 7; d++) {
-			mosmix_t *m = HISTORY(d, *h);
-
-			// calculate expected from Rad1h
-			int exp1 = EXPECTR(m, r, TCOPMAX1);
-			int exp2 = EXPECTR(m, r, TCOPMAX2);
-			int exp3 = EXPECTR(m, r, TCOPMAX3);
-			int exp4 = EXPECTR(m, r, TCOPMAX4);
-
-			// calculate absolute error
-			e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-			e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-			e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-			e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
-		}
-
-		// take over coefficients from the smallest error
-		if (e1 < f->e1) {
-			f->r1 = r;
-			f->e1 = e1;
-		}
-		if (e2 < f->e2) {
-			f->r2 = r;
-			f->e2 = e2;
-		}
-		if (e3 < f->e3) {
-			f->r3 = r;
-			f->e3 = e3;
-		}
-		if (e4 < f->e4) {
-			f->r4 = r;
-			f->e4 = e4;
-		}
-	}
-
-	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-	for (int s = 0; s <= FMAX; s++) {
-
-		// sum up errors over one week
-		int e1 = 0, e2 = 0, e3 = 0, e4 = 0;
-		for (int d = 0; d < 7; d++) {
-			mosmix_t *m = HISTORY(d, *h);
-
-			// calculate expected from SunD1
-			int exp1 = EXPECTS(m, s, TCOPMAX1);
-			int exp2 = EXPECTS(m, s, TCOPMAX2);
-			int exp3 = EXPECTS(m, s, TCOPMAX3);
-			int exp4 = EXPECTS(m, s, TCOPMAX4);
-
-			// calculate absolute error
-			e1 += exp1 < 0 ? INT16_MAX : m->mppt1 > exp1 ? (m->mppt1 - exp1) : (exp1 - m->mppt1);
-			e2 += exp2 < 0 ? INT16_MAX : m->mppt2 > exp2 ? (m->mppt2 - exp2) : (exp2 - m->mppt2);
-			e3 += exp3 < 0 ? INT16_MAX : m->mppt3 > exp3 ? (m->mppt3 - exp3) : (exp3 - m->mppt3);
-			e4 += exp4 < 0 ? INT16_MAX : m->mppt4 > exp4 ? (m->mppt4 - exp4) : (exp4 - m->mppt4);
-		}
-
-		// take over coefficients from the smallest error
-		if (e1 < f->e1) {
-			f->s1 = s;
-			f->e1 = e1;
-		}
-		if (e2 < f->e2) {
-			f->s2 = s;
-			f->e2 = e2;
-		}
-		if (e3 < f->e3) {
-			f->s3 = s;
-			f->e3 = e3;
-		}
-		if (e4 < f->e4) {
-			f->s4 = s;
-			f->e4 = e4;
-		}
-	}
-
-	// fix disconnected MPPT4 noise
-	f->r4 = f->s4 = f->e4 = 0;
-
-	*h = -1; // indicate finish
-	return (void*) 0;
-}
-
-// combined: Rad1h + SunD1
-static void* calculate_factors_slave(void *arg) {
-	int *h = (int*) arg;
-
-	xdebug("MOSMIX factors thread started hour=%d", *h);
-
-	// average over one week for this hour
-	mosmix_t avg, *a = &avg;
-	ZERO(avg);
-	for (int d = 0; d < 7; d++)
-		iadd(a, HISTORY(d, *h), MOSMIX_SIZE);
-	idiv_const(a, MOSMIX_SIZE, 7);
-	dump_array(a, MOSMIX_SIZE, "[ØØ]", 0);
-
-	// do we have Rad1h for this hour?
-	if (!a->Rad1h) {
-		*h = -1; // indicate finish
-		return (void*) 0;
-	}
-
-	mosmix_t err, *e = &err;
-	factor_t *f = FACTORS(*h);
-	f->e1 = f->e2 = f->e3 = f->e4 = INT16_MAX;
-
-	for (int r = 0; r <= FRMAX; r++)
-		for (int s = -FSMAX; s <= FSMAX; s++) {
-
-			// sum up errors over one week
-			e->err1 = e->err2 = e->err3 = e->err4 = 0; // no memset -> performance!
-			for (int d = 0; d < 7; d++) {
-				mosmix_t *m = HISTORY(d, *h);
-
-				// calculate expected from Rad1h vs. SunD1
-				m->exp1 = EXPECTRS(m, r, s, TCOPMAX1);
-				m->exp2 = EXPECTRS(m, r, s, TCOPMAX2);
-				m->exp3 = EXPECTRS(m, r, s, TCOPMAX3);
-				m->exp4 = EXPECTRS(m, r, s, TCOPMAX4);
-
-				// calculate absolute error
-				e->err1 += m->exp1 < 0 ? INT16_MAX : m->mppt1 > m->exp1 ? (m->mppt1 - m->exp1) : (m->exp1 - m->mppt1);
-				e->err2 += m->exp2 < 0 ? INT16_MAX : m->mppt2 > m->exp2 ? (m->mppt2 - m->exp2) : (m->exp2 - m->mppt2);
-				e->err3 += m->exp3 < 0 ? INT16_MAX : m->mppt3 > m->exp3 ? (m->mppt3 - m->exp3) : (m->exp3 - m->mppt3);
-				e->err4 += m->exp4 < 0 ? INT16_MAX : m->mppt4 > m->exp4 ? (m->mppt4 - m->exp4) : (m->exp4 - m->mppt4);
-			}
-
-			// take over coefficients from the smallest error
-			if (e->err1 < f->e1) {
-				f->e1 = e->err1;
-				f->r1 = r;
-				f->s1 = s;
-			}
-			if (e->err2 < f->e2) {
-				f->e2 = e->err2;
-				f->r2 = r;
-				f->s2 = s;
-			}
-			if (e->err3 < f->e3) {
-				f->e3 = e->err3;
-				f->r3 = r;
-				f->s3 = s;
-			}
-			if (e->err4 < f->e4) {
-				f->e4 = e->err4;
-				f->r4 = r;
-				f->s4 = s;
-			}
-		}
-
-	// fix disconnected MPPT4 noise
-	f->r4 = f->s4 = f->e4 = 0;
-
-	// fix initial s factors
-	f->s1 = f->s1 == -FSMAX ? 0 : f->s1;
-	f->s2 = f->s2 == -FSMAX ? 0 : f->s2;
-	f->s3 = f->s3 == -FSMAX ? 0 : f->s3;
-	f->s4 = f->s4 == -FSMAX ? 0 : f->s4;
-
-	*h = -1; // indicate finish
-	return (void*) 0;
-}
-
-static void* calculate_factors_master(void *arg) {
-	char line[LINEBUF], value[10];
-
-	// 24 thread and control slots
-	pthread_t threads[24];
-	int control[24];
-
-	// set working hour for slot
-	for (int h = 0; h < 24; h++)
-		control[h] = h;
-
+// Rad1h factors determination by averaging mosmix history actual vs. expected per mppt
+static void calculate_factors() {
 	ZERO(factors);
-	ZERO(threads);
 
-	// how many processors can we use
-	int nprocs = get_nprocs();
+	for (int h = 0; h < 24; h++) {
+		factor_t fd[7];
+		memset(fd, 0, sizeof(fd));
 
-	// thread control loop every second
-	while (1) {
-		strcpy(line, "MOSMIX factors thread control ");
-		int completed = 1;
-		for (int h = 0; h < 24; h++) {
-			if (control[h] == -1) {
-				// finished - join thread and free processor
-				if (threads[h])
-					if (!pthread_join(threads[h], NULL)) {
-						threads[h] = 0;
-						nprocs++;
-					}
-			} else {
-				// start thread if we have a free processor
-				completed = 0;
-				if (!threads[h] && nprocs > 0)
-					if (!pthread_create(&threads[h], NULL, &calculate_factors_slave, &control[h]))
-						nprocs--;
-			}
-			snprintf(value, 10, " %2d", control[h]);
-			strcat(line, value);
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, h);
+			fd[d].r1 = m->Rad1h && m->mppt1 ? m->mppt1 * 100 / m->Rad1h : 0;
+			fd[d].r2 = m->Rad1h && m->mppt2 ? m->mppt2 * 100 / m->Rad1h : 0;
+			fd[d].r3 = m->Rad1h && m->mppt3 ? m->mppt3 * 100 / m->Rad1h : 0;
+			fd[d].r4 = m->Rad1h && m->mppt4 ? m->mppt4 * 100 / m->Rad1h : 0;
 		}
-		xdebug(line);
 
-		if (completed)
-			break;
+		// clear smallest
+		int f1min = fd[0].r1, d1min = 0, f2min = fd[0].r2, d2min = 0, f3min = fd[0].r3, d3min = 0, f4min = fd[0].r4, d4min = 0;
+		for (int d = 0; d < 7; d++) {
+			if (fd[d].r1 < f1min)
+				d1min = d;
+			if (fd[d].r2 < f2min)
+				d2min = d;
+			if (fd[d].r3 < f3min)
+				d3min = d;
+			if (fd[d].r4 < f4min)
+				d4min = d;
+		}
+		fd[d1min].r1 = fd[d1min].r1 ? 100 : 0;
+		fd[d2min].r2 = fd[d1min].r2 ? 100 : 0;
+		fd[d3min].r3 = fd[d1min].r3 ? 100 : 0;
+		fd[d4min].r4 = fd[d1min].r4 ? 100 : 0;
 
-		sleep(1);
+		// clear biggest
+		int f1max = fd[0].r1, d1max = 0, f2max = fd[0].r2, d2max = 0, f3max = fd[0].r3, d3max = 0, f4max = fd[0].r4, d4max = 0;
+		for (int d = 0; d < 7; d++) {
+			if (fd[d].r1 > f1max)
+				d1max = d;
+			if (fd[d].r2 > f2max)
+				d2max = d;
+			if (fd[d].r3 > f3max)
+				d3max = d;
+			if (fd[d].r4 > f4max)
+				d4max = d;
+		}
+		fd[d1max].r1 = fd[d1max].r1 ? 100 : 0;
+		fd[d2max].r2 = fd[d2max].r2 ? 100 : 0;
+		fd[d3max].r3 = fd[d3max].r3 ? 100 : 0;
+		fd[d4max].r4 = fd[d4max].r4 ? 100 : 0;
+
+		// calculate factors
+		factor_t *f = FACTORS(h);
+		memset(f, 0, sizeof(factor_t));
+		for (int d = 0; d < 7; d++) {
+			f->r1 += fd[d].r1;
+			f->r2 += fd[d].r2;
+			f->r3 += fd[d].r3;
+			f->r4 += fd[d].r4;
+		}
+		f->r1 /= 7;
+		f->r2 /= 7;
+		f->r3 /= 7;
+		f->r4 /= 7;
+
+		if (f->r1)
+			xlog("MOSMIX MPPT1 h=%2d 1=%3d 2=%3d 3=%3d 4=%3d 5=%3d 6=%3d 7=%3d fr=%3d", h, fd[0].r1, fd[1].r1, fd[2].r1, fd[3].r1, fd[4].r1, fd[5].r1, fd[6].r1, f->r1);
 	}
 
-#ifndef MOSMIX_MAIN
-	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
-#endif
 	mosmix_t mc;
 	store_table_csv(factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	dump_table(factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 	icumulate(&mc, factors, FACTOR_SIZE, 24);
 	dump_array(&mc, FACTOR_SIZE, "[++]", 0);
-	return (void*) 0;
-}
-
-// brute force coefficients determination per MPPT and hour in separate thread
-void mosmix_factors(int wait) {
-	pthread_t master;
-
-	if (pthread_create(&master, NULL, &calculate_factors_master, NULL))
-		xerr("MOSMIX Error creating calculate_factors_master thread");
-
-	if (!wait)
-		return;
-
-	if (pthread_join(master, NULL) != 0)
-		xerr("MOSMIX Error joining calculate_factors_master thread");
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -586,13 +404,17 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 // collect total expected today, tomorrow and till end of day / start of day
 void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
 	mosmix_t mtoday, mtomorrow, msod, meod;
-	collect(now, &mtomorrow, &mtoday, &msod, &meod);
+	memset(&mtoday, 0, sizeof(mosmix_t));
+	memset(&mtomorrow, 0, sizeof(mosmix_t));
+	memset(&msod, 0, sizeof(mosmix_t));
+	memset(&meod, 0, sizeof(mosmix_t));
 
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 	*itomorrow = SUM_EXP(&mtomorrow);
 	*itoday = SUM_EXP(&mtoday);
 	*isod = SUM_EXP(&msod);
 	*ieod = SUM_EXP(&meod);
-	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
+	xlog("MOSMIX collect today=%d tomorrow=%d sod=%d eod=%d", *itoday, *itomorrow, *isod, *ieod);
 
 	// validate
 	if (*itoday != *isod + *ieod)
@@ -741,17 +563,10 @@ void mosmix_load_state(struct tm *now) {
 			m0->mppt4 = h0->mppt4;
 		}
 	}
-
-	// load or calculate factors
-	if (access(STATE SLASH MOSMIX_FACTORS, F_OK))
-		mosmix_factors(0);
-	else
-		load_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 }
 
 void mosmix_store_state() {
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
-	store_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 }
 void mosmix_store_csv() {
 	store_table_csv(factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
@@ -795,176 +610,11 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 		ZERO(tomorrow);
 	}
 	update_today_tomorrow(now);
+	calculate_factors();
 	recalc_expected();
 	return 0;
 }
 
-static void factors_simple() {
-	for (int h = 0; h < 24; h++) {
-		factor_t fd[7];
-		memset(fd, 0, sizeof(fd));
-
-		for (int d = 0; d < 7; d++) {
-			mosmix_t *m = HISTORY(d, h);
-			fd[d].r1 = m->Rad1h && m->mppt1 ? m->mppt1 * 100 / m->Rad1h : 0;
-			fd[d].r2 = m->Rad1h && m->mppt2 ? m->mppt2 * 100 / m->Rad1h : 0;
-			fd[d].r3 = m->Rad1h && m->mppt3 ? m->mppt3 * 100 / m->Rad1h : 0;
-			fd[d].r4 = m->Rad1h && m->mppt4 ? m->mppt4 * 100 / m->Rad1h : 0;
-		}
-
-		// clear smallest
-		int f1min = fd[0].r1, d1min = 0, f2min = fd[0].r2, d2min = 0, f3min = fd[0].r3, d3min = 0, f4min = fd[0].r4, d4min = 0;
-		for (int d = 0; d < 7; d++) {
-			if (fd[d].r1 < f1min)
-				d1min = d;
-			if (fd[d].r2 < f2min)
-				d2min = d;
-			if (fd[d].r3 < f3min)
-				d3min = d;
-			if (fd[d].r4 < f4min)
-				d4min = d;
-		}
-		fd[d1min].r1 = fd[d1min].r1 ? 100 : 0;
-		fd[d2min].r2 = fd[d1min].r2 ? 100 : 0;
-		fd[d3min].r3 = fd[d1min].r3 ? 100 : 0;
-		fd[d4min].r4 = fd[d1min].r4 ? 100 : 0;
-
-		// clear biggest
-		int f1max = fd[0].r1, d1max = 0, f2max = fd[0].r2, d2max = 0, f3max = fd[0].r3, d3max = 0, f4max = fd[0].r4, d4max = 0;
-		for (int d = 0; d < 7; d++) {
-			if (fd[d].r1 > f1max)
-				d1max = d;
-			if (fd[d].r2 > f2max)
-				d2max = d;
-			if (fd[d].r3 > f3max)
-				d3max = d;
-			if (fd[d].r4 > f4max)
-				d4max = d;
-		}
-		fd[d1max].r1 = fd[d1max].r1 ? 100 : 0;
-		fd[d2max].r2 = fd[d2max].r2 ? 100 : 0;
-		fd[d3max].r3 = fd[d3max].r3 ? 100 : 0;
-		fd[d4max].r4 = fd[d4max].r4 ? 100 : 0;
-
-		// calculate factors
-		factor_t *f = FACTORS(h);
-		memset(f, 0, sizeof(factor_t));
-		for (int d = 0; d < 7; d++) {
-			f->r1 += fd[d].r1;
-			f->r2 += fd[d].r2;
-			f->r3 += fd[d].r3;
-			f->r4 += fd[d].r4;
-		}
-		f->r1 /= 7;
-		f->r2 /= 7;
-		f->r3 /= 7;
-		f->r4 /= 7;
-
-		if (f->r1)
-			xlog("MOSMIX MPPT1 h=%2d 1=%3d 2=%3d 3=%3d 4=%3d 5=%3d 6=%3d 7=%3d fr=%3d", h, fd[0].r1, fd[1].r1, fd[2].r1, fd[3].r1, fd[4].r1, fd[5].r1, fd[6].r1, f->r1);
-	}
-}
-
-static void collect_today(struct tm *now) {
-	mosmix_t mtoday, msod, meod;
-	memset(&mtoday, 0, sizeof(mosmix_t));
-	memset(&msod, 0, sizeof(mosmix_t));
-	memset(&meod, 0, sizeof(mosmix_t));
-
-	for (int h = 0; h < 24; h++) {
-		factor_t *f = FACTORS(h);
-		mosmix_t *m = TODAY(h);
-
-		float fSunD1 = 1.0 + (float) m->SunD1 / 1000;
-		float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOPMAX1 / 100 / 100;
-
-		// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1, ftco);
-
-		float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1 * ftco;
-		m->exp1 = round100(f1 / 100);
-		float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1 * ftco;
-		m->exp2 = round100(f2 / 100);
-		float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1 * ftco;
-		m->exp3 = round100(f3 / 100);
-		float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1 * ftco;
-		m->exp4 = round100(f4 / 100);
-
-		mtoday.exp1 += m->exp1;
-		mtoday.exp2 += m->exp2;
-		mtoday.exp3 += m->exp3;
-		mtoday.exp4 += m->exp4;
-
-		// calculate sod/eod
-		if (h < now->tm_hour + 1) {
-			// full elapsed hours into sod
-			msod.exp1 += m->exp1;
-			msod.exp2 += m->exp2;
-			msod.exp3 += m->exp3;
-			msod.exp4 += m->exp4;
-		} else if (h > now->tm_hour + 1) {
-			// full remaining hours into eod
-			meod.exp1 += m->exp1;
-			meod.exp2 += m->exp2;
-			meod.exp3 += m->exp3;
-			meod.exp4 += m->exp4;
-		} else {
-			// current hour - split at current minute
-			int xs1 = m->exp1 * now->tm_min / 60, xe1 = m->exp1 - xs1;
-			int xs2 = m->exp2 * now->tm_min / 60, xe2 = m->exp2 - xs2;
-			int xs3 = m->exp3 * now->tm_min / 60, xe3 = m->exp3 - xs3;
-			int xs4 = m->exp4 * now->tm_min / 60, xe4 = m->exp4 - xs4;
-			// elapsed minutes into sod
-			msod.exp1 += xs1;
-			msod.exp2 += xs2;
-			msod.exp3 += xs3;
-			msod.exp4 += xs4;
-			// remaining minutes into eod
-			meod.exp1 += xe1;
-			meod.exp2 += xe2;
-			meod.exp3 += xe3;
-			meod.exp4 += xe4;
-		}
-	}
-
-	int today = mtoday.exp1 + mtoday.exp2 + mtoday.exp3 + mtoday.exp4;
-	int sod = msod.exp1 + msod.exp2 + msod.exp3 + msod.exp4;
-	int eod = meod.exp1 + meod.exp2 + meod.exp3 + meod.exp4;
-
-	xlog("MOSMIX expected today=%d sod=%d eod=%d", today, sod, eod);
-}
-
-static void collect_tomorrow(struct tm *now) {
-	mosmix_t mtomorrow;
-	memset(&mtomorrow, 0, sizeof(mosmix_t));
-
-	for (int h = 0; h < 24; h++) {
-		factor_t *f = FACTORS(h);
-		mosmix_t *m = TOMORROW(h);
-
-		float fSunD1 = 1.0 + (float) m->SunD1 / 1000;
-		float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOPMAX1 / 100 / 100;
-
-		// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1, ftco);
-
-		float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1 * ftco;
-		m->exp1 = round100(f1 / 100);
-		float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1 * ftco;
-		m->exp2 = round100(f2 / 100);
-		float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1 * ftco;
-		m->exp3 = round100(f3 / 100);
-		float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1 * ftco;
-		m->exp4 = round100(f4 / 100);
-
-		mtomorrow.exp1 += m->exp1;
-		mtomorrow.exp2 += m->exp2;
-		mtomorrow.exp3 += m->exp3;
-		mtomorrow.exp4 += m->exp4;
-
-	}
-
-	int tomorrow = mtomorrow.exp1 + mtomorrow.exp2 + mtomorrow.exp3 + mtomorrow.exp4;
-	xlog("MOSMIX expected tomorrow=%d", tomorrow);
-}
 static int test() {
 	LOCALTIME
 
@@ -990,22 +640,6 @@ static int test() {
 	// load state and update forecasts
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 1);
-
-	factors_simple();
-	collect_today(now);
-	collect_tomorrow(now);
-	return 0;
-
-	int h = 12;
-	calculate_factors_slave_x(&h);
-	recalc_expected();
-	mosmix_dump_history_hours(12);
-	h = 12;
-	calculate_factors_slave(&h);
-	recalc_expected();
-	mosmix_dump_history_hours(12);
-
-	return 0;
 
 	// calculate total daily values
 	mosmix_csv_t m0, m1, m2;
@@ -1064,7 +698,7 @@ static int recalc() {
 
 	mosmix_load_state(now);
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
-	mosmix_factors(1);
+	calculate_factors();
 	recalc_expected();
 	mosmix_dump_history_hours(12);
 	mosmix_store_csv();
@@ -1172,7 +806,6 @@ static int diffs(struct tm *now) {
 
 static int compare() {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
-	load_blob(STATE SLASH MOSMIX_FACTORS, factors, sizeof(factors));
 
 	// yesterday
 	time_t ts_yday = time(NULL);

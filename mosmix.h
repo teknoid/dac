@@ -91,7 +91,7 @@ struct _factor {
 
 void mosmix_store_state();
 void mosmix_load_state(struct tm *now);
-void mosmix_factors(int wait);
+void mosmix_factors();
 void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);
 void mosmix_dump_history(struct tm *now);
