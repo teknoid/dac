@@ -72,24 +72,12 @@ p tomorrow u 1:"SunD1"  t "SunD1" w boxes fillcolor "orange" axes x1y2,\
 	    '' u 1:($9+$10+$11) t "sum" w lines lt 1
 
 # mosmix factors
-set ylabel "Factors - Errors"
 set yrange [*:*] 
-set output "/run/mcp/mosmix-factors-errors.svg"
-p factors u 1:"e1"  t "e1" w lines ls 11,\
-       '' u 1:"e2"  t "e2" w lines ls 12,\
-       '' u 1:"e3"  t "e3" w lines ls 13
-
 set ylabel "Factors - Rad1h"
 set output "/run/mcp/mosmix-factors-Rad1h.svg"
-p factors u 1:"r1"  t "r1" w lines ls 21,\
-       '' u 1:"r2"  t "r2" w lines ls 22,\
-       '' u 1:"r3"  t "r3" w lines ls 23
-
-set ylabel "Factors - SunD1"
-set output "/run/mcp/mosmix-factors-SunD1.svg"
-p factors u 1:"s1"  t "s1" w lines ls 31,\
-       '' u 1:"s2"  t "s2" w lines ls 32,\
-       '' u 1:"s3"  t "s3" w lines ls 33
+p factors u 1:"r1"  t "r1" w lines ls 11,\
+       '' u 1:"r2"  t "r2" w lines ls 12,\
+       '' u 1:"r3"  t "r3" w lines ls 13
 
 # mosmix history week
 set ylabel "MPPTs"

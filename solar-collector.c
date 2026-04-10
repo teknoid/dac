@@ -563,7 +563,7 @@ static void calculate_gstate_online() {
 	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
 		params->akku_climit = params->akku_cmax / 4;
 	if (800 < gstate->soc && gstate->soc < 999)
-		params->akku_climit = 666; // charging slow between 80 and 100%
+		params->akku_climit = 666; // charging slow between 80% and 100%
 	if (params->akku_climit_override)
 		params->akku_climit = params->akku_climit_override;
 }
@@ -872,7 +872,6 @@ static void calculate_pstate() {
 			memcpy(deltass, deltas, sizeof(pstate_t));
 			ZEROP(deltac);
 			ZEROP(deltas);
-			xlog("deltacc pv=%d grid=%d akku=%d grid maxmm=%d avgss=%d", deltacc->pv, deltacc->grid, deltacc->akku, maxmm->grid, avgss->grid);
 		}
 	}
 
