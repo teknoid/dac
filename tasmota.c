@@ -507,9 +507,12 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
 //		return notify("motion", "devkit1", "au.wav");
+	LOCALTIME
 	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON) {
-		if (sensor->lumi > LUMI_NOTIFY) {
-			xlog("TASMOTA suppress carport motion notify lumi=%d", sensor->lumi);
+		int skip1 = sensor->lumi > LUMI_NOTIFY;
+		int skip2 = 11 <= now->tm_hour && now->tm_hour < 14;
+		if (skip1 || skip2) {
+			xlog("TASMOTA suppress carport motion notify lumi=%d hour=%d", sensor->lumi, now->tm_hour);
 			return 0;
 		} else
 			return notify("motion", "carport", "au.wav");

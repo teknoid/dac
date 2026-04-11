@@ -53,8 +53,9 @@
 
 // dstate access pointers
 #define DSTATE_NOW				(&dstate_seconds[now->tm_sec])
-#define DSTATE_LAST5			(&dstate_seconds[now->tm_sec > 4 ? now->tm_sec -  5 : (now->tm_sec -  5 + 60)])
 #define DSTATE_LAST10			(&dstate_seconds[now->tm_sec > 9 ? now->tm_sec - 10 : (now->tm_sec - 10 + 60)])
+#define DSTATE_LAST20			(&dstate_seconds[now->tm_sec > 19 ? now->tm_sec - 20 : (now->tm_sec - 20 + 60)])
+#define DSTATE_LAST30			(&dstate_seconds[now->tm_sec > 29 ? now->tm_sec - 30 : (now->tm_sec - 30 + 60)])
 
 #define DD						(*dd)
 
@@ -79,13 +80,13 @@ static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .
 static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
 static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
 static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
-static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
+static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared", .state = Disabled };
 static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
 static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
 static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Initial };
-static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Initial };
-static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
-static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9" };
+static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Disabled };
+static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6", .state = Disabled};
+static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9", .state = Disabled };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
@@ -314,20 +315,12 @@ static void ramp_akku(device_t *akku) {
 	// ramp up request
 	if (akku->ramp_in > 0) {
 
-		// set into standby when full
-		if (gstate->soc == 1000) {
+		// set into standby when full or charging not indicated
+		if (gstate->soc == 1000 || !GSTATE_CHARGE_AKKU) {
 			if (!akku_standby(akku))
 				dstate->flags |= FLAG_ACTION;
 			return;
 		}
-
-		// akku is charging but we still have grid upload - either on limited akku charging or extra power
-		if (akku->state == Charge && GSTATE_GRID_ULOAD)
-			return;
-
-		// akku charging is nearly saturated
-		if (akku->power > 90)
-			return;
 
 		// akku is charging
 		if (AKKU_CHARGING) {
@@ -345,6 +338,8 @@ static void ramp_akku(device_t *akku) {
 			if (akku->load < params->minimum)
 				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
 			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
+			// update CLimit
+			akku_charge(akku);
 			return;
 		}
 
@@ -352,12 +347,6 @@ static void ramp_akku(device_t *akku) {
 		int skip = akku->ramp_in < AKKU->min || DSTATE_ACTION;
 		if (skip)
 			return;
-
-		// set into standby when charging not indicated
-		if (!GSTATE_CHARGE_AKKU) {
-			akku_standby(akku);
-			return;
-		}
 
 		// start charging
 		if (!akku_charge(akku)) {
@@ -578,7 +567,7 @@ static void online() {
 			continue;
 
 		// reset FLAG_STANDBY_CHECKED on permanent OVERLOAD_STANDBY_FORCE
-		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE)
+		if (dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST20->rload > OVERLOAD_STANDBY_FORCE)
 			DD->flags &= ~FLAG_STANDBY_CHECKED;
 
 		// set heaters back to auto when heating is indicated
@@ -715,6 +704,7 @@ static void steal() {
 					DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // adjustable devices - all above minimum
 			} else
 				DD->steal = DD->load; // all
+			xlog("SOLAR collect steal %s=%d", DD->name, DD->steal);
 		}
 		overall_steal += DD->steal;
 	}
@@ -877,15 +867,17 @@ static void calculate_actions() {
 		return;
 
 	// permanent overload - force standby check without any restrictions
-	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST5->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE;
+	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST20->rload > OVERLOAD_STANDBY_FORCE;
 	if (overload_force && !DSTATE_ALL_DOWN) {
+		xlog("SOLAR overload_force rload=%d rload5=%d rload10=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}
 
 	// permanent overload - normal standby check when stable and no grid download
-	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST5->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY;
+	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY && DSTATE_LAST20->rload > OVERLOAD_STANDBY;
 	if (overload && PSTATE_STABLE_3S && !PSTATE_GRID_DLOAD && !DSTATE_ALL_DOWN) {
+		xlog("SOLAR overload rload=%d rload5=%d rload10=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}
@@ -1207,6 +1199,9 @@ static int init() {
 	b2.interlock = &b1;
 
 	sem_init(&sq->dispatcher, 0, 0);
+
+	// akku_standby(AKKU);
+	// akku_charge(AKKU);
 
 	return 0;
 }

@@ -516,31 +516,31 @@ static void calculate_gstate_online() {
 	}
 
 	// heating
-	int temp6 = sensor6->tout;
-	gstate->flags |= FLAG_HEATING;
-	// no need to heat
-	if (sensor->tin > 18.0 && SUMMER)
-		gstate->flags &= ~FLAG_HEATING;
-	if (sensor->tin > 24.0 && temp6 > 10.0 && !SUMMER)
-		gstate->flags &= ~FLAG_HEATING;
-	if (sensor->tin > 26.0)
-		gstate->flags &= ~FLAG_HEATING;
+	if (sensor6->tout < 10.0 && sensor->tin < 21.0)
+		gstate->flags |= FLAG_HEATING;
+	if (SUMMER && sensor->tin < 18.0)
+		gstate->flags |= FLAG_HEATING;
+	if (!SUMMER && sensor->tin < 23.0)
+		gstate->flags |= FLAG_HEATING;
 	// force heating
-	if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensor->tin < 26.0) // may/sept begin 16 o'clock
+	if ((now->tm_mon < 3 || now->tm_mon > 9) && sensor->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;
 	else if ((now->tm_mon == 3 || now->tm_mon == 9) && now->tm_hour >= 14 && sensor->tin < 26.0) // apr/oct begin 14 o'clock
 		gstate->flags |= FLAG_HEATING;
-	else if ((now->tm_mon < 3 || now->tm_mon > 9) && sensor->tin < 28.0) // nov-mar always
+	else if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensor->tin < 26.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
+	// gstate->flags |= FLAG_HEATING; // hard enabled
+	// gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
 	int soc6 = GSTATE_HOUR(6)->soc;
 	int empty = gstate->soc < 100;
-	int critical = gstate->survive < SURVIVE150;
-	int low = gstate->today < params->akku_capacity || gstate->tomorrow < params->akku_capacity; // today/tomorrow low pv expected
+	int critical = gstate->survive < SURVIVE110;
+	int low_td = gstate->today < params->akku_capacity && gstate->soc < 333; // today low pv expected and akku below 33%
+	int low_tm = gstate->tomorrow < params->akku_capacity && gstate->soc < 666; // tomorrow low pv expected and akku below 66%
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
 	int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 16 o'clock
-	if (WINTER || empty || critical || low || weekend)
+	if (WINTER || empty || critical || low_td || low_tm || weekend)
 		// winter / empty / critical / low / weekend --> always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
@@ -552,7 +552,7 @@ static void calculate_gstate_online() {
 		if (time_window && soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low=%d weekend=%d time=%d", soc6, empty, critical, low, weekend, time_window);
+	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low_td=%d low_tm=%d weekend=%d time=%d", soc6, empty, critical, low_td, low_tm, weekend, time_window);
 
 	// akku charge limit
 	params->akku_climit = 0;
@@ -626,10 +626,10 @@ static void calculate_gstate() {
 	LOCUT(tocharge, 0)
 	int available = pstate->pv > 0 ? gstate->eod - tocharge : 0;
 	LOCUT(available, 0)
-	gstate->survive = gstate->needed ? (available + gstate->available) * 1000 / gstate->needed : 2000;
+	gstate->survive = gstate->needed ? gstate->available * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
-	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
+	xlog(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when average pv goes below minimum or grid download over 3 minutes
 	int offline = avgmm->pv < params->minimum || GSTATE_3M_GRIDDLOAD;
@@ -684,9 +684,12 @@ static void calculate_pstate_ramp() {
 		if (avgss->grid > 0)
 			// grid download - double down when pv falling
 			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1);
-		else if (avgss->grid < 0)
+		else if (avgss->grid < 0) {
 			// grid upload - maximum (->minimum when inverted) or average
-			pstate->ramp = deltacc->pv > DELTACC && maxmm->grid > avgss->grid ? (maxmm->grid * -1) : (avgss->grid * -1);
+			int limit = deltacc->pv > DELTACC && maxmm->grid > avgss->grid && avgss->rsl < 200;
+			pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
+			xlog("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
+		}
 	}
 
 	// shape
@@ -752,10 +755,11 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int waste = pstate->grid < -NOISE10 && pstate->akku > NOISE10; // wasting akku power to grid
-	int draw = pstate->grid > NOISE10 && pstate->akku < -NOISE10; // akku draws power from grid
+	int ga_sum = pstate->grid + pstate->akku;
+	int waste = pstate->grid < -NOISE20 && pstate->akku > NOISE20; // wasting akku power to grid
+	int draw = pstate->grid > NOISE20 && pstate->akku < -NOISE20 && ga_sum < 0; // akku draws power from grid
 	if (waste || draw) {
-		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, waste, draw);
+		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d sum=%d", pstate->grid, pstate->akku, waste, draw, ga_sum);
 		pstate->flags |= FLAG_INVALID;
 	}
 
@@ -798,7 +802,7 @@ static void calculate_pstate_online() {
 	// emergency shutdown: average/current grid download or akku discharge
 	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
 	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
-	if (egrid || eakku) {
+	if (!PSTATE_INVALID && (egrid || eakku)) {
 		pstate->flags |= FLAG_EMERGENCY;
 		xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
 	}

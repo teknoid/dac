@@ -305,7 +305,7 @@ static void update_meter(sunspec_t *ss) {
 
 static int evaluate(char *name) {
 	char filename[32];
-	int closest, target;
+	int target;
 	pstate_t measure[1000];
 	int raster[101];
 

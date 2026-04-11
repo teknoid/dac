@@ -33,6 +33,10 @@
 // temperature coefficient scaled as x100
 #define TCOP					-34
 
+// SunD1 factor South and East/West orientation
+#define SUND1_S					35
+#define SUND1_EW				75
+
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
@@ -97,19 +101,40 @@ static void parse(char **strings, size_t size) {
 
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
 static void expect(mosmix_t *m, factor_t *f) {
-	float fSunD1 = 1.0 + (float) m->SunD1 / 1000; // 1.000 to 1.100
+	float fSunD1_s = 1.0 + (float) m->SunD1 / SUND1_S;
+	float fSunD1_ew = 1.0 + (float) m->SunD1 / SUND1_EW;
 	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
+	fSunD1_s = 1.0, fSunD1_ew = 1.0;
 
-	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1, ftco);
+	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1_s, ftco);
 
-	float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1 * ftco;
-	m->exp1 = round100(f1 / 100);
-	float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1 * ftco;
-	m->exp2 = round100(f2 / 100);
-	float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1 * ftco;
-	m->exp3 = round100(f3 / 100);
-	float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1 * ftco;
-	m->exp4 = round100(f4 / 100);
+	float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1_s * ftco;
+	m->exp1 = f1 / 100;
+	float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1_ew * ftco;
+	m->exp2 = f2 / 100;
+	float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1_ew * ftco;
+	m->exp3 = f3 / 100;
+	float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1_s * ftco;
+	m->exp4 = f4 / 100;
+}
+
+// calculate factor from actual mppt
+static void factor(mosmix_t *m, factor_t *f) {
+	float fSunD1_s = 1.0 + (float) m->SunD1 / SUND1_S;
+	float fSunD1_ew = 1.0 + (float) m->SunD1 / SUND1_EW;
+	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
+	fSunD1_s = 1.0, fSunD1_ew = 1.0;
+
+	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1_s, ftco);
+
+	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / fSunD1_s / ftco / (float) m->Rad1h : 0.0;
+	f->r1 = f1 * 100;
+	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / fSunD1_ew / ftco / (float) m->Rad1h : 0.0;
+	f->r2 = f2 * 100;
+	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / fSunD1_ew / ftco / (float) m->Rad1h : 0.0;
+	f->r3 = f3 * 100;
+	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / fSunD1_s / ftco / (float) m->Rad1h : 0.0;
+	f->r4 = f4 * 100;
 }
 
 static void errors(mosmix_t *m) {
@@ -190,20 +215,25 @@ static void recalc_expected() {
 }
 
 static void history_total() {
+	mosmix_t t;
+	ZERO(t);
 	for (int h = 0; h < 24; h++) {
-		mosmix_t t;
-		ZERO(t);
+		mosmix_t th;
+		ZERO(th);
 
 		for (int d = 0; d < 7; d++) {
 			mosmix_t *m = HISTORY(d, h);
-			sum_abs(&t, m);
+			sum_abs(&th, m);
 		}
+		sum_abs(&t, &th);
 
-		if (t.err1 != 700) {
-			xlog("MOSMIX history total h=%2d diff1=%4d diff2=%4d diff3=%4d diff4=%4d", h, t.diff1, t.diff2, t.diff3, t.diff4);
-			// xlog("MOSMIX history total h=%2d err1=%d err2=%d err3=%d err4=%d", h, t.err1, t.err2, t.err3, t.err4);
+		if (th.err1 != 700) {
+			xlog("MOSMIX history total h=%2d diff1=%4d diff2=%4d diff3=%4d diff4=%4d", h, th.diff1, th.diff2, th.diff3, th.diff4);
+			// xlog("MOSMIX history total h=%2d err1=%d err2=%d err3=%d err4=%d", h, th.err1, th.err2, th.err3, th.err4);
 		}
 	}
+	xlog("MOSMIX history total diff1=%5d diff2=%5d diff3=%5d diff4=%5d", t.diff1, t.diff2, t.diff3, t.diff4);
+	// xlog("MOSMIX history total err1=%d err2=%d err3=%d err4=%d", h, t.err1, t.err2, t.err3, t.err4);
 }
 
 // update today and tomorrow with actual data from mosmix kml download
@@ -255,45 +285,8 @@ static void calculate_factors() {
 		// calculate 7 factors
 		for (int d = 0; d < 7; d++) {
 			mosmix_t *m = HISTORY(d, h);
-			fd[d].r1 = m->Rad1h && m->mppt1 ? m->mppt1 * 100 / m->Rad1h : 0;
-			fd[d].r2 = m->Rad1h && m->mppt2 ? m->mppt2 * 100 / m->Rad1h : 0;
-			fd[d].r3 = m->Rad1h && m->mppt3 ? m->mppt3 * 100 / m->Rad1h : 0;
-			fd[d].r4 = m->Rad1h && m->mppt4 ? m->mppt4 * 100 / m->Rad1h : 0;
+			factor(m, &fd[d]);
 		}
-
-		// clear smallest factor
-		int f1min = fd[0].r1, d1min = 0, f2min = fd[0].r2, d2min = 0, f3min = fd[0].r3, d3min = 0, f4min = fd[0].r4, d4min = 0;
-		for (int d = 0; d < 7; d++) {
-			if (fd[d].r1 < f1min)
-				d1min = d;
-			if (fd[d].r2 < f2min)
-				d2min = d;
-			if (fd[d].r3 < f3min)
-				d3min = d;
-			if (fd[d].r4 < f4min)
-				d4min = d;
-		}
-		fd[d1min].r1 = fd[d1min].r1 ? 100 : 0;
-		fd[d2min].r2 = fd[d1min].r2 ? 100 : 0;
-		fd[d3min].r3 = fd[d1min].r3 ? 100 : 0;
-		fd[d4min].r4 = fd[d1min].r4 ? 100 : 0;
-
-		// clear biggest factor
-		int f1max = fd[0].r1, d1max = 0, f2max = fd[0].r2, d2max = 0, f3max = fd[0].r3, d3max = 0, f4max = fd[0].r4, d4max = 0;
-		for (int d = 0; d < 7; d++) {
-			if (fd[d].r1 > f1max)
-				d1max = d;
-			if (fd[d].r2 > f2max)
-				d2max = d;
-			if (fd[d].r3 > f3max)
-				d3max = d;
-			if (fd[d].r4 > f4max)
-				d4max = d;
-		}
-		fd[d1max].r1 = fd[d1max].r1 ? 100 : 0;
-		fd[d2max].r2 = fd[d2max].r2 ? 100 : 0;
-		fd[d3max].r3 = fd[d3max].r3 ? 100 : 0;
-		fd[d4max].r4 = fd[d4max].r4 ? 100 : 0;
 
 		// calculate average factor
 		factor_t *f = FACTORS(h);
@@ -417,15 +410,11 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 	mosmix_t mtoday, mtomorrow, msod, meod;
 	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 
-	*itomorrow = SUM_EXP(&mtomorrow);
-	*itoday = SUM_EXP(&mtoday);
-	*isod = SUM_EXP(&msod);
-	*ieod = SUM_EXP(&meod);
+	*itomorrow = round100(SUM_EXP(&mtomorrow));
+	*itoday = round100(SUM_EXP(&mtoday));
+	*isod = round100(SUM_EXP(&msod));
+	*ieod = round100(SUM_EXP(&meod));
 	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
-
-	// validate
-	if (*itoday != *isod + *ieod)
-		xdebug("MOSMIX sod/eod calculation error %d != %d + %d", *itoday, *isod, *ieod);
 }
 
 // night: collect akku power when pv is not enough
