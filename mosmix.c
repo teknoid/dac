@@ -72,6 +72,17 @@ static void sum(mosmix_t *to, mosmix_t *from) {
 		f++;
 	}
 }
+
+static void sum_abs(mosmix_t *to, mosmix_t *from) {
+	int *t = (int*) to;
+	int *f = (int*) from;
+	for (int i = 0; i < MOSMIX_SIZE; i++) {
+		*t = *t + (*f < 0 ? *f * -1 : *f);
+		t++;
+		f++;
+	}
+}
+
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_csv_t *m = &mosmix_csv[idx];
@@ -174,6 +185,23 @@ static void recalc_expected() {
 			mosmix_t *m = HISTORY(d, h);
 			expect(m, f);
 			errors(m);
+		}
+	}
+}
+
+static void history_total() {
+	for (int h = 0; h < 24; h++) {
+		mosmix_t t;
+		ZERO(t);
+
+		for (int d = 0; d < 7; d++) {
+			mosmix_t *m = HISTORY(d, h);
+			sum_abs(&t, m);
+		}
+
+		if (t.err1 != 700) {
+			xlog("MOSMIX history total h=%2d diff1=%4d diff2=%4d diff3=%4d diff4=%4d", h, t.diff1, t.diff2, t.diff3, t.diff4);
+			// xlog("MOSMIX history total h=%2d err1=%d err2=%d err3=%d err4=%d", h, t.err1, t.err2, t.err3, t.err4);
 		}
 	}
 }
@@ -679,6 +707,7 @@ static int recalc() {
 	mosmix_load(now, WORK SLASH MARIENBERG, 0);
 	calculate_factors();
 	recalc_expected();
+	history_total();
 	mosmix_dump_history_hours(12);
 	mosmix_store_csv();
 	return 0;
