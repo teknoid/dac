@@ -688,7 +688,7 @@ static void calculate_pstate_ramp() {
 			// grid upload - maximum (->minimum when inverted) or average
 			int limit = deltacc->pv > DELTACC && maxmm->grid > avgss->grid && avgss->rsl < 200;
 			pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
-			xlog("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
+			xdebug("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
 		}
 	}
 
@@ -701,7 +701,7 @@ static void calculate_pstate_ramp() {
 		int dgrid = pstate->grid > 0; // actual grid download
 		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
 		if (PSTATE_PVFALL || less || dgrid || over) {
-			xlog("SOLAR suppress up ramp=%d fall=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, less, dgrid, over);
+			xdebug("SOLAR suppress up ramp=%d fall=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, less, dgrid, over);
 			pstate->ramp = 0;
 		}
 	}
@@ -712,7 +712,7 @@ static void calculate_pstate_ramp() {
 		int ugrid = pstate->grid < -RAMP; // actual grid upload
 		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 		if (PSTATE_PVRISE || plenty || ugrid || extra) {
-			xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, extra);
+			xdebug("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, extra);
 			pstate->ramp = 0;
 		}
 	}
