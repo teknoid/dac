@@ -516,7 +516,7 @@ static void calculate_gstate_online() {
 	}
 
 	// heating
-	if (sensor6->tout < 10.0 && sensor->tin < 21.0)
+	if (sensor6->tout < 12.0 && sensor->tin < 23.0)
 		gstate->flags |= FLAG_HEATING;
 	if (SUMMER && sensor->tin < 18.0)
 		gstate->flags |= FLAG_HEATING;
@@ -530,7 +530,7 @@ static void calculate_gstate_online() {
 	else if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensor->tin < 26.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
 	// gstate->flags |= FLAG_HEATING; // hard enabled
-	// gstate->flags &= ~FLAG_HEATING; // hard disabled
+	gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
 	int soc6 = GSTATE_HOUR(6)->soc;
