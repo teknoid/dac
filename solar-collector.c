@@ -539,20 +539,21 @@ static void calculate_gstate_online() {
 	int low_td = gstate->today < params->akku_capacity && gstate->soc < 333; // today low pv expected and akku below 33%
 	int low_tm = gstate->tomorrow < params->akku_capacity && gstate->soc < 666; // tomorrow low pv expected and akku below 66%
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
-	int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 16 o'clock
+	// TODO time_window nur wenn kein charge limit
+	// int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 16 o'clock
 	if (WINTER || empty || critical || low_td || low_tm || weekend)
 		// winter / empty / critical / low / weekend --> always at any time
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
 		// summer: when below 22%
-		if (time_window && soc6 < 222)
+		if (soc6 < 222)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
 		// autumn/spring: when below 33%
-		if (time_window && soc6 < 333)
+		if (soc6 < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low_td=%d low_tm=%d weekend=%d time=%d", soc6, empty, critical, low_td, low_tm, weekend, time_window);
+	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low_td=%d low_tm=%d weekend=%d", soc6, empty, critical, low_td, low_tm, weekend);
 
 	// akku charge limit
 	params->akku_climit = 0;
