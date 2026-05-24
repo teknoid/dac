@@ -204,6 +204,12 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->state == Manual && boiler->power != -1)
 		return;
 
+	// charging boilers only between configured FROM / TO (winter always)
+	if (boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to) && !GSTATE_WINTER) {
+		boiler->state = Standby;
+		return;
+	}
+
 	// cannot send UDP if we don't have an IP
 	if (boiler->addr == NULL)
 		return;
@@ -215,12 +221,6 @@ static void ramp_boiler(device_t *boiler) {
 	// already full down
 	if (boiler->power == 0 && boiler->ramp_in < 0)
 		return;
-
-	// charging boilers only between configured FROM / TO (winter always)
-	if (boiler->power == 0 && boiler->ramp_in > 0 && boiler->from && boiler->to && !GSTATE_WINTER && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to)) {
-		boiler->state = Standby;
-		return;
-	}
 
 	// no ramp up when interlock device is powered up
 	if (boiler->power == 0 && boiler->ramp_in > 0 && boiler->interlock && boiler->interlock->power)
