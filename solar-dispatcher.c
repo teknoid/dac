@@ -204,12 +204,6 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->state == Manual && boiler->power != -1)
 		return;
 
-	// charging boilers only between configured FROM / TO (winter always)
-	if (boiler->from && boiler->to && (now->tm_hour < boiler->from || now->tm_hour >= boiler->to) && !GSTATE_WINTER) {
-		boiler->state = Standby;
-		return;
-	}
-
 	// cannot send UDP if we don't have an IP
 	if (boiler->addr == NULL)
 		return;
@@ -252,6 +246,13 @@ static void ramp_boiler(device_t *boiler) {
 	int min = boiler->min && boiler->state == Auto && !GSTATE_FORCE_OFF ? boiler->min * 100 / boiler->total : 0;
 	HICUT(power, 100)
 	LOCUT(power, min)
+
+	// charging boilers only between configured FROM / TO
+	int charge = boiler->from && boiler->to && now->tm_hour >= boiler->from && now->tm_hour < boiler->to;
+	if (!charge) {
+		power = 0;
+		boiler->state = Standby;
+	}
 
 	// no update needed
 	if (power == boiler->power)
