@@ -248,10 +248,12 @@ static void ramp_boiler(device_t *boiler) {
 	LOCUT(power, min)
 
 	// charging boilers only between configured FROM / TO
-	int charge = boiler->from && boiler->to && now->tm_hour >= boiler->from && now->tm_hour < boiler->to;
-	if (!charge) {
-		power = 0;
-		boiler->state = Standby;
+	if (boiler->from && boiler->to) {
+		int in_time = now->tm_hour >= boiler->from && now->tm_hour < boiler->to;
+		if (!in_time) {
+			power = 0;
+			boiler->state = Standby;
+		}
 	}
 
 	// no update needed
