@@ -664,21 +664,26 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// look ahead down ramp on falling pv or grid download
-	if ((100 <= avgss->rsl && avgss->rsl <= 105) && (PSTATE_PVFALL || pstate->grid > NOISE5))
-		pstate->ramp = -RAMP;
+	// akku is active - regulate around 0
+	if (pstate->akku) {
+		if (avgss->rsl < 100 || avgss->grid > RAMP * 2)
+			pstate->ramp = -RAMP;
+		if (avgss->rsl > 105 && avgss->grid < RAMP * -2)
+			pstate->ramp = RAMP;
+	}
 
 	// akku is passive - keep a little bit grid upload
-	if (!pstate->akku && avgss->rsl < 100 && avgss->grid > 0)
-		pstate->ramp = -RAMP;
-	if (!pstate->akku && avgss->rsl > 105 && avgss->grid < RAMP * -4)
-		pstate->ramp = RAMP;
+	if (!pstate->akku) {
+		if (avgss->rsl < 100 || avgss->grid > -RAMP)
+			pstate->ramp = -RAMP;
+		if (avgss->rsl > 105 && avgss->grid < RAMP * -4)
+			pstate->ramp = RAMP;
+	}
 
-	// akku is active - regulate around 0
-	if (pstate->akku && avgss->rsl < 100 && avgss->grid > RAMP * 2)
-		pstate->ramp = -RAMP;
-	if (pstate->akku && avgss->rsl > 105 && avgss->grid < RAMP * -2)
-		pstate->ramp = RAMP;
+	// rsl 100..105: look ahead down ramp on falling pv or grid download
+	if (100 <= avgss->rsl && avgss->rsl <= 105)
+		if (PSTATE_PVFALL || pstate->grid > NOISE5)
+			pstate->ramp = -RAMP;
 
 	// coarse absolute ramp below 90 or above 110
 	if (avgss->rsl < 90 || avgss->rsl > 110) {
