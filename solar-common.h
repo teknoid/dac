@@ -20,6 +20,7 @@
 #define SURVIVE150				1500
 #define SURVIVE110				1100
 #define SURVIVE100				1000
+#define SURVIVE90				900
 
 // common flags
 #define FLAG_STABLE				(1 << 15)

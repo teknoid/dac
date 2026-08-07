@@ -534,8 +534,9 @@ static void calculate_gstate_online() {
 
 	// akku charging
 	int soc6 = GSTATE_HOUR(6)->soc;
+	int surv6 = GSTATE_HOUR(6)->survive;
+	int critical = surv6 < SURVIVE90;
 	int empty = gstate->soc < 100;
-	int critical = gstate->survive < SURVIVE110;
 	int low_td = gstate->today < params->akku_capacity && gstate->soc < 333; // today low pv expected and akku below 33%
 	int low_tm = gstate->tomorrow < params->akku_capacity && gstate->soc < 666; // tomorrow low pv expected and akku below 66%
 	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
