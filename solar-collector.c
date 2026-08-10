@@ -631,7 +631,7 @@ static void calculate_gstate() {
 	gstate->survive = gstate->needed ? gstate->available * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
-	xlog(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
+	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when average pv goes below minimum or grid download over 3 minutes
 	int offline = avgmm->pv < params->minimum || GSTATE_3M_GRIDDLOAD;
