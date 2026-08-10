@@ -841,8 +841,9 @@ static void calculate_pstate() {
 	HICUT(pstate->surp, pstate->pv)
 	LOCUT(pstate->surp, 0)
 
-	// load is inverter ac output plus grid
-	pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
+	// load is inverter ac output plus grid - use ac values 1s ago due to meter latency
+	// pstate->load = pstate->ac1 + pstate->ac2 + pstate->grid;
+	pstate->load = PSTATE_SEC_LAST1->ac1 + PSTATE_SEC_LAST1->ac2 + pstate->grid;
 
 	// shape - akku makes big noise when full
 	ZSHAPE(pstate->ac1, NOISE5)
