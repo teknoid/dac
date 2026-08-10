@@ -683,7 +683,7 @@ const char* resolve_ip(const char *hostname) {
 	struct addrinfo *addr;
 
 	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
-		xlog("UTILS Could not resolve inetAddr for %s", hostname);
+		xdebug("UTILS Could not resolve inetAddr for %s", hostname);
 		return NULL;
 	}
 
@@ -702,7 +702,7 @@ const char* resolve_ip(const char *hostname) {
 	ZEROP(addrstr);
 
 	inet_ntop(addr->ai_family, ptr, addrstr, 16);
-	xlog("UTILS %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
+	xdebug("UTILS %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
 	freeaddrinfo(addr);
 
 	return addrstr;
@@ -788,7 +788,7 @@ int load_blob(const char *filename, void *data, size_t size) {
 		return xerr("UTILS Cannot open file %s for reading", filename);
 	size_t count = fread(data, size, 1, fp);
 	fclose(fp);
-	xlog("UTILS loaded %5d bytes from %s", count * size, filename);
+	xdebug("UTILS loaded %5d bytes from %s", count * size, filename);
 	return 0;
 }
 
@@ -799,7 +799,7 @@ int store_blob(const char *filename, void *data, size_t size) {
 	size_t count = fwrite(data, size, 1, fp);
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored %5d bytes to %s", count * size, filename);
+	xdebug("UTILS stored %5d bytes to %s", count * size, filename);
 	return 0;
 }
 
@@ -825,7 +825,7 @@ int store_blob_offset(const char *filename, void *data, size_t rsize, int count,
 
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored %5d bytes to %s", ret * rsize, filename);
+	xdebug("UTILS stored %5d bytes to %s", ret * rsize, filename);
 	return 0;
 }
 
@@ -976,7 +976,7 @@ void store_csv_header(const char *header, const char *filename) {
 	fprintf(fp, "   i%s\n", header);
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored header %s", filename);
+	xdebug("UTILS stored header %s", filename);
 }
 
 void store_table_csv(void *table, int cols, int rows, const char *header, const char *filename) {
@@ -999,7 +999,7 @@ void store_table_csv(void *table, int cols, int rows, const char *header, const 
 
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS stored %s", filename);
+	xdebug("UTILS stored %s", filename);
 }
 
 void append_table_csv(void *table, int cols, int rows, int offset, const char *filename) {
@@ -1019,7 +1019,7 @@ void append_table_csv(void *table, int cols, int rows, int offset, const char *f
 
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS appended %s", filename);
+	xdebug("UTILS appended %s", filename);
 }
 
 void append_line_csv(void *line, int cols, int offset, const char *filename) {
@@ -1037,7 +1037,7 @@ void append_line_csv(void *line, int cols, int offset, const char *filename) {
 
 	fflush(fp);
 	fclose(fp);
-	xlog("UTILS appended %s", filename);
+	xdebug("UTILS appended %s", filename);
 }
 void dump_table(void *table, int cols, int rows, int highlight_row, const char *title, const char *header) {
 	char c[cols * 8 + 16], v[16];
