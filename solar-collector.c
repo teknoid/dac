@@ -25,8 +25,8 @@
 #define RAMP					25
 #define SUSPICIOUS				500
 #define SPIKE					500
-#define EMERGENCY				1000
-#define EMERGENCY2X				2000
+#define EMERGENCY				2000
+#define EMERGENCY_AVG			500
 
 #define PVARIANCE				5
 #define PSLOPE					10
@@ -807,8 +807,8 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_STABLE_3S;
 
 	// emergency shutdown: average/current grid download or akku discharge
-	int egrid = pstate->grid > EMERGENCY2X || avgss->grid > EMERGENCY;
-	int eakku = pstate->akku > EMERGENCY2X || avgss->akku > EMERGENCY;
+	int egrid = pstate->grid > EMERGENCY || avgss->grid > EMERGENCY_AVG;
+	int eakku = pstate->akku > EMERGENCY || avgss->akku > EMERGENCY_AVG;
 	if (!PSTATE_INVALID && (egrid || eakku)) {
 		pstate->flags |= FLAG_EMERGENCY;
 		xlog("SOLAR set FLAG_EMERGENCY egrid=%d eakku=%d", egrid, eakku);
