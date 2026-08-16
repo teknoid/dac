@@ -112,7 +112,6 @@
 #define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
 #define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 #define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
-#define GSTATE_3M_GRIDDLOAD		( (GSTATE_MIN_LAST1->flags & FLAG_GRID_DLOAD) &&  (GSTATE_MIN_LAST2->flags & FLAG_GRID_DLOAD) &&  (GSTATE_MIN_LAST3->flags & FLAG_GRID_DLOAD))
 
 static struct tm now_tm, *now = &now_tm;
 
@@ -633,8 +632,8 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
-	// offline when average pv goes below minimum or grid download over 3 minutes
-	int offline = avgmm->pv < params->minimum || GSTATE_3M_GRIDDLOAD;
+	// offline when average pv goes below minimum or rsl below 90
+	int offline = avgmm->pv < params->minimum || avgmm->rsl < 90;
 	if (offline)
 		calculate_gstate_offline();
 	else

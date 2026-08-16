@@ -540,9 +540,7 @@ static void offline() {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 			inverter_off();
-	} else
-		// enable discharge
-		akku_discharge(AKKU);
+	}
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -990,12 +988,12 @@ static void minly() {
 	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
+	// enable discharge if we have grid download
+	if (GSTATE_GRID_DLOAD && AKKU->state != Discharge && gstate->soc > 100)
+		akku_discharge(AKKU);
+
 	// choose potd
 	choose_program();
-
-	// TODO wann?
-	// if (xxx)
-	//		akku_auto(AKKU);
 
 	// operation mode
 	if (GSTATE_BURNOUT)
