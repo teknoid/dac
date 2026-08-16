@@ -108,10 +108,10 @@
 #define STATS_NOW				(&stats_minutes[now->tm_min])
 
 // stable/unstable
-#define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE)     &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE)     &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
-#define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE)     && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
-#define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE)     &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
-#define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE)     && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
+#define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 
 static struct tm now_tm, *now = &now_tm;
 
@@ -761,11 +761,10 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int ga_sum = pstate->grid + pstate->akku;
-	int waste = pstate->grid < -NOISE20 && pstate->akku > NOISE20; // wasting akku power to grid
-	int draw = pstate->grid > NOISE20 && pstate->akku < -NOISE20 && ga_sum < 0; // akku draws power from grid
-	if (waste || draw) {
-		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d sum=%d", pstate->grid, pstate->akku, waste, draw, ga_sum);
+	int wast = pstate->grid < -NOISE20 && pstate->akku > NOISE20; // wasting akku power to grid
+	int draw = pstate->grid > NOISE20 && pstate->akku < -NOISE20; // akku draws power from grid
+	if (wast || draw) {
+		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, wast, draw);
 		pstate->flags |= FLAG_INVALID;
 	}
 

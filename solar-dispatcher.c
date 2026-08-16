@@ -705,7 +705,7 @@ static void steal() {
 					DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // adjustable devices - all above minimum
 			} else
 				DD->steal = DD->load; // all
-			xlog("SOLAR collect steal %s=%d", DD->name, DD->steal);
+			xdebug("SOLAR collect steal %s=%d", DD->name, DD->steal);
 		}
 		overall_steal += DD->steal;
 	}
