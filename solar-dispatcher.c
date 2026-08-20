@@ -318,8 +318,8 @@ static void ramp_akku(device_t *akku) {
 	// ramp up request
 	if (akku->ramp_in > 0) {
 
-		// set into standby when full or charging not indicated
-		if (gstate->soc == 1000 || !GSTATE_CHARGE_AKKU) {
+		// set into standby when full
+		if (gstate->soc == 1000) {
 			if (!akku_standby(akku))
 				dstate->flags |= FLAG_ACTION;
 			return;
