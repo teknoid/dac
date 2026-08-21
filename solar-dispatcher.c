@@ -354,7 +354,7 @@ static void ramp_akku(device_t *akku) {
 		// start charging
 		if (!akku_charge(akku)) {
 			dstate->flags |= FLAG_ACTION;
-			dstate->lock = WAIT_START_CHARGE; // akku claws all pv power regardless of load
+			dstate->lock = WAIT_START_CHARGE; // akku initially claws all pv power regardless of load -> wait for balancing
 			akku->ramp_out = akku->ramp_in; // catch all
 		}
 	}

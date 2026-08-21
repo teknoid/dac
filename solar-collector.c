@@ -532,12 +532,13 @@ static void calculate_gstate_online() {
 	gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
-	int critical = gstate->survive < SURVIVE90;
+	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // charging already indicated
+	int crit = gstate->survive < SURVIVE90; // we will probably not survive
 	int empty = gstate->soc < 100; // akku below 10%
 	int low_td = gstate->soc < 333 && gstate->today < params->akku_capacity; // akku below 33% and today low pv expected
 	int low_tm = gstate->soc < 666 && gstate->tomorrow < params->akku_capacity; // akku below 66% and tomorrow low pv expected
 	int weekend = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
-	if (WINTER || empty || critical || low_td || low_tm || weekend)
+	if (WINTER || crit || empty || low_td || low_tm || weekend)
 		// winter / empty / critical / low / weekend --> always
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
@@ -549,7 +550,7 @@ static void calculate_gstate_online() {
 		if (gstate->soc < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xlog("SOLAR charge akku critical=%d empty=%d low_td=%d low_tm=%d weekend=%d", critical, empty, low_td, low_tm, weekend);
+	xlog("SOLAR charge akku last=%d crit=%d empty=%d low_td=%d low_tm=%d weekend=%d", last, crit, empty, low_td, low_tm, weekend);
 
 	// akku charge limit
 	params->akku_climit = 0;
