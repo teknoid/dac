@@ -532,28 +532,24 @@ static void calculate_gstate_online() {
 	gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
-	int soc6 = GSTATE_HOUR(6)->soc;
-	int surv6 = GSTATE_HOUR(6)->survive;
-	int critical = surv6 < SURVIVE90;
-	int empty = gstate->soc < 100;
-	int low_td = gstate->today < params->akku_capacity && gstate->soc < 333; // today low pv expected and akku below 33%
-	int low_tm = gstate->tomorrow < params->akku_capacity && gstate->soc < 666; // tomorrow low pv expected and akku below 66%
-	int weekend = (now->tm_wday == 5 || now->tm_wday == 6) && gstate->soc < 500 && !SUMMER; // Friday+Saturday: akku has to be at least 50%
-	// TODO time_window nur wenn kein charge limit
-	// int time_window = now->tm_hour >= 10 && now->tm_hour < 16; // between 10 and 16 o'clock
+	int critical = gstate->survive < SURVIVE90;
+	int empty = gstate->soc < 100; // akku below 10%
+	int low_td = gstate->soc < 333 && gstate->today < params->akku_capacity; // akku below 33% and today low pv expected
+	int low_tm = gstate->soc < 666 && gstate->tomorrow < params->akku_capacity; // akku below 66% and tomorrow low pv expected
+	int weekend = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
 	if (WINTER || empty || critical || low_td || low_tm || weekend)
-		// winter / empty / critical / low / weekend --> always at any time
+		// winter / empty / critical / low / weekend --> always
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
 		// summer: when below 22%
-		if (soc6 < 222)
+		if (gstate->soc < 222)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	} else {
 		// autumn/spring: when below 33%
-		if (soc6 < 333)
+		if (gstate->soc < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xdebug("SOLAR charge akku soc6=%d empty=%d critical=%d low_td=%d low_tm=%d weekend=%d", soc6, empty, critical, low_td, low_tm, weekend);
+	xlog("SOLAR charge akku critical=%d empty=%d low_td=%d low_tm=%d weekend=%d", critical, empty, low_td, low_tm, weekend);
 
 	// akku charge limit
 	params->akku_climit = 0;
