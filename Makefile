@@ -118,8 +118,7 @@ install-service:
 	@echo "[Installing systemd service unit]"
 	mkdir -p /usr/local/lib/systemd/system/
 	install -m 0644 misc/mcp.service /usr/local/lib/systemd/system/
-	install -m 0644 misc/universum /etc/rc_keymaps
-	install -m 0644 misc/minidisc /etc/rc_keymaps
+	install -m 0644 -D misc/keymaps/* -t /etc/rc_keymaps
 	install -m 0644 misc/90-devinput-infrared.rules /etc/udev/rules.d
 	install -m 0644 misc/90-devinput-rotary.rules /etc/udev/rules.d
 	systemctl daemon-reload
