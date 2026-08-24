@@ -533,12 +533,11 @@ static void calculate_gstate_online() {
 
 	// akku charging
 	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // charging already indicated
-	int crit = gstate->survive < SURVIVE90; // we will probably not survive
+	int criti = gstate->survive < SURVIVE90; // we will probably not survive
 	int empty = gstate->soc < 100; // akku below 10%
-	int low_td = gstate->soc < 333 && gstate->today < params->akku_capacity; // akku below 33% and today low pv expected
-	int low_tm = gstate->soc < 666 && gstate->tomorrow < params->akku_capacity; // akku below 66% and tomorrow low pv expected
-	int weekend = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
-	if (WINTER || crit || empty || low_td || low_tm || weekend)
+	int tomor = gstate->soc < 500 && gstate->tomorrow < params->akku_capacity; // akku below 50% and tomorrow low pv expected
+	int weekd = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
+	if (WINTER || criti || empty || tomor || weekd)
 		// winter / empty / critical / low / weekend --> always
 		gstate->flags |= FLAG_CHARGE_AKKU;
 	else if (SUMMER) {
@@ -550,7 +549,7 @@ static void calculate_gstate_online() {
 		if (gstate->soc < 333)
 			gstate->flags |= FLAG_CHARGE_AKKU;
 	}
-	xlog("SOLAR charge akku last=%d crit=%d empty=%d low_td=%d low_tm=%d weekend=%d", last, crit, empty, low_td, low_tm, weekend);
+	xlog("SOLAR charge akku last=%d critical=%d empty=%d tomorrow=%d weekend=%d", last, criti, empty, tomor, weekd);
 
 	// akku charge limit
 	params->akku_climit = 0;
@@ -627,7 +626,7 @@ static void calculate_gstate() {
 	gstate->survive = gstate->needed ? gstate->available * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
-	xdebug(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
+	xlog(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when average pv goes below minimum or rsl below 90
 	int offline = avgmm->pv < params->minimum || avgmm->rsl < 90;

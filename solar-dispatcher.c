@@ -346,10 +346,16 @@ static void ramp_akku(device_t *akku) {
 			return;
 		}
 
-		// do not start charging when below minimum or not indicated or other ramp actions
-		int skip = akku->ramp_in < AKKU->min || !GSTATE_CHARGE_AKKU || DSTATE_ACTION;
+		// do not start charging when below minimum or other ramp actions in place
+		int skip = akku->ramp_in < AKKU->min || DSTATE_ACTION;
 		if (skip)
 			return;
+
+		// set to standby if charging not indicated
+		if (!GSTATE_CHARGE_AKKU) {
+			akku_standby(akku);
+			return;
+		}
 
 		// start charging
 		if (!akku_charge(akku)) {
