@@ -143,8 +143,8 @@ char* printbits(uint8_t value);
 
 void hexdump(char *desc, void *addr, int len);
 
-int starts_with(const char *pre, const char *str, unsigned int strsize);
-int ends_with(const char *post, const char *str, unsigned int strsize);
+int starts_with(const char *pre, const char *str, size_t strsize);
+int ends_with(const char *post, const char *str, size_t strsize);
 char* make_string(const char *c, size_t t);
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...);

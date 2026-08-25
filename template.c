@@ -39,6 +39,9 @@ static int test() {
 }
 
 int template_main(int argc, char **argv) {
+	set_xlog(XLOG_STDOUT);
+	set_debug(1);
+
 	int c;
 	while ((c = getopt(argc, argv, "lt")) != -1) {
 		switch (c) {

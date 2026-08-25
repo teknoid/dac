@@ -565,12 +565,12 @@ void hexdump(char *desc, void *addr, int len) {
 	printf("  %s\n", buff);
 }
 
-int starts_with(const char *pre, const char *str, unsigned int strsize) {
+int starts_with(const char *pre, const char *str, size_t strsize) {
 	unsigned int presize = strlen(pre);
 	return strsize < presize ? 0 : strncmp(pre, str, presize) == 0;
 }
 
-int ends_with(const char *post, const char *str, unsigned int strsize) {
+int ends_with(const char *post, const char *str, size_t strsize) {
 	unsigned int postsize = strlen(post);
 	return strsize < postsize ? 0 : strncmp(post, str + (strsize - postsize), postsize) == 0;
 }
