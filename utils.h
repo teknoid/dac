@@ -153,6 +153,8 @@ char* devinput_keyname(unsigned int key);
 int devinput_find_key(const char *name);
 
 uint64_t mac2uint64(const char *mac);
+void uint642mac(uint64_t mac, char *buf);
+void uint642oui(uint64_t mac, char *buf);
 
 const char* resolve_ip(const char *hostname);
 

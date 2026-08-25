@@ -673,6 +673,51 @@ uint64_t mac2uint64(const char *mac) {
 	return x;
 }
 
+void uint642mac(uint64_t mac, char *buf) {
+	unsigned int u[6]; // %x needs "unsigned int"
+
+	for (int i = 0; i < 6; i++) {
+		u[i] = mac & 0xff;
+		mac = mac >> 8;
+	}
+
+	snprintf(buf, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
+}
+
+void uint642oui(uint64_t mac, char *buf) {
+	unsigned int u[6]; // %x needs "unsigned int"
+	char smac[7], cmd[128], result[1024];
+
+	snprintf(smac, 17, "%lX", mac >> 24);
+	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
+	FILE *fd = popen(cmd, "r");
+	fgets(result, 1024, fd);
+	fclose(fd);
+
+	// Registry
+	char *e, *s = strchr(result, ',');
+	if (!s)
+		return;
+
+	// Assignment
+	s = strchr(s + 1, ',');
+	if (!s)
+		return;
+
+	// Organization Name
+	s++;
+	if (s[0] == '\"') {
+		s++;
+		e = strchr(s, '\"');
+	} else
+		e = strchr(s, ',');
+	if (!e)
+		return;
+
+	int l = e - s;
+	strncpy(buf, s, l);
+}
+
 const char* resolve_ip(const char *hostname) {
 	struct addrinfo hints = { 0 };
 	hints.ai_family = AF_INET;
