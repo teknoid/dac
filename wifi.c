@@ -160,22 +160,22 @@ static void assigned(station_t *s, uint64_t mac, char *ssid, char tag) {
 }
 
 static void unassigned(uint64_t mac, char *ssid, char tag) {
-	client_t *c = 0;
 	for (int i = 0; i < STATIONS; i++) {
-		client_t *c = client(&stations[i], mac, ssid, tag);
+		station_t *s = &stations[i];
+		client_t *c = client(s, mac, ssid, tag);
 		if (c)
 			return;
 	}
 
-	c = new_client(zombies, mac, ssid, tag);
-	if (!c)
+	client_t *z = new_client(zombies, mac, ssid, tag);
+	if (!z)
 		return;
 
 	if (ssid && strlen(ssid) > 0) {
-		xlog("WIFI new client %s assigned to zombies hunting for %s", c->smac, ssid);
+		xlog("WIFI new client %s assigned to zombies hunting for %s", z->smac, ssid);
 //		notify("New Zombie", ssid, "au.wav");
 	} else
-		xlog("WIFI new client %s assigned to zombies", c->smac);
+		xlog("WIFI new client %s assigned to zombies", z->smac);
 	dump_line = 1;
 }
 
@@ -422,11 +422,11 @@ static void loop() {
 		if (now_ts % 10 == 0)
 			cleanup();
 
-		if (now_ts % 10 == 0)
-			dump();
+		if (now_ts % 30 == 0)
+			expired();
 
 		if (now_ts % 60 == 0)
-			expired();
+			dump();
 	}
 }
 
