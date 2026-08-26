@@ -225,7 +225,7 @@ static void menu_paint() {
 				const menuconfig_t *config = menu->config;
 				if (item) {
 					int state = (config->getfunc)(config, item);
-					mvwprintw(menu->cwindow, (*citem)->index + 1, WIDTH - 3, "%1d", state);
+					mvwprintw(menu->cwindow, item->index + 1, WIDTH - 3, "%1d", state);
 				}
 			}
 			break;
