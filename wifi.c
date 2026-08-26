@@ -1,5 +1,11 @@
 // gcc -DWIFI_MAIN -I./include -o wifi mcp.c utils.c wifi.c
 
+// iw phy phy1 interface add mon1 type monitor
+// ifconfig mon1 up
+// tcpdump -nevi mon1 | nc tron 6666
+
+// while true; do for c in `seq 1 14`; do iwconfig mon1 channel $c; sleep 1s; done; done
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -219,8 +225,8 @@ static void expired() {
 
 			// remove expired client
 			int age = now_ts - c->ts;
-			int e1 = c->ssid == 0 && c->count == 0 && age > SECONDS_3M;
-			int e2 = c->ssid == 0 && c->count < 5 && age > SECONDS_15M;
+			int e1 = *c->ssid == 0 && c->count == 0 && age > SECONDS_3M;
+			int e2 = *c->ssid == 0 && c->count < 5 && age > SECONDS_15M;
 			int e3 = c->count < 10 && age > SECONDS_1H;
 			int e4 = age > SECONDS_1D;
 			if (e1 || e2 || e3 || e4) {
