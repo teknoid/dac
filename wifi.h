@@ -10,7 +10,7 @@ typedef struct client_t {
 	char ssid[64];
 	char oui[64];
 	char name[64];
-	char smac[17];
+	char smac[18];
 } client_t;
 
 typedef struct station_t {
@@ -21,6 +21,6 @@ typedef struct station_t {
 	char ssid[64];
 	char oui[64];
 	char name[64];
-	char smac[17];
+	char smac[18];
 	client_t clients[CLIENTS];
 } station_t;

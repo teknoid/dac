@@ -29,6 +29,7 @@
 #define THREETHREE_MASK				0xffff00000000
 
 #define SECONDS_1D 					60 * 60 * 24
+#define SECONDS_1HX 				60 * 60 + 300
 #define SECONDS_1H 					60 * 60
 #define SECONDS_15M					60 * 15
 #define SECONDS_3M					60 * 3
@@ -105,6 +106,12 @@ static client_t* client(station_t *s, uint64_t mac, char *ssid, char tag) {
 	if (c == 0)
 		return 0;
 
+	int age = now_ts - c->ts;
+	if (age > SECONDS_1HX) {
+		xlog("WIFI client %s is back", c->smac);
+//		notify("New Zombie", ssid, "au.wav");
+	}
+
 	c->count++;
 	c->ts = now_ts;
 	c->tag = tag;
@@ -116,9 +123,6 @@ static client_t* client(station_t *s, uint64_t mac, char *ssid, char tag) {
 
 static client_t* new_client(station_t *s, uint64_t mac, char *ssid, char tag) {
 	if ((mac & THREETHREE_MASK) == THREETHREE)
-		return 0;
-
-	if (mac == s->mac)
 		return 0;
 
 	client_t *c = 0;
@@ -147,7 +151,7 @@ static client_t* new_client(station_t *s, uint64_t mac, char *ssid, char tag) {
 }
 
 static void assigned(station_t *s, uint64_t mac, char *ssid, char tag) {
-	if (mac == 0 || mac == BROADCAST)
+	if (mac == 0 || mac == BROADCAST || mac == s->mac)
 		return;
 
 	client_t *c = client(s, mac, ssid, tag);
@@ -171,10 +175,14 @@ static void unassigned(uint64_t mac, char *ssid, char tag) {
 		if (!s->mac)
 			continue;
 
+		if (mac == s->mac)
+			return;
+
 		client_t *c = client(s, mac, ssid, tag);
 		if (c)
 			return;
 	}
+
 	client_t *z = new_client(zombies, mac, ssid, tag);
 	if (!z)
 		return;
@@ -475,7 +483,7 @@ static int init() {
 
 	// start listener thread
 	if (pthread_create(&listener_thread, NULL, &listener, NULL))
-		return xerr("Error creating thread_ra");
+		return xerr("Error creating listener_thread");
 
 	xerr("WIFI listening");
 	return 0;
@@ -483,10 +491,10 @@ static int init() {
 
 static void stop() {
 	if (pthread_cancel(listener_thread))
-		xlog("Error canceling thread_ra");
+		xlog("Error canceling listener_thread");
 
 	if (pthread_join(listener_thread, NULL))
-		xlog("Error joining thread_ra");
+		xlog("Error joining listener_thread");
 
 	if (server_fd)
 		close(server_fd);
