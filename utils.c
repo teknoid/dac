@@ -688,7 +688,7 @@ void uint642oui(uint64_t mac, char *buf) {
 	unsigned int u[6]; // %x needs "unsigned int"
 	char smac[7], cmd[128], result[1024];
 
-	snprintf(smac, 17, "%lX", mac >> 24);
+	snprintf(smac, 17, "%06lX", mac >> 24);
 	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
 	FILE *fd = popen(cmd, "r");
 	fgets(result, 1024, fd);
