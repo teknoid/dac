@@ -95,9 +95,6 @@ static station_t* new_station(uint64_t mac, char *ssid) {
 }
 
 static client_t* client(station_t *s, uint64_t mac, char *ssid, char tag) {
-	if (mac == 0)
-		return 0;
-
 	client_t *c = 0;
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac == mac) {
@@ -118,9 +115,6 @@ static client_t* client(station_t *s, uint64_t mac, char *ssid, char tag) {
 }
 
 static client_t* new_client(station_t *s, uint64_t mac, char *ssid, char tag) {
-	if (mac == 0 || mac == BROADCAST)
-		return 0;
-
 	if ((mac & THREETHREE_MASK) == THREETHREE)
 		return 0;
 
@@ -153,6 +147,9 @@ static client_t* new_client(station_t *s, uint64_t mac, char *ssid, char tag) {
 }
 
 static void assigned(station_t *s, uint64_t mac, char *ssid, char tag) {
+	if (mac == 0 || mac == BROADCAST)
+		return;
+
 	client_t *c = client(s, mac, ssid, tag);
 	if (c)
 		return;
@@ -166,13 +163,18 @@ static void assigned(station_t *s, uint64_t mac, char *ssid, char tag) {
 }
 
 static void unassigned(uint64_t mac, char *ssid, char tag) {
+	if (mac == 0 || mac == BROADCAST)
+		return;
+
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
+		if (!s->mac)
+			continue;
+
 		client_t *c = client(s, mac, ssid, tag);
 		if (c)
 			return;
 	}
-
 	client_t *z = new_client(zombies, mac, ssid, tag);
 	if (!z)
 		return;
@@ -182,6 +184,7 @@ static void unassigned(uint64_t mac, char *ssid, char tag) {
 //		notify("New Zombie", ssid, "au.wav");
 	} else
 		xlog("WIFI new client %s assigned to zombies", z->smac);
+
 	dump_line = 1;
 }
 
@@ -202,7 +205,7 @@ static void cleanup() {
 					continue;
 
 				if (z->mac == c->mac) {
-					xlog("WIFI zombie %s is assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+					xlog("WIFI zombie %s already assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
 					z->mac = 0;
 					break;
 				}
