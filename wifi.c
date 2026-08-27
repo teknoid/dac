@@ -31,17 +31,17 @@
 #define SECONDS_1D 					60 * 60 * 24
 #define SECONDS_1HX 				60 * 60 + 300
 #define SECONDS_1H 					60 * 60
-#define SECONDS_15M					60 * 15
-#define SECONDS_3M					60 * 3
+#define SECONDS_30M					60 * 30
+#define SECONDS_10M					60 * 10
 
 static station_t stations[STATIONS];
 static station_t *zombies = &stations[STATIONS - 1];
 
-static int server_fd;
 static pthread_t listener_thread;
-
 static time_t now_ts;
+static int server_fd;
 
+static unsigned int line_count;
 static int dump_line;
 
 static station_t* station(uint64_t mac, int create, char *ssid) {
@@ -55,7 +55,7 @@ static station_t* station(uint64_t mac, int create, char *ssid) {
 			// station found
 			s->count++;
 			s->ts = now_ts;
-			if (ssid && strlen(ssid) > strlen(s->ssid))
+			if (ssid && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
 
 			return s;
@@ -85,7 +85,7 @@ static station_t* station(uint64_t mac, int create, char *ssid) {
 			return s;
 		}
 
-	xerr("WIFI station table is full!");
+	xerr("WIFI stations table is full!");
 	return 0;
 }
 
@@ -100,14 +100,14 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, char
 			// client found
 			int age = now_ts - c->ts;
 			if (age > SECONDS_1HX) {
-				xlog("WIFI client %s is back", c->smac);
+				xlog("WIFI client %s station %s is back", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
 				// notify("client is back", c->smac, "au.wav");
 			}
 
 			c->count++;
 			c->ts = now_ts;
 			c->tag = tag;
-			if (ssid && strlen(ssid) > strlen(c->ssid))
+			if (ssid && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
 
 			return c;
@@ -279,6 +279,7 @@ static void* listener(void *arg) {
 				parse(line, totRead);
 				if (dump_line)
 					xdebug(line);
+				line_count++;
 				line_ptr = line;
 				totRead = 0;
 				continue;
@@ -298,6 +299,7 @@ static void cleanup() {
 		if (!z->mac)
 			continue;
 
+		int assigned = 0;
 		for (int j = 0; j < STATIONS; j++) {
 			station_t *s = &stations[j];
 			if (!s->mac || s == zombies)
@@ -316,11 +318,20 @@ static void cleanup() {
 
 				if (z->mac == c->mac) {
 					xlog("WIFI zombie %s assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
-					z->mac = 0;
+
+					// take over ssid of probe request
+					if (strlen(z->ssid) > 0)
+						strcpy(c->ssid, z->ssid);
+
+					assigned++;
 					break;
 				}
 			}
 		}
+
+		// remove
+		if (assigned)
+			z->mac = 0;
 	}
 }
 
@@ -338,9 +349,9 @@ static void expired() {
 
 			// remove expired client
 			int age = now_ts - c->ts;
-			int e1 = *c->ssid == 0 && c->count == 0 && age > SECONDS_3M;
-			int e2 = *c->ssid == 0 && c->count < 5 && age > SECONDS_15M;
-			int e3 = c->count < 10 && age > SECONDS_1H;
+			int e1 = c->count == 1 && age > SECONDS_10M;
+			int e2 = c->count < 10 && age > SECONDS_30M;
+			int e3 = c->count < 20 && age > SECONDS_1H;
 			int e4 = age > SECONDS_1D;
 			if (e1 || e2 || e3 || e4) {
 				xlog("WIFI removing expired client %s from %s", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
@@ -351,7 +362,7 @@ static void expired() {
 
 		// remove expired station
 		int age = now_ts - s->ts;
-		int e1 = sc == 0 && s->count == 0 && age > SECONDS_1H;
+		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
 			xlog("WIFI removing expired station %", *s->ssid != 0 ? s->ssid : s->smac);
@@ -360,6 +371,7 @@ static void expired() {
 	}
 }
 
+// TODO dump to file
 static void dump() {
 	int sc = 0;
 	int zc = 0;
@@ -372,7 +384,7 @@ static void dump() {
 		if (zombies->clients[i].mac)
 			zc++;
 
-	xlog("\n\n### %d Stations ### %d Zombies ###", sc, zc);
+	xlog("\n\n### %d Stations ### %d Zombies ### %d Lines ###", sc, zc, line_count);
 
 #define HTEMPLATE "%-20s %-35s %6s %8s %10s %-35s"
 #define STEMPLATE "\n%-20s %-35s %6d %8d %10d %-35s"
@@ -448,7 +460,8 @@ static int init() {
 	if (pthread_create(&listener_thread, NULL, &listener, NULL))
 		return xerr("Error creating listener_thread");
 
-	xerr("WIFI listening");
+	line_count = 0;
+	xlog("WIFI listening on port %d", PORT);
 	return 0;
 }
 

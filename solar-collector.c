@@ -134,14 +134,14 @@ static pstate_t *slos = &pstates[22], *vars = &pstates[23], *slom = &pstates[24]
 // local semaphores memory
 static sequential_t sequential;
 
+// global semaphore pointer
+sequential_t *sq = &sequential;
+
 // global counter/gstate/pstate/params/semaphore pointer
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
-
-// global semaphore pointer
-sequential_t *sq = &sequential;
 
 static void load_state() {
 	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));

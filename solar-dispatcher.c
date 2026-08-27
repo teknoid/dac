@@ -546,7 +546,9 @@ static void offline() {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 			inverter_off();
-	}
+	} else
+		// enable discharge / update discharge rate
+		akku_discharge(AKKU);
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {

@@ -685,10 +685,10 @@ void uint642mac(uint64_t mac, char *buf) {
 }
 
 void uint642oui(uint64_t mac, char *buf) {
-	char smac[7], cmd[128], result[1024];
+	char smac[16], cmd[128], result[1024];
 
 	ZERO(result);
-	snprintf(smac, 7, "%06lX", mac >> 24);
+	snprintf(smac, 16, "%06lX", mac >> 24);
 	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
 	FILE *fd = popen(cmd, "r");
 	fgets(result, 1024, fd);
