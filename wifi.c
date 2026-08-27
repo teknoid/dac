@@ -44,156 +44,252 @@ static time_t now_ts;
 
 static int dump_line;
 
-static station_t* station(uint64_t mac, char *ssid) {
-	if (mac == 0)
+static station_t* station(uint64_t mac, int create, char *ssid) {
+	if (mac == 0 || mac == BROADCAST)
 		return 0;
 
-	station_t *s = 0;
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac == mac) {
-			s = &stations[i];
-			break;
+			station_t *s = &stations[i];
+
+			// station found
+			s->count++;
+			s->ts = now_ts;
+			if (ssid && strlen(ssid) > strlen(s->ssid))
+				strcpy(s->ssid, ssid);
+
+			return s;
 		}
 
-	if (s == 0)
+	// do not create new entry if not found
+	if (!create)
 		return 0;
 
-	s->count++;
-	s->ts = now_ts;
-	if (ssid && strlen(ssid) > strlen(s->ssid))
-		strcpy(s->ssid, ssid);
-
-	return s;
-}
-
-static station_t* new_station(uint64_t mac, char *ssid) {
-	if (mac == 0)
-		return 0;
-
-	if (mac == BROADCAST)
-		return zombies;
-
-	station_t *s = 0;
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac == 0) {
-			s = &stations[i];
-			break;
+			station_t *s = &stations[i];
+
+			// create new entry
+			ZEROP(s);
+			s->mac = mac;
+			s->count++;
+			s->ts = now_ts;
+			uint642mac(mac, s->smac);
+			uint642oui(mac, s->oui);
+			if (ssid && strlen(ssid) > 0)
+				strcpy(s->ssid, ssid);
+
+			xlog("WIFI new station %s (%s)", s->smac, *s->ssid != 0 ? s->ssid : s->smac);
+			dump_line = 1;
+
+			return s;
 		}
 
-	if (s == 0) {
-		xerr("WIFI station table is full!");
-		return 0;
-	}
-
-	ZEROP(s);
-	s->mac = mac;
-	s->count++;
-	s->ts = now_ts;
-	uint642mac(mac, s->smac);
-	uint642oui(mac, s->oui);
-	strcpy(s->ssid, ssid);
-	return s;
+	xerr("WIFI station table is full!");
+	return 0;
 }
 
-static client_t* client(station_t *s, uint64_t mac, char *ssid, char tag) {
-	client_t *c = 0;
+static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, char tag) {
+	if (mac == 0 || mac == BROADCAST || mac == s->mac || (mac & THREETHREE_MASK) == THREETHREE)
+		return 0;
+
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac == mac) {
-			c = &(s->clients[i]);
-			break;
+			client_t *c = &(s->clients[i]);
+
+			// client found
+			int age = now_ts - c->ts;
+			if (age > SECONDS_1HX) {
+				xlog("WIFI client %s is back", c->smac);
+				// notify("client is back", c->smac, "au.wav");
+			}
+
+			c->count++;
+			c->ts = now_ts;
+			c->tag = tag;
+			if (ssid && strlen(ssid) > strlen(c->ssid))
+				strcpy(c->ssid, ssid);
+
+			return c;
 		}
 
-	if (c == 0)
+	// do not create new entry if not found
+	if (!create)
 		return 0;
 
-	int age = now_ts - c->ts;
-	if (age > SECONDS_1HX) {
-		xlog("WIFI client %s is back", c->smac);
-//		notify("New Zombie", ssid, "au.wav");
-	}
-
-	c->count++;
-	c->ts = now_ts;
-	c->tag = tag;
-	if (ssid && strlen(ssid) > strlen(c->ssid))
-		strcpy(c->ssid, ssid);
-
-	return c;
-}
-
-static client_t* new_client(station_t *s, uint64_t mac, char *ssid, char tag) {
-	if ((mac & THREETHREE_MASK) == THREETHREE)
-		return 0;
-
-	client_t *c = 0;
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac == 0) {
-			c = &(s->clients[i]);
-			break;
+			client_t *z = &(s->clients[i]);
+
+			// create new entry
+			ZEROP(z);
+			z->mac = mac;
+			z->count++;
+			z->ts = now_ts;
+			z->tag = tag;
+			uint642mac(mac, z->smac);
+			uint642oui(mac, z->oui);
+			if (ssid && strlen(ssid) > 0)
+				strcpy(z->ssid, ssid);
+
+			xlog("WIFI new client %s assigned to %s", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+			dump_line = 1;
+
+			return z;
 		}
 
-	if (c == 0) {
-		xerr("WIFI station %s client table is full!", s->smac);
-		return 0;
-	}
-
-	ZEROP(c);
-	c->mac = mac;
-	c->count++;
-	c->ts = now_ts;
-	c->tag = tag;
-	uint642mac(mac, c->smac);
-	uint642oui(mac, c->oui);
-	if (ssid && strlen(ssid) > 0)
-		strcpy(c->ssid, ssid);
-
-	return c;
+	xerr("WIFI station %s client table is full!", s->smac);
+	return 0;
 }
 
-static void assigned(station_t *s, uint64_t mac, char *ssid, char tag) {
-	if (mac == 0 || mac == BROADCAST || mac == s->mac)
-		return;
-
-	client_t *c = client(s, mac, ssid, tag);
-	if (c)
-		return;
-
-	c = new_client(s, mac, ssid, tag);
-	if (!c)
-		return;
-
-	xlog("WIFI new client %s assigned to %s", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
-	dump_line = 1;
-}
-
-static void unassigned(uint64_t mac, char *ssid, char tag) {
+static client_t* client_unassigned(uint64_t mac, char *ssid, char tag) {
 	if (mac == 0 || mac == BROADCAST)
-		return;
+		return 0;
 
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
-		if (!s->mac)
-			continue;
-
-		if (mac == s->mac)
-			return;
-
-		client_t *c = client(s, mac, ssid, tag);
+		client_t *c = client(s, mac, 0, ssid, tag);
 		if (c)
-			return;
+			return c; // found
 	}
 
-	client_t *z = new_client(zombies, mac, ssid, tag);
-	if (!z)
-		return;
+	// not found - create zombie
+	client_t *c = client(zombies, mac, 1, ssid, 'z');
+	return c;
+}
 
-	if (ssid && strlen(ssid) > 0) {
-		xlog("WIFI new client %s assigned to zombies hunting for %s", z->smac, ssid);
-//		notify("New Zombie", ssid, "au.wav");
-	} else
-		xlog("WIFI new client %s assigned to zombies", z->smac);
+static void parse(char *line, size_t len) {
+	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
+	char ssid[64];
 
-	dump_line = 1;
+	// split line into tokens
+	ZERO(ssid);
+	char *tokens = strdup(line);
+	char *t = strtok(tokens, " ");
+	while (t != NULL) {
+		if (starts_with("BSSID", t, sizeof(t)))
+			bssid = mac2uint64(t + 6);
+
+		if (starts_with("DA", t, sizeof(t)))
+			da = mac2uint64(t + 3);
+
+		if (starts_with("SA", t, sizeof(t)))
+			sa = mac2uint64(t + 3);
+
+		if (starts_with("RA", t, sizeof(t)))
+			ra = mac2uint64(t + 3);
+
+		if (starts_with("TA", t, sizeof(t)))
+			ta = mac2uint64(t + 3);
+
+		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
+			char *x = strchr(line, '(');
+			size_t y = strchr(x, ')') - x - 1;
+			strncpy(ssid, x + 1, y);
+		}
+
+		t = strtok(NULL, " ");
+	}
+
+	// update or create station
+	station_t *bss = station(bssid, 1, ssid);
+	if (bss) {
+		client(bss, ra, 1, ssid, 'r');
+		client(bss, ta, 1, ssid, 't');
+		client(bss, da, 1, ssid, 'd');
+		client(bss, sa, 1, ssid, 's');
+	}
+
+	// assign to RA station
+	station_t *ras = station(ra, 0, 0);
+	if (ras) {
+		client(ras, ta, 1, ssid, 't');
+		client(ras, da, 1, ssid, 'd');
+		client(ras, sa, 1, ssid, 's');
+	}
+
+	// assign to TA station
+	station_t *tas = station(ta, 0, 0);
+	if (tas) {
+		client(tas, ra, 1, ssid, 'r');
+		client(tas, da, 1, ssid, 'd');
+		client(tas, sa, 1, ssid, 's');
+	}
+
+	// assign to SA station
+	station_t *sas = station(sa, 0, 0);
+	if (sas) {
+		client(sas, ra, 1, ssid, 'r');
+		client(sas, ta, 1, ssid, 't');
+		client(sas, da, 1, ssid, 'd');
+	}
+
+	// assign to DA station
+	station_t *das = station(da, 0, 0);
+	if (das) {
+		client(das, ra, 1, ssid, 'r');
+		client(das, ta, 1, ssid, 't');
+		client(das, sa, 1, ssid, 's');
+	}
+
+	// search client in all stations or create new zombie
+	int assigned = bss || ras || tas || sas || das;
+	if (!assigned) {
+		client_unassigned(ra, ssid, 'r');
+		client_unassigned(ta, ssid, 't');
+		client_unassigned(da, ssid, 'd');
+		client_unassigned(sa, ssid, 's');
+	}
+}
+
+static void* listener(void *arg) {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return (void*) 0;
+	}
+
+	struct sockaddr_in address;
+	socklen_t addrlen = sizeof(address);
+	char line[1024];
+	int client_fd;
+
+	while (1) {
+		if ((client_fd = accept(server_fd, (struct sockaddr*) &address, &addrlen)) < 0) {
+			xerr("WIFI accept");
+			return (void*) 0;
+		}
+
+		ssize_t numRead;
+		size_t totRead;
+		char *line_ptr;
+		char ch;
+
+		line_ptr = line;
+		totRead = 0;
+		while (1) {
+			numRead = read(client_fd, &ch, 1);
+			// xdebug("WIFI read %d %c 0x%02x", numRead, ch > 0x30 ? ch : ' ', ch);
+
+			if (numRead <= 0)
+				break;
+
+			if (ch == '\n') {
+				*line_ptr++ = '\0';
+				dump_line = 0;
+				parse(line, totRead);
+				if (dump_line)
+					xdebug(line);
+				line_ptr = line;
+				totRead = 0;
+				continue;
+			}
+
+			totRead++;
+			*line_ptr++ = ch;
+		}
+
+		close(client_fd);
+	}
 }
 
 static void cleanup() {
@@ -207,13 +303,19 @@ static void cleanup() {
 			if (!s->mac || s == zombies)
 				continue;
 
+			if (z->mac == s->mac) {
+				xlog("WIFI zombie %s is station %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+				z->mac = 0;
+				break;
+			}
+
 			for (int k = 0; k < CLIENTS; k++) {
 				client_t *c = &(s->clients[k]);
 				if (!c->mac)
 					continue;
 
 				if (z->mac == c->mac) {
-					xlog("WIFI zombie %s already assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+					xlog("WIFI zombie %s assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
 					z->mac = 0;
 					break;
 				}
@@ -288,145 +390,6 @@ static void dump() {
 					xlog(CTEMPLATE, c->tag, c->smac, c->ssid, c->signal, now_ts - c->ts, c->count, c->oui);
 				}
 		}
-}
-
-static void parse(char *line, size_t len) {
-	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
-	char ssid[64];
-
-	// split line into tokens
-	ZERO(ssid);
-	char *tokens = strdup(line);
-	char *t = strtok(tokens, " ");
-	while (t != NULL) {
-		if (starts_with("BSSID", t, sizeof(t)))
-			bssid = mac2uint64(t + 6);
-
-		if (starts_with("DA", t, sizeof(t)))
-			da = mac2uint64(t + 3);
-
-		if (starts_with("SA", t, sizeof(t)))
-			sa = mac2uint64(t + 3);
-
-		if (starts_with("RA", t, sizeof(t)))
-			ra = mac2uint64(t + 3);
-
-		if (starts_with("TA", t, sizeof(t)))
-			ta = mac2uint64(t + 3);
-
-		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
-			char *x = strchr(line, '(');
-			size_t y = strchr(x, ')') - x - 1;
-			strncpy(ssid, x + 1, y);
-		}
-
-		t = strtok(NULL, " ");
-	}
-
-	// update or create station
-	station_t *s = 0;
-	if (bssid != 0) {
-		s = station(bssid, ssid);
-		if (!s)
-			s = new_station(bssid, ssid);
-	}
-
-	if (s) {
-
-		assigned(s, ra, ssid, 'r');
-		assigned(s, ta, ssid, 't');
-		assigned(s, da, ssid, 'd');
-		assigned(s, sa, ssid, 's');
-
-	} else {
-
-		station_t *ras = station(ra, 0);
-		if (ras) {
-			assigned(ras, ta, ssid, 't');
-			assigned(ras, da, ssid, 'd');
-			assigned(ras, sa, ssid, 's');
-			return;
-		}
-
-		station_t *tas = station(ta, 0);
-		if (tas) {
-			assigned(tas, ra, ssid, 'r');
-			assigned(tas, da, ssid, 'd');
-			assigned(tas, sa, ssid, 's');
-			return;
-		}
-
-		station_t *sas = station(sa, 0);
-		if (sas) {
-			assigned(sas, ra, ssid, 'r');
-			assigned(sas, ta, ssid, 't');
-			assigned(sas, da, ssid, 'd');
-			return;
-		}
-
-		station_t *das = station(da, 0);
-		if (das) {
-			assigned(das, ra, ssid, 'r');
-			assigned(das, ta, ssid, 't');
-			assigned(das, sa, ssid, 's');
-			return;
-		}
-
-		unassigned(ra, ssid, 'r');
-		unassigned(ta, ssid, 't');
-		unassigned(da, ssid, 'd');
-		unassigned(sa, ssid, 's');
-	}
-}
-
-static void* listener(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
-	}
-
-	struct sockaddr_in address;
-	socklen_t addrlen = sizeof(address);
-	char line[1024];
-	int client_fd;
-
-	while (1) {
-		if ((client_fd = accept(server_fd, (struct sockaddr*) &address, &addrlen)) < 0) {
-			xerr("WIFI accept");
-			return (void*) 0;
-		}
-
-		ssize_t numRead;
-		size_t totRead;
-		char *line_ptr;
-		char ch;
-
-		line_ptr = line;
-		totRead = 0;
-		while (1) {
-			numRead = read(client_fd, &ch, 1);
-			// xdebug("WIFI read %d %c 0x%02x", numRead, ch > 0x30 ? ch : ' ', ch);
-
-			if (numRead <= 0)
-				break;
-
-			if (ch == '\n') {
-				*line_ptr++ = '\0';
-				dump_line = 0;
-				parse(line, totRead);
-				if (dump_line)
-					xdebug(line);
-				line_ptr = line;
-				totRead = 0;
-				continue;
-			}
-
-			totRead++;
-			*line_ptr++ = ch;
-		}
-
-		close(client_fd);
-	}
 }
 
 static void loop() {
