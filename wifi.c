@@ -22,17 +22,20 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#define PORT						6666
+#define PORT					6666
 
-#define BROADCAST					0xffffffffffff
-#define THREETHREE					0x333300000000
-#define THREETHREE_MASK				0xffff00000000
+#define BROADCAST				0xffffffffffff
+#define THREETHREE				0x333300000000
+#define THREETHREE_MASK			0xffff00000000
 
-#define SECONDS_1D 					60 * 60 * 24
-#define SECONDS_1HX 				60 * 60 + 300
-#define SECONDS_1H 					60 * 60
-#define SECONDS_30M					60 * 30
-#define SECONDS_10M					60 * 10
+#define SECONDS_1D 				60 * 60 * 24
+#define SECONDS_1HX 			60 * 60 + 300
+#define SECONDS_1H 				60 * 60
+#define SECONDS_30M				60 * 30
+#define SECONDS_10M				60 * 10
+
+#define WIFI_DUMP				"wifi.txt"
+#define WIFI_STATE				"wifi.bin"
 
 static station_t stations[STATIONS];
 static station_t *zombies = &stations[STATIONS - 1];
@@ -41,7 +44,7 @@ static pthread_t listener_thread;
 static time_t now_ts;
 static int server_fd;
 
-static unsigned int line_count;
+static unsigned long line_count;
 static int dump_line;
 
 static station_t* station(uint64_t mac, int create, char *ssid) {
@@ -354,7 +357,7 @@ static void expired() {
 			int e3 = c->count < 20 && age > SECONDS_1H;
 			int e4 = age > SECONDS_1D;
 			if (e1 || e2 || e3 || e4) {
-				xlog("WIFI removing expired client %s from %s", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
+				xlog("WIFI removing expired client %s from %s age=%d count=%d", c->smac, *s->ssid != 0 ? s->ssid : s->smac, age, c->count);
 				ZEROP(c);
 			} else
 				sc++;
@@ -365,16 +368,14 @@ static void expired() {
 		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
-			xlog("WIFI removing expired station %", *s->ssid != 0 ? s->ssid : s->smac);
+			xlog("WIFI removing expired station % age=%d count=%d", *s->ssid != 0 ? s->ssid : s->smac, age, s->count);
 			ZEROP(s);
 		}
 	}
 }
 
-// TODO dump to file
 static void dump() {
-	int sc = 0;
-	int zc = 0;
+	int sc = 0, zc = 0, age = 0;
 
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac)
@@ -384,24 +385,36 @@ static void dump() {
 		if (zombies->clients[i].mac)
 			zc++;
 
-	xlog("\n\n### %d Stations ### %d Zombies ### %d Lines ###", sc, zc, line_count);
+	xlog("WIFI %d Stations, %d Zombies, %lu Lines", sc, zc, line_count);
 
-#define HTEMPLATE "%-20s %-35s %6s %8s %10s %-35s"
-#define STEMPLATE "\n%-20s %-35s %6d %8d %10d %-35s"
-#define CTEMPLATE "%c %-18s %-35s %6d %8d %10d %-35s"
+	FILE *fp = fopen(RUN SLASH WIFI_DUMP, "wt");
+	if (fp == NULL) {
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_DUMP);
+		return;
+	}
+	fprintf(fp, "%d Stations, %d Zombies, %lu Lines\n", sc, zc, line_count);
 
-	xlog(HTEMPLATE, "MAC", "SSID", "Signal", "Age", "Count", "Hardware");
+#define HTEMPLATE "%-20s %-35s %6s %8s %10s %-35s\n"
+#define STEMPLATE "\n%-20s %-35s %6d %8d %10d %-35s\n"
+#define CTEMPLATE "%c %-18s %-35s %6d %8d %10d %-35s\n"
+
+	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Signal", "Age", "Count", "Hardware");
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac) {
 			station_t *s = &stations[i];
-			xlog(STEMPLATE, s->smac, s->ssid, s->signal, now_ts - s->ts, s->count, s->oui);
+			age = now_ts - s->ts;
+			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->signal, age, s->count, s->oui);
 
 			for (int i = 0; i < CLIENTS; i++)
 				if (s->clients[i].mac) {
 					client_t *c = &(s->clients[i]);
-					xlog(CTEMPLATE, c->tag, c->smac, c->ssid, c->signal, now_ts - c->ts, c->count, c->oui);
+					age = now_ts - c->ts;
+					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->signal, age, c->count, c->oui);
 				}
 		}
+
+	fflush(fp);
+	fclose(fp);
 }
 
 static void loop() {
@@ -423,7 +436,7 @@ static void loop() {
 }
 
 static int init() {
-	xlog("WIFI init");
+	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 
 	strcpy(zombies->ssid, "Zombies");
 	zombies->mac = 0xaffeaffeaffe;
@@ -467,13 +480,15 @@ static int init() {
 
 static void stop() {
 	if (pthread_cancel(listener_thread))
-		xlog("Error canceling listener_thread");
+		xerr("Error canceling listener_thread");
 
 	if (pthread_join(listener_thread, NULL))
-		xlog("Error joining listener_thread");
+		xerr("Error joining listener_thread");
 
 	if (server_fd)
 		close(server_fd);
+
+	store_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 }
 
 static int test() {
@@ -482,6 +497,12 @@ static int test() {
 	uint642mac(mac, mac2);
 	uint642oui(mac, mac3);
 	xlog("mac1=%s uint64=%lx mac2=%s mac3=%s", mac1, mac, mac2, mac3);
+
+	now_ts = time(NULL);
+	struct tm now_tm, *now = &now_tm;
+	localtime_r(&now_ts, &now_tm);
+	xlog("today=%d", now->tm_wday);
+
 	return 0;
 }
 

@@ -136,19 +136,19 @@ static int init() {
 
 static void stop() {
 	if (pthread_cancel(thread_ra))
-		xlog("Error canceling thread_ra");
+		xerr("Error canceling thread_ra");
 
 	if (pthread_join(thread_ra, NULL))
-		xlog("Error joining thread_ra");
+		xerr("Error joining thread_ra");
 
 	if (fd_ra)
 		close(fd_ra);
 
 	if (pthread_cancel(thread_rb))
-		xlog("Error canceling thread_rb");
+		xerr("Error canceling thread_rb");
 
 	if (pthread_join(thread_rb, NULL))
-		xlog("Error joining thread_rb");
+		xerr("Error joining thread_rb");
 
 	if (fd_rb)
 		close(fd_rb);
