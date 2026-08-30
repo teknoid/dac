@@ -188,11 +188,11 @@ static void parse(char *line, size_t len) {
 		if (starts_with("BSSID", t, strlen(t)))
 			bssid = mac2uint64(t + 6);
 
-		if (starts_with("DA", t, strlen(t)))
-			da = mac2uint64(t + 3);
-
 		if (starts_with("SA", t, strlen(t)))
 			sa = mac2uint64(t + 3);
+
+		if (starts_with("DA", t, strlen(t)))
+			da = mac2uint64(t + 3);
 
 		if (starts_with("RA", t, strlen(t)))
 			ra = mac2uint64(t + 3);
