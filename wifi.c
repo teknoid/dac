@@ -2,7 +2,7 @@
 
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
-// tcpdump -nevi mon1 | nc tron 6666
+// tcpdump -nevi mon1 | tee -a /ram/tcpdump.log | nc tron 6666
 
 // while true; do for c in `seq 1 14`; do iwconfig mon1 channel $c; sleep 1s; done; done
 
@@ -109,9 +109,10 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 		if (s->clients[i].mac == mac) {
 			client_t *c = &(s->clients[i]);
 
-			// client found, but different ssid
-			if (ssid && strcmp(ssid, c->ssid))
-				continue;
+			// zombies: create new entry if ssid is different
+			if (s == zombies)
+				if (ssid && strcmp(ssid, c->ssid))
+					continue;
 
 			// client found
 			int age = now_ts - c->ts;
