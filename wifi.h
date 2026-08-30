@@ -18,6 +18,7 @@ typedef struct station_t {
 	time_t ts;
 	int count;
 	int signal;
+	int dirty;
 	char ssid[64];
 	char oui[64];
 	char name[64];
