@@ -48,7 +48,7 @@ static unsigned long line_count;
 static int dump_line;
 static int server_fd;
 
-static station_t* station(uint64_t mac, int create, char *ssid, int signal) {
+static station_t* station(uint64_t mac, int create, char *ssid, int channel, int signal) {
 	if (mac == 0 || mac == BROADCAST)
 		return 0;
 
@@ -61,6 +61,8 @@ static station_t* station(uint64_t mac, int create, char *ssid, int signal) {
 			s->ts = now_ts;
 			if (ssid && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
+			if (channel)
+				s->channel = channel;
 			if (signal)
 				s->signal = signal;
 
@@ -84,6 +86,8 @@ static station_t* station(uint64_t mac, int create, char *ssid, int signal) {
 			uint642oui(mac, s->oui);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
+			if (channel)
+				s->channel = channel;
 			if (signal)
 				s->signal = signal;
 
@@ -97,7 +101,7 @@ static station_t* station(uint64_t mac, int create, char *ssid, int signal) {
 	return 0;
 }
 
-static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int signal, char tag) {
+static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int channel, int signal, char tag) {
 	if (mac == 0 || mac == BROADCAST || mac == s->mac || (mac & THREETHREE_MASK) == THREETHREE)
 		return 0;
 
@@ -121,6 +125,8 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			c->tag = tag;
 			if (ssid && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
+			if (channel)
+				c->channel = channel;
 			if (signal)
 				c->signal = signal;
 
@@ -145,6 +151,8 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			uint642oui(mac, c->oui);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
+			if (channel)
+				c->channel = channel;
 			if (signal)
 				c->signal = signal;
 
@@ -159,31 +167,66 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 	return 0;
 }
 
-static client_t* client_unassigned(uint64_t mac, char *ssid, int signal, char tag) {
+static client_t* client_unassigned(uint64_t mac, char *ssid, int channel, int signal, char tag) {
 	if (mac == 0 || mac == BROADCAST)
 		return 0;
 
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
-		client_t *c = client(s, mac, 0, ssid, signal, tag);
+		client_t *c = client(s, mac, 0, ssid, channel, signal, tag);
 		if (c)
 			return c; // found
 	}
 
 	// not found - create zombie
-	client_t *z = client(zombies, mac, 1, ssid, signal, 'z');
+	client_t *z = client(zombies, mac, 1, ssid, channel, signal, 'z');
 	return z;
+}
+
+static int channel(int freq) {
+	switch (freq) {
+	case 2412:
+		return 1;
+	case 2417:
+		return 2;
+	case 2422:
+		return 3;
+	case 2427:
+		return 4;
+	case 2432:
+		return 5;
+	case 2437:
+		return 6;
+	case 2442:
+		return 7;
+	case 2447:
+		return 8;
+	case 2452:
+		return 9;
+	case 2457:
+		return 10;
+	case 2462:
+		return 11;
+	case 2467:
+		return 12;
+	case 2472:
+		return 13;
+	case 2484:
+		return 14;
+	default:
+		return freq;
+	}
 }
 
 static void parse(char *line, size_t len) {
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
-	int signal = 0, csignal = 0, ssignal = 0;
+	int signal = 0, freq = 0;
 	char ssid[64];
 
 	// split line into tokens
 	ZERO(ssid);
 	char *tokens = strdup(line);
-	char *t = strtok(tokens, " ");
+	char *t = strtok(tokens, " "), *oldt;
 	while (t != NULL) {
 		if (starts_with("BSSID", t, strlen(t)))
 			bssid = mac2uint64(t + 6);
@@ -203,69 +246,80 @@ static void parse(char *line, size_t len) {
 		if (ends_with("dBm", t, strlen(t)))
 			sscanf(t, "%ddBm", &signal);
 
+		if (!strcmp("MHz", t)) {
+			long l = strtol(oldt, NULL, 0);
+			if (l > 2000)
+				freq = l;
+		}
+
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
 			char *x = strchr(line, '(');
 			size_t y = strchr(x, ')') - x - 1;
 			strncpy(ssid, x + 1, y);
 		}
 
+		oldt = t;
 		t = strtok(NULL, " ");
 	}
 
-	// signal from station or client
-	if (bssid && bssid == sa)
+	// packet from station or client
+	int schannel = 0, cchannel = 0, ssignal = 0, csignal = 0;
+	if (bssid && bssid == sa) {
+		schannel = channel(freq);
 		ssignal = signal;
-	else
+	} else {
+		cchannel = channel(freq);
 		csignal = signal;
+	}
 
 	// update or create station
-	station_t *bss = station(bssid, 1, ssid, ssignal);
+	station_t *bss = station(bssid, 1, ssid, schannel, ssignal);
 	if (bss) {
-		client(bss, ra, 1, ssid, csignal, 'r');
-		client(bss, ta, 1, ssid, csignal, 't');
-		client(bss, da, 1, ssid, csignal, 'd');
-		client(bss, sa, 1, ssid, csignal, 's');
-	}
-
-	// assign to RA station
-	station_t *ras = station(ra, 0, 0, ssignal);
-	if (ras) {
-		client(ras, ta, 1, ssid, csignal, 't');
-		client(ras, da, 1, ssid, csignal, 'd');
-		client(ras, sa, 1, ssid, csignal, 's');
-	}
-
-	// assign to TA station
-	station_t *tas = station(ta, 0, 0, ssignal);
-	if (tas) {
-		client(tas, ra, 1, ssid, csignal, 'r');
-		client(tas, da, 1, ssid, csignal, 'd');
-		client(tas, sa, 1, ssid, csignal, 's');
+		client(bss, sa, 1, ssid, cchannel, csignal, 's');
+		client(bss, da, 1, ssid, cchannel, csignal, 'd');
+		client(bss, ra, 1, ssid, cchannel, csignal, 'r');
+		client(bss, ta, 1, ssid, cchannel, csignal, 't');
 	}
 
 	// assign to SA station
-	station_t *sas = station(sa, 0, 0, ssignal);
+	station_t *sas = station(sa, 0, 0, schannel, ssignal);
 	if (sas) {
-		client(sas, ra, 1, ssid, csignal, 'r');
-		client(sas, ta, 1, ssid, csignal, 't');
-		client(sas, da, 1, ssid, csignal, 'd');
+		client(sas, da, 1, ssid, cchannel, csignal, 'd');
+		client(sas, ra, 1, ssid, cchannel, csignal, 'r');
+		client(sas, ta, 1, ssid, cchannel, csignal, 't');
 	}
 
 	// assign to DA station
-	station_t *das = station(da, 0, 0, ssignal);
+	station_t *das = station(da, 0, 0, schannel, ssignal);
 	if (das) {
-		client(das, ra, 1, ssid, csignal, 'r');
-		client(das, ta, 1, ssid, csignal, 't');
-		client(das, sa, 1, ssid, csignal, 's');
+		client(das, sa, 1, ssid, cchannel, csignal, 's');
+		client(das, ra, 1, ssid, cchannel, csignal, 'r');
+		client(das, ta, 1, ssid, cchannel, csignal, 't');
+	}
+
+	// assign to RA station
+	station_t *ras = station(ra, 0, 0, schannel, ssignal);
+	if (ras) {
+		client(ras, sa, 1, ssid, cchannel, csignal, 's');
+		client(ras, da, 1, ssid, cchannel, csignal, 'd');
+		client(ras, ta, 1, ssid, cchannel, csignal, 't');
+	}
+
+	// assign to TA station
+	station_t *tas = station(ta, 0, 0, schannel, ssignal);
+	if (tas) {
+		client(tas, sa, 1, ssid, cchannel, csignal, 's');
+		client(tas, da, 1, ssid, cchannel, csignal, 'd');
+		client(tas, ra, 1, ssid, cchannel, csignal, 'r');
 	}
 
 	// search client in all stations or create new zombie
-	int assigned = bss || ras || tas || sas || das;
+	int assigned = bss || sas || das || ras || tas;
 	if (!assigned) {
-		client_unassigned(ra, ssid, csignal, 'r');
-		client_unassigned(ta, ssid, csignal, 't');
-		client_unassigned(da, ssid, csignal, 'd');
-		client_unassigned(sa, ssid, csignal, 's');
+		client_unassigned(sa, ssid, cchannel, csignal, 's');
+		client_unassigned(da, ssid, cchannel, csignal, 'd');
+		client_unassigned(ra, ssid, cchannel, csignal, 'r');
+		client_unassigned(ta, ssid, cchannel, csignal, 't');
 	}
 }
 
@@ -442,22 +496,22 @@ static void dump() {
 	}
 	fprintf(fp, "%d Stations, %d Zombies, %lu Lines\n", sc, zc, line_count);
 
-#define HTEMPLATE "%-20s %-35s %6s %8s %10s %-35s\n"
-#define STEMPLATE "\n%-20s %-35s %6d %8d %10d %-35s\n"
-#define CTEMPLATE "%c %-18s %-35s %6d %8d %10d %-35s\n"
+#define HTEMPLATE "%-20s %-35s %8s %8s %8s %10s %-35s\n"
+#define STEMPLATE "\n%-20s %-35s %8d %8d %8d %10d %-35s\n"
+#define CTEMPLATE "%c %-18s %-35s %8d %8d %8d %10d %-35s\n"
 
-	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Signal", "Age", "Count", "Hardware");
+	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac) {
 			station_t *s = &stations[i];
 			age = now_ts - s->ts;
-			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->signal, age, s->count, s->oui);
+			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->channel, s->signal, age, s->count, s->oui);
 
 			for (int i = 0; i < CLIENTS; i++)
 				if (s->clients[i].mac) {
 					client_t *c = &(s->clients[i]);
 					age = now_ts - c->ts;
-					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->signal, age, c->count, c->oui);
+					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->channel, c->signal, age, c->count, c->oui);
 				}
 		}
 
