@@ -27,3 +27,10 @@ typedef struct station_t {
 	char smac[18];
 	client_t clients[CLIENTS];
 } station_t;
+
+typedef struct connection_t {
+	pthread_t thread;
+	struct sockaddr address;
+	int addr_len;
+	int sock;
+} connection_t;

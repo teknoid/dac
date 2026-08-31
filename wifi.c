@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "utils.h"
 #include "wifi.h"
@@ -332,56 +333,70 @@ static void parse(char *line, size_t len) {
 	}
 }
 
-static void* listener(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
-		return (void*) 0;
-	}
+static void* reader(void *arg) {
+	connection_t *connection = (connection_t*) arg;
 
-	struct sockaddr_in address;
-	socklen_t addrlen = sizeof(address);
-	char line[1024];
-	int client_fd;
+	struct sockaddr_in *sa_in = (struct sockaddr_in*) &connection->address;
+	xlog("WIFI new connection from %s", inet_ntoa(sa_in->sin_addr));
+
+	size_t totRead = 0;
+	char line[1024], *line_ptr = line, ch;
 
 	while (1) {
-		if ((client_fd = accept(server_fd, (struct sockaddr*) &address, &addrlen)) < 0) {
-			xerr("WIFI accept");
+		ssize_t numRead = read(connection->sock, &ch, 1);
+		if (numRead <= 0)
+			break;
+
+		// xdebug("WIFI read %d %c 0x%02x", numRead, ch > 0x30 ? ch : ' ', ch);
+
+		if (ch == '\n') {
+			*line_ptr++ = '\0';
+			dump_line = 0;
+			pthread_mutex_lock(&lock);
+			parse(line, totRead);
+			pthread_mutex_unlock(&lock);
+			if (dump_line)
+				xdebug(line);
+			line_count++;
+			line_ptr = line;
+			totRead = 0;
+			continue;
+		}
+
+		totRead++;
+		*line_ptr++ = ch;
+	}
+
+	close(connection->sock);
+	xlog("WIFI client disconnected");
+
+	return (void*) 0;
+}
+
+static void* listener(void *arg) {
+	while (1) {
+		connection_t *connection = malloc(sizeof(connection_t));
+		connection->sock = accept(server_fd, &connection->address, &connection->addr_len);
+
+		if (connection->sock <= 0) {
+			xerr("accept failed");
+			free(connection);
 			return (void*) 0;
 		}
 
-		ssize_t numRead;
-		size_t totRead;
-		char *line_ptr;
-		char ch;
-
-		line_ptr = line;
-		totRead = 0;
-		while (1) {
-			numRead = read(client_fd, &ch, 1);
-			// xdebug("WIFI read %d %c 0x%02x", numRead, ch > 0x30 ? ch : ' ', ch);
-
-			if (numRead <= 0)
-				break;
-
-			if (ch == '\n') {
-				*line_ptr++ = '\0';
-				dump_line = 0;
-				pthread_mutex_lock(&lock);
-				parse(line, totRead);
-				pthread_mutex_unlock(&lock);
-				if (dump_line)
-					xdebug(line);
-				line_count++;
-				line_ptr = line;
-				totRead = 0;
-				continue;
-			}
-
-			totRead++;
-			*line_ptr++ = ch;
+		// start new thread
+		if (pthread_create(&connection->thread, 0, &reader, (void*) connection)) {
+			xerr("Error creating thread");
+			free(connection);
+			return (void*) 0;
 		}
 
-		close(client_fd);
+		// detach it
+		if (pthread_detach(connection->thread)) {
+			xerr("Error detaching thread");
+			free(connection);
+			return (void*) 0;
+		}
 	}
 }
 
@@ -439,11 +454,19 @@ static void expired() {
 		if (!s->mac)
 			continue;
 
+		// update name
+		if (!*s->name)
+			uint642name(s->mac, s->name, 64);
+
 		int sc = 0;
 		for (int j = 0; j < CLIENTS; j++) {
 			client_t *c = &(s->clients[j]);
 			if (!c->mac)
 				continue;
+
+			// update name
+			if (!*c->name)
+				uint642name(c->mac, c->name, 64);
 
 			// remove expired client
 			int age = now_ts - c->ts;
@@ -553,6 +576,7 @@ static void loop() {
 
 static int init() {
 	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
+	line_count = 0;
 
 	strcpy(zombies->ssid, "Zombies");
 	zombies->mac = ZSTATION;
@@ -583,7 +607,6 @@ static int init() {
 	if (pthread_create(&thread, NULL, &listener, NULL))
 		return xerr("Error creating thread");
 
-	line_count = 0;
 	xlog("WIFI listening on port %d", PORT);
 	return 0;
 }
