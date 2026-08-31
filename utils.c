@@ -743,17 +743,15 @@ void uint642name(uint64_t mac, char *buf, size_t size) {
 	// name is next after mac
 	char *t = strtok(v, ",");
 	while (t != NULL) {
-		// trim
 		while (*t == ' ')
-			t++;
+			t++; // trim
 		if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
-			break;
+			break; // not a mac
 		t = strtok(NULL, ",");
 	}
 
-	// trim
 	while (*(t + strlen(t) - 1) == '\n')
-		*(t + strlen(t) - 1) = 0;
+		*(t + strlen(t) - 1) = 0; // trim
 
 	strncpy(buf, t, size - 1);
 }
