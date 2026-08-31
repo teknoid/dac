@@ -29,8 +29,9 @@ typedef struct station_t {
 } station_t;
 
 typedef struct connection_t {
-	pthread_t thread;
 	struct sockaddr address;
-	int addr_len;
+	socklen_t addr_len;
 	int sock;
+	char ip[16];
+	pthread_t thread;
 } connection_t;

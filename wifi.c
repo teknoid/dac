@@ -3,7 +3,6 @@
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
 // tcpdump -nevi mon1 | tee -a /ram/tcpdump.log | nc tron 6666
-
 // while true; do for c in `seq 1 14`; do iwconfig mon1 channel $c; sleep 1s; done; done
 
 #include <stdio.h>
@@ -51,7 +50,7 @@ static pthread_mutex_t lock;
 static pthread_t thread;
 static time_t now_ts;
 
-static unsigned long line_count;
+static unsigned long line_count = 0;
 static int dump_line;
 static int server_fd;
 
@@ -334,16 +333,18 @@ static void parse(char *line, size_t len) {
 }
 
 static void* reader(void *arg) {
-	connection_t *connection = (connection_t*) arg;
+	connection_t *conn = (connection_t*) arg;
 
-	struct sockaddr_in *sa_in = (struct sockaddr_in*) &connection->address;
-	xlog("WIFI new connection from %s", inet_ntoa(sa_in->sin_addr));
+	struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
+	char *ip = inet_ntoa(sa_in->sin_addr);
+	strncpy(conn->ip, ip, 16);
+	xlog("WIFI new connection from %s", conn->ip);
 
 	size_t totRead = 0;
 	char line[1024], *line_ptr = line, ch;
 
 	while (1) {
-		ssize_t numRead = read(connection->sock, &ch, 1);
+		ssize_t numRead = read(conn->sock, &ch, 1);
 		if (numRead <= 0)
 			break;
 
@@ -367,34 +368,36 @@ static void* reader(void *arg) {
 		*line_ptr++ = ch;
 	}
 
-	close(connection->sock);
-	xlog("WIFI client disconnected");
+	xlog("WIFI client %s disconnected", conn->ip);
+	close(conn->sock);
+	free(conn);
 
 	return (void*) 0;
 }
 
 static void* listener(void *arg) {
 	while (1) {
-		connection_t *connection = malloc(sizeof(connection_t));
-		connection->sock = accept(server_fd, &connection->address, &connection->addr_len);
+		connection_t *conn = malloc(sizeof(connection_t));
+		conn->addr_len = sizeof(conn->address);
+		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
 
-		if (connection->sock <= 0) {
+		if (conn->sock <= 0) {
 			xerr("accept failed");
-			free(connection);
+			free(conn);
 			return (void*) 0;
 		}
 
 		// start new thread
-		if (pthread_create(&connection->thread, 0, &reader, (void*) connection)) {
+		if (pthread_create(&conn->thread, 0, &reader, (void*) conn)) {
 			xerr("Error creating thread");
-			free(connection);
+			free(conn);
 			return (void*) 0;
 		}
 
 		// detach it
-		if (pthread_detach(connection->thread)) {
+		if (pthread_detach(conn->thread)) {
 			xerr("Error detaching thread");
-			free(connection);
+			free(conn);
 			return (void*) 0;
 		}
 	}
@@ -487,7 +490,7 @@ static void expired() {
 		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
-			xlog("WIFI removing expired station % age=%d count=%d", NAME(s), age, s->count);
+			xlog("WIFI removing expired station %s age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
 	}
@@ -539,9 +542,9 @@ static void dump() {
 			age = now_ts - s->ts;
 			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->name, s->channel, s->signal, age, s->count, s->oui);
 
-			for (int i = 0; i < CLIENTS; i++)
-				if (s->clients[i].mac) {
-					client_t *c = &(s->clients[i]);
+			for (int j = 0; j < CLIENTS; j++)
+				if (s->clients[j].mac) {
+					client_t *c = &(s->clients[j]);
 					age = now_ts - c->ts;
 					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, age, c->count, c->oui);
 				}
@@ -576,7 +579,6 @@ static void loop() {
 
 static int init() {
 	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
-	line_count = 0;
 
 	strcpy(zombies->ssid, "Zombies");
 	zombies->mac = ZSTATION;
