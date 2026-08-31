@@ -25,10 +25,12 @@
 #define PORT					6666
 
 #define BROADCAST				0xffffffffffff
-#define STP						0x0180c2000000
 #define IPV6_MCAST				0x333300000000
 #define IPV4_MCAST				0x01005e000000
-#define UPPER_MASK				0xffffff000000
+#define STP						0x0180c2000000
+#define U2MASK					0xffff00000000
+#define U3MASK					0xffffff000000
+#define ZSTATION				0xaaffeeaaffee
 
 #define SECONDS_1D 				60 * 60 * 24
 #define SECONDS_1HX 			60 * 60 + 300
@@ -107,7 +109,7 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 }
 
 static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int channel, int signal, char tag) {
-	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & UPPER_MASK) == IPV6_MCAST || (mac & UPPER_MASK) == IPV4_MCAST)
+	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & U2MASK) == IPV6_MCAST || (mac & U3MASK) == IPV4_MCAST)
 		return 0;
 
 	for (int i = 0; i < CLIENTS; i++)
@@ -553,7 +555,7 @@ static int init() {
 	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 
 	strcpy(zombies->ssid, "Zombies");
-	zombies->mac = 0xaffeaffeaffe;
+	zombies->mac = ZSTATION;
 	uint642mac(zombies->mac, zombies->smac);
 
 	pthread_mutex_init(&lock, NULL);
