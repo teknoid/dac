@@ -25,8 +25,10 @@
 #define PORT					6666
 
 #define BROADCAST				0xffffffffffff
-#define THREETHREE				0x333300000000
-#define THREETHREE_MASK			0xffff00000000
+#define STP						0x0180c2000000
+#define IPV6_MCAST				0x333300000000
+#define IPV4_MCAST				0x01005e000000
+#define UPPER_MASK				0xffffff000000
 
 #define SECONDS_1D 				60 * 60 * 24
 #define SECONDS_1HX 			60 * 60 + 300
@@ -36,6 +38,8 @@
 
 #define WIFI_DUMP				"wifi.txt"
 #define WIFI_STATE				"wifi.bin"
+
+#define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 
 static station_t stations[STATIONS];
 static station_t *zombies = &stations[STATIONS - 1];
@@ -83,7 +87,8 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			s->count++;
 			s->ts = now_ts;
 			uint642mac(mac, s->smac);
-			uint642oui(mac, s->oui);
+			uint642oui(mac, s->oui, 64);
+			uint642name(mac, s->name, 64);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
 			if (channel)
@@ -91,7 +96,7 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			if (signal)
 				s->signal = signal;
 
-			xlog("WIFI new station %s (%s)", s->smac, *s->ssid != 0 ? s->ssid : s->smac);
+			xlog("WIFI new station %s (%s)", s->smac, NAME(s));
 			dump_line = 1;
 
 			return s;
@@ -102,7 +107,7 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 }
 
 static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int channel, int signal, char tag) {
-	if (mac == 0 || mac == BROADCAST || mac == s->mac || (mac & THREETHREE_MASK) == THREETHREE)
+	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & UPPER_MASK) == IPV6_MCAST || (mac & UPPER_MASK) == IPV4_MCAST)
 		return 0;
 
 	for (int i = 0; i < CLIENTS; i++)
@@ -117,7 +122,7 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			// client found
 			int age = now_ts - c->ts;
 			if (age > SECONDS_1HX) {
-				xlog("WIFI client %s station %s is back", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
+				xlog("WIFI client %s station %s is back", NAME(c), NAME(s));
 				// notify("client is back", c->smac, "au.wav");
 			}
 
@@ -149,7 +154,8 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			c->ts = now_ts;
 			c->tag = tag;
 			uint642mac(mac, c->smac);
-			uint642oui(mac, c->oui);
+			uint642oui(mac, c->oui, 64);
+			uint642name(mac, c->name, 64);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
 			if (channel)
@@ -157,14 +163,14 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			if (signal)
 				c->signal = signal;
 
-			xlog("WIFI new client %s assigned to %s", c->smac, *s->ssid != 0 ? s->ssid : s->smac);
+			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
 			dump_line = 1;
 			s->dirty = 1;
 
 			return c;
 		}
 
-	xerr("WIFI station %s client table is full!", s->smac);
+	xerr("WIFI station %s client table is full!", NAME(s));
 	return 0;
 }
 
@@ -391,7 +397,7 @@ static void cleanup() {
 				continue;
 
 			if (z->mac == s->mac) {
-				xlog("WIFI zombie %s is station %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+				xlog("WIFI zombie %s is station %s -> removing", NAME(z), NAME(s));
 				z->mac = 0;
 				zombies->dirty = 1;
 				break;
@@ -403,7 +409,7 @@ static void cleanup() {
 					continue;
 
 				if (z->mac == c->mac) {
-					xlog("WIFI zombie %s assigned to %s -> removing", z->smac, *s->ssid != 0 ? s->ssid : s->smac);
+					xlog("WIFI zombie %s assigned to %s -> removing", NAME(z), NAME(s));
 					z->mac = 0;
 					zombies->dirty = 1;
 
@@ -444,7 +450,7 @@ static void expired() {
 			int e3 = c->count < 20 && age > SECONDS_1H;
 			int e4 = age > SECONDS_1D;
 			if (e1 || e2 || e3 || e4) {
-				xlog("WIFI removing expired client %s from %s age=%d count=%d", c->smac, *s->ssid != 0 ? s->ssid : s->smac, age, c->count);
+				xlog("WIFI removing expired client %s from %s age=%d count=%d", NAME(c), NAME(s), age, c->count);
 				c->mac = 0;
 				s->dirty = 1;
 			} else
@@ -456,7 +462,7 @@ static void expired() {
 		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
-			xlog("WIFI removing expired station % age=%d count=%d", *s->ssid != 0 ? s->ssid : s->smac, age, s->count);
+			xlog("WIFI removing expired station % age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
 	}
@@ -497,22 +503,22 @@ static void dump() {
 	}
 	fprintf(fp, "%d Stations, %d Zombies, %lu Lines\n", sc, zc, line_count);
 
-#define HTEMPLATE "%-20s %-35s %8s %8s %8s %10s %-35s\n"
-#define STEMPLATE "\n%-20s %-35s %8d %8d %8d %10d %-35s\n"
-#define CTEMPLATE "%c %-18s %-35s %8d %8d %8d %10d %-35s\n"
+#define HTEMPLATE "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
+#define STEMPLATE "\n%-20s %-35s %-35s %8d %8d %8d %10d %-35s\n"
+#define CTEMPLATE "%c %-18s %-35s %-35s %8d %8d %8d %10d %-35s\n"
 
-	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Channel", "Signal", "Age", "Count", "Hardware");
+	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac) {
 			station_t *s = &stations[i];
 			age = now_ts - s->ts;
-			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->channel, s->signal, age, s->count, s->oui);
+			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->name, s->channel, s->signal, age, s->count, s->oui);
 
 			for (int i = 0; i < CLIENTS; i++)
 				if (s->clients[i].mac) {
 					client_t *c = &(s->clients[i]);
 					age = now_ts - c->ts;
-					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->channel, c->signal, age, c->count, c->oui);
+					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, age, c->count, c->oui);
 				}
 		}
 
@@ -596,11 +602,12 @@ static void stop() {
 }
 
 static int test() {
-	char mac1[] = "f0:fe:6b:27:a8:b2", mac2[20], mac3[128];
+	char mac1[] = "d4:ca:6e:43:a0:25", mac2[20], oui[128], name[128];
 	uint64_t mac = mac2uint64(mac1);
 	uint642mac(mac, mac2);
-	uint642oui(mac, mac3);
-	xlog("mac1=%s uint64=%lx mac2=%s mac3=%s", mac1, mac, mac2, mac3);
+	uint642oui(mac, oui, 128);
+	uint642name(mac, name, 128);
+	xlog("mac1=%s uint64=%lx mac2=%s oui=%s name=%s", mac1, mac, mac2, oui, name);
 
 	now_ts = time(NULL);
 	struct tm now_tm, *now = &now_tm;

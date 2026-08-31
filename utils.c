@@ -684,18 +684,21 @@ void uint642mac(uint64_t mac, char *buf) {
 	snprintf(buf, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
 }
 
-void uint642oui(uint64_t mac, char *buf) {
-	char smac[16], cmd[128], result[1024];
+void uint642oui(uint64_t mac, char *buf, size_t size) {
+	char smac[16], cmd[128], line[1024];
 
-	ZERO(result);
+	ZERO(line);
 	snprintf(smac, 16, "%06lX", mac >> 24);
 	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
 	FILE *fd = popen(cmd, "r");
-	fgets(result, 1024, fd);
+	fgets(line, 1024, fd);
 	pclose(fd);
 
+	if (!*line)
+		return;
+
 	// Registry
-	char *e, *s = strchr(result, ',');
+	char *e, *s = strchr(line, ',');
 	if (!s)
 		return;
 
@@ -715,9 +718,44 @@ void uint642oui(uint64_t mac, char *buf) {
 		return;
 
 	int l = e - s;
-	if (l > 63)
-		l = 63;
+	if (l > size)
+		l = size;
 	strncpy(buf, s, l);
+	*(buf + l) = 0;
+}
+
+void uint642name(uint64_t mac, char *buf, size_t size) {
+	char smac[16], cmd[128], line[1024];
+
+	ZERO(line);
+	uint642mac(mac, smac);
+	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
+	FILE *fd = popen(cmd, "r");
+	fgets(line, 1024, fd);
+	pclose(fd);
+
+	if (!*line)
+		return;
+
+	// forward to values
+	char *v = strchr(line, '=') + 1;
+
+	// name is next after mac
+	char *t = strtok(v, ",");
+	while (t != NULL) {
+		// trim
+		while (*t == ' ')
+			t++;
+		if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
+			break;
+		t = strtok(NULL, ",");
+	}
+
+	// trim
+	while (*(t + strlen(t) - 1) == '\n')
+		*(t + strlen(t) - 1) = 0;
+
+	strncpy(buf, t, size - 1);
 }
 
 const char* resolve_ip(const char *hostname) {
