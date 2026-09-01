@@ -2,6 +2,8 @@
 
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
+// tcpdump -nevi mon1 | nc tron 6666
+//
 // tcpdump -nevi mon1 | tee -a /ram/tcpdump.log | nc tron 6666
 // while true; do for c in `seq 1 14`; do iwconfig mon1 channel $c; sleep 1s; done; done
 
@@ -259,21 +261,18 @@ static void parse(connection_t *conn) {
 			ta = mac2uint64(t + 3);
 
 		if (ends_with("dBm", t, strlen(t)))
-			sscanf(t, "%ddBm", &signal);
+			if (!signal)
+				sscanf(t, "%ddBm", &signal);
 
-		if (!strcmp("MHz", t)) {
-			long l = strtol(oldt, NULL, 0);
-			if (l > 2000)
-				freq = l;
-		}
+		if (!strcmp("MHz", t))
+			if (!freq)
+				freq = (int) strtol(oldt, NULL, 0);
 
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
 			char *x = strchr(rest, '(') + 1;
 			char *y = strchr(rest, ')');
-			if (x != y) {
-				size_t len = y - x;
-				strncpy(ssid, x, len);
-			}
+			if (y != x)
+				strncpy(ssid, x, (size_t) (y - x));
 		}
 
 		oldt = t;
@@ -352,19 +351,11 @@ static void parse(connection_t *conn) {
 static void* reader(void *arg) {
 	connection_t *conn = (connection_t*) arg;
 
+	// get client ip address
 	struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
 	char *ip = inet_ntoa(sa_in->sin_addr);
 	strncpy(conn->ip, ip, 16);
 	xlog("WIFI new connection from %s", conn->ip);
-
-	// convert socket into file stream
-	conn->stream = fdopen(conn->sock, "r");
-	if (conn->stream == NULL) {
-		xerr("fdopen failed");
-		close(conn->sock);
-		free(conn);
-		return (void*) 0;
-	}
 
 	// read line by line
 	while (fgets(conn->line, LINEBUF - 1, conn->stream) != NULL)
@@ -375,35 +366,42 @@ static void* reader(void *arg) {
 	close(conn->sock);
 	free(conn);
 
-	return (void*) 0;
+	pthread_exit(NULL);
 }
 
 static void* listener(void *arg) {
 	while (1) {
 		connection_t *conn = malloc(sizeof(connection_t));
 		conn->addr_len = sizeof(conn->address);
-		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
 
+		// wait for client connection
+		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
 		if (conn->sock <= 0) {
 			xerr("accept failed");
-			free(conn);
-			return (void*) 0;
+			break;
+		}
+
+		// convert socket into file stream for reading line by line
+		conn->stream = fdopen(conn->sock, "r");
+		if (conn->stream == NULL) {
+			xerr("fdopen failed");
+			break;
 		}
 
 		// start new thread
 		if (pthread_create(&conn->thread, 0, &reader, (void*) conn)) {
 			xerr("Error creating thread");
-			free(conn);
-			return (void*) 0;
+			break;
 		}
 
 		// detach it
 		if (pthread_detach(conn->thread)) {
 			xerr("Error detaching thread");
-			free(conn);
-			return (void*) 0;
+			break;
 		}
 	}
+
+	pthread_exit(NULL);
 }
 
 static void cleanup() {
