@@ -232,7 +232,7 @@ static void parse(connection_t *conn) {
 	// xlog("WIFI read line %s %s", conn->ip, conn->line);
 
 	// make a copy for line dumping after strtok()
-	strncpy(conn->line_dump, conn->line, 2048);
+	strncpy(conn->line_dump, conn->line, LINEBUF);
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
@@ -367,7 +367,7 @@ static void* reader(void *arg) {
 	}
 
 	// read line by line
-	while (fgets(conn->line, 2048 - 1, conn->stream) != NULL)
+	while (fgets(conn->line, LINEBUF - 1, conn->stream) != NULL)
 		parse(conn);
 
 	xlog("WIFI client %s disconnected", conn->ip);

@@ -1,10 +1,12 @@
 #define STATIONS					100
 #define CLIENTS						100
 
+#define LINEBUF						2048
+
 typedef struct client_t {
-	uint64_t mac;
 	time_t ts;
-	int count;
+	uint64_t mac;
+	unsigned int count;
 	int signal;
 	int channel;
 	char tag;
@@ -15,10 +17,9 @@ typedef struct client_t {
 } client_t;
 
 typedef struct station_t {
-	uint64_t mac;
 	time_t ts;
-	int dirty;
-	int count;
+	uint64_t mac;
+	unsigned int count;
 	int signal;
 	int channel;
 	char ssid[64];
@@ -26,6 +27,7 @@ typedef struct station_t {
 	char name[64];
 	char smac[18];
 	client_t clients[CLIENTS];
+	int dirty;
 } station_t;
 
 typedef struct connection_t {
@@ -35,6 +37,6 @@ typedef struct connection_t {
 	char ip[16];
 	int sock;
 	FILE *stream;
-	char line[2048];
-	char line_dump[2048];
+	char line[LINEBUF];
+	char line_dump[LINEBUF];
 } connection_t;
