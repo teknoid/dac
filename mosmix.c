@@ -48,6 +48,7 @@
 #define FRMAX					9999
 #define FSMAX					999
 #define MOSMIX_COLUMNS			6
+#define LINEBUF					256
 
 // all raw values from kml file
 static mosmix_csv_t mosmix_csv[256];

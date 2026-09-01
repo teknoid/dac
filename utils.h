@@ -3,7 +3,7 @@
 #define XLOG_SYSLOG				2
 #define XLOG_FILE				3
 
-#define LINEBUF					256
+#define XLOG_LINEBUF			256
 
 #define msleep(x)				usleep(x * 1000)
 

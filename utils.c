@@ -242,7 +242,7 @@ int xerrr(int ret, const char *format, ...) {
 
 void xlogl_start(char *line, const char *s) {
 	if (s != NULL)
-		strncpy(line, s, LINEBUF);
+		strncpy(line, s, XLOG_LINEBUF);
 	else
 		line[0] = '\0';
 }
@@ -409,7 +409,7 @@ void xlogl_int_noise(char *line, int noise, int invers, const char *name, int va
 void xlogl_end(char *line, size_t len, const char *s) {
 	if (s != NULL) {
 		strcat(line, " ");
-		strncat(line, s, LINEBUF);
+		strncat(line, s, XLOG_LINEBUF);
 	}
 
 	int l = strlen(line);

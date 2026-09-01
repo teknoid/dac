@@ -100,6 +100,8 @@
 #define DEV_STANDBY_CHECK(d)	(d->flags & FLAG_STANDBY_CHECK)
 #define DEV_STANDBY_CHECKED(d)	(d->flags & FLAG_STANDBY_CHECKED)
 
+#define LINEBUF					256
+
 enum e_state {
 	Initial, Disabled, Standby, Manual, Auto, Charge, Discharge
 };
