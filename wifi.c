@@ -227,16 +227,22 @@ static int channel(int freq) {
 	}
 }
 
-static void parse(char *line, size_t len) {
+static void parse(connection_t *conn) {
+	conn->line[strlen(conn->line) - 1] = 0; // remove newline
+	// xlog("WIFI read line %s %s", conn->ip, conn->line);
+
+	// make a copy for line dumping after strtok()
+	strncpy(conn->line_dump, conn->line, 2048);
+
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
 	char ssid[64];
+	ZERO(ssid);
 
 	// split line into tokens
-	ZERO(ssid);
-	char *tokens = strdup(line);
-	char *t = strtok(tokens, " "), *oldt;
-	while (t != NULL) {
+	char *t, *oldt;
+	char *rest = conn->line;
+	while ((t = strtok_r(rest, " ", &rest))) {
 		if (starts_with("BSSID", t, strlen(t)))
 			bssid = mac2uint64(t + 6);
 
@@ -262,13 +268,15 @@ static void parse(char *line, size_t len) {
 		}
 
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
-			char *x = strchr(line, '(');
-			size_t y = strchr(x, ')') - x - 1;
-			strncpy(ssid, x + 1, y);
+			char *x = strchr(rest, '(') + 1;
+			char *y = strchr(rest, ')');
+			if (x != y) {
+				size_t len = y - x;
+				strncpy(ssid, x, len);
+			}
 		}
 
 		oldt = t;
-		t = strtok(NULL, " ");
 	}
 
 	// packet from station or client
@@ -280,6 +288,9 @@ static void parse(char *line, size_t len) {
 		cchannel = channel(freq);
 		csignal = signal;
 	}
+
+	pthread_mutex_lock(&lock);
+	dump_line = 0;
 
 	// update or create station
 	station_t *bss = station(bssid, 1, ssid, schannel, ssignal);
@@ -330,6 +341,12 @@ static void parse(char *line, size_t len) {
 		client_unassigned(ra, ssid, cchannel, csignal, 'r');
 		client_unassigned(ta, ssid, cchannel, csignal, 't');
 	}
+
+	line_count++;
+	if (dump_line)
+		xdebug(conn->line_dump);
+
+	pthread_mutex_unlock(&lock);
 }
 
 static void* reader(void *arg) {
@@ -340,35 +357,21 @@ static void* reader(void *arg) {
 	strncpy(conn->ip, ip, 16);
 	xlog("WIFI new connection from %s", conn->ip);
 
-	size_t totRead = 0;
-	char line[1024], *line_ptr = line, ch;
-
-	while (1) {
-		ssize_t numRead = read(conn->sock, &ch, 1);
-		if (numRead <= 0)
-			break;
-
-		// xdebug("WIFI read %d %c 0x%02x", numRead, ch > 0x30 ? ch : ' ', ch);
-
-		if (ch == '\n') {
-			*line_ptr++ = '\0';
-			dump_line = 0;
-			pthread_mutex_lock(&lock);
-			parse(line, totRead);
-			pthread_mutex_unlock(&lock);
-			if (dump_line)
-				xdebug(line);
-			line_count++;
-			line_ptr = line;
-			totRead = 0;
-			continue;
-		}
-
-		totRead++;
-		*line_ptr++ = ch;
+	// convert socket into file stream
+	conn->stream = fdopen(conn->sock, "r");
+	if (conn->stream == NULL) {
+		xerr("fdopen failed");
+		close(conn->sock);
+		free(conn);
+		return (void*) 0;
 	}
 
+	// read line by line
+	while (fgets(conn->line, 2048 - 1, conn->stream) != NULL)
+		parse(conn);
+
 	xlog("WIFI client %s disconnected", conn->ip);
+	fclose(conn->stream);
 	close(conn->sock);
 	free(conn);
 
