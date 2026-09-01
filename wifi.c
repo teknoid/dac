@@ -33,7 +33,7 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-#define ZSTATION				0xaaffeeaaffee
+#define ZMAC					0xaaffeeaaffee
 
 #define SECONDS_1D 				60 * 60 * 24
 #define SECONDS_1HX 			60 * 60 + 300
@@ -50,7 +50,7 @@
 #define CC						(*cc)
 
 static station_t stations[STATIONS];
-static station_t *stations_sorted[STATIONS + 1];
+static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
 
 static pthread_mutex_t lock;
@@ -411,6 +411,7 @@ static void* listener(void *arg) {
 
 static void cleanup() {
 	pthread_mutex_lock(&lock);
+
 	for (int i = 0; i < CLIENTS; i++) {
 		client_t *z = &(zombies->clients[i]);
 		if (!z->mac)
@@ -447,15 +448,17 @@ static void cleanup() {
 			}
 		}
 
-		// remove
+		// remove if assigned to any station
 		if (assigned)
 			z->mac = 0;
 	}
+
 	pthread_mutex_unlock(&lock);
 }
 
 static void expired() {
 	pthread_mutex_lock(&lock);
+
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
 		if (!s->mac)
@@ -489,6 +492,7 @@ static void expired() {
 			s->mac = 0;
 		}
 	}
+
 	pthread_mutex_unlock(&lock);
 }
 
@@ -538,10 +542,10 @@ static void dump_raw() {
 static void dump_sorted() {
 	int sc = 0, zc = 0, age = 0;
 
-	for (station_t **ss = stations_sorted; *ss; ss++)
+	for (station_t **ss = pstations; *ss; ss++)
 		sc++;
 
-	for (client_t **cc = zombies->clients_sorted; *cc; cc++)
+	for (client_t **cc = zombies->pclients; *cc; cc++)
 		zc++;
 
 	xlog("WIFI %d Stations, %d Zombies, %lu Lines", sc, zc, line_count);
@@ -558,11 +562,11 @@ static void dump_sorted() {
 #define CTEMPLATE "%c %-18s %-35s %-35s %8d %8d %8d %10d %-35s\n"
 
 	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
-	for (station_t **ss = stations_sorted; *ss; ss++) {
+	for (station_t **ss = pstations; *ss; ss++) {
 		age = now_ts - SS->ts;
 		fprintf(fp, STEMPLATE, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, age, SS->count, SS->oui);
 
-		for (client_t **cc = SS->clients_sorted; *cc; cc++) {
+		for (client_t **cc = SS->pclients; *cc; cc++) {
 			age = now_ts - CC->ts;
 			fprintf(fp, CTEMPLATE, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, age, CC->count, CC->oui);
 		}
@@ -573,30 +577,29 @@ static void dump_sorted() {
 }
 
 static void sort_clients(station_t *s) {
-	// fill client sort list
+	// fill client pointer list
 	int ii = 0;
 	for (int i = 0; i < CLIENTS; i++) {
 		client_t *c = &(s->clients[i]);
 		if (c->mac)
-			s->clients_sorted[ii++] = c;
-
+			s->pclients[ii++] = c;
 	}
 
 	// null terminate
-	s->clients_sorted[ii] = 0;
+	s->pclients[ii] = 0;
 	if (!ii)
 		return;
 
-	// bubble sort client list by count
+	// bubble sort client pointers by count
 	int swap = 1;
 	while (swap) {
 		swap = 0;
 		for (int i = 0; i < ii - 1; i++) {
-			client_t *x = s->clients_sorted[i];
-			client_t *y = s->clients_sorted[i + 1];
+			client_t *x = s->pclients[i];
+			client_t *y = s->pclients[i + 1];
 			if (y->count > x->count) {
-				s->clients_sorted[i] = y;
-				s->clients_sorted[i + 1] = x;
+				s->pclients[i] = y;
+				s->pclients[i + 1] = x;
 				swap = 1;
 			}
 		}
@@ -604,31 +607,31 @@ static void sort_clients(station_t *s) {
 }
 
 static void sort() {
-	// fill stations sort list
+	// fill station pointer list
 	int ii = 0;
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
 		if (s->mac) {
-			stations_sorted[ii++] = s;
+			pstations[ii++] = s;
 			sort_clients(s);
 		}
 	}
 
 	// null terminate
-	stations_sorted[ii] = 0;
+	pstations[ii] = 0;
 	if (!ii)
 		return;
 
-	// bubble sort station list by signal
+	// bubble sort station pointers by signal
 	int swap = 1;
 	while (swap) {
 		swap = 0;
 		for (int i = 0; i < ii - 1; i++) {
-			station_t *x = stations_sorted[i];
-			station_t *y = stations_sorted[i + 1];
+			station_t *x = pstations[i];
+			station_t *y = pstations[i + 1];
 			if (y->signal > x->signal) {
-				stations_sorted[i] = y;
-				stations_sorted[i + 1] = x;
+				pstations[i] = y;
+				pstations[i + 1] = x;
 				swap = 1;
 			}
 		}
@@ -662,7 +665,7 @@ static int init() {
 	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 
 	strcpy(zombies->ssid, "Zombies");
-	zombies->mac = ZSTATION;
+	zombies->mac = ZMAC;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
 

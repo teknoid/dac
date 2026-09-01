@@ -27,7 +27,7 @@ typedef struct station_t {
 	char name[64];
 	char smac[18];
 	client_t clients[CLIENTS];
-	client_t *clients_sorted[CLIENTS + 1];
+	client_t *pclients[CLIENTS + 1];
 } station_t;
 
 typedef struct connection_t {
