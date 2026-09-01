@@ -4,9 +4,9 @@
 #define LINEBUF						2048
 
 typedef struct client_t {
-	time_t ts;
 	uint64_t mac;
-	unsigned int count;
+	time_t ts;
+	int count;
 	int signal;
 	int channel;
 	char tag;
@@ -17,17 +17,17 @@ typedef struct client_t {
 } client_t;
 
 typedef struct station_t {
-	time_t ts;
 	uint64_t mac;
-	unsigned int count;
+	time_t ts;
+	int count;
 	int signal;
 	int channel;
+	int dirty;
 	char ssid[64];
 	char oui[64];
 	char name[64];
 	char smac[18];
 	client_t clients[CLIENTS];
-	int dirty;
 } station_t;
 
 typedef struct connection_t {
