@@ -1,5 +1,5 @@
-#define STATIONS					100
-#define CLIENTS						100
+#define STATIONS					64
+#define CLIENTS						256
 
 #define LINEBUF						2048
 #define DESCRIPTION					64
@@ -40,6 +40,7 @@ typedef struct connection_t {
 	FILE *stream;
 	char line[LINEBUF];
 	char line_dump[LINEBUF];
+	unsigned int line_count;
 } connection_t;
 
 typedef struct description_t {

@@ -7,8 +7,5 @@
 #define TOPIC_CMND			"cmnd"
 #define TOPIC_STAT			"stat"
 
-int notify(const char *title, const char *text, const char *sound);
-int notify_red(const char *title, const char *text, const char *sound);
-
 int publish(const char *topic, const char *message, int retain);
-int publish_notification(const char *title, const char *text, const char *sound);
+int mqtt_notify(const char *title, const char *text, const char *sound);

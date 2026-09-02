@@ -166,7 +166,9 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 	int last = now_ts - mcp->last_notification;
 	mcp->last_notification = now_ts;
 
-	xlog("MCP notification %s/%s/%s/%c last=%d", title, text, sound, color, last);
+	xlog("MCP notification %s / %s / %s / %c last=%d", title, text, sound, color ? color : '0', last);
+
+	// TODO color
 
 #ifdef LCD
 	// show on LCD display line 1 and 2
@@ -188,7 +190,7 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 #ifdef MIXER
 	// play sound
 	if (mcp->notifications_sound && sound != NULL && last > 5) {
-		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
+		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\" &", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 		xdebug("MCP system: %s", command);
 		system(command);
 	}
@@ -298,9 +300,11 @@ int mcp_main(int argc, char **argv) {
 	// allocate global data exchange structures
 	ZEROP(cfg);
 	ZEROP(mcp);
+	mcp->notifications_led = 1;
 	mcp->notifications_lcd = 1;
 	mcp->notifications_sound = 1;
 	mcp->notifications_desktop = 1;
+	gethostname(mcp->hostname, 64);
 
 	// parse command line arguments
 	int c;

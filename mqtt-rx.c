@@ -14,14 +14,12 @@
 #include <posix_sockets.h>
 #include <mqttc.h>
 
-#include "ledstrip.h"
 #include "sensors.h"
 #include "tasmota.h"
 #include "frozen.h"
 #include "solar.h"
 #include "utils.h"
 #include "mqtt.h"
-#include "lcd.h"
 #include "mcp.h"
 
 #ifndef MQTT_HOST
@@ -36,7 +34,7 @@
 #define DARKNESS				50
 
 static int fd;
-static struct mqtt_client *client;
+static struct mqtt_client *client = NULL;
 static uint8_t sendbuf[4096];
 static uint8_t recvbuf[1024];
 
@@ -190,10 +188,8 @@ static void loop() {
 
 static int init() {
 	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-
-	char hostname[64], client_id[128];
-	gethostname(hostname, 64);
-	snprintf(client_id, 128, "%s-mcp-rx", hostname);
+	char client_id[128];
+	snprintf(client_id, 128, "%s-mcp-rx", mcp->hostname);
 
 	client = malloc(sizeof(*client));
 	ZEROP(client);

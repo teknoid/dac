@@ -42,9 +42,6 @@ typedef struct dac_state_t {
 	int switch2;
 	int switch3;
 	int switch4;
-	int notifications_lcd;
-	int notifications_sound;
-	int notifications_desktop;
 } dac_state_t;
 extern dac_state_t *dac;
 

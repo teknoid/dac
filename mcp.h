@@ -44,6 +44,7 @@ struct _mcp_module {
 };
 
 typedef struct mcp_state_t {
+	char hostname[64];
 	int notifications_led;
 	int notifications_lcd;
 	int notifications_sound;

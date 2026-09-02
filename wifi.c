@@ -57,6 +57,7 @@
 
 static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
+static station_t *any = &stations[STATIONS - 2];
 static station_t *zombies = &stations[STATIONS - 1];
 
 static description_t ethers[0xff];
@@ -146,12 +147,12 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
+			dump_line = 1;
 			xlog("WIFI new station %s (%s)", s->smac, NAME(s));
 			if (!EMPTY(ssid)) {
-				publish_notification("New Station", NAME(s), "au.wav");
-				// notify("New Station", NAME(s), "au.wav");
+				mqtt_notify("New Station", NAME(s), "au.wav");
+				// mcp_notify("New Station", NAME(s), "au.wav", 0);
 			}
-			dump_line = 1;
 
 			return s;
 		}
@@ -177,8 +178,11 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			int age = now_ts - c->ts;
 			if (age > SECONDS_1HX) {
 				xlog("WIFI client %s station %s is back, age=%d", NAME(c), NAME(s), age);
-				publish_notification("client is back", NAME(c), "au.wav");
-				// notify("client is back", NAME(c), "au.wav");
+				// notification only once per client for assigned station
+				if (s == any) {
+					mqtt_notify("client is back", NAME(c), "au.wav");
+					// mcp_notify("client is back", NAME(c), "au.wav", 0);
+				}
 			}
 
 			c->count++;
@@ -221,36 +225,18 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (!EMPTY(ssid))
 				strcpy(c->ssid, ssid);
 
-			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
 			dump_line = 1;
+			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
+			if (s == zombies && !EMPTY(ssid)) {
+				mqtt_notify("New Zombie", NAME(c), "au.wav");
+				// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
+			}
 
 			return c;
 		}
 
 	xerr("WIFI station %s client table is full!", NAME(s));
 	return 0;
-}
-
-static client_t* client_unassigned(uint64_t mac, int channel, int signal, char *ssid, char tag) {
-	if (mac == 0 || mac == BROADCAST)
-		return 0;
-
-	for (int i = 0; i < STATIONS; i++) {
-		station_t *s = &stations[i];
-		client_t *c = client(s, mac, channel, signal, ssid, tag, 0);
-		if (c)
-			return c; // found
-	}
-
-	// not found - create zombie
-	client_t *z = client(zombies, mac, channel, signal, ssid, 'z', 1);
-
-	if (!EMPTY(ssid)) {
-		publish_notification("New Zombie", NAME(z), "au.wav");
-		// notify("New Zombie", NAME(z), "au.wav");
-	}
-
-	return z;
 }
 
 static int channel(int freq) {
@@ -352,54 +338,91 @@ static void parse(connection_t *conn) {
 	// update or create station
 	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
 	if (bss) {
+
+		// BSSID present and station found
 		client(bss, sa, cchannel, csignal, ssid, 's', 1);
 		client(bss, da, cchannel, csignal, ssid, 'd', 1);
 		client(bss, ra, cchannel, csignal, ssid, 'r', 1);
 		client(bss, ta, cchannel, csignal, ssid, 't', 1);
-	}
 
-	// assign to SA station
-	station_t *sas = station(sa, schannel, ssignal, NULL, 0);
-	if (sas) {
-		client(sas, da, cchannel, csignal, ssid, 'd', 1);
-		client(sas, ra, cchannel, csignal, ssid, 'r', 1);
-		client(sas, ta, cchannel, csignal, ssid, 't', 1);
-	}
+		client(any, sa, cchannel, csignal, ssid, 's', 1);
+		client(any, da, cchannel, csignal, ssid, 'd', 1);
+		client(any, ra, cchannel, csignal, ssid, 'r', 1);
+		client(any, ta, cchannel, csignal, ssid, 't', 1);
 
-	// assign to DA station
-	station_t *das = station(da, schannel, ssignal, NULL, 0);
-	if (das) {
-		client(das, sa, cchannel, csignal, ssid, 's', 1);
-		client(das, ra, cchannel, csignal, ssid, 'r', 1);
-		client(das, ta, cchannel, csignal, ssid, 't', 1);
-	}
+	} else {
 
-	// assign to RA station
-	station_t *ras = station(ra, schannel, ssignal, NULL, 0);
-	if (ras) {
-		client(ras, sa, cchannel, csignal, ssid, 's', 1);
-		client(ras, da, cchannel, csignal, ssid, 'd', 1);
-		client(ras, ta, cchannel, csignal, ssid, 't', 1);
-	}
+		client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
 
-	// assign to TA station
-	station_t *tas = station(ta, schannel, ssignal, NULL, 0);
-	if (tas) {
-		client(tas, sa, cchannel, csignal, ssid, 's', 1);
-		client(tas, da, cchannel, csignal, ssid, 'd', 1);
-		client(tas, ra, cchannel, csignal, ssid, 'r', 1);
-	}
+		// assign to SA station
+		station_t *sas = station(sa, schannel, ssignal, NULL, 0);
+		if (sas) {
+			client(sas, da, cchannel, csignal, ssid, 'd', 1);
+			client(sas, ra, cchannel, csignal, ssid, 'r', 1);
+			client(sas, ta, cchannel, csignal, ssid, 't', 1);
+			dac = client(any, da, cchannel, csignal, ssid, 'd', 1);
+			rac = client(any, ra, cchannel, csignal, ssid, 'r', 1);
+			tac = client(any, ta, cchannel, csignal, ssid, 't', 1);
+		}
 
-	// search client in all stations or create new zombie
-	int assigned = bss || sas || das || ras || tas;
-	if (!assigned) {
-		client_unassigned(sa, cchannel, csignal, ssid, 's');
-		client_unassigned(da, cchannel, csignal, ssid, 'd');
-		client_unassigned(ra, cchannel, csignal, ssid, 'r');
-		client_unassigned(ta, cchannel, csignal, ssid, 't');
+		// assign to DA station
+		station_t *das = station(da, schannel, ssignal, NULL, 0);
+		if (das) {
+			client(das, sa, cchannel, csignal, ssid, 's', 1);
+			client(das, ra, cchannel, csignal, ssid, 'r', 1);
+			client(das, ta, cchannel, csignal, ssid, 't', 1);
+			sac = client(any, sa, cchannel, csignal, ssid, 's', 1);
+			rac = client(any, ra, cchannel, csignal, ssid, 'r', 1);
+			tac = client(any, ta, cchannel, csignal, ssid, 't', 1);
+		}
+
+		// assign to RA station
+		station_t *ras = station(ra, schannel, ssignal, NULL, 0);
+		if (ras) {
+			client(ras, sa, cchannel, csignal, ssid, 's', 1);
+			client(ras, da, cchannel, csignal, ssid, 'd', 1);
+			client(ras, ta, cchannel, csignal, ssid, 't', 1);
+			sac = client(any, sa, cchannel, csignal, ssid, 's', 1);
+			dac = client(any, da, cchannel, csignal, ssid, 'd', 1);
+			tac = client(any, ta, cchannel, csignal, ssid, 't', 1);
+		}
+
+		// assign to TA station
+		station_t *tas = station(ta, schannel, ssignal, NULL, 0);
+		if (tas) {
+			client(tas, sa, cchannel, csignal, ssid, 's', 1);
+			client(tas, da, cchannel, csignal, ssid, 'd', 1);
+			client(tas, ra, cchannel, csignal, ssid, 'r', 1);
+			sac = client(any, sa, cchannel, csignal, ssid, 's', 1);
+			dac = client(any, da, cchannel, csignal, ssid, 'd', 1);
+			rac = client(any, ra, cchannel, csignal, ssid, 'r', 1);
+		}
+
+		// search client if not already found during assignment or finally create zombie
+		if (sa && !sac) {
+			sac = client(any, sa, cchannel, csignal, ssid, 's', 0);
+			if (!sac)
+				sac = client(zombies, sa, cchannel, csignal, ssid, 'z', 1);
+		}
+		if (da && !dac) {
+			dac = client(any, da, cchannel, csignal, ssid, 'd', 0);
+			if (!dac)
+				dac = client(zombies, da, cchannel, csignal, ssid, 'z', 1);
+		}
+		if (ra && !rac) {
+			rac = client(any, ra, cchannel, csignal, ssid, 'r', 0);
+			if (!rac)
+				rac = client(zombies, ra, cchannel, csignal, ssid, 'z', 1);
+		}
+		if (ta && !tac) {
+			tac = client(any, ta, cchannel, csignal, ssid, 't', 0);
+			if (!tac)
+				tac = client(zombies, ta, cchannel, csignal, ssid, 'z', 1);
+		}
 	}
 
 	line_count++;
+	conn->line_count++;
 	if (dump_line)
 		xdebug(conn->line_dump);
 
@@ -419,7 +442,7 @@ static void* reader(void *arg) {
 	while (fgets(conn->line, LINEBUF - 1, conn->stream) != NULL)
 		parse(conn);
 
-	xlog("WIFI client %s disconnected", conn->ip);
+	xlog("WIFI client %s disconnected, received %d lines", conn->ip, conn->line_count);
 	fclose(conn->stream);
 	close(conn->sock);
 	free(conn);
@@ -555,24 +578,27 @@ static void expired() {
 }
 
 static void dump_raw() {
-	int sc = 0, zc = 0, age = 0;
+	int sc = 0, ac = 0, zc = 0, age = 0;
 
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac)
 			sc++;
 
-	for (int i = 0; i < CLIENTS; i++)
+	for (int i = 0; i < CLIENTS; i++) {
+		if (any->clients[i].mac)
+			ac++;
 		if (zombies->clients[i].mac)
 			zc++;
+	}
 
-	xlog("WIFI %d Stations, %d Zombies, %lu Lines", sc, zc, line_count);
+	xlog("WIFI %d Stations, %d Clients, %d Zombies, %lu Lines", sc, ac, zc, line_count);
 
 	FILE *fp = fopen(RUN SLASH WIFI_DUMP, "wt");
 	if (fp == NULL) {
 		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_DUMP);
 		return;
 	}
-	fprintf(fp, "%d Stations, %d Zombies, %lu Lines\n", sc, zc, line_count);
+	fprintf(fp, "%d Stations, %d Clients, %d Zombies, %lu Lines\n", sc, ac, zc, line_count);
 
 #define HTEMPLATE "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define STEMPLATE "\n%-20s %-35s %-35s %8d %8d %8d %10d %-35s\n"
@@ -598,22 +624,25 @@ static void dump_raw() {
 }
 
 static void dump_sorted() {
-	int sc = 0, zc = 0, age = 0;
+	int sc = 0, ac = 0, zc = 0, age = 0;
 
 	for (station_t **ss = pstations; *ss; ss++)
 		sc++;
 
+	for (client_t **aa = any->pclients; *aa; aa++)
+		ac++;
+
 	for (client_t **cc = zombies->pclients; *cc; cc++)
 		zc++;
 
-	xlog("WIFI %d Stations, %d Zombies, %lu Lines", sc, zc, line_count);
+	xlog("WIFI %d Stations, %d Clients, %d Zombies, %lu Lines", sc, ac, zc, line_count);
 
 	FILE *fp = fopen(RUN SLASH WIFI_DUMP, "wt");
 	if (fp == NULL) {
 		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_DUMP);
 		return;
 	}
-	fprintf(fp, "%d Stations, %d Zombies, %lu Lines\n", sc, zc, line_count);
+	fprintf(fp, "%d Stations, %d Clients, %d Zombies, %lu Lines\n", sc, ac, zc, line_count);
 
 #define HTEMPLATE "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define STEMPLATE "\n%-20s %-35s %-35s %8d %8d %8d %10d %-35s\n"
@@ -691,7 +720,7 @@ static void sort() {
 static int load_ethers() {
 	char line[LINEBUF], vv[LINEBUF], name[DESCRIPTION];
 
-	ZERO(ieee);
+	ZERO(ethers);
 	FILE *fp = fopen(ETHERS, "rt");
 	if (fp == NULL)
 		return xerr("UTILS Cannot open file %s for reading", ETHERS);
@@ -812,7 +841,7 @@ static void loop() {
 		sleep(1);
 		now_ts = time(NULL);
 
-		zombies->ts = now_ts;
+		any->ts = zombies->ts = now_ts;
 
 		if (now_ts % 10 == 0)
 			cleanup();
@@ -839,6 +868,11 @@ static int init() {
 	zombies->mac = ZMAC;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
+
+	strcpy(any->ssid, "Any");
+	any->mac = ZMAC;
+	any->signal = -999;
+	uint642mac(any->mac, any->smac);
 
 	pthread_mutex_init(&lock, NULL);
 
@@ -911,7 +945,7 @@ static int test() {
 	c->mac = ZMAC;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
-	publish_notification("client is back", NAME(c), "au.wav");
+	mqtt_notify("client is back", NAME(c), "au.wav");
 
 	mcp_stop();
 	return 0;
