@@ -885,6 +885,8 @@ static void stop() {
 }
 
 static int test() {
+	mcp_init();
+
 	uint64_t mac;
 
 	now_ts = time(NULL);
@@ -892,17 +894,14 @@ static int test() {
 	localtime_r(&now_ts, &now_tm);
 	xlog("today=%d", now->tm_wday);
 
-	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 	sort();
 	dump_sorted();
 
-	load_ieee();
 	mac = mac2uint64("d4:ca:6e:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
 	mac = mac2uint64("d4:ca:6f:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
 
-	load_ethers();
 	mac = mac2uint64("c6:7b:dc:17:38:d5");
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 	mac = mac2uint64("c6:7b:dc:17:38:d6");
@@ -912,8 +911,14 @@ static int test() {
 	c->mac = ZMAC;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
-	publish_notification_oneshot("client is back", NAME(c), "au.wav");
+	publish_notification("client is back", NAME(c), "au.wav");
 
+	while(1) {
+		sleep(300);
+		publish_notification("client is back", NAME(c), "au.wav");
+	}
+
+	mcp_stop();
 	return 0;
 }
 

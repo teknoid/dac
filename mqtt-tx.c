@@ -29,23 +29,45 @@
 #define TEMPLATE_NOTIFICATION	"{\"title\":\"%s\", \"text\":\"%s\", \"sound\":\"%s\"}"
 
 static int fd;
-static struct mqtt_client *client;
+static struct mqtt_client *client = NULL;
+static char client_id[128];
 static uint8_t sendbuf[4096];
 static uint8_t recvbuf[1024];
 
-static int ready = 0;
+static int do_connect() {
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+
+	// close previous socket
+	if (fd > 0)
+		close(fd);
+
+	// create new socket
+	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	if (fd == -1)
+		return xerr("MQTT Failed to open socket: ");
+
+	if (mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), NULL) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (client->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	return 0;
+}
 
 int publish(const char *topic, const char *message, int retain) {
 	int rc = 0;
 
-	if (!ready)
-		return xerr("MQTT publish(): client not ready yet, check module registration priority");
-
 	// xlog("MQTT publish topic('%s') = %s", topic, message);
 
-	/* check that we don't have any errors */
+	if (client == NULL)
+		return xerr("MQTT publish(): client not ready yet, check module registration priority");
+
 	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+		do_connect();
 
 	uint8_t flags = MQTT_PUBLISH_QOS_0;
 	if (retain)
@@ -69,29 +91,14 @@ int publish_notification(const char *title, const char *text, const char *sound)
 }
 
 static int init() {
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-
-	char hostname[64], client_id[128];
+	char hostname[64];
 	gethostname(hostname, 64);
+	snprintf(client_id, 128, "%s-mcp-tx", hostname);
 
 	client = malloc(sizeof(*client));
 	ZEROP(client);
-
-	snprintf(client_id, 128, "%s-mcp-tx", hostname);
-	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
-	if (fd == -1)
-		return xerr("MQTT Failed to open socket: ");
-
-	if (mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), NULL) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	ready = 1;
+	client->keep_alive = 30;
+	do_connect();
 
 	// Test
 	publish_notification("Test", "mqtt-tx.c", "mau4.wav");
@@ -102,19 +109,6 @@ static int init() {
 static void stop() {
 	if (fd > 0)
 		close(fd);
-}
-
-int publish_oneshot(const char *topic, const char *message, int retain) {
-	init();
-	publish(topic, message, retain);
-	stop();
-	return 0;
-}
-
-int publish_notification_oneshot(const char *title, const char *text, const char *sound) {
-	char message[0xff];
-	snprintf(message, 0xff, TEMPLATE_NOTIFICATION, title, text, sound);
-	return publish_oneshot(TOPIC_NOTIFICATION, message, 0);
 }
 
 MCP_REGISTER(mqtt_tx, 2, &init, &stop, NULL);

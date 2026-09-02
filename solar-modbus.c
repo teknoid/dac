@@ -571,8 +571,7 @@ static int latency() {
 	count = 0;
 	SAMPLE(x)
 	PRINTI(count, x)
-//  add to Makefile: tasmota.o mqtt.o frozen.o
-//	publish_oneshot(topic, "ON", 0);
+	publish(topic, "ON", 0);
 	while (1) {
 		msleep(100);
 		count++;
@@ -598,8 +597,7 @@ static int latency() {
 	count = 0;
 	SAMPLE(x)
 	PRINTI(count, x)
-//  add to Makefile: tasmota.o mqtt.o frozen.o
-//	publish_oneshot(topic, "OFF", 0);
+	publish(topic, "OFF", 0);
 	while (1) {
 		msleep(100);
 		count++;

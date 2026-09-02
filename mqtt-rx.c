@@ -46,8 +46,6 @@ static struct mqtt_client *client;
 static uint8_t sendbuf[4096];
 static uint8_t recvbuf[1024];
 
-static int ready = 0;
-
 static void dump(const char *prefix, struct mqtt_response_publish *p) {
 	char *t = make_string(p->topic_name, p->topic_name_size);
 	char *m = make_string(p->application_message, p->application_message_size);
@@ -263,15 +261,9 @@ static void loop() {
 		return;
 	}
 
-	mqtt_sync(client);
-	msleep(100);
-
-	// Test
-	notify("Test", "mqtt-rx.c", "mau4.wav");
-
 	while (1) {
 		mqtt_sync(client);
-		msleep(100);
+		msleep(500);
 	}
 }
 
@@ -280,11 +272,12 @@ static int init() {
 
 	char hostname[64], client_id[128];
 	gethostname(hostname, 64);
+	snprintf(client_id, 128, "%s-mcp-rx", hostname);
 
 	client = malloc(sizeof(*client));
 	ZEROP(client);
+	client->keep_alive = 30;
 
-	snprintf(client_id, 128, "%s-mcp-rx", hostname);
 	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
 	if (fd == -1)
 		return xerr("MQTT Failed to open socket: ");
@@ -322,7 +315,9 @@ static int init() {
 	if (mqtt_subscribe(client, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
-	ready = 1;
+	// Test
+	notify("Test", "mqtt-rx.c", "mau4.wav");
+
 	return 0;
 }
 

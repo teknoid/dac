@@ -12,6 +12,3 @@ int notify_red(const char *title, const char *text, const char *sound);
 
 int publish(const char *topic, const char *message, int retain);
 int publish_notification(const char *title, const char *text, const char *sound);
-
-int publish_oneshot(const char *topic, const char *message, int retain);
-int publish_notification_oneshot(const char *title, const char *text, const char *sound);
