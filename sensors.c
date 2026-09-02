@@ -49,6 +49,8 @@
 #define SENSORS_FILE			"sensors.bin"
 
 #define MEAN					10
+#define BUFSIZE					256
+
 static unsigned int bh1750_lux_mean[MEAN];
 static int mean;
 

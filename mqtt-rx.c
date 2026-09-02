@@ -1,6 +1,6 @@
 /*****************************************************************************
 
- based on simple_publisher.c simple_subscriber.c
+ mqtt receiver based on simple_subscriber.c
  https://github.com/LiamBindle/MQTT-C
 
  ****************************************************************************/
@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <limits.h>
 
 #include <posix_sockets.h>
 #include <mqttc.h>
@@ -26,34 +25,26 @@
 #include "mcp.h"
 
 #ifndef MQTT_HOST
-#define	MQTT_HOST			"localhost"
+#define	MQTT_HOST				"localhost"
 #endif
 
 #ifndef MQTT_PORT
-#define MQTT_PORT			"1883"
+#define MQTT_PORT				"1883"
 #endif
 
-#define APLAY_OPTIONS		"-q -D hw:CARD=Device"
-#define APLAY_DIRECTORY 	"/home/hje/sounds/16"
+#define APLAY_OPTIONS			"-q -D hw:CARD=Device"
+#define APLAY_DIRECTORY 		"/home/hje/sounds/16"
 
-#define DBUS				"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
-#define NOTIFY_SEND			"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
+#define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+#define NOTIFY_SEND				"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
 
-#define MAC_HANDY			0xfc539ea93ac5
-#define DARKNESS			50
+#define MAC_HANDY				0xfc539ea93ac5
+#define DARKNESS				50
 
-//
-// MQTT-C's client is MUTEX'd - so we need two clients for simultaneous publish during subscribe callback
-//
-static int fd_tx;
-static struct mqtt_client *client_tx;
-static uint8_t sendbuf_tx[4096];
-static uint8_t recvbuf_tx[1024];
-
-static int fd_rx;
-static struct mqtt_client *client_rx;
-static uint8_t sendbuf_rx[4096];
-static uint8_t recvbuf_rx[1024];
+static int fd;
+static struct mqtt_client *client;
+static uint8_t sendbuf[4096];
+static uint8_t recvbuf[1024];
 
 static int ready = 0;
 
@@ -243,125 +234,6 @@ static void callback(void **unused, struct mqtt_response_publish *p) {
 	dispatch(p);
 }
 
-static void loop() {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("MQTT Error setting pthread_setcancelstate");
-		return;
-	}
-
-	mqtt_sync(client_rx);
-	msleep(100);
-	mqtt_sync(client_tx);
-	msleep(100);
-
-	// Test
-	notify("Test", "test", "mau4.wav");
-
-	while (1) {
-		mqtt_sync(client_rx);
-		msleep(100);
-		mqtt_sync(client_tx);
-		msleep(100);
-	}
-}
-
-// init publisher client
-static int init_tx() {
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-
-	char hostname[64], client_id[128];
-	gethostname(hostname, 64);
-
-	client_tx = malloc(sizeof(*client_tx));
-	ZEROP(client_tx);
-
-	snprintf(client_id, 128, "%s-mcp-tx", hostname);
-	fd_tx = open_nb_socket(MQTT_HOST, MQTT_PORT);
-	if (fd_tx == -1)
-		return xerr("MQTT Failed to open socket: ");
-
-	if (mqtt_init(client_tx, fd_tx, sendbuf_tx, sizeof(sendbuf_tx), recvbuf_tx, sizeof(recvbuf_tx), NULL) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
-
-	if (mqtt_connect(client_tx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
-
-	if (client_tx->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
-
-	return 0;
-}
-
-// init subscriber client
-static int init_rx() {
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-
-	char hostname[64], client_id[128];
-	gethostname(hostname, 64);
-
-	client_rx = malloc(sizeof(*client_rx));
-	ZEROP(client_rx);
-
-	snprintf(client_id, 128, "%s-mcp-rx", hostname);
-	fd_rx = open_nb_socket(MQTT_HOST, MQTT_PORT);
-	if (fd_rx == -1)
-		return xerr("MQTT Failed to open socket: ");
-
-	if (mqtt_init(client_rx, fd_rx, sendbuf_rx, sizeof(sendbuf_rx), recvbuf_rx, sizeof(recvbuf_rx), callback) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_connect(client_rx, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (client_rx->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_NOTIFICATION, 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_SENSOR"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_NETWORK"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_SOLAR"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_TELE"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_CMND"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	if (mqtt_subscribe(client_rx, TOPIC_STAT"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_rx->error));
-
-	return 0;
-}
-
-static int init() {
-	if (init_tx())
-		return -1;
-
-	if (init_rx())
-		return -1;
-
-	ready = 1;
-	return 0;
-}
-
-static void stop() {
-	if (fd_tx > 0)
-		close(fd_tx);
-
-	if (fd_rx > 0)
-		close(fd_rx);
-}
-
 int notify(const char *title, const char *text, const char *sound) {
 	xdebug("MQTT notification %s/%s/%s", title, text, sound);
 
@@ -385,39 +257,78 @@ int notify_red(const char *title, const char *text, const char *sound) {
 	return 0;
 }
 
-int publish(const char *topic, const char *message, int retain) {
-	int rc = 0;
+static void loop() {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("MQTT Error setting pthread_setcancelstate");
+		return;
+	}
 
-	if (!ready)
-		return xerr("MQTT publish(): client not ready yet, check module registration priority");
+	mqtt_sync(client);
+	msleep(100);
 
-	// xlog("MQTT publish topic('%s') = %s", topic, message);
+	// Test
+	notify("Test", "test", "mau4.wav");
 
-	/* check that we don't have any errors */
-	if (client_tx->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
+	while (1) {
+		mqtt_sync(client);
+		msleep(100);
+	}
+}
 
-	uint8_t flags = MQTT_PUBLISH_QOS_0;
-	if (retain)
-		flags |= MQTT_PUBLISH_RETAIN;
+static int init() {
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
 
-	if (message)
-		rc = mqtt_publish(client_tx, topic, message, strlen(message), flags);
-	else
-		rc = mqtt_publish(client_tx, topic, "", 0, flags);
+	char hostname[64], client_id[128];
+	gethostname(hostname, 64);
 
-	if (rc != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client_tx->error));
+	client = malloc(sizeof(*client));
+	ZEROP(client);
 
+	snprintf(client_id, 128, "%s-mcp-rx", hostname);
+	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	if (fd == -1)
+		return xerr("MQTT Failed to open socket: ");
+
+	if (mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (client->error != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_NOTIFICATION, 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_SENSOR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_NETWORK"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_SOLAR"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_TELE"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_CMND"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	if (mqtt_subscribe(client, TOPIC_STAT"/#", 0) != MQTT_OK)
+		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+
+	ready = 1;
 	return 0;
 }
 
-int publish_oneshot(const char *topic, const char *message, int retain) {
-	if (init())
-		return -1;
-	ready = 1;
-	publish(topic, message, retain);
-	return mqtt_sync(client_tx);
+static void stop() {
+	if (fd > 0)
+		close(fd);
 }
 
-MCP_REGISTER(mqtt, 2, &init, &stop, &loop);
+MCP_REGISTER(mqtt_rx, 2, &init, &stop, &loop);

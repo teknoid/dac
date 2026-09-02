@@ -2,7 +2,6 @@
 
 #include "target.h"
 
-#define BUFSIZE			256
 #define SLASH			"/"
 
 #ifndef STATE

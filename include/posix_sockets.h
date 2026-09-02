@@ -17,9 +17,9 @@
 /*
     A template for opening a non-blocking POSIX socket.
 */
-int open_nb_socket(const char* addr, const char* port);
+static int open_nb_socket(const char* addr, const char* port);
 
-int open_nb_socket(const char* addr, const char* port) {
+static int open_nb_socket(const char* addr, const char* port) {
     struct addrinfo hints = {0};
 
     hints.ai_family = AF_UNSPEC; /* IPv4 or IPv6 */

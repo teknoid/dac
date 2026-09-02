@@ -16,19 +16,21 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#define LUMI_NOTIFY			2222
+#define LUMI_NOTIFY				2222
 
-#define MESSAGE_ON			(message[0] == 'O' && message[1] == 'N')
-#define DISCOVERY			"discovery"
-#define ON					"ON"
-#define OFF					"OFF"
-#define ONLINE				"Online"
-#define OFFLINE				"Offline"
+#define MESSAGE_ON				(message[0] == 'O' && message[1] == 'N')
+#define DISCOVERY				"discovery"
+#define ON						"ON"
+#define OFF						"OFF"
+#define ONLINE					"Online"
+#define OFFLINE					"Offline"
 
-#define TOPIC_LEN			32
-#define PREFIX_LEN			32
-#define SUFFIX_LEN			32
-#define BUF32				32
+#define TOPIC_LEN				32
+#define PREFIX_LEN				32
+#define SUFFIX_LEN				32
+#define BUF32					32
+
+#define BUFSIZE					256
 
 static tasmota_t *tasmota = NULL;
 

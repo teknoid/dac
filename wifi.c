@@ -1,4 +1,4 @@
-// gcc -DWIFI_MAIN -I./include -o wifi mcp.c utils.c wifi.c
+// gcc -DWIFI_MAIN -I./include -L./lib/x86_64 -o wifi mcp.c utils.c wifi.c mqtt-tx.c -lmqttc
 
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
@@ -172,7 +172,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			int age = now_ts - c->ts;
 			if (age > SECONDS_1HX) {
 				xlog("WIFI client %s station %s is back, age=%d", NAME(c), NAME(s), age);
-				// notify("client is back", c->smac, "au.wav");
+				publish_notification("client is back", NAME(c), "au.wav");
 			}
 
 			c->count++;
@@ -880,9 +880,9 @@ static int test() {
 	localtime_r(&now_ts, &now_tm);
 	xlog("today=%d", now->tm_wday);
 
-//	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
-//	sort();
-//	dump_sorted();
+	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
+	sort();
+	dump_sorted();
 
 	load_ieee();
 	mac = mac2uint64("d4:ca:6e:43:a0:25");
@@ -895,6 +895,12 @@ static int test() {
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 	mac = mac2uint64("c6:7b:dc:17:38:d6");
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
+
+	client_t cc, *c = &cc;
+	c->mac = ZMAC;
+	uint642mac(c->mac, c->smac);
+	strcpy(c->name, "Test");
+	publish_notification_oneshot("client is back", NAME(c), "au.wav");
 
 	return 0;
 }
