@@ -1,4 +1,4 @@
-// gcc -DWIFI_MAIN -I./include -L./lib/x86_64 -o wifi mcp.c utils.c wifi.c mqtt-tx.c -lmqttc
+// gcc -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi mcp.c utils.c wifi.c mqtt-tx.c -lmqttc
 
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
@@ -50,6 +50,7 @@
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
+#define EMPTY(s)				(s == NULL || strlen(s) == 0)
 
 #define SS						(*ss)
 #define CC						(*cc)
@@ -113,7 +114,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 				s->channel = channel;
 			if (signal)
 				s->signal = signal;
-			if (ssid != NULL && strlen(ssid) > 0)
+			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
 			return s;
@@ -142,10 +143,14 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			const char *name = get_ethers_name(s->mac);
 			if (name != NULL)
 				strcpy(s->name, name);
-			if (ssid != NULL && strlen(ssid) > 0)
+			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
 			xlog("WIFI new station %s (%s)", s->smac, NAME(s));
+			if (!EMPTY(ssid)) {
+				publish_notification("New Station", NAME(s), "au.wav");
+				// notify("New Station", NAME(s), "au.wav");
+			}
 			dump_line = 1;
 
 			return s;
@@ -173,6 +178,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (age > SECONDS_1HX) {
 				xlog("WIFI client %s station %s is back, age=%d", NAME(c), NAME(s), age);
 				publish_notification("client is back", NAME(c), "au.wav");
+				// notify("client is back", NAME(c), "au.wav");
 			}
 
 			c->count++;
@@ -182,7 +188,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				c->channel = channel;
 			if (signal)
 				c->signal = signal;
-			if (ssid != NULL && strlen(ssid) > 0)
+			if (!EMPTY(ssid))
 				strcpy(c->ssid, ssid);
 
 			return c;
@@ -212,7 +218,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			const char *name = get_ethers_name(c->mac);
 			if (name != NULL)
 				strcpy(c->name, name);
-			if (ssid != NULL && strlen(ssid) > 0)
+			if (!EMPTY(ssid))
 				strcpy(c->ssid, ssid);
 
 			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
@@ -238,6 +244,12 @@ static client_t* client_unassigned(uint64_t mac, int channel, int signal, char *
 
 	// not found - create zombie
 	client_t *z = client(zombies, mac, channel, signal, ssid, 'z', 1);
+
+	if (!EMPTY(ssid)) {
+		publish_notification("New Zombie", NAME(z), "au.wav");
+		// notify("New Zombie", NAME(z), "au.wav");
+	}
+
 	return z;
 }
 
@@ -853,7 +865,7 @@ static int init() {
 	if (pthread_create(&thread, NULL, &listener, NULL))
 		return xerr("Error creating thread");
 
-	xlog("WIFI listening on port %d", PORT);
+	xlog("WIFI listening on port %d for tcpdump output", PORT);
 	return 0;
 }
 

@@ -267,7 +267,7 @@ static void loop() {
 	msleep(100);
 
 	// Test
-	notify("Test", "test", "mau4.wav");
+	notify("Test", "mqtt-rx.c", "mau4.wav");
 
 	while (1) {
 		mqtt_sync(client);

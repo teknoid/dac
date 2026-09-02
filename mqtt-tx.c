@@ -92,6 +92,10 @@ static int init() {
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
 	ready = 1;
+
+	// Test
+	publish_notification("Test", "mqtt-tx.c", "mau4.wav");
+
 	return 0;
 }
 
