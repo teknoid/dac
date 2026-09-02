@@ -203,7 +203,7 @@ static void module_stop(mcp_module_t *m) {
 	if (m->next != NULL)
 		module_stop(m->next);
 
-	if (m->loop != NULL) {
+	if (m->thread) {
 		if (pthread_cancel(m->thread))
 			xlog("MCP error canceling thread");
 
