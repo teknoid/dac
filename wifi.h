@@ -11,7 +11,7 @@ typedef struct client_t {
 	int channel;
 	char tag;
 	char ssid[64];
-	char oui[64];
+	char ou[64];
 	char name[64];
 	char smac[18];
 } client_t;
@@ -23,7 +23,7 @@ typedef struct station_t {
 	int signal;
 	int channel;
 	char ssid[64];
-	char oui[64];
+	char ou[64];
 	char name[64];
 	char smac[18];
 	client_t clients[CLIENTS];
@@ -40,3 +40,8 @@ typedef struct connection_t {
 	char line[LINEBUF];
 	char line_dump[LINEBUF];
 } connection_t;
+
+typedef struct description_t {
+	uint64_t mac;
+	char description[64];
+} description_t;

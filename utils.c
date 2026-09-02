@@ -684,7 +684,7 @@ void uint642mac(uint64_t mac, char *buf) {
 	snprintf(buf, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
 }
 
-void uint642oui(uint64_t mac, char *buf, size_t size) {
+void uint642ou(uint64_t mac, char *buf, size_t size) {
 	char smac[16], cmd[128], line[1024];
 
 	ZERO(line);

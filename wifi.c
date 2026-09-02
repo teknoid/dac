@@ -44,6 +44,11 @@
 #define WIFI_DUMP				"wifi.txt"
 #define WIFI_STATE				"wifi.bin"
 
+// cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
+// and then manually remove last line (headline)
+#define IEEE					"/usr/share/ieee-data/oui_sorted.csv"
+#define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
+
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 
 #define SS						(*ss)
@@ -53,6 +58,10 @@ static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
 
+static description_t ethers[0xffff];
+static description_t ieee[0xffff];
+static int ieee_index[0xff];
+
 static pthread_mutex_t lock;
 static pthread_t thread;
 static time_t now_ts;
@@ -60,6 +69,41 @@ static time_t now_ts;
 static unsigned long line_count = 0;
 static int dump_line;
 static int server_fd;
+
+static const char* get_ethers_name(uint64_t mac) {
+	for (int i = 0; i < 0xffff; i++) {
+		if (!ethers[i].mac)
+			break;
+		// xdebug("%012lx :: %s", ethers[i].mac, ethers[i].description);
+		if (ethers[i].mac == mac)
+			return ethers[i].description;
+	}
+
+	return NULL;
+}
+
+static const char* get_ieee_ou(uint64_t mac) {
+	uint64_t m = mac & U3MASK;
+
+	// use index to calculate from/to search range in ieee table
+	int ii = mac >> 40 & 0xff;
+	int from = ieee_index[ii];
+	if (ii && !from)
+		return NULL;
+	int jj = ii + 1;
+	while (jj < 0xff && !ieee_index[jj])
+		jj++;
+	int to = ieee_index[jj] ? ieee_index[jj] : 0xffff;
+
+	// xdebug("%012lx -- from=%d to=%d", m, from, to);
+	for (int i = from; i < to; i++) {
+		// xdebug("%012lx :: %s", ieee[i].mac, ieee[i].description);
+		if (ieee[i].mac == m)
+			return ieee[i].description;
+	}
+
+	return NULL;
+}
 
 static station_t* station(uint64_t mac, int create, char *ssid, int channel, int signal) {
 	if (mac == 0 || mac == BROADCAST)
@@ -96,8 +140,12 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			s->count++;
 			s->ts = now_ts;
 			uint642mac(mac, s->smac);
-			uint642oui(mac, s->oui, 64);
-			uint642name(mac, s->name, 64);
+			const char *ou = get_ieee_ou(s->mac);
+			if (ou != NULL)
+				strcpy(s->ou, ou);
+			const char *name = get_ethers_name(s->mac);
+			if (name != NULL)
+				strcpy(s->name, name);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
 			s->channel = channel ? channel : 0;
@@ -161,8 +209,12 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			c->ts = now_ts;
 			c->tag = tag;
 			uint642mac(mac, c->smac);
-			uint642oui(mac, c->oui, 64);
-			uint642name(mac, c->name, 64);
+			const char *ou = get_ieee_ou(c->mac);
+			if (ou != NULL)
+				strcpy(c->ou, ou);
+			const char *name = get_ethers_name(c->mac);
+			if (name != NULL)
+				strcpy(c->name, name);
 			if (ssid && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
 			c->channel = channel ? channel : 0;
@@ -242,8 +294,7 @@ static void parse(connection_t *conn) {
 	ZERO(ssid);
 
 	// split line into tokens
-	char *t, *oldt;
-	char *rest = conn->line;
+	char *t, *oldt, *rest = conn->line;
 	while ((t = strtok_r(rest, " ", &rest))) {
 		if (starts_with("BSSID", t, strlen(t)))
 			bssid = mac2uint64(t + 6);
@@ -525,13 +576,13 @@ static void dump_raw() {
 		if (stations[i].mac) {
 			station_t *s = &stations[i];
 			age = now_ts - s->ts;
-			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->name, s->channel, s->signal, age, s->count, s->oui);
+			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->name, s->channel, s->signal, age, s->count, s->ou);
 
 			for (int j = 0; j < CLIENTS; j++)
 				if (s->clients[j].mac) {
 					client_t *c = &(s->clients[j]);
 					age = now_ts - c->ts;
-					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, age, c->count, c->oui);
+					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, age, c->count, c->ou);
 				}
 		}
 
@@ -564,11 +615,11 @@ static void dump_sorted() {
 	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
 		age = now_ts - SS->ts;
-		fprintf(fp, STEMPLATE, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, age, SS->count, SS->oui);
+		fprintf(fp, STEMPLATE, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, age, SS->count, SS->ou);
 
 		for (client_t **cc = SS->pclients; *cc; cc++) {
 			age = now_ts - CC->ts;
-			fprintf(fp, CTEMPLATE, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, age, CC->count, CC->oui);
+			fprintf(fp, CTEMPLATE, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, age, CC->count, CC->ou);
 		}
 	}
 
@@ -591,19 +642,15 @@ static void sort_clients(station_t *s) {
 		return;
 
 	// bubble sort client pointers by count
-	int swap = 1;
-	while (swap) {
-		swap = 0;
-		for (int i = 0; i < ii - 1; i++) {
-			client_t *x = s->pclients[i];
-			client_t *y = s->pclients[i + 1];
+	for (int i = 0; i < ii - 1; i++)
+		for (int j = 0; j < ii - i - 1; j++) {
+			client_t *x = s->pclients[j];
+			client_t *y = s->pclients[j + 1];
 			if (y->count > x->count) {
-				s->pclients[i] = y;
-				s->pclients[i + 1] = x;
-				swap = 1;
+				s->pclients[j] = y;
+				s->pclients[j + 1] = x;
 			}
 		}
-	}
 }
 
 static void sort() {
@@ -623,19 +670,131 @@ static void sort() {
 		return;
 
 	// bubble sort station pointers by signal
-	int swap = 1;
-	while (swap) {
-		swap = 0;
-		for (int i = 0; i < ii - 1; i++) {
-			station_t *x = pstations[i];
-			station_t *y = pstations[i + 1];
+	for (int i = 0; i < ii - 1; i++)
+		for (int j = 0; j < ii - i - 1; j++) {
+			station_t *x = pstations[j];
+			station_t *y = pstations[j + 1];
 			if (y->signal > x->signal) {
-				pstations[i] = y;
-				pstations[i + 1] = x;
-				swap = 1;
+				pstations[j] = y;
+				pstations[j + 1] = x;
+			}
+		}
+}
+
+static int load_ethers() {
+	char line[LINEBUF], vv[LINEBUF], name[64];
+
+	ZERO(ieee);
+	FILE *fp = fopen(ETHERS, "rt");
+	if (fp == NULL)
+		return xerr("UTILS Cannot open file %s for reading", ETHERS);
+
+	int ii = 0;
+	while (fgets(line, LINEBUF - 1, fp) != NULL) {
+
+		// not a ether entry
+		if (!starts_with("dhcp-host", line, strlen(line)))
+			continue;
+
+		// forward to values
+		char *v = strchr(line, '=') + 1;
+
+		// remove newline
+		v[strlen(v) - 1] = 0;
+
+		// copy line, then split into tokens and find name (next after mac list)
+		strncpy(vv, v, LINEBUF - 1);
+		char *t, *rest = vv;
+		while ((t = strtok_r(rest, ",", &rest))) {
+			while (*t == ' ')
+				t++; // trim
+			if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
+				break; // not a mac
+		}
+		while (*(t + strlen(t) - 1) == '\n')
+			*(t + strlen(t) - 1) = 0; // trim
+		strncpy(name, t, 63);
+		// xdebug("line %s :: found name %s", line, name);
+
+		// now go again through line and extract macs
+		rest = v;
+		while ((t = strtok_r(rest, ",", &rest))) {
+			while (*t == ' ')
+				t++; // trim
+			// xdebug("t=%s rest=%s", t, rest);
+			if (*(t + 2) == ':' && *(t + 5) == ':' && *(t + 8) == ':') {
+				description_t *d = &ethers[ii++];
+				d->mac = mac2uint64(t);
+				strncpy(d->description, name, 63);
 			}
 		}
 	}
+
+	fclose(fp);
+	xlog("WIFI loaded %d entries from %s", ii, ETHERS);
+
+	// for (int i = 0; i < ii; i++)
+	// xlog("%lx = %s", ethers[i].mac, ethers[i].description);
+
+	return 0;
+}
+
+static int load_ieee() {
+	char line[LINEBUF], *s, *e;
+
+	ZERO(ieee);
+	FILE *fp = fopen(IEEE, "rt");
+	if (fp == NULL)
+		return xerr("UTILS Cannot open file %s for reading", IEEE);
+
+	int ii = 0;
+	while (fgets(line, LINEBUF - 1, fp) != NULL) {
+		description_t *d = &ieee[ii++];
+
+		// Registry
+		s = line;
+		e = strchr(s + 1, ',');
+		*e = 0;
+
+		// Assignment
+		s = e + 1;
+		e = strchr(s, ',');
+		*e = 0;
+		d->mac = strtol(s, NULL, 16) << 24;
+
+		// Organization Name
+		s = e + 1;
+		if (s[0] == '\"') {
+			s++;
+			e = strchr(s, '\"');
+		} else
+			e = strchr(s, ',');
+		*e = 0;
+		strncpy(d->description, s, 63);
+	}
+
+	fclose(fp);
+	xlog("WIFI loaded %d entries from %s", ii, IEEE);
+
+	// for (int i = 0; i < ii; i++)
+	// xlog("%lx = %s", ieee[i].mac, ieee[i].description);
+
+	// create index of highest byte
+	ZERO(ieee_index);
+	int x = ieee[0].mac >> 40 & 0xff;
+	for (int i = 1; i < ii; i++) {
+		int y = ieee[i].mac >> 40 & 0xff;
+		if (y != x) {
+			ieee_index[y] = i;
+			x = y;
+		}
+	}
+	ieee_index[0] = 0;
+
+	// for (int i = 0; i < 0xff; i++)
+	// xlog("%x = %d", i, ieee_index[i]);
+
+	return 0;
 }
 
 static void loop() {
@@ -662,6 +821,8 @@ static void loop() {
 }
 
 static int init() {
+	load_ieee();
+	load_ethers();
 	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
 
 	strcpy(zombies->ssid, "Zombies");
@@ -714,21 +875,28 @@ static void stop() {
 }
 
 static int test() {
-	char mac1[] = "d4:ca:6e:43:a0:25", mac2[20], oui[128], name[128];
-	uint64_t mac = mac2uint64(mac1);
-	uint642mac(mac, mac2);
-	uint642oui(mac, oui, 128);
-	uint642name(mac, name, 128);
-	xlog("mac1=%s uint64=%lx mac2=%s oui=%s name=%s", mac1, mac, mac2, oui, name);
+	uint64_t mac;
 
 	now_ts = time(NULL);
 	struct tm now_tm, *now = &now_tm;
 	localtime_r(&now_ts, &now_tm);
 	xlog("today=%d", now->tm_wday);
 
-	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
-	sort();
-	dump_sorted();
+//	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
+//	sort();
+//	dump_sorted();
+
+	load_ieee();
+	mac = mac2uint64("d4:ca:6e:43:a0:25");
+	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
+	mac = mac2uint64("d4:ca:6f:43:a0:25");
+	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
+
+	load_ethers();
+	mac = mac2uint64("c6:7b:dc:17:38:d5");
+	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
+	mac = mac2uint64("c6:7b:dc:17:38:d6");
+	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	return 0;
 }
