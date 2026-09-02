@@ -913,11 +913,6 @@ static int test() {
 	strcpy(c->name, "Test");
 	publish_notification("client is back", NAME(c), "au.wav");
 
-	while(1) {
-		sleep(300);
-		publish_notification("client is back", NAME(c), "au.wav");
-	}
-
 	mcp_stop();
 	return 0;
 }
