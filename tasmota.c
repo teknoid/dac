@@ -451,8 +451,10 @@ static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 			return 0;
 		}
 
-		if (data == DOORBELL)
-			return notify_red("Ding", "Dong", "ding-dong.wav");
+		if (data == DOORBELL) {
+			mcp_notify("Ding", "Dong", "ding-dong.wav", 'r');
+			return 0;
+		}
 
 		if (bits == 28)
 			return flamingo(data);
@@ -508,17 +510,17 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 	// Rule1 on Switch1#state=1 do publish stat/%topic%/PIR1 ON endon on Switch1#state=0 do Publish stat/%topic%/PIR1 OFF endon
 	// Rule1 1
 //	if (id == DEVKIT1 && !strcmp(suffix, "PIR") && idx == 1 && MESSAGE_ON)
-//		return notify("motion", "devkit1", "au.wav");
+//		return mcp_notify("motion", "devkit1", "au.wav", 0);
 	LOCALTIME
 	if (t->id == CARPORT && !strcmp("PIR", suffix) && idx == 1 && MESSAGE_ON) {
 		int skip1 = sensor->lumi > LUMI_NOTIFY;
 		int skip2 = 10 <= now->tm_hour && now->tm_hour < 15;
-		int skip3 = 1;
-		if (skip1 || skip2 || skip3) {
+		int skip3 = 0;
+		if (skip1 || skip2 || skip3)
 			xdebug("TASMOTA suppress carport motion notify lumi=%d hour=%d", sensor->lumi, now->tm_hour);
-			return 0;
-		} else
-			return notify("motion", "carport", "au.wav");
+		else
+			mcp_notify("motion", "carport", "au.wav", 0);
+		return 0;
 	}
 
 	// scan for shutter position results
@@ -820,11 +822,11 @@ static void loop() {
 			if (t->sgp41_tvoc > 300) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
-				notify(line1, line2, "rüüüülps.wav");
+				mcp_notify(line1, line2, "rüüüülps.wav", 0);
 			} else if (t->sgp41_tvoc > 200) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
-				notify(line1, line2, "furz hihihi.wav");
+				mcp_notify(line1, line2, "furz hihihi.wav", 0);
 			}
 		}
 	}

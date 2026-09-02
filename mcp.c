@@ -100,6 +100,17 @@
 #include "display.h"
 #endif
 
+#ifdef LCD
+#include "lcd.h"
+#include "ledstrip.h"
+#endif
+
+#define APLAY_OPTIONS			"-q -D hw:CARD=Device"
+#define APLAY_DIRECTORY 		"/home/hje/sounds/16"
+
+#define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+#define NOTIFY_SEND				"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
+
 // local memory
 static mcp_state_t mcp_local;
 static mcp_config_t cfg_local;
@@ -145,6 +156,43 @@ void mcp_register(const char *name, const int prio, const init_t init, const sto
 	}
 
 	xlog("MCP registered module {%d} %s", prio, name);
+}
+
+void mcp_notify(const char *title, const char *text, const char *sound, const char color) {
+	char command[1024];
+	ZERO(command);
+
+	time_t now_ts = time(NULL);
+	int last = now_ts - mcp->last_notification;
+	mcp->last_notification = now_ts;
+
+	xlog("MCP notification %s/%s/%s/%c last=%d", title, text, sound, color, last);
+
+#ifdef LCD
+	// show on LCD display line 1 and 2
+	if (mcp->notifications_lcd)
+		lcd_print(title, text);
+
+	// desktop notifications via DBUS
+	if (mcp->notifications_desktop) {
+		snprintf(command, 1023, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
+		xdebug("MCP system: %s", command);
+		system(command);
+	}
+
+	// ledstrip blink
+	if (mcp->notifications_led && color && last > 5)
+		ledstrip_blink_red();
+#endif
+
+#ifdef MIXER
+	// play sound
+	if (mcp->notifications_sound && sound != NULL && last > 5) {
+		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
+		xdebug("MCP system: %s", command);
+		system(command);
+	}
+#endif
 }
 
 static void daemonize() {
@@ -300,6 +348,7 @@ int mcp_main(int argc, char **argv) {
 #endif
 	} else {
 		xlog("MCP online");
+		mcp_notify("MCP online", "", "mau4.wav", 0);
 		pause();
 	}
 

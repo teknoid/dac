@@ -111,4 +111,4 @@ static void stop() {
 		close(fd);
 }
 
-MCP_REGISTER(mqtt_tx, 2, &init, &stop, NULL);
+MCP_REGISTER(mqtt_tx, 3, &init, &stop, NULL);

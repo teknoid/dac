@@ -44,9 +44,11 @@ struct _mcp_module {
 };
 
 typedef struct mcp_state_t {
+	int notifications_led;
 	int notifications_lcd;
 	int notifications_sound;
 	int notifications_desktop;
+	time_t last_notification;
 } mcp_state_t;
 extern mcp_state_t *mcp;
 
@@ -58,6 +60,7 @@ extern mcp_config_t *cfg;
 
 int mcp_main(int argc, char **argv);
 void mcp_register(const char*, const int, const init_t, const stop_t, const loop_t);
+void mcp_notify(const char *title, const char *text, const char *sound, const char color);
 void mcp_init();
 void mcp_stop();
 void mcp_loop();

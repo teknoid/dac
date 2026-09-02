@@ -32,12 +32,6 @@
 #define MQTT_PORT				"1883"
 #endif
 
-#define APLAY_OPTIONS			"-q -D hw:CARD=Device"
-#define APLAY_DIRECTORY 		"/home/hje/sounds/16"
-
-#define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
-#define NOTIFY_SEND				"/usr/bin/notify-send -i /home/hje/Pictures/icons/mosquitto.png"
-
 #define MAC_HANDY				0xfc539ea93ac5
 #define DARKNESS				50
 
@@ -69,6 +63,7 @@ static uint64_t get_mac(const char *topic, size_t size) {
 		}
 
 	if (slash1 && slash2 && ((size - slash2) == 18)) {
+		// TODO use utils mac2uint64()
 		const char *c = topic + slash2 + 1;
 		uint64_t x = 0;
 		for (int i = 0; i < 6; i++) {
@@ -85,57 +80,6 @@ static uint64_t get_mac(const char *topic, size_t size) {
 	return 0;
 }
 
-// ledstrip blink red
-static void led() {
-#ifdef LCD
-	// TODO mcp->notifications_led
-	ledstrip_blink_red();
-#endif
-}
-
-// show on LCD display line 1 and 2
-static void lcd(const char *line1, const char *line2) {
-#ifdef LCD
-	if (!mcp->notifications_lcd)
-		return;
-
-	lcd_print(line1, line2);
-#endif
-}
-
-// desktop notifications via DBUS
-static void desktop(const char *title, const char *text) {
-#ifdef LCD
-	if (!mcp->notifications_desktop)
-		return;
-
-	size_t size = strlen(title) + strlen(text) + 256;
-	char *command = (char*) malloc(size);
-	snprintf(command, size, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
-	xlog("MQTT system: %s", command);
-	system(command);
-	free(command);
-#endif
-}
-
-// play sound
-static void play(const char *sound) {
-#ifdef MIXER
-	if (!mcp->notifications_sound)
-		return;
-
-	char *command = (char*) malloc(128);
-	if (sound == NULL)
-		snprintf(command, 128, "/usr/bin/aplay %s \"%s/mau.wav\"", APLAY_OPTIONS, APLAY_DIRECTORY);
-	else
-		snprintf(command, 128, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
-	xlog("MQTT system: %s", command);
-
-	system(command);
-	free(command);
-#endif
-}
-
 static int dispatch_notification(struct mqtt_response_publish *p) {
 	const char *message = p->application_message;
 	size_t msize = p->application_message_size;
@@ -143,7 +87,7 @@ static int dispatch_notification(struct mqtt_response_publish *p) {
 	char *title = NULL, *text = NULL, *sound = NULL;
 	json_scanf(message, msize, "{title:%Q, text:%Q, sound:%Q}", &title, &text, &sound);
 
-	notify(title, text, sound);
+	mcp_notify(title, text, sound, 0);
 
 	free(title);
 	free(text);
@@ -232,29 +176,6 @@ static void callback(void **unused, struct mqtt_response_publish *p) {
 	dispatch(p);
 }
 
-int notify(const char *title, const char *text, const char *sound) {
-	xdebug("MQTT notification %s/%s/%s", title, text, sound);
-
-	lcd(title, text);
-	desktop(title, text);
-	if (sound != NULL)
-		play(sound);
-
-	return 0;
-}
-
-int notify_red(const char *title, const char *text, const char *sound) {
-	xdebug("MQTT notification %s/%s/%s", title, text, sound);
-
-	led();
-	lcd(title, text);
-	desktop(title, text);
-	if (sound != NULL)
-		play(sound);
-
-	return 0;
-}
-
 static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("MQTT Error setting pthread_setcancelstate");
@@ -315,9 +236,7 @@ static int init() {
 	if (mqtt_subscribe(client, TOPIC_STAT"/#", 0) != MQTT_OK)
 		return xerr("MQTT %s\n", mqtt_error_str(client->error));
 
-	// Test
-	notify("Test", "mqtt-rx.c", "mau4.wav");
-
+	mqtt_sync(client);
 	return 0;
 }
 
