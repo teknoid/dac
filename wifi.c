@@ -58,7 +58,7 @@ static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
 
-static description_t ethers[0xffff];
+static description_t ethers[0xff];
 static description_t ieee[0xffff];
 static int ieee_index[0xff];
 
@@ -71,20 +71,14 @@ static int dump_line;
 static int server_fd;
 
 static const char* get_ethers_name(uint64_t mac) {
-	for (int i = 0; i < 0xffff; i++) {
-		if (!ethers[i].mac)
-			break;
-		// xdebug("%012lx :: %s", ethers[i].mac, ethers[i].description);
+	for (int i = 0; i < 0xff; i++)
 		if (ethers[i].mac == mac)
 			return ethers[i].description;
-	}
 
 	return NULL;
 }
 
 static const char* get_ieee_ou(uint64_t mac) {
-	uint64_t m = mac & U3MASK;
-
 	// use index to calculate from/to search range in ieee table
 	int ii = mac >> 40 & 0xff;
 	int from = ieee_index[ii];
@@ -96,16 +90,15 @@ static const char* get_ieee_ou(uint64_t mac) {
 	int to = ieee_index[jj] ? ieee_index[jj] : 0xffff;
 
 	// xdebug("%012lx -- from=%d to=%d", m, from, to);
-	for (int i = from; i < to; i++) {
-		// xdebug("%012lx :: %s", ieee[i].mac, ieee[i].description);
+	uint64_t m = mac & U3MASK;
+	for (int i = from; i < to; i++)
 		if (ieee[i].mac == m)
 			return ieee[i].description;
-	}
 
 	return NULL;
 }
 
-static station_t* station(uint64_t mac, int create, char *ssid, int channel, int signal) {
+static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
 	if (mac == 0 || mac == BROADCAST)
 		return 0;
 
@@ -116,12 +109,12 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			// station found
 			s->count++;
 			s->ts = now_ts;
-			if (ssid && strlen(ssid) > 0)
-				strcpy(s->ssid, ssid);
 			if (channel)
 				s->channel = channel;
 			if (signal)
 				s->signal = signal;
+			if (ssid != NULL && strlen(ssid) > 0)
+				strcpy(s->ssid, ssid);
 
 			return s;
 		}
@@ -139,6 +132,9 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			s->mac = mac;
 			s->count++;
 			s->ts = now_ts;
+			s->channel = channel;
+			s->signal = signal ? signal : -888;
+
 			uint642mac(mac, s->smac);
 			const char *ou = get_ieee_ou(s->mac);
 			if (ou != NULL)
@@ -146,10 +142,8 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 			const char *name = get_ethers_name(s->mac);
 			if (name != NULL)
 				strcpy(s->name, name);
-			if (ssid && strlen(ssid) > 0)
+			if (ssid != NULL && strlen(ssid) > 0)
 				strcpy(s->ssid, ssid);
-			s->channel = channel ? channel : 0;
-			s->signal = signal ? signal : -888;
 
 			xlog("WIFI new station %s (%s)", s->smac, NAME(s));
 			dump_line = 1;
@@ -161,7 +155,7 @@ static station_t* station(uint64_t mac, int create, char *ssid, int channel, int
 	return 0;
 }
 
-static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int channel, int signal, char tag) {
+static client_t* client(station_t *s, uint64_t mac, int channel, int signal, char *ssid, char tag, int create) {
 	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & U2MASK) == IPV6_MCAST || (mac & U3MASK) == IPV4_MCAST)
 		return 0;
 
@@ -171,7 +165,7 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 
 			// zombies: create new entry if ssid is different
 			if (s == zombies)
-				if (ssid && strcmp(ssid, c->ssid))
+				if (ssid != NULL && strcmp(ssid, c->ssid))
 					continue;
 
 			// client found
@@ -184,12 +178,12 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			c->count++;
 			c->ts = now_ts;
 			c->tag = tag;
-			if (ssid && strlen(ssid) > 0)
-				strcpy(c->ssid, ssid);
 			if (channel)
 				c->channel = channel;
 			if (signal)
 				c->signal = signal;
+			if (ssid != NULL && strlen(ssid) > 0)
+				strcpy(c->ssid, ssid);
 
 			return c;
 		}
@@ -208,6 +202,9 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			c->count++;
 			c->ts = now_ts;
 			c->tag = tag;
+			c->channel = channel;
+			c->signal = signal;
+
 			uint642mac(mac, c->smac);
 			const char *ou = get_ieee_ou(c->mac);
 			if (ou != NULL)
@@ -215,10 +212,8 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 			const char *name = get_ethers_name(c->mac);
 			if (name != NULL)
 				strcpy(c->name, name);
-			if (ssid && strlen(ssid) > 0)
+			if (ssid != NULL && strlen(ssid) > 0)
 				strcpy(c->ssid, ssid);
-			c->channel = channel ? channel : 0;
-			c->signal = signal ? signal : 0;
 
 			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
 			dump_line = 1;
@@ -230,19 +225,19 @@ static client_t* client(station_t *s, uint64_t mac, int create, char *ssid, int 
 	return 0;
 }
 
-static client_t* client_unassigned(uint64_t mac, char *ssid, int channel, int signal, char tag) {
+static client_t* client_unassigned(uint64_t mac, int channel, int signal, char *ssid, char tag) {
 	if (mac == 0 || mac == BROADCAST)
 		return 0;
 
 	for (int i = 0; i < STATIONS; i++) {
 		station_t *s = &stations[i];
-		client_t *c = client(s, mac, 0, ssid, channel, signal, tag);
+		client_t *c = client(s, mac, channel, signal, ssid, tag, 0);
 		if (c)
 			return c; // found
 	}
 
 	// not found - create zombie
-	client_t *z = client(zombies, mac, 1, ssid, channel, signal, 'z');
+	client_t *z = client(zombies, mac, channel, signal, ssid, 'z', 1);
 	return z;
 }
 
@@ -290,7 +285,7 @@ static void parse(connection_t *conn) {
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
-	char ssid[64];
+	char ssid[DESCRIPTION];
 	ZERO(ssid);
 
 	// split line into tokens
@@ -343,53 +338,53 @@ static void parse(connection_t *conn) {
 	dump_line = 0;
 
 	// update or create station
-	station_t *bss = station(bssid, 1, ssid, schannel, ssignal);
+	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
 	if (bss) {
-		client(bss, sa, 1, ssid, cchannel, csignal, 's');
-		client(bss, da, 1, ssid, cchannel, csignal, 'd');
-		client(bss, ra, 1, ssid, cchannel, csignal, 'r');
-		client(bss, ta, 1, ssid, cchannel, csignal, 't');
+		client(bss, sa, cchannel, csignal, ssid, 's', 1);
+		client(bss, da, cchannel, csignal, ssid, 'd', 1);
+		client(bss, ra, cchannel, csignal, ssid, 'r', 1);
+		client(bss, ta, cchannel, csignal, ssid, 't', 1);
 	}
 
 	// assign to SA station
-	station_t *sas = station(sa, 0, 0, schannel, ssignal);
+	station_t *sas = station(sa, schannel, ssignal, NULL, 0);
 	if (sas) {
-		client(sas, da, 1, ssid, cchannel, csignal, 'd');
-		client(sas, ra, 1, ssid, cchannel, csignal, 'r');
-		client(sas, ta, 1, ssid, cchannel, csignal, 't');
+		client(sas, da, cchannel, csignal, ssid, 'd', 1);
+		client(sas, ra, cchannel, csignal, ssid, 'r', 1);
+		client(sas, ta, cchannel, csignal, ssid, 't', 1);
 	}
 
 	// assign to DA station
-	station_t *das = station(da, 0, 0, schannel, ssignal);
+	station_t *das = station(da, schannel, ssignal, NULL, 0);
 	if (das) {
-		client(das, sa, 1, ssid, cchannel, csignal, 's');
-		client(das, ra, 1, ssid, cchannel, csignal, 'r');
-		client(das, ta, 1, ssid, cchannel, csignal, 't');
+		client(das, sa, cchannel, csignal, ssid, 's', 1);
+		client(das, ra, cchannel, csignal, ssid, 'r', 1);
+		client(das, ta, cchannel, csignal, ssid, 't', 1);
 	}
 
 	// assign to RA station
-	station_t *ras = station(ra, 0, 0, schannel, ssignal);
+	station_t *ras = station(ra, schannel, ssignal, NULL, 0);
 	if (ras) {
-		client(ras, sa, 1, ssid, cchannel, csignal, 's');
-		client(ras, da, 1, ssid, cchannel, csignal, 'd');
-		client(ras, ta, 1, ssid, cchannel, csignal, 't');
+		client(ras, sa, cchannel, csignal, ssid, 's', 1);
+		client(ras, da, cchannel, csignal, ssid, 'd', 1);
+		client(ras, ta, cchannel, csignal, ssid, 't', 1);
 	}
 
 	// assign to TA station
-	station_t *tas = station(ta, 0, 0, schannel, ssignal);
+	station_t *tas = station(ta, schannel, ssignal, NULL, 0);
 	if (tas) {
-		client(tas, sa, 1, ssid, cchannel, csignal, 's');
-		client(tas, da, 1, ssid, cchannel, csignal, 'd');
-		client(tas, ra, 1, ssid, cchannel, csignal, 'r');
+		client(tas, sa, cchannel, csignal, ssid, 's', 1);
+		client(tas, da, cchannel, csignal, ssid, 'd', 1);
+		client(tas, ra, cchannel, csignal, ssid, 'r', 1);
 	}
 
 	// search client in all stations or create new zombie
 	int assigned = bss || sas || das || ras || tas;
 	if (!assigned) {
-		client_unassigned(sa, ssid, cchannel, csignal, 's');
-		client_unassigned(da, ssid, cchannel, csignal, 'd');
-		client_unassigned(ra, ssid, cchannel, csignal, 'r');
-		client_unassigned(ta, ssid, cchannel, csignal, 't');
+		client_unassigned(sa, cchannel, csignal, ssid, 's');
+		client_unassigned(da, cchannel, csignal, ssid, 'd');
+		client_unassigned(ra, cchannel, csignal, ssid, 'r');
+		client_unassigned(ta, cchannel, csignal, ssid, 't');
 	}
 
 	line_count++;
@@ -523,7 +518,7 @@ static void expired() {
 
 			// remove expired client
 			int age = now_ts - c->ts;
-			int e1 = c->count == 1 && age > SECONDS_10M;
+			int e1 = c->count < 5 && age > SECONDS_10M;
 			int e2 = c->count < 10 && age > SECONDS_30M;
 			int e3 = c->count < 20 && age > SECONDS_1H;
 			int e4 = age > SECONDS_1D;
@@ -682,7 +677,7 @@ static void sort() {
 }
 
 static int load_ethers() {
-	char line[LINEBUF], vv[LINEBUF], name[64];
+	char line[LINEBUF], vv[LINEBUF], name[DESCRIPTION];
 
 	ZERO(ieee);
 	FILE *fp = fopen(ETHERS, "rt");
@@ -713,7 +708,7 @@ static int load_ethers() {
 		}
 		while (*(t + strlen(t) - 1) == '\n')
 			*(t + strlen(t) - 1) = 0; // trim
-		strncpy(name, t, 63);
+		strncpy(name, t, DESCRIPTION - 1);
 		// xdebug("line %s :: found name %s", line, name);
 
 		// now go again through line and extract macs
@@ -723,9 +718,10 @@ static int load_ethers() {
 				t++; // trim
 			// xdebug("t=%s rest=%s", t, rest);
 			if (*(t + 2) == ':' && *(t + 5) == ':' && *(t + 8) == ':') {
+				// pointer to next entry
 				description_t *d = &ethers[ii++];
 				d->mac = mac2uint64(t);
-				strncpy(d->description, name, 63);
+				strncpy(d->description, name, DESCRIPTION - 1);
 			}
 		}
 	}
@@ -749,6 +745,8 @@ static int load_ieee() {
 
 	int ii = 0;
 	while (fgets(line, LINEBUF - 1, fp) != NULL) {
+
+		// pointer to next entry
 		description_t *d = &ieee[ii++];
 
 		// Registry
@@ -770,7 +768,7 @@ static int load_ieee() {
 		} else
 			e = strchr(s, ',');
 		*e = 0;
-		strncpy(d->description, s, 63);
+		strncpy(d->description, s, DESCRIPTION - 1);
 	}
 
 	fclose(fp);

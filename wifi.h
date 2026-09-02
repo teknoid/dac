@@ -2,6 +2,7 @@
 #define CLIENTS						100
 
 #define LINEBUF						2048
+#define DESCRIPTION					64
 
 typedef struct client_t {
 	uint64_t mac;
@@ -43,5 +44,5 @@ typedef struct connection_t {
 
 typedef struct description_t {
 	uint64_t mac;
-	char description[64];
+	char description[DESCRIPTION];
 } description_t;
