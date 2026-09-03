@@ -28,22 +28,54 @@
 
 #define TEMPLATE_NOTIFICATION	"{\"title\":\"%s\", \"text\":\"%s\", \"sound\":\"%s\"}"
 
-static int fd;
 static struct mqtt_client *client = NULL;
 static uint8_t sendbuf[4096];
 static uint8_t recvbuf[1024];
 
+static void reconnect(struct mqtt_client *client, void **ptr) {
+	/* Close the clients socket if this isn't the initial reconnect call */
+	if (client->error != MQTT_ERROR_INITIAL_RECONNECT)
+		close(client->socketfd);
+
+	/* Perform error handling here. */
+	if (client->error != MQTT_ERROR_INITIAL_RECONNECT)
+		xerr("MQTT-TX reconnect_client: called while client was in error state \"%s\"\n", mqtt_error_str(client->error));
+
+	/* Open a new socket. */
+	int sockfd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	if (sockfd == -1) {
+		xerr("MQTT-TX Failed to open socket");
+		return;
+	}
+
+	/* Reinitialize the client. */
+	mqtt_reinit(client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf));
+
+	char client_id[128];
+	snprintf(client_id, 128, "%s-mcp-tx", mcp->hostname);
+
+	/* Ensure we have a clean session */
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+
+	/* Send connection request to the broker. */
+	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
+		xerr("MQTT-TX %s\n", mqtt_error_str(client->error));
+}
+
+static void callback(void **unused, struct mqtt_response_publish *p) {
+}
+
 int publish(const char *topic, const char *message, int retain) {
 	int rc = 0;
 
-	// xlog("MQTT publish topic('%s') = %s", topic, message);
+	// xlog("MQTT-TX publish topic('%s') = %s", topic, message);
 
 	if (client == NULL)
-		return xerr("MQTT publish(): client not ready yet, check module registration priority");
+		return xerr("MQTT-TX publish(): client not ready yet, check module registration priority");
 
 	/* check that we don't have any errors */
 	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+		return xerr("MQTT-TX %s\n", mqtt_error_str(client->error));
 
 	uint8_t flags = MQTT_PUBLISH_QOS_0;
 	if (retain)
@@ -55,7 +87,7 @@ int publish(const char *topic, const char *message, int retain) {
 		rc = mqtt_publish(client, topic, "", 0, flags);
 
 	if (rc != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+		return xerr("MQTT-TX %s\n", mqtt_error_str(client->error));
 
 	return mqtt_sync(client);
 }
@@ -67,34 +99,20 @@ int mqtt_notify(const char *title, const char *text, const char *sound) {
 }
 
 static int init() {
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-	char client_id[128];
-	snprintf(client_id, 128, "%s-mcp-tx", mcp->hostname);
-
 	client = malloc(sizeof(*client));
 	ZEROP(client);
+
 	client->keep_alive = 30;
 
-	// create new socket
-	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
-	if (fd == -1)
-		return xerr("MQTT Failed to open socket: ");
-
-	if (mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), NULL) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	mqtt_init_reconnect(client, reconnect, NULL, callback);
+	mqtt_sync(client);
 
 	return 0;
 }
 
 static void stop() {
-	if (fd > 0)
-		close(fd);
+	if (client != NULL && client->socketfd)
+		close(client->socketfd);
 }
 
 MCP_REGISTER(mqtt_tx, 3, &init, &stop, NULL);
