@@ -33,7 +33,6 @@
 #define MAC_HANDY				0xfc539ea93ac5
 #define DARKNESS				50
 
-static int fd;
 static struct mqtt_client *client = NULL;
 static uint8_t sendbuf[4096];
 static uint8_t recvbuf[1024];
@@ -100,7 +99,7 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 
 	uint64_t mac = get_mac(topic, tsize);
 	char *message = make_string(p->application_message, p->application_message_size);
-	xlog("MQTT network 0x%lx %s", mac, message);
+	xlog("MQTT-RX network 0x%lx %s", mac, message);
 	free(message);
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
@@ -165,7 +164,7 @@ static int dispatch(struct mqtt_response_publish *p) {
 
 	// TODO tasmota/discovery
 
-	dump("MQTT no dispatcher for message", p);
+	dump("MQTT-RX no dispatcher for message", p);
 
 	return 0;
 }
@@ -176,7 +175,7 @@ static void callback(void **unused, struct mqtt_response_publish *p) {
 
 static void loop() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("MQTT Error setting pthread_setcancelstate");
+		xlog("MQTT-RX Error setting pthread_setcancelstate");
 		return;
 	}
 
@@ -195,50 +194,35 @@ static int init() {
 	ZEROP(client);
 	client->keep_alive = 30;
 
-	fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	int fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
 	if (fd == -1)
-		return xerr("MQTT Failed to open socket: ");
+		return xerr("MQTT-RX Failed to open socket: ");
 
-	if (mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+	mqtt_init(client, fd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), callback);
+	mqtt_connect(client, client_id, NULL, NULL, 0, NULL, NULL, connect_flags, 400);
 
 	if (client->error != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
+		return xerr("MQTT-RX %s\n", mqtt_error_str(client->error));
 
-	if (mqtt_subscribe(client, TOPIC_NOTIFICATION, 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_SENSOR"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_NETWORK"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_SOLAR"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_TASMOTA"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_TELE"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_CMND"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
-	if (mqtt_subscribe(client, TOPIC_STAT"/#", 0) != MQTT_OK)
-		return xerr("MQTT %s\n", mqtt_error_str(client->error));
-
+	mqtt_subscribe(client, TOPIC_NOTIFICATION, 0);
+	mqtt_subscribe(client, TOPIC_SENSOR"/#", 0);
+	mqtt_subscribe(client, TOPIC_NETWORK"/#", 0);
+	mqtt_subscribe(client, TOPIC_SOLAR"/#", 0);
+	mqtt_subscribe(client, TOPIC_TASMOTA"/#", 0);
+	mqtt_subscribe(client, TOPIC_TELE"/#", 0);
+	mqtt_subscribe(client, TOPIC_CMND"/#", 0);
+	mqtt_subscribe(client, TOPIC_STAT"/#", 0);
 	mqtt_sync(client);
+
+	if (client->error != MQTT_OK)
+		return xerr("MQTT-RX %s\n", mqtt_error_str(client->error));
+
 	return 0;
 }
 
 static void stop() {
-	if (fd > 0)
-		close(fd);
+	if (client != NULL && client->socketfd)
+		close(client->socketfd);
 }
 
 MCP_REGISTER(mqtt_rx, 2, &init, &stop, &loop);
