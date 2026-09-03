@@ -54,6 +54,7 @@ int template_main(int argc, char **argv) {
 		}
 	}
 
+	xlog("template main()");
 	return 0;
 }
 

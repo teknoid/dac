@@ -595,7 +595,7 @@ static void calculate_gstate() {
 	if (PSTATE_MIN_NOW->grid < RAMP * -4 || (avgmm->grid < RAMP * -2 && PSTATE_MIN_NOW->grid < 0))
 		gstate->flags |= FLAG_GRID_ULOAD;
 
-	// akku usable energy and estimated time to live based on 5min average load or akku discharge
+	// akku usable energy and estimated time to live based on 10 min average load or akku discharge
 	gstate->available = round10(AKKU_AVAILABLE);
 	int msoc = akku_get_min_soc();
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;

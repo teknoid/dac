@@ -98,6 +98,18 @@ int mqtt_notify(const char *title, const char *text, const char *sound) {
 	return publish(TOPIC_NOTIFICATION, message, 0);
 }
 
+static void loop() {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("MQTT-RX Error setting pthread_setcancelstate");
+		return;
+	}
+
+	while (1) {
+		mqtt_sync(client);
+		msleep(500);
+	}
+}
+
 static int init() {
 	client = malloc(sizeof(*client));
 	ZEROP(client);
@@ -115,4 +127,4 @@ static void stop() {
 		close(client->socketfd);
 }
 
-MCP_REGISTER(mqtt_tx, 3, &init, &stop, NULL);
+MCP_REGISTER(mqtt_tx, 3, &init, &stop, &loop);
