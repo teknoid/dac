@@ -126,9 +126,6 @@ static void update_inverter1(sunspec_t *ss) {
 		return;
 	}
 
-	// trigger self
-	sem_post(&sq->inverter);
-
 	inv1->state = ss->inverter->St;
 	ss->sleep = 0;
 
@@ -197,8 +194,8 @@ static void update_inverter1(sunspec_t *ss) {
 
 	// MICROSECONDS("  inverter")
 
-	// wait for meter
-	sem_wait(&sq->meter);
+	// trigger collector thread
+	sem_post(&sq->inverter);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
@@ -273,9 +270,6 @@ static void update_meter(sunspec_t *ss) {
 	if (!ss->meter)
 		return;
 
-	// trigger self
-	sem_post(&sq->meter);
-
 	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->l2p = SFI(ss->meter->WphB, ss->meter->W_SF);
@@ -296,11 +290,8 @@ static void update_meter(sunspec_t *ss) {
 
 	// MICROSECONDS("     meter")
 
-	// wait for inverter
-	sem_wait(&sq->inverter);
-
-	// trigger collector thread - new values acquired, critical path continues there
-	sem_post(&sq->collector);
+	// trigger collector thread
+	sem_post(&sq->meter);
 }
 
 static int evaluate(char *name) {

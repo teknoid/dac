@@ -273,7 +273,6 @@ typedef struct sequential_t {
 	sem_t inverter;
 	sem_t meter;
 	sem_t collector;
-	sem_t dispatcher;
 } sequential_t;
 
 // global inverter pointers

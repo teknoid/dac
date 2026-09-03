@@ -1002,8 +1002,9 @@ static void loop() {
 	// collector main loop
 	while (1) {
 
-		// wait for trigger
-		sem_wait(&sq->collector);
+		// wait for inverter and meter
+		sem_wait(&sq->inverter);
+		sem_wait(&sq->meter);
 
 		// PROFILING_START
 
@@ -1031,7 +1032,7 @@ static void loop() {
 		// MICROSECONDS(" collector")
 
 		// trigger dispatcher thread - calculation done, critical path continues there
-		sem_post(&sq->dispatcher);
+		sem_post(&sq->collector);
 
 		// web output - outside critical path
 		create_pstate_json();

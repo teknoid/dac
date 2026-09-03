@@ -1131,8 +1131,8 @@ static void loop() {
 	// dispatcher main loop
 	while (1) {
 
-		// wait for trigger
-		sem_wait(&sq->dispatcher);
+		// wait for collector
+		sem_wait(&sq->collector);
 
 		// PROFILING_START
 
@@ -1207,8 +1207,6 @@ static int init() {
 	b1.interlock = &b2;
 	b2.interlock = &b1;
 
-	sem_init(&sq->dispatcher, 0, 0);
-
 	// akku_standby(AKKU);
 	// akku_charge(AKKU);
 
@@ -1218,8 +1216,6 @@ static int init() {
 static void stop() {
 	if (sock)
 		close(sock);
-
-	sem_close(&sq->dispatcher);
 }
 
 MCP_REGISTER(solar_dispatcher, 12, &init, &stop, &loop);
