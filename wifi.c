@@ -36,6 +36,7 @@
 #define ZMAC					0xaaffeeaaffee
 
 #define SECONDS_1D 				60 * 60 * 24
+#define SECONDS_6H 				60 * 60 * 6
 #define SECONDS_1HX 			60 * 60 + 300
 #define SECONDS_1H 				60 * 60
 #define SECONDS_30M				60 * 30
@@ -177,7 +178,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			// client found
 			int age = now_ts - c->ts;
 			if (age > SECONDS_1HX) {
-				xlog("WIFI client %s station %s is back, age=%d", NAME(c), NAME(s), age);
+				xlog("WIFI station %s client %s is back, age=%d", NAME(s), NAME(c), age);
 				// notification only once per client for assigned station
 				if (s == any) {
 					mqtt_notify("client is back", NAME(c), "au.wav");
@@ -226,7 +227,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				strcpy(c->ssid, ssid);
 
 			dump_line = 1;
-			xlog("WIFI new client %s assigned to %s", NAME(c), NAME(s));
+			xlog("WIFI station %s assigned client %s", NAME(s), NAME(c));
 			if (s == zombies && !EMPTY(ssid)) {
 				mqtt_notify("New Zombie", NAME(c), "au.wav");
 				// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
@@ -452,7 +453,7 @@ static void* reader(void *arg) {
 
 static void* listener(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xlog("Error setting pthread_setcancelstate");
+		xerr("Error setting pthread_setcancelstate");
 		return (void*) 0;
 	}
 
@@ -556,9 +557,10 @@ static void expired() {
 			int e1 = c->count < 5 && age > SECONDS_10M;
 			int e2 = c->count < 10 && age > SECONDS_30M;
 			int e3 = c->count < 20 && age > SECONDS_1H;
-			int e4 = age > SECONDS_1D;
-			if (e1 || e2 || e3 || e4) {
-				xlog("WIFI removing expired client %s from %s age=%d count=%d", NAME(c), NAME(s), age, c->count);
+			int e4 = c->count < 50 && age > SECONDS_6H;
+			int e5 = age > SECONDS_1D;
+			if (e1 || e2 || e3 || e4 || e5) {
+				xlog("WIFI station %s client %s expired, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 				c->mac = 0;
 			} else
 				sc++;
@@ -569,7 +571,7 @@ static void expired() {
 		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
-			xlog("WIFI removing expired station %s age=%d count=%d", NAME(s), age, s->count);
+			xlog("WIFI station %s expired, age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
 	}
@@ -945,7 +947,11 @@ static int test() {
 	c->mac = ZMAC;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
-	mqtt_notify("client is back", NAME(c), "au.wav");
+
+	while (1) {
+		mqtt_notify("client is back", NAME(c), "au.wav");
+		sleep(300);
+	}
 
 	mcp_stop();
 	return 0;

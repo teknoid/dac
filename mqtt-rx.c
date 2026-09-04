@@ -221,7 +221,7 @@ static int init() {
 }
 
 static void stop() {
-	if (client != NULL && client->socketfd)
+	if (client != NULL && client->socketfd > 0)
 		close(client->socketfd);
 }
 

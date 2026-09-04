@@ -16,7 +16,7 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#define LUMI_NOTIFY				2222
+#define LUMI_NOTIFY				999
 
 #define MESSAGE_ON				(message[0] == 'O' && message[1] == 'N')
 #define DISCOVERY				"discovery"
