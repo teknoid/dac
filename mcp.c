@@ -189,7 +189,7 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 
 #ifdef MIXER
 	// play sound
-	if (mcp->notifications_sound && sound != NULL && last > 5) {
+	if (mcp->notifications_sound && sound != NULL && last > 10) {
 		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\" &", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 		xdebug("MCP system: %s", command);
 		system(command);
