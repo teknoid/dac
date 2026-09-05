@@ -25,7 +25,6 @@
 #include "mcp.h"
 
 #define PORT					6666
-#define SORT					1
 
 #define BROADCAST				0xffffffffffff
 #define IPV6_MCAST				0x333300000000
@@ -42,8 +41,10 @@
 #define SECONDS_30M				60 * 30
 #define SECONDS_10M				60 * 10
 
-#define WIFI_DUMP				"wifi.txt"
-#define WIFI_STATE				"wifi.bin"
+#define WIFI_SORTED				"wifi-sorted.txt"
+#define WIFI_FLAT				"wifi-flat.txt"
+#define WIFI_RAW				"wifi-raw.txt"
+#define WIFI_BIN				"wifi.bin"
 
 // cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
 // and then manually remove last line (headline)
@@ -579,8 +580,12 @@ static void expired() {
 	pthread_mutex_unlock(&lock);
 }
 
+#define HRAW "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
+#define SRAW "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+#define CRAW "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+
 static void dump_raw() {
-	int sc = 0, ac = 0, zc = 0, age = 0;
+	int sc = 0, ac = 0, zc = 0;
 
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac)
@@ -595,29 +600,23 @@ static void dump_raw() {
 
 	xlog("WIFI %d Stations, %d Clients, %d Zombies, %lu Lines", sc, ac, zc, line_count);
 
-	FILE *fp = fopen(RUN SLASH WIFI_DUMP, "wt");
+	FILE *fp = fopen(RUN SLASH WIFI_RAW, "wt");
 	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_DUMP);
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_RAW);
 		return;
 	}
+
 	fprintf(fp, "%d Stations, %d Clients, %d Zombies, %lu Lines\n", sc, ac, zc, line_count);
-
-#define HTEMPLATE "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
-#define STEMPLATE "\n%-20s %-35s %-35s %8d %8d %8d %10d %-35s\n"
-#define CTEMPLATE "%c %-18s %-35s %-35s %8d %8d %8d %10d %-35s\n"
-
-	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
+	fprintf(fp, HRAW, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac) {
 			station_t *s = &stations[i];
-			age = now_ts - s->ts;
-			fprintf(fp, STEMPLATE, s->smac, s->ssid, s->name, s->channel, s->signal, age, s->count, s->ou);
+			fprintf(fp, SRAW, s->smac, s->ssid, s->name, s->channel, s->signal, now_ts - s->ts, s->count, s->ou);
 
 			for (int j = 0; j < CLIENTS; j++)
 				if (s->clients[j].mac) {
 					client_t *c = &(s->clients[j]);
-					age = now_ts - c->ts;
-					fprintf(fp, CTEMPLATE, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, age, c->count, c->ou);
+					fprintf(fp, CRAW, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, now_ts - c->ts, c->count, c->ou);
 				}
 		}
 
@@ -626,7 +625,7 @@ static void dump_raw() {
 }
 
 static void dump_sorted() {
-	int sc = 0, ac = 0, zc = 0, age = 0;
+	int sc = 0, ac = 0, zc = 0;
 
 	for (station_t **ss = pstations; *ss; ss++)
 		sc++;
@@ -639,27 +638,38 @@ static void dump_sorted() {
 
 	xlog("WIFI %d Stations, %d Clients, %d Zombies, %lu Lines", sc, ac, zc, line_count);
 
-	FILE *fp = fopen(RUN SLASH WIFI_DUMP, "wt");
+	FILE *fp = fopen(RUN SLASH WIFI_SORTED, "wt");
 	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_DUMP);
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_SORTED);
 		return;
 	}
+
 	fprintf(fp, "%d Stations, %d Clients, %d Zombies, %lu Lines\n", sc, ac, zc, line_count);
-
-#define HTEMPLATE "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
-#define STEMPLATE "\n%-20s %-35s %-35s %8d %8d %8d %10d %-35s\n"
-#define CTEMPLATE "%c %-18s %-35s %-35s %8d %8d %8d %10d %-35s\n"
-
-	fprintf(fp, HTEMPLATE, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
+	fprintf(fp, HRAW, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
-		age = now_ts - SS->ts;
-		fprintf(fp, STEMPLATE, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, age, SS->count, SS->ou);
-
-		for (client_t **cc = SS->pclients; *cc; cc++) {
-			age = now_ts - CC->ts;
-			fprintf(fp, CTEMPLATE, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, age, CC->count, CC->ou);
-		}
+		fprintf(fp, SRAW, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			fprintf(fp, CRAW, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
 	}
+
+	fflush(fp);
+	fclose(fp);
+}
+
+#define HFLAT "%-18s %-35s %-25s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
+#define CFLAT "%-18s %-35s %-25s %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
+
+static void dump_flat() {
+	FILE *fp = fopen(RUN SLASH WIFI_FLAT, "wt");
+	if (fp == NULL) {
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_FLAT);
+		return;
+	}
+
+	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
+	for (station_t **ss = pstations; *ss; ss++)
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
 
 	fflush(fp);
 	fclose(fp);
@@ -852,11 +862,10 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
-			if (SORT) {
-				sort();
-				dump_sorted();
-			} else
-				dump_raw();
+			sort();
+			dump_sorted();
+			dump_flat();
+			dump_raw();
 		}
 	}
 }
@@ -864,7 +873,7 @@ static void loop() {
 static int init() {
 	load_ieee();
 	load_ethers();
-	load_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
+	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	strcpy(zombies->ssid, "Zombies");
 	zombies->mac = ZMAC;
@@ -906,7 +915,7 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(STATE SLASH WIFI_STATE, stations, sizeof(stations));
+	store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	if (pthread_cancel(thread))
 		xerr("Error canceling thread");
@@ -932,6 +941,8 @@ static int test() {
 
 	sort();
 	dump_sorted();
+	dump_flat();
+	dump_raw();
 
 	mac = mac2uint64("d4:ca:6e:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
