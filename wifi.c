@@ -51,6 +51,7 @@
 #define IEEE					"/usr/share/ieee-data/oui_sorted.csv"
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
+#define CHANNEL(x)				(x ? (2412 - x) / 5 + 1 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 #define EMPTY(s)				(s == NULL || strlen(s) == 0)
 
@@ -73,6 +74,60 @@ static time_t now_ts;
 static unsigned long line_count = 0;
 static int dump_line;
 static int server_fd;
+
+static void notification_station_new(station_t *s) {
+	xlog("WIFI new station %s (%s)", s->smac, NAME(s));
+	dump_line = 1;
+
+	// not if SSID is empty
+	if (EMPTY(s->ssid))
+		return;
+
+	mqtt_notify("New Station", NAME(s), "au.wav");
+	// mcp_notify("New Station", NAME(s), "au.wav", 0);
+}
+
+static void notification_client_new(station_t *s, client_t *c) {
+	xlog("WIFI station %s assigned client %s", NAME(s), NAME(c));
+	dump_line = 1;
+
+	// only for zombies
+	if (s != zombies)
+		return;
+
+	// not if SSID is empty
+	if (EMPTY(c->ssid))
+		return;
+
+	mqtt_notify("New Zombie", NAME(c), "au.wav");
+	// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
+}
+
+static void notification_client_found(station_t *s, client_t *c) {
+	// only after 1+ hour
+	int age = now_ts - c->ts;
+	if (age < SECONDS_1HX)
+		return;
+
+	xlog("WIFI station %s client %s is back, age=%d", NAME(s), NAME(c), age);
+	dump_line = 1;
+
+	// only once per client (from any station)
+	if (s != any)
+		return;
+
+	// not for anonymous clients
+	if (EMPTY(c->ssid) && EMPTY(c->name))
+		return;
+
+	// not for stations
+	for (int i = 0; i < STATIONS; i++)
+		if (stations[i].mac == c->mac)
+			return;
+
+	mqtt_notify("client is back", NAME(c), "au.wav");
+	// mcp_notify("client is back", NAME(c), "au.wav", 0);
+}
 
 static const char* get_ethers_name(uint64_t mac) {
 	for (int i = 0; i < 0xff; i++)
@@ -149,13 +204,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
-			dump_line = 1;
-			xlog("WIFI new station %s (%s)", s->smac, NAME(s));
-			if (!EMPTY(ssid)) {
-				mqtt_notify("New Station", NAME(s), "au.wav");
-				// mcp_notify("New Station", NAME(s), "au.wav", 0);
-			}
-
+			notification_station_new(s);
 			return s;
 		}
 
@@ -177,16 +226,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 					continue;
 
 			// client found
-			int age = now_ts - c->ts;
-			if (age > SECONDS_1HX) {
-				xlog("WIFI station %s client %s is back, age=%d", NAME(s), NAME(c), age);
-				// notification only once per client for assigned station
-				if (s == any) {
-					mqtt_notify("client is back", NAME(c), "au.wav");
-					// mcp_notify("client is back", NAME(c), "au.wav", 0);
-				}
-			}
-
+			notification_client_found(s, c);
 			c->count++;
 			c->ts = now_ts;
 			c->tag = tag;
@@ -227,53 +267,12 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (!EMPTY(ssid))
 				strcpy(c->ssid, ssid);
 
-			dump_line = 1;
-			xlog("WIFI station %s assigned client %s", NAME(s), NAME(c));
-			if (s == zombies && !EMPTY(ssid)) {
-				mqtt_notify("New Zombie", NAME(c), "au.wav");
-				// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
-			}
-
+			notification_client_new(s, c);
 			return c;
 		}
 
 	xerr("WIFI station %s client table is full!", NAME(s));
 	return 0;
-}
-
-static int channel(int freq) {
-	switch (freq) {
-	case 2412:
-		return 1;
-	case 2417:
-		return 2;
-	case 2422:
-		return 3;
-	case 2427:
-		return 4;
-	case 2432:
-		return 5;
-	case 2437:
-		return 6;
-	case 2442:
-		return 7;
-	case 2447:
-		return 8;
-	case 2452:
-		return 9;
-	case 2457:
-		return 10;
-	case 2462:
-		return 11;
-	case 2467:
-		return 12;
-	case 2472:
-		return 13;
-	case 2484:
-		return 14;
-	default:
-		return freq;
-	}
 }
 
 static void parse(connection_t *conn) {
@@ -327,10 +326,10 @@ static void parse(connection_t *conn) {
 	// packet from station or client
 	int schannel = 0, cchannel = 0, ssignal = 0, csignal = 0;
 	if (bssid && bssid == sa) {
-		schannel = channel(freq);
+		schannel = CHANNEL(freq);
 		ssignal = signal;
 	} else {
-		cchannel = channel(freq);
+		cchannel = CHANNEL(freq);
 		csignal = signal;
 	}
 
@@ -932,18 +931,18 @@ static void stop() {
 static int test() {
 	mcp_init();
 
-	uint64_t mac;
-
-	now_ts = time(NULL);
-	struct tm now_tm, *now = &now_tm;
-	localtime_r(&now_ts, &now_tm);
-	xlog("today=%d", now->tm_wday);
-
 	sort();
+
+//	for (station_t **ss = pstations; *ss; ss++)
+//		for (client_t **cc = SS->pclients; *cc; cc++)
+//			if (CC->mac == 0x860fd0334e65)
+//				strcpy(CC->name, "xxx");
+
 	dump_sorted();
 	dump_flat();
 	dump_raw();
 
+	uint64_t mac;
 	mac = mac2uint64("d4:ca:6e:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
 	mac = mac2uint64("d4:ca:6f:43:a0:25");
@@ -958,11 +957,7 @@ static int test() {
 	c->mac = ZMAC;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
-
-	while (1) {
-		mqtt_notify("client is back", NAME(c), "au.wav");
-		sleep(300);
-	}
+	mqtt_notify("client is back", NAME(c), "au.wav");
 
 	mcp_stop();
 	return 0;
