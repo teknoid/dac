@@ -75,7 +75,7 @@ static unsigned long line_count = 0;
 static int dump_line;
 static int server_fd;
 
-static void notification_station_new(station_t *s) {
+static void notify_station_new(station_t *s) {
 	xlog("WIFI new station %s (%s)", s->smac, NAME(s));
 	dump_line = 1;
 
@@ -87,7 +87,7 @@ static void notification_station_new(station_t *s) {
 	// mcp_notify("New Station", NAME(s), "au.wav", 0);
 }
 
-static void notification_client_new(station_t *s, client_t *c) {
+static void notify_client_new(station_t *s, client_t *c) {
 	xlog("WIFI station %s assigned client %s", NAME(s), NAME(c));
 	dump_line = 1;
 
@@ -103,7 +103,7 @@ static void notification_client_new(station_t *s, client_t *c) {
 	// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
 }
 
-static void notification_client_found(station_t *s, client_t *c) {
+static void notify_client_found(station_t *s, client_t *c) {
 	// only after 1+ hour
 	int age = now_ts - c->ts;
 	if (age < SECONDS_1HX)
@@ -127,6 +127,19 @@ static void notification_client_found(station_t *s, client_t *c) {
 
 	mqtt_notify("client is back", NAME(c), "au.wav");
 	// mcp_notify("client is back", NAME(c), "au.wav", 0);
+}
+
+void notify_zombie_assigned(station_t *s, client_t *z) {
+	char title[128], text[128];
+
+	// not for anonymous zombies
+	if (EMPTY(z->ssid) && EMPTY(z->name))
+		return;
+
+	snprintf(title, 128, "Zombie %s", NAME(z));
+	snprintf(text, 128, "assigned to %s", NAME(s));
+	mqtt_notify(title, text, NULL);
+	// mcp_notify(title, text, NULL, 0);
 }
 
 static const char* get_ethers_name(uint64_t mac) {
@@ -204,7 +217,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
-			notification_station_new(s);
+			notify_station_new(s);
 			return s;
 		}
 
@@ -226,7 +239,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 					continue;
 
 			// client found
-			notification_client_found(s, c);
+			notify_client_found(s, c);
 			c->count++;
 			c->ts = now_ts;
 			c->tag = tag;
@@ -267,7 +280,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (!EMPTY(ssid))
 				strcpy(c->ssid, ssid);
 
-			notification_client_new(s, c);
+			notify_client_new(s, c);
 			return c;
 		}
 
@@ -518,12 +531,12 @@ static void cleanup() {
 
 				if (z->mac == c->mac) {
 					xlog("WIFI zombie %s assigned to %s -> removing", NAME(z), NAME(s));
-					z->mac = 0;
 
 					// take over ssid of probe request
 					if (strlen(z->ssid) > 0)
 						strcpy(c->ssid, z->ssid);
 
+					notify_zombie_assigned(s, z);
 					assigned++;
 					break;
 				}
