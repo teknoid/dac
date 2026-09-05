@@ -136,10 +136,6 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	if (EMPTY(z->ssid) && EMPTY(z->name))
 		return;
 
-	// not if already assigned
-	if (z->tag == 'a')
-		return;
-
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	mqtt_notify(title, text, NULL);
@@ -241,7 +237,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 		// zombies with same ssid treated as one
 		if (s == zombies && ssid != NULL && !strcmp(ssid, c->ssid)) {
 			c->mac = mac;
-			// tag = c->tag;
+			tag = c->tag; // keep tag
 			found = 1;
 		}
 
@@ -255,7 +251,8 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				c->channel = channel;
 			if (signal)
 				c->signal = signal;
-			if (!EMPTY(ssid))
+			// take over ssid if not station's ssid
+			if (ssid != NULL && strcmp(ssid, s->ssid))
 				strcpy(c->ssid, ssid);
 
 			return c;
@@ -286,7 +283,8 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			const char *name = get_ethers_name(c->mac);
 			if (name != NULL)
 				strcpy(c->name, name);
-			if (!EMPTY(ssid))
+			// take over ssid if not station's ssid
+			if (ssid != NULL && strcmp(ssid, s->ssid))
 				strcpy(c->ssid, ssid);
 
 			notify_client_new(s, c);
@@ -521,10 +519,14 @@ static void assign() {
 		if (!z->mac)
 			continue;
 
+		// already assigned
+		if (z->tag == 'a')
+			continue;
+
 		int assigned = 0;
 		for (int j = 0; j < STATIONS; j++) {
 			station_t *s = &stations[j];
-			if (!s->mac || s == zombies)
+			if (!s->mac || s == zombies || s == any)
 				continue;
 
 			if (z->mac == s->mac) {
@@ -539,7 +541,7 @@ static void assign() {
 					continue;
 
 				if (z->mac == c->mac) {
-					xlog("WIFI zombie %s assigned to %s -> removing", NAME(z), NAME(s));
+					xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
 
 					// take over ssid of probe request
 					if (strlen(z->ssid) > 0)
@@ -677,8 +679,8 @@ static void dump_sorted() {
 	fclose(fp);
 }
 
-#define HFLAT "%-18s %-35s %-25s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
-#define CFLAT "%-18s %-35s %-25s %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
+#define HFLAT "%-18s %-35s %-25s  %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
+#define CFLAT "%-18s %-35s %-25s %c %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
 
 static void dump_flat() {
 	FILE *fp = fopen(RUN SLASH WIFI_FLAT, "wt");
@@ -690,7 +692,7 @@ static void dump_flat() {
 	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++)
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
 
 	fflush(fp);
 	fclose(fp);
