@@ -542,11 +542,8 @@ static void assign() {
 
 				if (z->mac == c->mac) {
 					xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
-
 					// take over ssid of probe request
-					if (strlen(z->ssid) > 0)
-						strcpy(c->ssid, z->ssid);
-
+					strcpy(c->ssid, z->ssid);
 					notify_zombie_assigned(s, z);
 					assigned++;
 					break;
