@@ -136,6 +136,10 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	if (EMPTY(z->ssid) && EMPTY(z->name))
 		return;
 
+	// not if already assigned
+	if (z->tag == 'a')
+		return;
+
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	mqtt_notify(title, text, NULL);
@@ -229,15 +233,19 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & U2MASK) == IPV6_MCAST || (mac & U3MASK) == IPV4_MCAST)
 		return 0;
 
-	for (int i = 0; i < CLIENTS; i++)
-		if (s->clients[i].mac == mac) {
-			client_t *c = &(s->clients[i]);
+	for (int i = 0; i < CLIENTS; i++) {
+		client_t *c = &(s->clients[i]);
 
-			// zombies: create new entry if ssid is different
-			if (s == zombies)
-				if (ssid != NULL && strcmp(ssid, c->ssid))
-					continue;
+		int found = s->clients[i].mac == mac;
 
+		// zombies with same ssid treated as one
+		if (s == zombies && ssid != NULL && !strcmp(ssid, c->ssid)) {
+			c->mac = mac;
+			// tag = c->tag;
+			found = 1;
+		}
+
+		if (found) {
 			// client found
 			notify_client_found(s, c);
 			c->count++;
@@ -252,6 +260,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 
 			return c;
 		}
+	}
 
 	// do not create new entry if not found
 	if (!create)
@@ -504,7 +513,7 @@ static void* listener(void *arg) {
 	pthread_exit(NULL);
 }
 
-static void cleanup() {
+static void assign() {
 	pthread_mutex_lock(&lock);
 
 	for (int i = 0; i < CLIENTS; i++) {
@@ -543,9 +552,9 @@ static void cleanup() {
 			}
 		}
 
-		// remove if assigned to any station
+		// tag as assigned
 		if (assigned)
-			z->mac = 0;
+			z->tag = 'a';
 	}
 
 	pthread_mutex_unlock(&lock);
@@ -868,7 +877,7 @@ static void loop() {
 		any->ts = zombies->ts = now_ts;
 
 		if (now_ts % 10 == 0)
-			cleanup();
+			assign();
 
 		if (now_ts % 30 == 0)
 			expired();
