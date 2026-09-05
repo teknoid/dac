@@ -51,7 +51,7 @@
 #define IEEE					"/usr/share/ieee-data/oui_sorted.csv"
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
-#define CHANNEL(x)				(x ? (2412 - x) / 5 + 1 : 0)
+#define CHANNEL(x)				(x ? (x - 2412) / 5 + 1 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 #define EMPTY(s)				(s == NULL || strlen(s) == 0)
 
