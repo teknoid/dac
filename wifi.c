@@ -90,7 +90,7 @@ static void notify_station_new(station_t *s) {
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
-	xlog("WIFI station %s assigned client %s", NAME(s), NAME(c));
+	xlog("WIFI assigned station %s client %s", NAME(s), NAME(c));
 	dump_line = 1;
 
 	// only for zombies
@@ -433,20 +433,20 @@ static void parse(connection_t *conn) {
 			rac = zombie(ra, cchannel, csignal, ssid, 'r');
 		if (ta && !tac && !tas)
 			tac = zombie(ta, cchannel, csignal, ssid, 't');
-
-		// update or insert CACHE station
-		client(cache, sa, cchannel, signal, ssid, 's', 1);
-		client(cache, da, cchannel, signal, ssid, 'd', 1);
-		client(cache, ra, cchannel, signal, ssid, 'r', 1);
-		client(cache, ta, cchannel, signal, ssid, 't', 1);
-
-		line_count++;
-		conn->line_count++;
-		if (dump_line)
-			xdebug(conn->line_dump);
-
-		pthread_mutex_unlock(&lock);
 	}
+
+	// update or insert CACHE station
+	client(cache, sa, cchannel, signal, ssid, 's', 1);
+	client(cache, da, cchannel, signal, ssid, 'd', 1);
+	client(cache, ra, cchannel, signal, ssid, 'r', 1);
+	client(cache, ta, cchannel, signal, ssid, 't', 1);
+
+	line_count++;
+	conn->line_count++;
+	if (dump_line)
+		xdebug(conn->line_dump);
+
+	pthread_mutex_unlock(&lock);
 }
 
 static void* reader(void *arg) {
@@ -582,7 +582,7 @@ static void expired() {
 			int e3 = s != zombies && c->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
 			if (ec || ez || e1 || e2 || e3 || e4) {
-				xlog("WIFI station %s client %s expired, age=%d count=%d", NAME(s), NAME(c), age, c->count);
+				xlog("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 				c->mac = 0;
 			} else
 				sc++;
@@ -593,7 +593,7 @@ static void expired() {
 		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
 		int e2 = sc == 0 && age > SECONDS_1D;
 		if (e1 || e2) {
-			xlog("WIFI station %s expired, age=%d count=%d", NAME(s), age, s->count);
+			xlog("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
 	}
