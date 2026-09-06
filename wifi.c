@@ -140,6 +140,17 @@ static void notify_client_found(station_t *s, client_t *c) {
 void notify_zombie_assigned(station_t *s, client_t *z) {
 	char title[128], text[128];
 
+	// already assigned
+	if (z->tag == 'a')
+		return;
+
+	xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
+	dump_line = 1;
+
+	// not for anonymous zombies
+	if (EMPTY(z->ssid))
+		return;
+
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	mqtt_notify(title, text, NULL);
@@ -252,8 +263,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 		notify_client_found(s, c);
 		c->count++;
 		c->ts = now_ts;
-		if (s != zombies)
-			c->tag = tag; // not overriding zombies tag
+		c->tag = tag;
 		if (channel)
 			c->channel = channel;
 		if (signal)
@@ -300,20 +310,20 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 	return 0;
 }
 
-static client_t* zombie(uint64_t mac, int channel, int signal, char *ssid, char tag) {
+static client_t* find(uint64_t mac, int channel, int signal, char *ssid) {
 	// search in cache first
 	for (int j = 0; j < CLIENTS; j++)
 		if (cache->clients[j].mac == mac)
 			return &(cache->clients[j]);
 
-	// search in all stations
-	for (int i = 0; i < STATIONS; i++)
+	// search in all (normal) stations
+	for (int i = 0; i < STATIONS - 2; i++)
 		if (stations[i].mac)
 			for (int j = 0; j < CLIENTS; j++)
 				if (stations[i].clients[j].mac == mac)
 					return &(stations[i].clients[j]);
 
-	// finally create zombie
+	// not found - create zombie
 	return client(zombies, mac, channel, signal, ssid, 'z', 1);
 }
 
@@ -424,15 +434,15 @@ static void parse(connection_t *conn) {
 			rac = client(tas, ra, cchannel, csignal, ssid, 'r', 1);
 		}
 
-		// search client or create zombie
+		// unassigned client
 		if (sa && !sac && !sas)
-			sac = zombie(sa, cchannel, csignal, ssid, 's');
+			sac = find(sa, cchannel, csignal, ssid);
 		if (da && !dac && !das)
-			dac = zombie(da, cchannel, csignal, ssid, 'd');
+			dac = find(da, cchannel, csignal, ssid);
 		if (ra && !rac && !ras)
-			rac = zombie(ra, cchannel, csignal, ssid, 'r');
+			rac = find(ra, cchannel, csignal, ssid);
 		if (ta && !tac && !tas)
-			tac = zombie(ta, cchannel, csignal, ssid, 't');
+			tac = find(ta, cchannel, csignal, ssid);
 	}
 
 	// update or insert CACHE station
@@ -515,18 +525,13 @@ static void assign() {
 
 	for (int i = 0; i < CLIENTS; i++) {
 		client_t *z = &(zombies->clients[i]);
-
 		if (!z->mac)
 			continue;
 
-		// already assigned
-		if (z->tag == 'a')
-			continue;
-
-		int assigned = 0;
+		int assign = 0, correct = 0;
 		for (int j = 0; j < STATIONS; j++) {
 			station_t *s = &stations[j];
-			if (!s->mac || s == zombies)
+			if (!s->mac || s == zombies || s == cache)
 				continue;
 
 			if (z->mac == s->mac) {
@@ -541,19 +546,25 @@ static void assign() {
 					continue;
 
 				if (z->mac == c->mac) {
-					xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
-					// take over ssid of probe request
-					strcpy(c->ssid, z->ssid);
+					assign++;
+					if (!strcmp(s->ssid, z->ssid))
+						// assigned to correct station
+						correct++;
+					else
+						// take over ssid of probe request
+						strcpy(c->ssid, z->ssid);
 					notify_zombie_assigned(s, z);
-					assigned++;
 					break;
 				}
 			}
 		}
 
+		// remove
+		if (correct)
+			z->mac = 0;
+
 		// mark as assigned
-		if (assigned)
-			z->tag = 'a';
+		z->tag = assign ? 'a' : 'z';
 	}
 
 	pthread_mutex_unlock(&lock);
@@ -590,9 +601,8 @@ static void expired() {
 
 		// remove expired station
 		int age = now_ts - s->ts;
-		int e1 = sc == 0 && s->count < 10 && age > SECONDS_1H;
-		int e2 = sc == 0 && age > SECONDS_1D;
-		if (e1 || e2) {
+		int e1 = sc == 0 && age > SECONDS_1D;
+		if (e1) {
 			xlog("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
@@ -876,6 +886,8 @@ static void loop() {
 }
 
 static int init() {
+	now_ts = time(NULL);
+
 	load_ieee();
 	load_ethers();
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
@@ -937,18 +949,6 @@ static void stop() {
 static int test() {
 	mcp_init();
 
-	sort();
-
-// update name
-//	for (station_t **ss = pstations; *ss; ss++)
-//		for (client_t **cc = SS->pclients; *cc; cc++)
-//			if (CC->mac == 0x860fd0334e65)
-//				strcpy(CC->name, "xxxx");
-
-	dump_sorted();
-	dump_flat();
-	dump_raw();
-
 	uint64_t mac;
 	mac = mac2uint64("d4:ca:6e:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
@@ -965,6 +965,21 @@ static int test() {
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
+
+	// update name / remove client
+//	sort();
+//	for (station_t **ss = pstations; *ss; ss++)
+//		for (client_t **cc = SS->pclients; *cc; cc++)
+//			if (CC->mac == 0x78c40ebe4a28) {
+//				xlog("WIFI found %s", NAME(CC));
+//				strcpy(CC->name, "xxxx");
+//				CC->mac = 0;
+//			}
+
+	sort();
+	dump_sorted();
+	dump_flat();
+	dump_raw();
 
 	mcp_stop();
 	return 0;
