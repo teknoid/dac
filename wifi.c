@@ -300,6 +300,23 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 	return 0;
 }
 
+static client_t* zombie(uint64_t mac, int channel, int signal, char *ssid, char tag) {
+	// search in cache first
+	for (int j = 0; j < CLIENTS; j++)
+		if (cache->clients[j].mac == mac)
+			return &(cache->clients[j]);
+
+	// search in all stations
+	for (int i = 0; i < STATIONS; i++)
+		if (stations[i].mac)
+			for (int j = 0; j < CLIENTS; j++)
+				if (stations[i].clients[j].mac == mac)
+					return &(stations[i].clients[j]);
+
+	// finally create zombie
+	return client(zombies, mac, channel, signal, ssid, 'z', 1);
+}
+
 static void parse(connection_t *conn) {
 	conn->line[strlen(conn->line) - 1] = 0; // remove newline
 	// xlog("WIFI read line %s %s", conn->ip, conn->line);
@@ -407,45 +424,29 @@ static void parse(connection_t *conn) {
 			rac = client(tas, ra, cchannel, csignal, ssid, 'r', 1);
 		}
 
-		// search client in CACHE station or finally create zombie
-		if (sa && !sac && !sas) {
-			sac = client(cache, sa, cchannel, csignal, ssid, 's', 0);
-			if (!sac)
-				sac = client(zombies, sa, cchannel, csignal, ssid, 'z', 1);
-		}
-		if (da && !dac && !das) {
-			dac = client(cache, da, cchannel, csignal, ssid, 'd', 0);
-			if (!dac)
-				dac = client(zombies, da, cchannel, csignal, ssid, 'z', 1);
-		}
-		if (ra && !rac && !ras) {
-			rac = client(cache, ra, cchannel, csignal, ssid, 'r', 0);
-			if (!rac)
-				rac = client(zombies, ra, cchannel, csignal, ssid, 'z', 1);
-		}
-		if (ta && !tac && !tas) {
-			tac = client(cache, ta, cchannel, csignal, ssid, 't', 0);
-			if (!tac)
-				tac = client(zombies, ta, cchannel, csignal, ssid, 'z', 1);
-		}
-	}
+		// search client or create zombie
+		if (sa && !sac && !sas)
+			sac = zombie(sa, cchannel, csignal, ssid, 's');
+		if (da && !dac && !das)
+			dac = zombie(da, cchannel, csignal, ssid, 'd');
+		if (ra && !rac && !ras)
+			rac = zombie(ra, cchannel, csignal, ssid, 'r');
+		if (ta && !tac && !tas)
+			tac = zombie(ta, cchannel, csignal, ssid, 't');
 
-	// update or insert CACHE station
-	if (sa)
+		// update or insert CACHE station
 		client(cache, sa, cchannel, signal, ssid, 's', 1);
-	if (da)
 		client(cache, da, cchannel, signal, ssid, 'd', 1);
-	if (ra)
 		client(cache, ra, cchannel, signal, ssid, 'r', 1);
-	if (ta)
 		client(cache, ta, cchannel, signal, ssid, 't', 1);
 
-	line_count++;
-	conn->line_count++;
-	if (dump_line)
-		xdebug(conn->line_dump);
+		line_count++;
+		conn->line_count++;
+		if (dump_line)
+			xdebug(conn->line_dump);
 
-	pthread_mutex_unlock(&lock);
+		pthread_mutex_unlock(&lock);
+	}
 }
 
 static void* reader(void *arg) {
