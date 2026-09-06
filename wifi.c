@@ -566,11 +566,6 @@ static void expired() {
 		if (!s->mac)
 			continue;
 
-		// TODO
-		// keep zombies
-		if (s == zombies)
-			continue;
-
 		int sc = 0;
 		for (int j = 0; j < CLIENTS; j++) {
 			client_t *c = &(s->clients[j]);
@@ -579,12 +574,13 @@ static void expired() {
 
 			// remove expired client
 			int age = now_ts - c->ts;
-			int ea = s == cache && age > SECONDS_1H;
-			int e1 = c->count < 5 && age > SECONDS_5M;
-			int e2 = c->count < 10 && age > SECONDS_1H;
-			int e3 = c->count < 100 && age > SECONDS_1D;
+			int ec = s == cache && age > SECONDS_1H;
+			int ez = s == zombies && age > SECONDS_1W;
+			int e1 = s != zombies && c->count < 5 && age > SECONDS_5M;
+			int e2 = s != zombies && c->count < 10 && age > SECONDS_1H;
+			int e3 = s != zombies && c->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
-			if (ea || e1 || e2 || e3 || e4) {
+			if (ec || ez || e1 || e2 || e3 || e4) {
 				xlog("WIFI station %s client %s expired, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 				c->mac = 0;
 			} else
@@ -883,12 +879,12 @@ static int init() {
 	load_ethers();
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
-	strcpy(zombies->ssid, "Zombies");
+	strcpy(zombies->ssid, "ZOMBIES");
 	zombies->mac = ZMAC;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
 
-	strcpy(cache->ssid, "Cache");
+	strcpy(cache->ssid, "CACHE");
 	cache->mac = ZMAC;
 	cache->signal = -999;
 	uint642mac(cache->mac, zombies->smac);
