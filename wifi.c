@@ -40,6 +40,7 @@
 #define SECONDS_1H 				60 * 60
 #define SECONDS_30M				60 * 30
 #define SECONDS_15M				60 * 15
+#define SECONDS_5M				60 * 5
 
 #define WIFI_SORTED				"wifi-sorted.txt"
 #define WIFI_FLAT				"wifi-flat.txt"
@@ -112,8 +113,8 @@ static void notify_client_found(station_t *s, client_t *c) {
 	xlog("WIFI station %s client %s is back, age=%d", NAME(s), NAME(c), age);
 	dump_line = 1;
 
-	// only for 'any' station
-	if (s != any)
+	// only for zombies and any station
+	if (s != zombies && s != any)
 		return;
 
 	// not for anonymous clients
@@ -125,16 +126,17 @@ static void notify_client_found(station_t *s, client_t *c) {
 		if (stations[i].mac == c->mac)
 			return;
 
-	mqtt_notify("client is back", NAME(c), "au.wav");
-	// mcp_notify("client is back", NAME(c), "au.wav", 0);
+	if (s == zombies) {
+		mqtt_notify("Zombie is back", NAME(c), "au.wav");
+		// mcp_notify("Zombie is back", NAME(c), "au.wav", 0);
+	} else {
+		mqtt_notify("Client is back", NAME(c), "au.wav");
+		// mcp_notify("Client is back", NAME(c), "au.wav", 0);
+	}
 }
 
 void notify_zombie_assigned(station_t *s, client_t *z) {
 	char title[128], text[128];
-
-	// not for anonymous zombies
-	if (EMPTY(z->ssid) && EMPTY(z->name))
-		return;
 
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
@@ -232,31 +234,33 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 	for (int i = 0; i < CLIENTS; i++) {
 		client_t *c = &(s->clients[i]);
 
-		int found = s->clients[i].mac == mac;
-
-		// zombies with same ssid treated as one
+		// for zombies the ssid must be identical, for all others mac must be identical
+		int match = 0;
 		if (s == zombies && !strcmp(c->ssid, ssid)) {
+			match = 1;
 			c->mac = mac;
-			found = 1;
-		}
+			uint642mac(mac, c->smac);
+		} else
+			match = s->clients[i].mac == mac;
 
-		if (found) {
-			// client found
-			notify_client_found(s, c);
-			c->count++;
-			c->ts = now_ts;
-			if (s != zombies)
-				c->tag = tag; // not overriding zombies tag
-			if (channel)
-				c->channel = channel;
-			if (signal)
-				c->signal = signal;
-			// take over ssid if not station's ssid
-			if (ssid != NULL && strcmp(ssid, s->ssid))
-				strcpy(c->ssid, ssid);
+		if (!match)
+			continue;
 
-			return c;
-		}
+		// client found
+		notify_client_found(s, c);
+		c->count++;
+		c->ts = now_ts;
+		if (s != zombies)
+			c->tag = tag; // not overriding zombies tag
+		if (channel)
+			c->channel = channel;
+		if (signal)
+			c->signal = signal;
+		// take over ssid if not station's ssid
+		if (ssid != NULL && strcmp(ssid, s->ssid))
+			strcpy(c->ssid, ssid);
+
+		return c;
 	}
 
 	if (!create)
@@ -283,7 +287,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (name != NULL)
 				strcpy(c->name, name);
 			// take over ssid if not station's ssid
-			if (ssid != NULL && strcmp(ssid, s->ssid))
+			if (strcmp(s->ssid, ssid))
 				strcpy(c->ssid, ssid);
 
 			notify_client_new(s, c);
@@ -292,6 +296,12 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 
 	xerr("WIFI station %s client table is full!", NAME(s));
 	return 0;
+}
+
+static void update_any(client_t *c, uint64_t mac, int channel, int signal, char *ssid, char tag) {
+	if (!c)
+		return;
+	client(any, mac, channel, signal, ssid, tag, 1);
 }
 
 static void parse(connection_t *conn) {
@@ -355,19 +365,25 @@ static void parse(connection_t *conn) {
 	pthread_mutex_lock(&lock);
 	dump_line = 0;
 
+	client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
+
 	// update or create station
 	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
 	if (bss) {
 
-		// BSSID present and station found
-		client(bss, sa, cchannel, csignal, ssid, 's', 1);
-		client(bss, da, cchannel, csignal, ssid, 'd', 1);
-		client(bss, ra, cchannel, csignal, ssid, 'r', 1);
-		client(bss, ta, cchannel, csignal, ssid, 't', 1);
+		// assign to BSS station
+		sac = client(bss, sa, cchannel, csignal, ssid, 's', 1);
+		dac = client(bss, da, cchannel, csignal, ssid, 'd', 1);
+		rac = client(bss, ra, cchannel, csignal, ssid, 'r', 1);
+		tac = client(bss, ta, cchannel, csignal, ssid, 't', 1);
+
+		// update (or insert) ANY station
+		update_any(sac, sa, cchannel, csignal, ssid, 's');
+		update_any(dac, da, cchannel, csignal, ssid, 'd');
+		update_any(rac, ra, cchannel, csignal, ssid, 'r');
+		update_any(tac, ta, cchannel, csignal, ssid, 't');
 
 	} else {
-
-		client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
 
 		// assign to SA station
 		station_t *sas = station(sa, schannel, ssignal, NULL, 0);
@@ -400,6 +416,12 @@ static void parse(connection_t *conn) {
 			dac = client(tas, da, cchannel, csignal, ssid, 'd', 1);
 			rac = client(tas, ra, cchannel, csignal, ssid, 'r', 1);
 		}
+
+		// update (or insert) ANY station
+		update_any(sac, sa, cchannel, csignal, ssid, 's');
+		update_any(dac, da, cchannel, csignal, ssid, 'd');
+		update_any(rac, ra, cchannel, csignal, ssid, 'r');
+		update_any(tac, ta, cchannel, csignal, ssid, 't');
 
 		// search client in 'any' station or finally create zombie
 		if (sa && !sac && !sas) {
@@ -498,6 +520,7 @@ static void assign() {
 
 	for (int i = 0; i < CLIENTS; i++) {
 		client_t *z = &(zombies->clients[i]);
+
 		if (!z->mac)
 			continue;
 
@@ -549,6 +572,11 @@ static void expired() {
 		if (!s->mac)
 			continue;
 
+		// TODO
+		// keep zombies
+		if (s == zombies)
+			continue;
+
 		int sc = 0;
 		for (int j = 0; j < CLIENTS; j++) {
 			client_t *c = &(s->clients[j]);
@@ -557,9 +585,9 @@ static void expired() {
 
 			// remove expired client
 			int age = now_ts - c->ts;
-			int e1 = c->count < 10 && age > SECONDS_30M;
-			int e2 = c->count < 20 && age > SECONDS_1H;
-			int e3 = c->count < 30 && age > SECONDS_6H;
+			int e1 = c->count < 5 && age > SECONDS_5M;
+			int e2 = c->count < 10 && age > SECONDS_1H;
+			int e3 = c->count < 60 && age > SECONDS_6H;
 			int e4 = age > SECONDS_1D;
 			if (e1 || e2 || e3 || e4) {
 				xlog("WIFI station %s client %s expired, age=%d count=%d", NAME(s), NAME(c), age, c->count);
@@ -849,7 +877,7 @@ static void loop() {
 		sleep(1);
 		now_ts = time(NULL);
 
-		zombies->ts = now_ts;
+		any->ts = zombies->ts = now_ts;
 
 		if (now_ts % 10 == 0)
 			assign();
@@ -930,10 +958,11 @@ static int test() {
 
 	sort();
 
+// update name
 //	for (station_t **ss = pstations; *ss; ss++)
 //		for (client_t **cc = SS->pclients; *cc; cc++)
 //			if (CC->mac == 0x860fd0334e65)
-//				strcpy(CC->name, "xxx");
+//				strcpy(CC->name, "xxxx");
 
 	dump_sorted();
 	dump_flat();
