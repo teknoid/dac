@@ -263,7 +263,8 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 		notify_client_found(s, c);
 		c->count++;
 		c->ts = now_ts;
-		c->tag = tag;
+		if (s != zombies)
+			c->tag = tag; // do not touch zombies tag
 		if (channel)
 			c->channel = channel;
 		if (signal)
@@ -311,7 +312,17 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 }
 
 static client_t* find(uint64_t mac, int channel, int signal, char *ssid) {
-	// search in cache first
+	// detect new ssid's
+	if (ssid) {
+		int known = 0;
+		for (int i = 0; i < STATIONS - 2; i++)
+			if (!strcmp(stations[i].ssid, ssid))
+				known = 1;
+		if (!known)
+			return client(zombies, mac, channel, signal, ssid, 'z', 1);
+	}
+
+	// search in cache
 	for (int j = 0; j < CLIENTS; j++)
 		if (cache->clients[j].mac == mac)
 			return &(cache->clients[j]);
