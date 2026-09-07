@@ -32,15 +32,13 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
+#define DUMMY					0x112233445566
 #define ZMAC					0xaaffeeaaffee
 
 #define SECONDS_1W 				60 * 60 * 24 * 7
 #define SECONDS_1D 				60 * 60 * 24
-#define SECONDS_6H 				60 * 60 * 6
 #define SECONDS_1HX 			60 * 60 + 300
 #define SECONDS_1H 				60 * 60
-#define SECONDS_30M				60 * 30
-#define SECONDS_15M				60 * 15
 #define SECONDS_5M				60 * 5
 
 #define WIFI_SORTED				"wifi-sorted.txt"
@@ -147,10 +145,6 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
 	dump_line = 1;
 
-	// not for anonymous zombies
-	if (EMPTY(z->ssid))
-		return;
-
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	mqtt_notify(title, text, NULL);
@@ -222,7 +216,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			s->channel = channel;
 			s->signal = signal ? signal : -888;
 
-			uint642mac(mac, s->smac);
+			uint642mac(s->mac, s->smac);
 			const char *ou = get_ieee_ou(s->mac);
 			if (ou != NULL)
 				strcpy(s->ou, ou);
@@ -240,44 +234,39 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 	return 0;
 }
 
-static client_t* client(station_t *s, uint64_t mac, int channel, int signal, char *ssid, char tag, int create) {
+static client_t* client(station_t *s, uint64_t mac, int channel, int signal, char *ssid, char tag) {
 	if (mac == 0 || mac == BROADCAST || mac == STP || mac == s->mac || (mac & U2MASK) == IPV6_MCAST || (mac & U3MASK) == IPV4_MCAST)
 		return 0;
 
-	for (int i = 0; i < CLIENTS; i++) {
-		client_t *c = &(s->clients[i]);
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->clients[i].mac != 0) {
+			client_t *c = &(s->clients[i]);
 
-		// for zombies the ssid must be identical, for all others mac must be identical
-		int match = 0;
-		if (s == zombies && !strcmp(c->ssid, ssid)) {
-			match = 1;
-			c->mac = mac;
-			uint642mac(mac, c->smac);
-		} else
-			match = s->clients[i].mac == mac;
+			// zombies match on ssid, all others on mac
+			int match = s == zombies ? !strcmp(c->ssid, ssid) : c->mac == mac;
+			if (!match)
+				continue;
 
-		if (!match)
-			continue;
+			// client found
+			notify_client_found(s, c);
 
-		// client found
-		notify_client_found(s, c);
-		c->count++;
-		c->ts = now_ts;
-		if (s != zombies)
-			c->tag = tag; // do not touch zombies tag
-		if (channel)
-			c->channel = channel;
-		if (signal)
-			c->signal = signal;
-		// take over ssid if not station's ssid
-		if (ssid != NULL && strcmp(s->ssid, ssid))
-			strcpy(c->ssid, ssid);
+			c->count++;
+			c->ts = now_ts;
+			if (s == zombies) {
+				c->mac = mac; // update zombies mac and smac
+				uint642mac(c->mac, c->smac);
+			} else
+				c->tag = tag; // update tag on all others
+			if (channel)
+				c->channel = channel;
+			if (signal)
+				c->signal = signal;
+			// take over ssid when different to station
+			if (strcmp(s->ssid, ssid))
+				strcpy(c->ssid, ssid);
 
-		return c;
-	}
-
-	if (!create)
-		return 0;
+			return c;
+		}
 
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac == 0) {
@@ -292,14 +281,14 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			c->channel = channel;
 			c->signal = signal;
 
-			uint642mac(mac, c->smac);
+			uint642mac(c->mac, c->smac);
 			const char *ou = get_ieee_ou(c->mac);
 			if (ou != NULL)
 				strcpy(c->ou, ou);
 			const char *name = get_ethers_name(c->mac);
 			if (name != NULL)
 				strcpy(c->name, name);
-			// take over ssid if not station's ssid
+			// take over ssid when different to station
 			if (strcmp(s->ssid, ssid))
 				strcpy(c->ssid, ssid);
 
@@ -311,31 +300,13 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 	return 0;
 }
 
-static client_t* find(uint64_t mac, int channel, int signal, char *ssid) {
-	// detect new ssid's
-	if (ssid) {
-		int known = 0;
-		for (int i = 0; i < STATIONS - 2; i++)
-			if (!strcmp(stations[i].ssid, ssid))
-				known = 1;
-		if (!known)
-			return client(zombies, mac, channel, signal, ssid, 'z', 1);
-	}
-
-	// search in cache
-	for (int j = 0; j < CLIENTS; j++)
-		if (cache->clients[j].mac == mac)
-			return &(cache->clients[j]);
-
-	// search in all (normal) stations
+static void check_ssid(uint64_t mac, int channel, int signal, char *ssid) {
 	for (int i = 0; i < STATIONS - 2; i++)
-		if (stations[i].mac)
-			for (int j = 0; j < CLIENTS; j++)
-				if (stations[i].clients[j].mac == mac)
-					return &(stations[i].clients[j]);
+		if (!strcmp(stations[i].ssid, ssid))
+			return; // already known
 
-	// not found - create zombie
-	return client(zombies, mac, channel, signal, ssid, 'z', 1);
+	// create new zombie for unknown ssid
+	client(zombies, mac, channel, signal, ssid, 'z');
 }
 
 static void parse(connection_t *conn) {
@@ -399,68 +370,70 @@ static void parse(connection_t *conn) {
 	pthread_mutex_lock(&lock);
 	dump_line = 0;
 
-	client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
-
 	// update or create station
 	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
 	if (bss) {
 
 		// assign to BSS station
-		sac = client(bss, sa, cchannel, csignal, ssid, 's', 1);
-		dac = client(bss, da, cchannel, csignal, ssid, 'd', 1);
-		rac = client(bss, ra, cchannel, csignal, ssid, 'r', 1);
-		tac = client(bss, ta, cchannel, csignal, ssid, 't', 1);
+		client(bss, sa, cchannel, csignal, ssid, 's');
+		client(bss, da, cchannel, csignal, ssid, 'd');
+		client(bss, ra, cchannel, csignal, ssid, 'r');
+		client(bss, ta, cchannel, csignal, ssid, 't');
 
 	} else {
+
+		client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
 
 		// assign to SA station
 		station_t *sas = station(sa, schannel, ssignal, NULL, 0);
 		if (sas) {
-			dac = client(sas, da, cchannel, csignal, ssid, 'd', 1);
-			rac = client(sas, ra, cchannel, csignal, ssid, 'r', 1);
-			tac = client(sas, ta, cchannel, csignal, ssid, 't', 1);
+			dac = client(sas, da, cchannel, csignal, ssid, 'd');
+			rac = client(sas, ra, cchannel, csignal, ssid, 'r');
+			tac = client(sas, ta, cchannel, csignal, ssid, 't');
 		}
 
 		// assign to DA station
 		station_t *das = station(da, schannel, ssignal, NULL, 0);
 		if (das) {
-			sac = client(das, sa, cchannel, csignal, ssid, 's', 1);
-			rac = client(das, ra, cchannel, csignal, ssid, 'r', 1);
-			tac = client(das, ta, cchannel, csignal, ssid, 't', 1);
+			sac = client(das, sa, cchannel, csignal, ssid, 's');
+			rac = client(das, ra, cchannel, csignal, ssid, 'r');
+			tac = client(das, ta, cchannel, csignal, ssid, 't');
 		}
 
 		// assign to RA station
 		station_t *ras = station(ra, schannel, ssignal, NULL, 0);
 		if (ras) {
-			sac = client(ras, sa, cchannel, csignal, ssid, 's', 1);
-			dac = client(ras, da, cchannel, csignal, ssid, 'd', 1);
-			tac = client(ras, ta, cchannel, csignal, ssid, 't', 1);
+			sac = client(ras, sa, cchannel, csignal, ssid, 's');
+			dac = client(ras, da, cchannel, csignal, ssid, 'd');
+			tac = client(ras, ta, cchannel, csignal, ssid, 't');
 		}
 
 		// assign to TA station
 		station_t *tas = station(ta, schannel, ssignal, NULL, 0);
 		if (tas) {
-			sac = client(tas, sa, cchannel, csignal, ssid, 's', 1);
-			dac = client(tas, da, cchannel, csignal, ssid, 'd', 1);
-			rac = client(tas, ra, cchannel, csignal, ssid, 'r', 1);
+			sac = client(tas, sa, cchannel, csignal, ssid, 's');
+			dac = client(tas, da, cchannel, csignal, ssid, 'd');
+			rac = client(tas, ra, cchannel, csignal, ssid, 'r');
 		}
 
-		// unassigned client
-		if (sa && !sac && !sas)
-			sac = find(sa, cchannel, csignal, ssid);
-		if (da && !dac && !das)
-			dac = find(da, cchannel, csignal, ssid);
-		if (ra && !rac && !ras)
-			rac = find(ra, cchannel, csignal, ssid);
-		if (ta && !tac && !tas)
-			tac = find(ta, cchannel, csignal, ssid);
+		if (sa && !sac && !sas && strlen(ssid))
+			check_ssid(sa, cchannel, csignal, ssid);
+
+		if (da && !dac && !das && strlen(ssid))
+			check_ssid(da, cchannel, csignal, ssid);
+
+		if (ra && !rac && !ras && strlen(ssid))
+			check_ssid(ra, cchannel, csignal, ssid);
+
+		if (ta && !tac && !tas && strlen(ssid))
+			check_ssid(ta, cchannel, csignal, ssid);
 	}
 
 	// update or insert CACHE station
-	client(cache, sa, cchannel, signal, ssid, 's', 1);
-	client(cache, da, cchannel, signal, ssid, 'd', 1);
-	client(cache, ra, cchannel, signal, ssid, 'r', 1);
-	client(cache, ta, cchannel, signal, ssid, 't', 1);
+	client(cache, sa, cchannel, signal, ssid, 's');
+	client(cache, da, cchannel, signal, ssid, 'd');
+	client(cache, ra, cchannel, signal, ssid, 'r');
+	client(cache, ta, cchannel, signal, ssid, 't');
 
 	line_count++;
 	conn->line_count++;
@@ -622,7 +595,7 @@ static void expired() {
 	pthread_mutex_unlock(&lock);
 }
 
-#define HFLAT "%-18s %-35s %-25s  %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
+#define HFLAT "%-18s %-35s %-25s %s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
 #define CFLAT "%-18s %-35s %-25s %c %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
 
 static void dump_flat() {
@@ -632,7 +605,7 @@ static void dump_flat() {
 		return;
 	}
 
-	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
+	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "T", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++)
 		for (client_t **cc = SS->pclients; *cc; cc++)
 			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
@@ -911,7 +884,7 @@ static int init() {
 	strcpy(cache->ssid, "CACHE");
 	cache->mac = ZMAC;
 	cache->signal = -999;
-	uint642mac(cache->mac, zombies->smac);
+	uint642mac(cache->mac, cache->smac);
 
 	pthread_mutex_init(&lock, NULL);
 
@@ -976,16 +949,6 @@ static int test() {
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
-
-	// update name / remove client
-//	sort();
-//	for (station_t **ss = pstations; *ss; ss++)
-//		for (client_t **cc = SS->pclients; *cc; cc++)
-//			if (CC->mac == 0x78c40ebe4a28) {
-//				xlog("WIFI found %s", NAME(CC));
-//				strcpy(CC->name, "xxxx");
-//				CC->mac = 0;
-//			}
 
 	sort();
 	dump_sorted();

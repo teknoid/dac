@@ -529,7 +529,7 @@ static void calculate_gstate_online() {
 	else if ((now->tm_mon == 4 || now->tm_mon == 8) && now->tm_hour >= 16 && sensor->tin < 26.0) // may/sept begin 16 o'clock
 		gstate->flags |= FLAG_HEATING;
 	// gstate->flags |= FLAG_HEATING; // hard enabled
-	gstate->flags &= ~FLAG_HEATING; // hard disabled
+	// gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
 	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // charging already indicated
