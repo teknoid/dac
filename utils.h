@@ -7,6 +7,8 @@
 
 #define msleep(x)				usleep(x * 1000)
 
+#define EMPTY(s)				(s == NULL || strlen(s) == 0)
+
 #define SPACEMASK32				0x01010101
 #define SPACEMASK64				0x0101010101010101
 
