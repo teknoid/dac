@@ -76,27 +76,19 @@ static int dump_line;
 static int server_fd;
 
 static void notify_station_new(station_t *s) {
-	xlog("WIFI new station %s (%s)", s->smac, NAME(s));
+	xdebug("WIFI new station %s (%s)", s->smac, NAME(s));
 	dump_line = 1;
-
-	// not if SSID is empty
-	if (EMPTY(s->ssid))
-		return;
 
 	mqtt_notify("New Station", NAME(s), "au.wav");
 	// mcp_notify("New Station", NAME(s), "au.wav", 0);
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
-	xlog("WIFI assigned station %s client %s", NAME(s), NAME(c));
+	xdebug("WIFI station %s assigned new client %s (%s)", NAME(s), c->smac, NAME(c));
 	dump_line = 1;
 
 	// only for zombies
 	if (s != zombies)
-		return;
-
-	// not if SSID is empty
-	if (EMPTY(c->ssid))
 		return;
 
 	mqtt_notify("New Zombie", NAME(c), "au.wav");
@@ -109,7 +101,7 @@ static void notify_client_found(station_t *s, client_t *c) {
 	if (age < SECONDS_1HX)
 		return;
 
-	xlog("WIFI station %s client %s (%s) is back, age=%d", NAME(s), NAME(c), c->smac, age);
+	xdebug("WIFI station %s client %s (%s) is back, age=%d", NAME(s), c->smac, NAME(c), age);
 	dump_line = 1;
 
 	// not when in CACHE station
@@ -142,8 +134,7 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	if (z->tag == 'a')
 		return;
 
-	xlog("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
-	dump_line = 1;
+	xdebug("WIFI zombie %s (%s) assigned to %s", z->smac, NAME(z), NAME(s));
 
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
@@ -519,7 +510,7 @@ static void assign() {
 				continue;
 
 			if (z->mac == s->mac) {
-				xlog("WIFI zombie %s is station %s -> removing", NAME(z), NAME(s));
+				xdebug("WIFI zombie %s is station %s -> removing", NAME(z), NAME(s));
 				z->mac = 0;
 				break;
 			}
@@ -577,7 +568,7 @@ static void expired() {
 			int e3 = s != zombies && c->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
 			if (ec || ez || e1 || e2 || e3 || e4) {
-				xlog("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
+				xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 				c->mac = 0;
 			} else
 				sc++;
@@ -587,7 +578,7 @@ static void expired() {
 		int age = now_ts - s->ts;
 		int e1 = sc == 0 && age > SECONDS_1D;
 		if (e1) {
-			xlog("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
+			xdebug("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
 		}
 	}
@@ -654,7 +645,7 @@ static void dump_sorted() {
 	for (client_t **z = zombies->pclients; *z; z++)
 		zc++;
 
-	xlog("WIFI %d Stations, %d Cached, %d Zombies, %lu Lines", sc, cc, zc, line_count);
+	xdebug("WIFI %d Stations, %d Cached, %d Zombies, %lu Lines", sc, cc, zc, line_count);
 
 	FILE *fp = fopen(RUN SLASH WIFI_SORTED, "wt");
 	if (fp == NULL) {
