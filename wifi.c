@@ -499,6 +499,48 @@ static void* listener(void *arg) {
 	pthread_exit(NULL);
 }
 
+#define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
+#define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+#define CCOMP "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+
+static void dump_compact() {
+	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
+	if (fp == NULL) {
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_COMPACT);
+		return;
+	}
+
+	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombies->ccount, line_count);
+	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
+	for (station_t **ss = pstations; *ss; ss++) {
+		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			fprintf(fp, CCOMP, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+	}
+
+	fflush(fp);
+	fclose(fp);
+}
+
+#define HFLAT "%-18s %-35s %-25s %s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
+#define CFLAT "%-18s %-35s %-25s %c %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
+
+static void dump_flat() {
+	FILE *fp = fopen(RUN SLASH WIFI_FLAT, "wt");
+	if (fp == NULL) {
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_FLAT);
+		return;
+	}
+
+	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "T", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
+	for (station_t **ss = pstations; *ss; ss++)
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+
+	fflush(fp);
+	fclose(fp);
+}
+
 static void assign() {
 	PROFILING_START
 	pthread_mutex_lock(&lock);
@@ -599,51 +641,7 @@ static void expired() {
 	PROFILING_LOG("expired")
 }
 
-#define HFLAT "%-18s %-35s %-25s %s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
-#define CFLAT "%-18s %-35s %-25s %c %-18s %-35s %-25s %4d %4d %6ld %10d %-35s\n"
-
-static void dump_flat() {
-	FILE *fp = fopen(RUN SLASH WIFI_FLAT, "wt");
-	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_FLAT);
-		return;
-	}
-
-	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "T", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
-	for (station_t **ss = pstations; *ss; ss++)
-		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
-
-	fflush(fp);
-	fclose(fp);
-}
-
-#define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
-#define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
-#define CCOMP "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
-
-static void dump_compact() {
-	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
-	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_COMPACT);
-		return;
-	}
-
-	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombies->ccount, line_count);
-	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
-	for (station_t **ss = pstations; *ss; ss++) {
-		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
-		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CCOMP, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
-	}
-
-	fflush(fp);
-	fclose(fp);
-}
-
 static void sort_station(station_t *s) {
-//	PROFILING_START
-
 	// update client pointer
 	int ii = 0;
 	for (int i = 0; i < CLIENTS; i++)
@@ -669,13 +667,11 @@ static void sort_station(station_t *s) {
 
 	// copy clients in sorted order and then copy all back
 	station_t copy;
-	pthread_mutex_lock(&lock);
 	memset(&copy, 0, STATION_SIZE);
 	ii = 0;
 	for (client_t **cc = s->pclients; *cc; cc++)
 		memcpy(&(copy.clients[ii++]), CC, CLIENT_SIZE);
 	memcpy(&s->clients, &copy.clients, CLIENT_SIZE * CLIENTS);
-	pthread_mutex_unlock(&lock);
 
 	// update client pointer again
 	ii = 0;
@@ -684,12 +680,11 @@ static void sort_station(station_t *s) {
 			s->pclients[ii++] = &s->clients[i];
 	s->pclients[ii] = 0; // null terminate
 	s->ccount = ii;
-
-//	PROFILING_LOG("sort station")
 }
 
 static void sort_stations() {
 	PROFILING_START
+	pthread_mutex_lock(&lock);
 
 	// update station pointer
 	int ii = 0;
@@ -714,6 +709,7 @@ static void sort_stations() {
 	for (station_t **ss = pstations; *ss; ss++)
 		sort_station(SS);
 
+	pthread_mutex_unlock(&lock);
 	PROFILING_LOG("sort stations")
 }
 
