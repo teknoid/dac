@@ -41,10 +41,10 @@
 #define SECONDS_1H 				60 * 60
 #define SECONDS_5M				60 * 5
 
-#define WIFI_SORTED				"wifi-sorted.txt"
+#define WIFI_COMPACT			"wifi-compact.txt"
 #define WIFI_FLAT				"wifi-flat.txt"
-#define WIFI_RAW				"wifi-raw.txt"
 #define WIFI_BIN				"wifi.bin"
+#define ZOMBIES_BIN				"zombies.bin"
 
 // cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
 // and then manually remove last line (headline)
@@ -56,7 +56,9 @@
 
 #define SS						(*ss)
 #define CC						(*cc)
+#define ZZ						(*zz)
 
+static int scount;
 static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
@@ -300,6 +302,8 @@ static void check_ssid(uint64_t mac, int channel, int signal, char *ssid) {
 }
 
 static void parse(connection_t *conn) {
+//	PROFILING_START
+
 	conn->line[strlen(conn->line) - 1] = 0; // remove newline
 	// xlog("WIFI read line %s %s", conn->ip, conn->line);
 
@@ -431,6 +435,7 @@ static void parse(connection_t *conn) {
 		xdebug(conn->line_dump);
 
 	pthread_mutex_unlock(&lock);
+//	PROFILING_LOG("parse")
 }
 
 static void* reader(void *arg) {
@@ -461,7 +466,7 @@ static void* listener(void *arg) {
 	}
 
 	while (1) {
-		connection_t *conn = malloc(sizeof(connection_t));
+		connection_t *conn = malloc(CONNECTION_SIZE);
 		conn->addr_len = sizeof(conn->address);
 
 		// wait for client connection
@@ -495,6 +500,7 @@ static void* listener(void *arg) {
 }
 
 static void assign() {
+	PROFILING_START
 	pthread_mutex_lock(&lock);
 
 	for (int i = 0; i < CLIENTS; i++) {
@@ -536,6 +542,8 @@ static void assign() {
 		// mark as assigned
 		if (z->tag == 'z' && assigned)
 			z->tag = 'a';
+		if (z->tag == 'u' && assigned)
+			z->tag = 'a';
 
 		// mark as unassigned
 		if (z->tag == 'a' && !assigned)
@@ -547,9 +555,11 @@ static void assign() {
 	}
 
 	pthread_mutex_unlock(&lock);
+	PROFILING_LOG("assign")
 }
 
 static void expired() {
+	PROFILING_START
 	pthread_mutex_lock(&lock);
 
 	for (int i = 0; i < STATIONS; i++) {
@@ -557,7 +567,6 @@ static void expired() {
 		if (!s->mac)
 			continue;
 
-		int sc = 0;
 		for (int j = 0; j < CLIENTS; j++) {
 			client_t *c = &(s->clients[j]);
 			if (!c->mac)
@@ -574,13 +583,12 @@ static void expired() {
 			if (ec || ez || e1 || e2 || e3 || e4) {
 				// xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 				c->mac = 0;
-			} else
-				sc++;
+			}
 		}
 
 		// remove expired station
 		int age = now_ts - s->ts;
-		int e1 = sc == 0 && age > SECONDS_1D;
+		int e1 = s->ccount == 0 && age > SECONDS_1D;
 		if (e1) {
 			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
 			s->mac = 0;
@@ -588,6 +596,7 @@ static void expired() {
 	}
 
 	pthread_mutex_unlock(&lock);
+	PROFILING_LOG("expired")
 }
 
 #define HFLAT "%-18s %-35s %-25s %s %-18s %-35s %-25s %4s %4s %6s %10s %-35s\n"
@@ -609,77 +618,41 @@ static void dump_flat() {
 	fclose(fp);
 }
 
-#define HRAW "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
-#define SRAW "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
-#define CRAW "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+#define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
+#define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+#define CCOMP "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
 
-static void dump_raw() {
-	FILE *fp = fopen(RUN SLASH WIFI_RAW, "wt");
+static void dump_compact() {
+	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
 	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_RAW);
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_COMPACT);
 		return;
 	}
 
-	fprintf(fp, HRAW, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
-	for (int i = 0; i < STATIONS; i++)
-		if (stations[i].mac) {
-			station_t *s = &stations[i];
-			fprintf(fp, SRAW, s->smac, s->ssid, s->name, s->channel, s->signal, now_ts - s->ts, s->count, s->ou);
-
-			for (int j = 0; j < CLIENTS; j++)
-				if (s->clients[j].mac) {
-					client_t *c = &(s->clients[j]);
-					fprintf(fp, CRAW, c->tag, c->smac, c->ssid, c->name, c->channel, c->signal, now_ts - c->ts, c->count, c->ou);
-				}
-		}
-
-	fflush(fp);
-	fclose(fp);
-}
-
-static void dump_sorted() {
-	int sc = 0, cc = 0, zc = 0;
-
-	for (station_t **s = pstations; *s; s++)
-		sc++;
-
-	for (client_t **c = cache->pclients; *c; c++)
-		cc++;
-
-	for (client_t **z = zombies->pclients; *z; z++)
-		zc++;
-
-	xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", sc, cc, zc, line_count);
-
-	FILE *fp = fopen(RUN SLASH WIFI_SORTED, "wt");
-	if (fp == NULL) {
-		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_SORTED);
-		return;
-	}
-
-	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", sc, cc, zc, line_count);
-	fprintf(fp, HRAW, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
+	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombies->ccount, line_count);
+	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
-		fprintf(fp, SRAW, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
+		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CRAW, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+			fprintf(fp, CCOMP, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
 	}
 
 	fflush(fp);
 	fclose(fp);
 }
 
-static void sort_clients(station_t *s) {
-	// fill client pointer list
-	int ii = 0;
-	for (int i = 0; i < CLIENTS; i++) {
-		client_t *c = &(s->clients[i]);
-		if (c->mac)
-			s->pclients[ii++] = c;
-	}
+static void sort_station(station_t *s) {
+//	PROFILING_START
 
-	// null terminate
-	s->pclients[ii] = 0;
+	// update client pointer
+	int ii = 0;
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->clients[i].mac)
+			s->pclients[ii++] = &s->clients[i];
+	s->pclients[ii] = 0; // null terminate
+	s->ccount = ii;
+
+	// empty
 	if (!ii)
 		return;
 
@@ -693,23 +666,38 @@ static void sort_clients(station_t *s) {
 				s->pclients[j + 1] = x;
 			}
 		}
+
+	// copy clients in sorted order and then copy all back
+	station_t copy;
+	pthread_mutex_lock(&lock);
+	memset(&copy, 0, STATION_SIZE);
+	ii = 0;
+	for (client_t **cc = s->pclients; *cc; cc++)
+		memcpy(&(copy.clients[ii++]), CC, CLIENT_SIZE);
+	memcpy(&s->clients, &copy.clients, CLIENT_SIZE * CLIENTS);
+	pthread_mutex_unlock(&lock);
+
+	// update client pointer again
+	ii = 0;
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->clients[i].mac)
+			s->pclients[ii++] = &s->clients[i];
+	s->pclients[ii] = 0; // null terminate
+	s->ccount = ii;
+
+//	PROFILING_LOG("sort station")
 }
 
-static void sort() {
-	// fill station pointer list
-	int ii = 0;
-	for (int i = 0; i < STATIONS; i++) {
-		station_t *s = &stations[i];
-		if (s->mac) {
-			pstations[ii++] = s;
-			sort_clients(s);
-		}
-	}
+static void sort_stations() {
+	PROFILING_START
 
-	// null terminate
-	pstations[ii] = 0;
-	if (!ii)
-		return;
+	// update station pointer
+	int ii = 0;
+	for (int i = 0; i < STATIONS; i++)
+		if (stations[i].mac)
+			pstations[ii++] = &stations[i];
+	pstations[ii] = 0; // null terminate
+	scount = ii;
 
 	// bubble sort station pointers by signal
 	for (int i = 0; i < ii - 1; i++)
@@ -721,6 +709,12 @@ static void sort() {
 				pstations[j + 1] = x;
 			}
 		}
+
+	// sort station clients
+	for (station_t **ss = pstations; *ss; ss++)
+		sort_station(SS);
+
+	PROFILING_LOG("sort stations")
 }
 
 static int load_ethers() {
@@ -856,10 +850,10 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
-			sort();
-			dump_sorted();
+			sort_stations();
+			dump_compact();
 			dump_flat();
-			dump_raw();
+			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
 		}
 	}
 }
@@ -870,16 +864,17 @@ static int init() {
 	load_ieee();
 	load_ethers();
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
+	load_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
+
+	strcpy(cache->ssid, "CACHE");
+	cache->mac = ZMAC;
+	cache->signal = -998;
+	uint642mac(cache->mac, cache->smac);
 
 	strcpy(zombies->ssid, "ZOMBIES");
 	zombies->mac = ZMAC;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
-
-	strcpy(cache->ssid, "CACHE");
-	cache->mac = ZMAC;
-	cache->signal = -999;
-	uint642mac(cache->mac, cache->smac);
 
 	pthread_mutex_init(&lock, NULL);
 
@@ -911,6 +906,7 @@ static int init() {
 }
 
 static void stop() {
+	store_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
 	store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	if (pthread_cancel(thread))
@@ -945,10 +941,9 @@ static int test() {
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
 
-	sort();
-	dump_sorted();
+	sort_stations();
+	dump_compact();
 	dump_flat();
-	dump_raw();
 
 	mcp_stop();
 	return 0;

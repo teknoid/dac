@@ -16,10 +16,13 @@ typedef struct client_t {
 	char name[64];
 	char smac[18];
 } client_t;
+size_t CLIENT_SIZE = sizeof(client_t);
 
 typedef struct station_t {
 	uint64_t mac;
 	time_t ts;
+	int dirty;
+	int ccount;
 	int count;
 	int signal;
 	int channel;
@@ -30,6 +33,7 @@ typedef struct station_t {
 	client_t clients[CLIENTS];
 	client_t *pclients[CLIENTS + 1];
 } station_t;
+size_t STATION_SIZE = sizeof(station_t);
 
 typedef struct connection_t {
 	pthread_t thread;
@@ -42,6 +46,7 @@ typedef struct connection_t {
 	char line_dump[LINEBUF];
 	unsigned int line_count;
 } connection_t;
+size_t CONNECTION_SIZE = sizeof(connection_t);
 
 typedef struct description_t {
 	uint64_t mac;
