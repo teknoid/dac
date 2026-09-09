@@ -543,101 +543,83 @@ static void dump_flat() {
 
 static void assign() {
 	PROFILING_START
-	pthread_mutex_lock(&lock);
 
-	for (int i = 0; i < CLIENTS; i++) {
-		client_t *z = &(zombies->clients[i]);
-		if (!z->mac)
-			continue;
+	for (client_t **zz = zombies->pclients; *zz; zz++) {
 
 		int assigned = 0, remove = 0;
-		for (int j = 0; j < STATIONS - 2; j++) {
-			station_t *s = &stations[j];
-			if (!s->mac)
+		for (station_t **ss = pstations; *ss; ss++) {
+
+			if (SS == cache || SS == zombies)
 				continue;
 
-			if (z->mac == s->mac) {
-				xdebug("WIFI zombie %s is station %s -> removing", NAME(z), NAME(s));
+			if (ZZ->mac == SS->mac) {
+				xdebug("WIFI zombie %s is station %s -> removing", NAME(ZZ), NAME(SS));
 				remove++;
 				break;
 			}
 
-			for (int k = 0; k < CLIENTS; k++) {
-				client_t *c = &(s->clients[k]);
-				if (!c->mac)
-					continue;
-
-				if (z->mac == c->mac) {
+			for (client_t **cc = SS->pclients; *cc; cc++) {
+				if (ZZ->mac == CC->mac) {
 					assigned++;
-					if (!strcmp(s->ssid, z->ssid))
+					if (!strcmp(SS->ssid, ZZ->ssid))
 						// assigned to correct station
 						remove++;
 					else
 						// take over zombie's ssid (probe request)
-						strcpy(c->ssid, z->ssid);
-					notify_zombie_assigned(s, z);
+						strcpy(CC->ssid, ZZ->ssid);
+					notify_zombie_assigned(SS, ZZ);
 					break;
 				}
 			}
 		}
 
 		// mark as assigned
-		if (z->tag == 'z' && assigned)
-			z->tag = 'a';
-		if (z->tag == 'u' && assigned)
-			z->tag = 'a';
+		if (ZZ->tag == 'z' && assigned)
+			ZZ->tag = 'a';
+		if (ZZ->tag == 'u' && assigned)
+			ZZ->tag = 'a';
 
 		// mark as unassigned
-		if (z->tag == 'a' && !assigned)
-			z->tag = 'u';
+		if (ZZ->tag == 'a' && !assigned)
+			ZZ->tag = 'u';
 
 		// remove
 		if (remove)
-			z->mac = 0;
+			ZZ->mac = 0;
 	}
 
-	pthread_mutex_unlock(&lock);
 	PROFILING_LOG("assign")
 }
 
 static void expired() {
 	PROFILING_START
-	pthread_mutex_lock(&lock);
 
-	for (int i = 0; i < STATIONS; i++) {
-		station_t *s = &stations[i];
-		if (!s->mac)
-			continue;
+	for (station_t **ss = pstations; *ss; ss++) {
 
-		for (int j = 0; j < CLIENTS; j++) {
-			client_t *c = &(s->clients[j]);
-			if (!c->mac)
-				continue;
+		// remove expired station
+		int age = now_ts - SS->ts;
+		int e1 = SS->ccount == 0 && age > SECONDS_1D;
+		if (e1) {
+			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
+			SS->mac = 0;
+		}
 
-			// remove expired client
-			int age = now_ts - c->ts;
-			int ec = s == cache && age > SECONDS_1H;
-			int ez = s == zombies && age > SECONDS_1W;
-			int e1 = s != zombies && c->count < 5 && age > SECONDS_5M;
-			int e2 = s != zombies && c->count < 10 && age > SECONDS_1H;
-			int e3 = s != zombies && c->count < 100 && age > SECONDS_1D;
+		// remove expired clients
+		for (client_t **cc = SS->pclients; *cc; cc++) {
+			int age = now_ts - CC->ts;
+			int ec = SS == cache && age > SECONDS_1H;
+			int ez = SS == zombies && age > SECONDS_1W;
+			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M;
+			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H;
+			int e3 = SS != zombies && CC->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
 			if (ec || ez || e1 || e2 || e3 || e4) {
 				// xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
-				c->mac = 0;
+				CC->mac = 0;
 			}
-		}
-
-		// remove expired station
-		int age = now_ts - s->ts;
-		int e1 = s->ccount == 0 && age > SECONDS_1D;
-		if (e1) {
-			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
-			s->mac = 0;
 		}
 	}
 
-	pthread_mutex_unlock(&lock);
 	PROFILING_LOG("expired")
 }
 
@@ -655,6 +637,7 @@ static void sort_station(station_t *s) {
 		return;
 
 	// bubble sort client pointers by count
+	s->dirty = 0;
 	for (int i = 0; i < ii - 1; i++)
 		for (int j = 0; j < ii - i - 1; j++) {
 			client_t *x = s->pclients[j];
@@ -662,8 +645,14 @@ static void sort_station(station_t *s) {
 			if (y->count > x->count) {
 				s->pclients[j] = y;
 				s->pclients[j + 1] = x;
+				s->dirty++;
 			}
 		}
+
+	if (s->dirty < 10)
+		return;
+
+	xdebug("WIFI station %s reorganization needed", NAME(s));
 
 	// copy clients in sorted order and then copy all back
 	station_t copy;
@@ -835,9 +824,10 @@ static int load_ieee() {
 static void loop() {
 	while (1) {
 		sleep(1);
-		now_ts = time(NULL);
+		now_ts = cache->ts = zombies->ts = time(NULL);
 
-		cache->ts = zombies->ts = now_ts;
+		if (now_ts % 10 == 0)
+			sort_stations();
 
 		if (now_ts % 10 == 0)
 			assign();
@@ -846,7 +836,6 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
-			sort_stations();
 			dump_compact();
 			dump_flat();
 			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
@@ -855,12 +844,13 @@ static void loop() {
 }
 
 static int init() {
-	now_ts = time(NULL);
+	pthread_mutex_init(&lock, NULL);
+	now_ts = cache->ts = zombies->ts = time(NULL);
 
 	load_ieee();
 	load_ethers();
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
-	load_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
+//	load_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
 
 	strcpy(cache->ssid, "CACHE");
 	cache->mac = ZMAC;
@@ -872,7 +862,8 @@ static int init() {
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
 
-	pthread_mutex_init(&lock, NULL);
+	// initially update station / client pointers
+	sort_stations();
 
 	struct sockaddr_in address;
 	address.sin_family = AF_INET;
@@ -902,7 +893,7 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
+//	store_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
 	store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	if (pthread_cancel(thread))
@@ -937,7 +928,6 @@ static int test() {
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
 
-	sort_stations();
 	dump_compact();
 	dump_flat();
 
