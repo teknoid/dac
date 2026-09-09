@@ -57,12 +57,12 @@ int curl_perform(CURL *curl, response_t *memory, parser_t *parser) {
 
 	CURLcode ret = curl_easy_perform(curl);
 	if (ret != CURLE_OK)
-		return xerrr(1, "CURL curl perform error %d: %s", ret, curl_easy_strerror(ret));
+		return xerri(-1, "CURL curl perform error %d: %s", ret, curl_easy_strerror(ret));
 
 	long http_code = 0;
 	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 	if (http_code != 200)
-		return xerrr(1, "CURL got response code %d", http_code);
+		return xerri(http_code, "CURL got response code %d", http_code);
 
 	if (parser != NULL)
 		return (parser)(memory);

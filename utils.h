@@ -118,7 +118,8 @@ void xlog_close();
 void xlog(const char *format, ...);
 void xdebug(const char *format, ...);
 int xerr(const char *format, ...);
-int xerrr(int ret, const char *format, ...);
+int xerri(int ret, const char *format, ...);
+void* xerrv(const char *format, ...);
 
 void xlogl_start(char *line, const char *s);
 void xlogl_bits(char *line, const char *name, int bits);

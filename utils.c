@@ -197,7 +197,7 @@ int xerr(const char *format, ...) {
 	return -1;
 }
 
-int xerrr(int ret, const char *format, ...) {
+int xerri(int ret, const char *format, ...) {
 	if (!output)
 		return ret;
 
@@ -238,6 +238,49 @@ int xerrr(int ret, const char *format, ...) {
 
 	pthread_mutex_unlock(&lock);
 	return ret;
+}
+
+void* xerrv(const char *format, ...) {
+	if (!output)
+		return (void*) 0;
+
+	// !!! do not call xlog(format) here as varargs won't work correctly
+	va_list vargs;
+
+	pthread_mutex_lock(&lock);
+
+	if (output == XLOG_STDOUT) {
+		va_start(vargs, format);
+		vprintf(format, vargs);
+		va_end(vargs);
+		printf("\n");
+	}
+
+	if (output == XLOG_SYSLOG) {
+		va_start(vargs, format);
+		vsyslog(LOG_NOTICE, format, vargs);
+		va_end(vargs);
+	}
+
+	if (output == XLOG_FILE) {
+		if (xlog_file == 0)
+			xlog_open();
+
+		LOCALTIME
+
+		char timestamp[26];
+		strftime(timestamp, 26, "%d.%m.%Y %H:%M:%S", now);
+		fprintf(xlog_file, "%s ", timestamp);
+
+		va_start(vargs, format);
+		vfprintf(xlog_file, format, vargs);
+		va_end(vargs);
+		fprintf(xlog_file, "\n");
+		fflush(xlog_file);
+	}
+
+	pthread_mutex_unlock(&lock);
+	return (void*) 0;
 }
 
 void xlogl_start(char *line, const char *s) {

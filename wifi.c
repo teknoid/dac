@@ -454,22 +454,41 @@ static void* reader(void *arg) {
 	pthread_exit(NULL);
 }
 
-static void* listener(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
-		xerr("Error setting pthread_setcancelstate");
-		return (void*) 0;
-	}
+static void* server(void *arg) {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
+		return xerrv("Error setting pthread_setcancelstate");
 
+	// create server socket
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		return xerrv("socket failed");
+
+	// tune buffers
+	int opt = 1, bufsize = LINEBUF * 10;
+	setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+	setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+
+	struct sockaddr_in address;
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(PORT);
+
+	if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
+		return xerrv("bind failed");
+
+	if (listen(server_fd, SOMAXCONN) < 0)
+		return xerrv("listen failed");
+
+	xlog("WIFI listening on port %d for tcpdump output", PORT);
 	while (1) {
 		connection_t *conn = malloc(CONNECTION_SIZE);
 		conn->addr_len = sizeof(conn->address);
 
 		// wait for client connection
 		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
-		if (conn->sock <= 0) {
-			xerr("accept failed");
-			break;
-		}
+		if (conn->sock <= 0)
+			return xerrv("accept failed");
 
 		// get client ip address
 		struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
@@ -485,22 +504,16 @@ static void* listener(void *arg) {
 
 		// convert socket into file stream for reading line by line
 		conn->stream = fdopen(conn->sock, "r");
-		if (conn->stream == NULL) {
-			xerr("fdopen failed");
-			break;
-		}
+		if (conn->stream == NULL)
+			return xerrv("fdopen failed");
 
 		// start new thread
-		if (pthread_create(&conn->thread, 0, &reader, (void*) conn)) {
-			xerr("Error creating thread");
-			break;
-		}
+		if (pthread_create(&conn->thread, 0, &reader, (void*) conn))
+			return xerrv("Error creating thread");
 
 		// detach it
-		if (pthread_detach(conn->thread)) {
-			xerr("Error detaching thread");
-			break;
-		}
+		if (pthread_detach(conn->thread))
+			return xerrv("Error detaching thread");
 	}
 
 	return (void*) 0;
@@ -875,33 +888,10 @@ static int init() {
 	// initially update station / client pointers
 	sort_stations();
 
-	// create server socket
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		return xerr("socket failed");
-
-	// tune buffers
-	int opt = 1, bufsize = LINEBUF * 10;
-	setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-	setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-
-	struct sockaddr_in address;
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(PORT);
-
-	if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
-		return xerr("bind failed");
-
-	if (listen(server_fd, SOMAXCONN) < 0)
-		return xerr("listen failed");
-
-	// start listener thread
-	if (pthread_create(&thread, NULL, &listener, NULL))
+	// start server thread
+	if (pthread_create(&thread, NULL, &server, NULL))
 		return xerr("Error creating thread");
 
-	xlog("WIFI listening on port %d for tcpdump output", PORT);
 	return 0;
 }
 

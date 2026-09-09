@@ -649,7 +649,7 @@ static int scan(int argc, char **argv) {
 	modbus_set_slave(mb, slave);
 	int rc = modbus_connect(mb);
 	if (rc != 0)
-		return xerrr(rc, "SUNSPEC modbus_connect returned %d", rc);
+		return xerri(rc, "SUNSPEC modbus_connect returned %d", rc);
 
 	uint16_t *buffer = malloc(sizeof(uint16_t) * MODBUS_MAX_READ_REGISTERS);
 	modbus_read_registers(mb, addr, MODBUS_MAX_READ_REGISTERS, buffer);
@@ -699,7 +699,7 @@ static int test2(int argc, char **argv) {
 	// modbus_set_slave(mb, 2);
 	int rc = modbus_connect(mb);
 	if (rc != 0)
-		return xerrr(rc, "SUNSPEC modbus_connect returned %d", rc);
+		return xerri(rc, "SUNSPEC modbus_connect returned %d", rc);
 
 	uint32_t sunspec_id = 0;
 	int address = SUNSPEC_BASE_ADDRESS;
