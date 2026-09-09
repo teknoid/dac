@@ -33,19 +33,17 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-//#define DUMMY					0x112233445566
-#define ZMAC					0xaaffeeaaffee
+#define DUMMY					0xaaffeeaaffee
 
-#define SECONDS_1W 				60 * 60 * 24 * 7
-#define SECONDS_1D 				60 * 60 * 24
-#define SECONDS_1HX 			60 * 60 + 300
-#define SECONDS_1H 				60 * 60
-#define SECONDS_5M				60 * 5
+#define SECONDS_1W 				(60 * 60 * 24 * 7)
+#define SECONDS_1D 				(60 * 60 * 24)
+#define SECONDS_1HX 			(60 * 60 + 300)
+#define SECONDS_1H 				(60 * 60)
+#define SECONDS_5M				(60 * 5)
 
 #define WIFI_COMPACT			"wifi-compact.txt"
 #define WIFI_FLAT				"wifi-flat.txt"
 #define WIFI_BIN				"wifi.bin"
-//#define ZOMBIES_BIN				"zombies.bin"
 
 // cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
 // and then manually remove last line (headline)
@@ -103,7 +101,7 @@ static void notify_client_found(station_t *s, client_t *c) {
 	if (age < SECONDS_1HX)
 		return;
 
-	xdebug("WIFI station %s client %s is back, age=%d", NAME(s), NAME(c), age);
+	xdebug("WIFI station %s client %s is back, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 	dump_line = 1;
 
 	// not when in CACHE station
@@ -111,8 +109,8 @@ static void notify_client_found(station_t *s, client_t *c) {
 		if (cache->clients[i].mac == c->mac)
 			return;
 
-	// not for anonymous clients
-	if (EMPTY(c->ssid) && EMPTY(c->name))
+	// not for volatile anonymous clients
+	if (c->count < 1000 && EMPTY(c->name))
 		return;
 
 	// not for stations
@@ -516,7 +514,7 @@ static void* server(void *arg) {
 			return xerrv("Error detaching thread");
 	}
 
-	return (void*) 0;
+	pthread_exit(NULL);
 }
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
@@ -694,7 +692,7 @@ static void sort_station(station_t *s) {
 	s->ccount = count;
 }
 
-static void sort_stations() {
+static void sort() {
 //	PROFILING_START
 	pthread_mutex_lock(&lock);
 
@@ -844,13 +842,21 @@ static int load_ieee() {
 	return 0;
 }
 
+static void update_name(const char *smac, const char *name) {
+	uint64_t mac = mac2uint64(smac);
+	for (station_t **ss = pstations; *ss; ss++)
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			if (mac == CC->mac)
+				strcpy(CC->name, name);
+}
+
 static void loop() {
 	while (1) {
 		sleep(1);
 		now_ts = cache->ts = zombies->ts = time(NULL);
 
 		if (now_ts % 10 == 0)
-			sort_stations();
+			sort();
 
 		if (now_ts % 15 == 0)
 			assign();
@@ -859,9 +865,13 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
+			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
+
 			dump_compact();
 			dump_flat();
-			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
+
+			if (now_ts % SECONDS_1D == 0)
+				store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 		}
 	}
 }
@@ -873,20 +883,19 @@ static int init() {
 	load_ieee();
 	load_ethers();
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
-//	load_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
 
 	strcpy(cache->ssid, "CACHE");
-	cache->mac = ZMAC;
+	cache->mac = DUMMY;
 	cache->signal = -998;
 	uint642mac(cache->mac, cache->smac);
 
 	strcpy(zombies->ssid, "ZOMBIES");
-	zombies->mac = ZMAC;
+	zombies->mac = DUMMY;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
 
 	// initially update station / client pointers
-	sort_stations();
+	sort();
 
 	// start server thread
 	if (pthread_create(&thread, NULL, &server, NULL))
@@ -896,7 +905,6 @@ static int init() {
 }
 
 static void stop() {
-//	store_blob(STATE SLASH ZOMBIES_BIN, zombies->clients, CLIENT_SIZE * CLIENTS);
 	store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	if (pthread_cancel(thread))
@@ -926,10 +934,13 @@ static int test() {
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	client_t cc, *c = &cc;
-	c->mac = ZMAC;
+	c->mac = DUMMY;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
+
+	update_name("54:df:1b:e6:e3:83", "");
+	update_name("0a:df:70:e0:f2:ad", "");
 
 	dump_compact();
 	dump_flat();
