@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 
 #include "utils.h"
@@ -32,7 +33,7 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-#define DUMMY					0x112233445566
+//#define DUMMY					0x112233445566
 #define ZMAC					0xaaffeeaaffee
 
 #define SECONDS_1W 				60 * 60 * 24 * 7
@@ -44,7 +45,7 @@
 #define WIFI_COMPACT			"wifi-compact.txt"
 #define WIFI_FLAT				"wifi-flat.txt"
 #define WIFI_BIN				"wifi.bin"
-#define ZOMBIES_BIN				"zombies.bin"
+//#define ZOMBIES_BIN				"zombies.bin"
 
 // cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
 // and then manually remove last line (headline)
@@ -308,7 +309,7 @@ static void parse(connection_t *conn) {
 	// xlog("WIFI read line %s %s", conn->ip, conn->line);
 
 	// make a copy for line dumping after strtok()
-	strncpy(conn->line_dump, conn->line, LINEBUF);
+	memcpy(conn->line_dump, conn->line, LINEBUF);
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
@@ -318,24 +319,24 @@ static void parse(connection_t *conn) {
 	// split line into tokens
 	char *t, *oldt, *rest = conn->line;
 	while ((t = strtok_r(rest, " ", &rest))) {
-		if (starts_with("BSSID", t, strlen(t)))
+		if (!strncmp("BSSID:", t, 6))
 			bssid = mac2uint64(t + 6);
 
-		if (starts_with("SA", t, strlen(t)))
+		if (!strncmp("SA:", t, 3))
 			sa = mac2uint64(t + 3);
 
-		if (starts_with("DA", t, strlen(t)))
+		if (!strncmp("DA:", t, 3))
 			da = mac2uint64(t + 3);
 
-		if (starts_with("RA", t, strlen(t)))
+		if (!strncmp("RA:", t, 3))
 			ra = mac2uint64(t + 3);
 
-		if (starts_with("TA", t, strlen(t)))
+		if (!strncmp("TA:", t, 3))
 			ta = mac2uint64(t + 3);
 
-		if (ends_with("dBm", t, strlen(t)))
+		if (!strcmp("signal", t))
 			if (!signal)
-				sscanf(t, "%ddBm", &signal);
+				sscanf(oldt, "%ddBm", &signal);
 
 		if (!strcmp("MHz", t))
 			if (!freq)
@@ -441,12 +442,6 @@ static void parse(connection_t *conn) {
 static void* reader(void *arg) {
 	connection_t *conn = (connection_t*) arg;
 
-	// get client ip address
-	struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
-	char *ip = inet_ntoa(sa_in->sin_addr);
-	strncpy(conn->ip, ip, 16);
-	xlog("WIFI new connection from %s", conn->ip);
-
 	// read line by line
 	while (fgets(conn->line, LINEBUF - 1, conn->stream) != NULL)
 		parse(conn);
@@ -476,6 +471,18 @@ static void* listener(void *arg) {
 			break;
 		}
 
+		// get client ip address
+		struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
+		char *ip = inet_ntoa(sa_in->sin_addr);
+		strncpy(conn->ip, ip, 16);
+		xlog("WIFI new connection from %s", conn->ip);
+
+		// tune buffers
+		int opt = 1, bufsize = LINEBUF * 10;
+		setsockopt(conn->sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+		setsockopt(conn->sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+		setsockopt(conn->sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+
 		// convert socket into file stream for reading line by line
 		conn->stream = fdopen(conn->sock, "r");
 		if (conn->stream == NULL) {
@@ -496,7 +503,7 @@ static void* listener(void *arg) {
 		}
 	}
 
-	pthread_exit(NULL);
+	return (void*) 0;
 }
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
@@ -542,7 +549,7 @@ static void dump_flat() {
 }
 
 static void assign() {
-	PROFILING_START
+//	PROFILING_START
 
 	for (client_t **zz = zombies->pclients; *zz; zz++) {
 
@@ -559,17 +566,18 @@ static void assign() {
 			}
 
 			for (client_t **cc = SS->pclients; *cc; cc++) {
-				if (ZZ->mac == CC->mac) {
-					assigned++;
-					if (!strcmp(SS->ssid, ZZ->ssid))
-						// assigned to correct station
-						remove++;
-					else
-						// take over zombie's ssid (probe request)
-						strcpy(CC->ssid, ZZ->ssid);
-					notify_zombie_assigned(SS, ZZ);
-					break;
-				}
+				if (ZZ->mac != CC->mac)
+					continue;
+
+				assigned++;
+				if (!strcmp(SS->ssid, ZZ->ssid))
+					// assigned to correct station
+					remove++;
+				else
+					// take over zombie's ssid (probe request)
+					strcpy(CC->ssid, ZZ->ssid);
+				notify_zombie_assigned(SS, ZZ);
+				break;
 			}
 		}
 
@@ -588,11 +596,11 @@ static void assign() {
 			ZZ->mac = 0;
 	}
 
-	PROFILING_LOG("assign")
+//	PROFILING_LOG("assign")
 }
 
 static void expired() {
-	PROFILING_START
+//	PROFILING_START
 
 	for (station_t **ss = pstations; *ss; ss++) {
 
@@ -620,26 +628,29 @@ static void expired() {
 		}
 	}
 
-	PROFILING_LOG("expired")
+//	PROFILING_LOG("expired")
 }
 
 static void sort_station(station_t *s) {
+	station_t copy;
+	int count;
+
 	// update client pointer
-	int ii = 0;
+	count = 0;
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac)
-			s->pclients[ii++] = &s->clients[i];
-	s->pclients[ii] = 0; // null terminate
-	s->ccount = ii;
+			s->pclients[count++] = &s->clients[i];
+	s->pclients[count] = 0; // null terminate
+	s->ccount = count;
 
 	// empty
-	if (!ii)
+	if (!count)
 		return;
 
 	// bubble sort client pointers by count
 	s->dirty = 0;
-	for (int i = 0; i < ii - 1; i++)
-		for (int j = 0; j < ii - i - 1; j++) {
+	for (int i = 0; i < count - 1; i++)
+		for (int j = 0; j < count - i - 1; j++) {
 			client_t *x = s->pclients[j];
 			client_t *y = s->pclients[j + 1];
 			if (y->count > x->count) {
@@ -652,40 +663,39 @@ static void sort_station(station_t *s) {
 	if (s->dirty < 10)
 		return;
 
-	xdebug("WIFI station %s reorganization needed", NAME(s));
+//	xdebug("WIFI station %s reorganization needed", NAME(s));
 
 	// copy clients in sorted order and then copy all back
-	station_t copy;
 	memset(&copy, 0, STATION_SIZE);
-	ii = 0;
+	count = 0;
 	for (client_t **cc = s->pclients; *cc; cc++)
-		memcpy(&(copy.clients[ii++]), CC, CLIENT_SIZE);
+		memcpy(&(copy.clients[count++]), CC, CLIENT_SIZE);
 	memcpy(&s->clients, &copy.clients, CLIENT_SIZE * CLIENTS);
 
 	// update client pointer again
-	ii = 0;
+	count = 0;
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac)
-			s->pclients[ii++] = &s->clients[i];
-	s->pclients[ii] = 0; // null terminate
-	s->ccount = ii;
+			s->pclients[count++] = &s->clients[i];
+	s->pclients[count] = 0; // null terminate
+	s->ccount = count;
 }
 
 static void sort_stations() {
-	PROFILING_START
+//	PROFILING_START
 	pthread_mutex_lock(&lock);
 
 	// update station pointer
-	int ii = 0;
+	int count = 0;
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac)
-			pstations[ii++] = &stations[i];
-	pstations[ii] = 0; // null terminate
-	scount = ii;
+			pstations[count++] = &stations[i];
+	pstations[count] = 0; // null terminate
+	scount = count;
 
 	// bubble sort station pointers by signal
-	for (int i = 0; i < ii - 1; i++)
-		for (int j = 0; j < ii - i - 1; j++) {
+	for (int i = 0; i < count - 1; i++)
+		for (int j = 0; j < count - i - 1; j++) {
 			station_t *x = pstations[j];
 			station_t *y = pstations[j + 1];
 			if (y->signal > x->signal) {
@@ -699,7 +709,7 @@ static void sort_stations() {
 		sort_station(SS);
 
 	pthread_mutex_unlock(&lock);
-	PROFILING_LOG("sort stations")
+//	PROFILING_LOG("sort stations")
 }
 
 static int load_ethers() {
@@ -829,7 +839,7 @@ static void loop() {
 		if (now_ts % 10 == 0)
 			sort_stations();
 
-		if (now_ts % 10 == 0)
+		if (now_ts % 15 == 0)
 			assign();
 
 		if (now_ts % 30 == 0)
@@ -865,23 +875,26 @@ static int init() {
 	// initially update station / client pointers
 	sort_stations();
 
+	// create server socket
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		return xerr("socket failed");
+
+	// tune buffers
+	int opt = 1, bufsize = LINEBUF * 10;
+	setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+	setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+
 	struct sockaddr_in address;
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons(PORT);
 
-	// create server socket
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		return xerr("socket failed");
-
-	int opt = 1;
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)))
-		return xerr("setsockopt failed");
-
 	if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
 		return xerr("bind failed");
 
-	if (listen(server_fd, 3) < 0)
+	if (listen(server_fd, SOMAXCONN) < 0)
 		return xerr("listen failed");
 
 	// start listener thread
