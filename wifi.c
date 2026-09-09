@@ -33,7 +33,8 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-#define DUMMY					0xaaffeeaaffee
+#define ZOMBIE_CACHE			0xaaffeeaaffee
+#define DUMMY					0x112233445566
 
 #define SECONDS_1W 				(60 * 60 * 24 * 7)
 #define SECONDS_1D 				(60 * 60 * 24)
@@ -885,12 +886,12 @@ static int init() {
 	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
 
 	strcpy(cache->ssid, "CACHE");
-	cache->mac = DUMMY;
+	cache->mac = ZOMBIE_CACHE;
 	cache->signal = -998;
 	uint642mac(cache->mac, cache->smac);
 
 	strcpy(zombies->ssid, "ZOMBIES");
-	zombies->mac = DUMMY;
+	zombies->mac = ZOMBIE_CACHE;
 	zombies->signal = -999;
 	uint642mac(zombies->mac, zombies->smac);
 
@@ -934,13 +935,12 @@ static int test() {
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	client_t cc, *c = &cc;
-	c->mac = DUMMY;
+	c->mac = ZOMBIE_CACHE;
 	uint642mac(c->mac, c->smac);
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
 
-	update_name("54:df:1b:e6:e3:83", "");
-	update_name("0a:df:70:e0:f2:ad", "");
+	update_name(DUMMY, "");
 
 	dump_compact();
 	dump_flat();
