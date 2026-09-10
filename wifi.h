@@ -1,4 +1,4 @@
-#define STATIONS					64
+#define STATIONS					128
 #define CLIENTS						256
 
 #define LINEBUF						2048

@@ -515,12 +515,12 @@ static void calculate_gstate_online() {
 	}
 
 	// heating
-	if (sensor6->tout < 12.0 && sensor->tin < 23.0)
-		gstate->flags |= FLAG_HEATING;
 	if (SUMMER && sensor->tin < 18.0)
 		gstate->flags |= FLAG_HEATING;
-	if (!SUMMER && sensor->tin < 23.0)
+	if (!SUMMER && sensor->tin < 22.0)
 		gstate->flags |= FLAG_HEATING;
+	if (sensor6->tout < 12.0 && sensor->tin < 24.0)
+		gstate->flags |= FLAG_HEATING; // cold nights
 	// force heating
 	if ((now->tm_mon < 3 || now->tm_mon > 9) && sensor->tin < 28.0) // nov-mar always
 		gstate->flags |= FLAG_HEATING;

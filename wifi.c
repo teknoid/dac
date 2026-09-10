@@ -69,12 +69,13 @@ static description_t ieee[0xffff];
 static int ieee_index[0xff];
 
 static pthread_mutex_t lock;
-static pthread_t thread;
 static time_t now_ts;
+
+static pthread_t server_thread;
+static int server_fd;
 
 static unsigned long line_count = 0;
 static int dump_line;
-static int server_fd;
 
 static void notify(const char *title, const char *text, const char *sound) {
 	mqtt_notify(title, text, sound);
@@ -248,7 +249,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			return s;
 		}
 
-	xerr("WIFI stations table is full!");
+	xerr("WIFI stations table overflow!");
 	return 0;
 }
 
@@ -270,10 +271,13 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			c->count++;
 			c->ts = now_ts;
 			if (s == zombies) {
-				// update zombies mac, smac and ou
-				c->mac = mac;
-				mac2string(c->smac, c->mac);
-				mac2ou(c->ou, c->mac, DESCRIPTION);
+				// update mac, smac and ou as long as zombie is unassigned
+				if (c->mac != mac && c->tag != 'a') {
+					xdebug("WIFI updating zombie %s tag=%c old mac=%12lx new mac=%12lx ", NAME(c), c->tag, c->mac, mac);
+					c->mac = mac;
+					mac2string(c->smac, c->mac);
+					mac2ou(c->ou, c->mac, DESCRIPTION);
+				}
 			} else
 				// update tag on all others
 				c->tag = tag;
@@ -314,7 +318,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			return c;
 		}
 
-	xerr("WIFI station %s client table is full!", NAME(s));
+	xerr("WIFI station %s client table overflow!", NAME(s));
 	return 0;
 }
 
@@ -505,14 +509,14 @@ static void* server(void *arg) {
 	if (listen(server_fd, SOMAXCONN) < 0)
 		return xerrv("listen failed");
 
-	xlog("WIFI listening on port %d for tcpdump output", PORT);
+	xlog("WIFI listening on port %d for tcpdump output: tcpdump -nevi <device> | nc %s %d", PORT, mcp->hostname, PORT);
 	while (1) {
 		connection_t *conn = malloc(CONNECTION_SIZE);
 		conn->addr_len = sizeof(conn->address);
 
 		// wait for client connection
 		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
-		if (conn->sock <= 0)
+		if (conn->sock < 0)
 			return xerrv("accept failed");
 
 		// get client ip address
@@ -645,26 +649,37 @@ static void expired() {
 
 		// remove expired station
 		int age = now_ts - SS->ts;
-		int e1 = SS->ccount == 0 && age > SECONDS_1D;
-		if (e1) {
-			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(SS), age, SS->count);
+		int ee = age > SECONDS_1W;
+		int e1 = SS->ccount == 0 && age > SECONDS_1D && EMPTY(SS->ssid);
+		if (ee || e1) {
+			xdebug("WIFI station %s expired, age=%d count=%d", NAME(SS), age, SS->count);
 			SS->mac = 0;
 		}
 
 		// remove expired clients
+		client_t *oldest = &SS->clients[0];
 		for (client_t **cc = SS->pclients; *cc; cc++) {
-			int dubious = EMPTY(CC->ou);
+			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
+			int ee = age > SECONDS_1W;
 			int ec = SS == cache && age > SECONDS_1H;
-			int ez = SS == zombies && age > SECONDS_1W;
-			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M && dubious;
-			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H && dubious;
+			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M && fake;
+			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H && fake;
 			int e3 = SS != zombies && CC->count < 100 && age > SECONDS_1D;
-			int e4 = age > SECONDS_1W;
-			if (ec || ez || e1 || e2 || e3 || e4) {
-				// xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(SS), NAME(CC), age, CC->count);
+			if (ee || ec || e1 || e2 || e3) {
+				// xdebug("WIFI station %s client %s expired, age=%d count=%d", NAME(SS), NAME(CC), age, CC->count);
 				CC->mac = 0;
 			}
+
+			// track oldest entry
+			if (CC->ts < oldest->ts)
+				oldest = CC;
+		}
+
+		// keep at least 10 free slots
+		if (SS->ccount > CLIENTS - 10) {
+			xdebug("WIFI station %s force expire oldest entry %s (%s) age=%d", NAME(SS), NAME(oldest), oldest->smac, now_ts - oldest->ts);
+			oldest->mac = 0;
 		}
 	}
 
@@ -871,84 +886,46 @@ static int load_ieee() {
 	return 0;
 }
 
-static void update_name(const char *smac, const char *name) {
+static int update(char **argv) {
+	mcp_init();
+
+	char *smac = argv[2];
+	char *name = argv[3];
 	uint64_t mac = string2mac(smac);
+
+	if (EMPTY(smac) || EMPTY(name))
+		return xerr("Usage: wifi -u <mac> <name>");
+
 	for (station_t **ss = pstations; *ss; ss++) {
-		if (mac == SS->mac)
-			strcpy(SS->name, name);
 		for (client_t **cc = SS->pclients; *cc; cc++)
 			if (mac == CC->mac)
 				strcpy(CC->name, name);
+		if (mac == SS->mac)
+			strcpy(SS->name, name);
 	}
-}
 
-static void loop() {
-	while (1) {
-		sleep(1);
-		now_ts = cache->ts = zombies->ts = time(NULL);
-
-		if (now_ts % 10 == 0)
-			sort();
-
-		if (now_ts % 15 == 0)
-			assign();
-
-		if (now_ts % 30 == 0)
-			expired();
-
-		if (now_ts % 60 == 0) {
-			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
-
-			dump_compact();
-			dump_flat();
-
-			if (now_ts % SECONDS_1D == 0)
-				store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
-		}
-	}
-}
-
-static int init() {
-	pthread_mutex_init(&lock, NULL);
-	now_ts = cache->ts = zombies->ts = time(NULL);
-
-	load_ieee();
-	load_ethers();
-	load_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
-
-	strcpy(cache->ssid, "CACHE");
-	cache->mac = ZOMBIE_CACHE;
-	cache->signal = -998;
-	mac2string(cache->smac, cache->mac);
-
-	strcpy(zombies->ssid, "ZOMBIES");
-	zombies->mac = ZOMBIE_CACHE;
-	zombies->signal = -999;
-	mac2string(zombies->smac, zombies->mac);
-
-	// initially update station / client pointers
-	sort();
-
-	// start server thread
-	if (pthread_create(&thread, NULL, &server, NULL))
-		return xerr("Error creating thread");
-
+	mcp_stop();
 	return 0;
 }
 
-static void stop() {
-	store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
+static int delete(char *smac) {
+	mcp_init();
 
-	if (pthread_cancel(thread))
-		xerr("Error canceling thread");
+	uint64_t mac = string2mac(smac);
 
-	if (pthread_join(thread, NULL))
-		xerr("Error joining thread");
+	if (EMPTY(smac))
+		return xerr("Usage: wifi -d <mac>");
 
-	if (server_fd)
-		close(server_fd);
+	for (station_t **ss = pstations; *ss; ss++) {
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			if (mac == CC->mac)
+				CC->mac = 0;
+		if (mac == SS->mac)
+			SS->mac = 0;
+	}
 
-	pthread_mutex_destroy(&lock);
+	mcp_stop();
+	return 0;
 }
 
 static int test() {
@@ -969,11 +946,8 @@ static int test() {
 	c->mac = ZOMBIE_CACHE;
 	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
-	mqtt_notify("client is back", NAME(c), "au.wav");
+	notify("client is back", NAME(c), "au.wav");
 
-	update_name("", "");
-
-	sort();
 	dump_compact();
 	dump_flat();
 
@@ -981,17 +955,88 @@ static int test() {
 	return 0;
 }
 
+static void loop() {
+	while (1) {
+		sleep(1);
+		now_ts = cache->ts = zombies->ts = time(NULL);
+		// xdebug("loop %d", SECONDS_1D - (now_ts % SECONDS_1D));
+
+		if (now_ts % 10 == 0)
+			sort();
+
+		if (now_ts % 15 == 0)
+			assign();
+
+		if (now_ts % 30 == 0)
+			expired();
+
+		if (now_ts % 60 == 0) {
+			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
+			dump_compact();
+			dump_flat();
+		}
+
+		if (now_ts % SECONDS_1D == 0)
+			store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
+	}
+}
+
+static int init() {
+	pthread_mutex_init(&lock, NULL);
+	now_ts = cache->ts = zombies->ts = time(NULL);
+
+	load_ieee();
+	load_ethers();
+	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
+	sort(); // initially update station / client pointers
+
+	strcpy(cache->ssid, "CACHE");
+	cache->mac = ZOMBIE_CACHE;
+	cache->signal = -998;
+	mac2string(cache->smac, cache->mac);
+
+	strcpy(zombies->ssid, "ZOMBIES");
+	zombies->mac = ZOMBIE_CACHE;
+	zombies->signal = -999;
+	mac2string(zombies->smac, zombies->mac);
+
+	// start server thread
+	if (pthread_create(&server_thread, NULL, &server, NULL))
+		return xerr("Error creating thread");
+
+	return 0;
+}
+
+static void stop() {
+	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
+
+	if (pthread_cancel(server_thread))
+		xerr("Error canceling thread");
+
+	if (pthread_join(server_thread, NULL))
+		xerr("Error joining thread");
+
+	if (server_fd)
+		close(server_fd);
+
+	pthread_mutex_destroy(&lock);
+}
+
 int wifi_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
 	int c;
-	while ((c = getopt(argc, argv, "lt")) != -1) {
+	while ((c = getopt(argc, argv, "d:ltu:")) != -1) {
 		switch (c) {
+		case 'd':
+			return delete(optarg);
 		case 'l':
 			return mcp_main(argc, argv);
 		case 't':
 			return test();
+		case 'u':
+			return update(argv);
 		default:
 			xlog("unknown getopt %c", c);
 		}
