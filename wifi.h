@@ -11,9 +11,9 @@ typedef struct client_t {
 	int signal;
 	int channel;
 	char tag;
-	char ssid[64];
-	char ou[64];
-	char name[64];
+	char ssid[DESCRIPTION];
+	char ou[DESCRIPTION];
+	char name[DESCRIPTION];
 	char smac[18];
 } client_t;
 size_t CLIENT_SIZE = sizeof(client_t);
@@ -26,9 +26,9 @@ typedef struct station_t {
 	int count;
 	int signal;
 	int channel;
-	char ssid[64];
-	char ou[64];
-	char name[64];
+	char ssid[DESCRIPTION];
+	char ou[DESCRIPTION];
+	char name[DESCRIPTION];
 	char smac[18];
 	client_t clients[CLIENTS];
 	client_t *pclients[CLIENTS + 1];

@@ -164,6 +164,14 @@ static const char* get_ethers_name(uint64_t mac) {
 	return NULL;
 }
 
+static void mac2name(char *name, uint64_t mac, size_t size) {
+	const char *c = get_ethers_name(mac);
+	if (c != NULL)
+		strncpy(name, c, size);
+	else
+		*name = 0;
+}
+
 static const char* get_ieee_ou(uint64_t mac) {
 	// use index to calculate from/to search range in ieee table
 	int ii = mac >> 40 & 0xff;
@@ -182,6 +190,14 @@ static const char* get_ieee_ou(uint64_t mac) {
 			return ieee[i].description;
 
 	return NULL;
+}
+
+static void mac2ou(char *ou, uint64_t mac, size_t size) {
+	const char *c = get_ieee_ou(mac);
+	if (c != NULL)
+		strncpy(ou, c, size);
+	else
+		*ou = 0;
 }
 
 static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -222,13 +238,9 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			s->channel = channel;
 			s->signal = signal ? signal : -888;
 
-			uint642mac(s->mac, s->smac);
-			const char *ou = get_ieee_ou(s->mac);
-			if (ou != NULL)
-				strcpy(s->ou, ou);
-			const char *name = get_ethers_name(s->mac);
-			if (name != NULL)
-				strcpy(s->name, name);
+			mac2string(s->smac, s->mac);
+			mac2name(s->name, s->mac, DESCRIPTION);
+			mac2ou(s->ou, s->mac, DESCRIPTION);
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
@@ -258,17 +270,21 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			c->count++;
 			c->ts = now_ts;
 			if (s == zombies) {
-				c->mac = mac; // update zombies mac and smac
-				uint642mac(c->mac, c->smac);
+				// update zombies mac, smac and ou
+				c->mac = mac;
+				mac2string(c->smac, c->mac);
+				mac2ou(c->ou, c->mac, DESCRIPTION);
 			} else
-				c->tag = tag; // update tag on all others
+				// update tag on all others
+				c->tag = tag;
 			if (channel)
 				c->channel = channel;
 			if (signal)
 				c->signal = signal;
-			// take over ssid when different to station
-			if (strcmp(s->ssid, ssid))
-				strcpy(c->ssid, ssid);
+			// take over ssid when different to station and not empty
+			if (!EMPTY(ssid))
+				if (strcmp(s->ssid, ssid))
+					strcpy(c->ssid, ssid);
 
 			return c;
 		}
@@ -286,16 +302,13 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			c->channel = channel;
 			c->signal = signal;
 
-			uint642mac(c->mac, c->smac);
-			const char *ou = get_ieee_ou(c->mac);
-			if (ou != NULL)
-				strcpy(c->ou, ou);
-			const char *name = get_ethers_name(c->mac);
-			if (name != NULL)
-				strcpy(c->name, name);
-			// take over ssid when different to station
-			if (strcmp(s->ssid, ssid))
-				strcpy(c->ssid, ssid);
+			mac2string(c->smac, c->mac);
+			mac2name(c->name, c->mac, DESCRIPTION);
+			mac2ou(c->ou, c->mac, DESCRIPTION);
+			// take over ssid when different to station and not empty
+			if (!EMPTY(ssid))
+				if (strcmp(s->ssid, ssid))
+					strcpy(c->ssid, ssid);
 
 			notify_client_new(s, c);
 			return c;
@@ -332,19 +345,19 @@ static void parse(connection_t *conn) {
 	char *t, *oldt, *rest = conn->line;
 	while ((t = strtok_r(rest, " ", &rest))) {
 		if (!strncmp("BSSID:", t, 6))
-			bssid = mac2uint64(t + 6);
+			bssid = string2mac(t + 6);
 
 		if (!strncmp("SA:", t, 3))
-			sa = mac2uint64(t + 3);
+			sa = string2mac(t + 3);
 
 		if (!strncmp("DA:", t, 3))
-			da = mac2uint64(t + 3);
+			da = string2mac(t + 3);
 
 		if (!strncmp("RA:", t, 3))
-			ra = mac2uint64(t + 3);
+			ra = string2mac(t + 3);
 
 		if (!strncmp("TA:", t, 3))
-			ta = mac2uint64(t + 3);
+			ta = string2mac(t + 3);
 
 		if (!strcmp("signal", t))
 			if (!signal)
@@ -634,7 +647,7 @@ static void expired() {
 		int age = now_ts - SS->ts;
 		int e1 = SS->ccount == 0 && age > SECONDS_1D;
 		if (e1) {
-			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(s), age, s->count);
+			// xdebug("WIFI expired station %s, age=%d count=%d", NAME(SS), age, SS->count);
 			SS->mac = 0;
 		}
 
@@ -649,7 +662,7 @@ static void expired() {
 			int e3 = SS != zombies && CC->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
 			if (ec || ez || e1 || e2 || e3 || e4) {
-				// xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(s), NAME(c), age, c->count);
+				// xdebug("WIFI expired station %s client %s, age=%d count=%d", NAME(SS), NAME(CC), age, CC->count);
 				CC->mac = 0;
 			}
 		}
@@ -783,7 +796,7 @@ static int load_ethers() {
 			if (*(t + 2) == ':' && *(t + 5) == ':' && *(t + 8) == ':') {
 				// pointer to next entry
 				description_t *d = &ethers[ii++];
-				d->mac = mac2uint64(t);
+				d->mac = string2mac(t);
 				strncpy(d->description, name, DESCRIPTION - 1);
 			}
 		}
@@ -859,7 +872,7 @@ static int load_ieee() {
 }
 
 static void update_name(const char *smac, const char *name) {
-	uint64_t mac = mac2uint64(smac);
+	uint64_t mac = string2mac(smac);
 	for (station_t **ss = pstations; *ss; ss++) {
 		if (mac == SS->mac)
 			strcpy(SS->name, name);
@@ -906,12 +919,12 @@ static int init() {
 	strcpy(cache->ssid, "CACHE");
 	cache->mac = ZOMBIE_CACHE;
 	cache->signal = -998;
-	uint642mac(cache->mac, cache->smac);
+	mac2string(cache->smac, cache->mac);
 
 	strcpy(zombies->ssid, "ZOMBIES");
 	zombies->mac = ZOMBIE_CACHE;
 	zombies->signal = -999;
-	uint642mac(zombies->mac, zombies->smac);
+	mac2string(zombies->smac, zombies->mac);
 
 	// initially update station / client pointers
 	sort();
@@ -942,19 +955,19 @@ static int test() {
 	mcp_init();
 
 	uint64_t mac;
-	mac = mac2uint64("d4:ca:6e:43:a0:25");
+	mac = string2mac("d4:ca:6e:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
-	mac = mac2uint64("d4:ca:6f:43:a0:25");
+	mac = string2mac("d4:ca:6f:43:a0:25");
 	xlog("IEEE %012lx = %s", mac, get_ieee_ou(mac));
 
-	mac = mac2uint64("c6:7b:dc:17:38:d5");
+	mac = string2mac("c6:7b:dc:17:38:d5");
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
-	mac = mac2uint64("c6:7b:dc:17:38:d6");
+	mac = string2mac("c6:7b:dc:17:38:d6");
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	client_t cc, *c = &cc;
 	c->mac = ZOMBIE_CACHE;
-	uint642mac(c->mac, c->smac);
+	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
 

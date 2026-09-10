@@ -702,7 +702,7 @@ int devinput_find_key(const char *name) {
 	return 0;
 }
 
-uint64_t mac2uint64(const char *mac) {
+uint64_t string2mac(const char *mac) {
 	unsigned int u[6]; // %x needs "unsigned int"
 
 	int c = sscanf(mac, "%x:%x:%x:%x:%x:%x", u, u + 1, u + 2, u + 3, u + 4, u + 5);
@@ -716,7 +716,7 @@ uint64_t mac2uint64(const char *mac) {
 	return x;
 }
 
-void uint642mac(uint64_t mac, char *buf) {
+void mac2string(char *smac, uint64_t mac) {
 	unsigned int u[6]; // %x needs "unsigned int"
 
 	for (int i = 0; i < 6; i++) {
@@ -724,7 +724,7 @@ void uint642mac(uint64_t mac, char *buf) {
 		mac = mac >> 8;
 	}
 
-	snprintf(buf, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
+	snprintf(smac, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
 }
 
 void uint642ou(uint64_t mac, char *buf, size_t size) {
@@ -771,7 +771,7 @@ void uint642name(uint64_t mac, char *buf, size_t size) {
 	char smac[16], cmd[128], line[1024];
 
 	ZERO(line);
-	uint642mac(mac, smac);
+	mac2string(smac, mac);
 	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
 	FILE *fd = popen(cmd, "r");
 	fgets(line, 1024, fd);
