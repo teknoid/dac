@@ -76,12 +76,33 @@ static unsigned long line_count = 0;
 static int dump_line;
 static int server_fd;
 
+static void notify(const char *title, const char *text, const char *sound) {
+	mqtt_notify(title, text, sound);
+//	mcp_notify(title, text, sound, 0);
+}
+
 static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
 	dump_line = 1;
 
-	mqtt_notify("New Station", NAME(s), "au.wav");
-	// mcp_notify("New Station", NAME(s), "au.wav", 0);
+	notify("New Station", NAME(s), "au.wav");
+}
+
+static void notify_station_back(station_t *s) {
+	// only after 1+ hour
+	int age = now_ts - s->ts;
+	if (age < SECONDS_1HX)
+		return;
+
+	xdebug("WIFI station %s is back, age=%d count=%d", NAME(s), age, s->count);
+	dump_line = 1;
+
+	// not when in CACHE
+	for (int i = 0; i < CLIENTS; i++)
+		if (cache->clients[i].mac == s->mac)
+			return;
+
+	notify("Station is back", NAME(s), "au.wav");
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
@@ -92,11 +113,10 @@ static void notify_client_new(station_t *s, client_t *c) {
 	if (s != zombies)
 		return;
 
-	mqtt_notify("New Zombie", NAME(c), "au.wav");
-	// mcp_notify("New Zombie", NAME(z), "au.wav", 0);
+	notify("New Zombie", NAME(c), "au.wav");
 }
 
-static void notify_client_found(station_t *s, client_t *c) {
+static void notify_client_back(station_t *s, client_t *c) {
 	// only after 1+ hour
 	int age = now_ts - c->ts;
 	if (age < SECONDS_1HX)
@@ -105,7 +125,7 @@ static void notify_client_found(station_t *s, client_t *c) {
 	xdebug("WIFI station %s client %s is back, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 	dump_line = 1;
 
-	// not when in CACHE station
+	// not when in CACHE
 	for (int i = 0; i < CLIENTS; i++)
 		if (cache->clients[i].mac == c->mac)
 			return;
@@ -119,13 +139,7 @@ static void notify_client_found(station_t *s, client_t *c) {
 		if (stations[i].mac == c->mac)
 			return;
 
-	if (s == zombies) {
-		mqtt_notify("Zombie is back", NAME(c), "au.wav");
-		// mcp_notify("Zombie is back", NAME(c), "au.wav", 0);
-	} else {
-		mqtt_notify("Client is back", NAME(c), "au.wav");
-		// mcp_notify("Client is back", NAME(c), "au.wav", 0);
-	}
+	notify(s == zombies ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
 }
 
 void notify_zombie_assigned(station_t *s, client_t *z) {
@@ -139,8 +153,7 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
-	mqtt_notify(title, text, NULL);
-	// mcp_notify(title, text, NULL, 0);
+	notify(title, text, NULL);
 }
 
 static const char* get_ethers_name(uint64_t mac) {
@@ -180,6 +193,7 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			station_t *s = &stations[i];
 
 			// station found
+			notify_station_back(s);
 			s->count++;
 			s->ts = now_ts;
 			if (channel)
@@ -240,8 +254,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				continue;
 
 			// client found
-			notify_client_found(s, c);
-
+			notify_client_back(s, c);
 			c->count++;
 			c->ts = now_ts;
 			if (s == zombies) {
@@ -588,6 +601,7 @@ static void assign() {
 				else
 					// take over zombie's ssid (probe request)
 					strcpy(CC->ssid, ZZ->ssid);
+
 				notify_zombie_assigned(SS, ZZ);
 				break;
 			}
@@ -626,11 +640,12 @@ static void expired() {
 
 		// remove expired clients
 		for (client_t **cc = SS->pclients; *cc; cc++) {
+			int dubious = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
 			int ec = SS == cache && age > SECONDS_1H;
 			int ez = SS == zombies && age > SECONDS_1W;
-			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M;
-			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H;
+			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M && dubious;
+			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H && dubious;
 			int e3 = SS != zombies && CC->count < 100 && age > SECONDS_1D;
 			int e4 = age > SECONDS_1W;
 			if (ec || ez || e1 || e2 || e3 || e4) {
@@ -845,10 +860,13 @@ static int load_ieee() {
 
 static void update_name(const char *smac, const char *name) {
 	uint64_t mac = mac2uint64(smac);
-	for (station_t **ss = pstations; *ss; ss++)
+	for (station_t **ss = pstations; *ss; ss++) {
+		if (mac == SS->mac)
+			strcpy(SS->name, name);
 		for (client_t **cc = SS->pclients; *cc; cc++)
 			if (mac == CC->mac)
 				strcpy(CC->name, name);
+	}
 }
 
 static void loop() {
@@ -940,8 +958,9 @@ static int test() {
 	strcpy(c->name, "Test");
 	mqtt_notify("client is back", NAME(c), "au.wav");
 
-	update_name(DUMMY, "");
+	update_name("", "");
 
+	sort();
 	dump_compact();
 	dump_flat();
 
