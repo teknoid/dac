@@ -657,7 +657,6 @@ static void expired() {
 		}
 
 		// remove expired clients
-		client_t *oldest = &SS->clients[0];
 		for (client_t **cc = SS->pclients; *cc; cc++) {
 			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
@@ -670,15 +669,16 @@ static void expired() {
 				// xdebug("WIFI station %s client %s expired, age=%d count=%d", NAME(SS), NAME(CC), age, CC->count);
 				CC->mac = 0;
 			}
-
-			// track oldest entry
-			if (CC->ts < oldest->ts)
-				oldest = CC;
 		}
 
 		// keep at least 10 free slots
-		if (SS->ccount > CLIENTS - 10) {
-			xdebug("WIFI station %s force expire oldest entry %s (%s) age=%d", NAME(SS), NAME(oldest), oldest->smac, now_ts - oldest->ts);
+		int free = CLIENTS - SS->ccount;
+		while (free++ < 10) {
+			client_t *oldest = &SS->clients[0];
+			for (client_t **cc = SS->pclients; *cc; cc++)
+				if (CC->mac && CC->ts < oldest->ts)
+					oldest = CC;
+			xdebug("WIFI station %s force expire %s age=%d", NAME(SS), NAME(oldest), now_ts - oldest->ts);
 			oldest->mac = 0;
 		}
 	}
