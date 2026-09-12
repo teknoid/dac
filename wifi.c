@@ -488,7 +488,8 @@ static void* server(void *arg) {
 		return xerrv("Error setting pthread_setcancelstate");
 
 	// create server socket
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_fd < 0)
 		return xerrv("socket failed");
 
 	// tune buffers
