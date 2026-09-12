@@ -25,7 +25,8 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#define PORT					6666
+#define SERVER					6666
+// #define COMMAND					"/usr/bin/tcpdump -nevi mon1"
 
 #define BROADCAST				0xffffffffffff
 #define IPV6_MCAST				0x333300000000
@@ -71,6 +72,7 @@ static int ieee_index[0xff];
 static pthread_mutex_t lock;
 static time_t now_ts;
 
+static pthread_t command_thread;
 static pthread_t server_thread;
 static int server_fd;
 
@@ -468,6 +470,7 @@ static void parse(connection_t *conn) {
 //	PROFILING_LOG("parse")
 }
 
+#ifdef SERVER
 static void* reader(void *arg) {
 	connection_t *conn = (connection_t*) arg;
 
@@ -502,7 +505,7 @@ static void* server(void *arg) {
 	struct sockaddr_in address;
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(PORT);
+	address.sin_port = htons(SERVER);
 
 	if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
 		return xerrv("bind failed");
@@ -510,7 +513,7 @@ static void* server(void *arg) {
 	if (listen(server_fd, SOMAXCONN) < 0)
 		return xerrv("listen failed");
 
-	xlog("WIFI listening on port %d for tcpdump output: tcpdump -nevi <device> | nc %s %d", PORT, mcp->hostname, PORT);
+	xlog("WIFI listening on port %d for tcpdump output: tcpdump -nevi <device> | nc %s %d", SERVER, mcp->hostname, SERVER);
 	while (1) {
 		connection_t *conn = malloc(CONNECTION_SIZE);
 		conn->addr_len = sizeof(conn->address);
@@ -548,6 +551,26 @@ static void* server(void *arg) {
 
 	pthread_exit(NULL);
 }
+#endif
+
+#ifdef COMMAND
+static void* command(void *arg) {
+	connection_t *conn = malloc(CONNECTION_SIZE);
+
+	conn->stream = popen(COMMAND, "r");
+	if (!conn->stream)
+		return xerrv("popen failed");
+
+	while (!feof(conn->stream))
+		if (fgets(conn->line, LINEBUF, conn->stream) != NULL)
+			parse(conn);
+
+	pclose(conn->stream);
+	free(conn);
+
+	pthread_exit(NULL);
+}
+#endif
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
@@ -1002,8 +1025,15 @@ static int init() {
 	mac2string(zombies->smac, zombies->mac);
 
 	// start server thread
+#ifdef SERVER
 	if (pthread_create(&server_thread, NULL, &server, NULL))
 		return xerr("Error creating thread");
+#endif
+
+#ifdef COMMAND
+	if (pthread_create(&command_thread, NULL, &command, NULL))
+		return xerr("Error creating thread");
+#endif
 
 	return 0;
 }
@@ -1011,11 +1041,15 @@ static int init() {
 static void stop() {
 	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 
-	if (pthread_cancel(server_thread))
-		xerr("Error canceling thread");
+	if (command_thread) {
+		pthread_cancel(command_thread);
+		pthread_join(command_thread, NULL);
+	}
 
-	if (pthread_join(server_thread, NULL))
-		xerr("Error joining thread");
+	if (server_thread) {
+		pthread_cancel(server_thread);
+		pthread_join(server_thread, NULL);
+	}
 
 	if (server_fd)
 		close(server_fd);
