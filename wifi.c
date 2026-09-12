@@ -25,8 +25,8 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-#define SERVER					6666
 // #define COMMAND					"/usr/bin/tcpdump -nevi mon1"
+#define SERVER					6666
 
 #define BROADCAST				0xffffffffffff
 #define IPV6_MCAST				0x333300000000
@@ -470,6 +470,25 @@ static void parse(connection_t *conn) {
 //	PROFILING_LOG("parse")
 }
 
+#ifdef COMMAND
+static void* command(void *arg) {
+	connection_t *conn = malloc(CONNECTION_SIZE);
+
+	conn->stream = popen(COMMAND, "r");
+	if (!conn->stream)
+		return xerrv("popen failed");
+
+	while (!feof(conn->stream))
+		if (fgets(conn->line, LINEBUF, conn->stream) != NULL)
+			parse(conn);
+
+	pclose(conn->stream);
+	free(conn);
+
+	pthread_exit(NULL);
+}
+#endif
+
 #ifdef SERVER
 static void* reader(void *arg) {
 	connection_t *conn = (connection_t*) arg;
@@ -548,25 +567,6 @@ static void* server(void *arg) {
 		if (pthread_detach(conn->thread))
 			return xerrv("Error detaching thread");
 	}
-
-	pthread_exit(NULL);
-}
-#endif
-
-#ifdef COMMAND
-static void* command(void *arg) {
-	connection_t *conn = malloc(CONNECTION_SIZE);
-
-	conn->stream = popen(COMMAND, "r");
-	if (!conn->stream)
-		return xerrv("popen failed");
-
-	while (!feof(conn->stream))
-		if (fgets(conn->line, LINEBUF, conn->stream) != NULL)
-			parse(conn);
-
-	pclose(conn->stream);
-	free(conn);
 
 	pthread_exit(NULL);
 }
