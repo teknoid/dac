@@ -25,7 +25,7 @@
 #include "mqtt.h"
 #include "mcp.h"
 
-// #define COMMAND					"/usr/bin/tcpdump -nevi mon1"
+#define COMMAND					"/usr/bin/tcpdump -nevi mon1"
 #define SERVER					6666
 
 #define BROADCAST				0xffffffffffff
@@ -59,6 +59,8 @@
 #define CC						(*cc)
 #define ZZ						(*zz)
 
+static wifi_t wifi_local, *wifi = &wifi_local;
+
 static int scount;
 static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
@@ -71,10 +73,6 @@ static int ieee_index[0xff];
 
 static pthread_mutex_t lock;
 static time_t now_ts;
-
-static pthread_t command_thread;
-static pthread_t server_thread;
-static int server_fd;
 
 static unsigned long line_count = 0;
 static int dump_line;
@@ -470,66 +468,58 @@ static void parse(connection_t *conn) {
 //	PROFILING_LOG("parse")
 }
 
-#ifdef COMMAND
-static void* command(void *arg) {
-	connection_t *conn = malloc(CONNECTION_SIZE);
-
-	conn->stream = popen(COMMAND, "r");
-	if (!conn->stream)
-		return xerrv("popen failed");
+static void* reader(void *arg) {
+	connection_t *conn = (connection_t*) arg;
 
 	while (!feof(conn->stream))
 		if (fgets(conn->line, LINEBUF, conn->stream) != NULL)
 			parse(conn);
 
-	pclose(conn->stream);
-	free(conn);
-
-	pthread_exit(NULL);
-}
-#endif
-
-#ifdef SERVER
-static void* reader(void *arg) {
-	connection_t *conn = (connection_t*) arg;
-
-	// read line by line
-	while (fgets(conn->line, LINEBUF - 1, conn->stream) != NULL)
-		parse(conn);
-
 	xlog("WIFI client %s disconnected, received %d lines", conn->ip, conn->line_count);
-	fclose(conn->stream);
-	close(conn->sock);
+	if (conn->stream)
+		fclose(conn->stream);
+	if (conn->sock)
+		close(conn->sock);
 	free(conn);
 
 	pthread_exit(NULL);
 }
 
-static void* server(void *arg) {
+static void* init_command(void *arg) {
+	connection_t *conn = malloc(CONNECTION_SIZE);
+
+	conn->stream = popen(COMMAND, "r");
+	if (conn->stream == NULL)
+		return xerrv("popen failed");
+
+	return reader(conn);
+}
+
+static void* init_server(void *arg) {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
 		return xerrv("Error setting pthread_setcancelstate");
 
 	// create server socket
-	server_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (server_fd < 0)
+	wifi->server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (wifi->server_fd < 0)
 		return xerrv("socket failed");
 
 	// tune buffers
 	int opt = 1, bufsize = LINEBUF * 10;
-	setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	setsockopt(server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-	setsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+	setsockopt(wifi->server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+	setsockopt(wifi->server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+	setsockopt(wifi->server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+	setsockopt(wifi->server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
 
 	struct sockaddr_in address;
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons(SERVER);
 
-	if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
+	if (bind(wifi->server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
 		return xerrv("bind failed");
 
-	if (listen(server_fd, SOMAXCONN) < 0)
+	if (listen(wifi->server_fd, SOMAXCONN) < 0)
 		return xerrv("listen failed");
 
 	xlog("WIFI listening on port %d for tcpdump output: tcpdump -nevi <device> | nc %s %d", SERVER, mcp->hostname, SERVER);
@@ -538,7 +528,7 @@ static void* server(void *arg) {
 		conn->addr_len = sizeof(conn->address);
 
 		// wait for client connection
-		conn->sock = accept(server_fd, &conn->address, &conn->addr_len);
+		conn->sock = accept(wifi->server_fd, &conn->address, &conn->addr_len);
 		if (conn->sock < 0)
 			return xerrv("accept failed");
 
@@ -570,7 +560,6 @@ static void* server(void *arg) {
 
 	pthread_exit(NULL);
 }
-#endif
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
@@ -979,6 +968,16 @@ static int test() {
 	return 0;
 }
 
+static int command(int argc, char **argv) {
+	wifi->command = 1;
+	return mcp_main(argc, argv);
+}
+
+static int server(int argc, char **argv) {
+	wifi->server = 1;
+	return mcp_main(argc, argv);
+}
+
 static void loop() {
 	while (1) {
 		sleep(1);
@@ -1024,16 +1023,15 @@ static int init() {
 	zombies->signal = -999;
 	mac2string(zombies->smac, zombies->mac);
 
-	// start server thread
-#ifdef SERVER
-	if (pthread_create(&server_thread, NULL, &server, NULL))
-		return xerr("Error creating thread");
-#endif
+	// start tcpdump command thread
+	if (wifi->command)
+		if (pthread_create(&wifi->command_thread, NULL, &init_command, NULL))
+			return xerr("Error creating thread");
 
-#ifdef COMMAND
-	if (pthread_create(&command_thread, NULL, &command, NULL))
-		return xerr("Error creating thread");
-#endif
+	// start tcpdump server thread
+	if (wifi->server)
+		if (pthread_create(&wifi->server_thread, NULL, &init_server, NULL))
+			return xerr("Error creating thread");
 
 	return 0;
 }
@@ -1041,18 +1039,18 @@ static int init() {
 static void stop() {
 	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 
-	if (command_thread) {
-		pthread_cancel(command_thread);
-		pthread_join(command_thread, NULL);
+	if (wifi->command_thread) {
+		pthread_cancel(wifi->command_thread);
+		pthread_join(wifi->command_thread, NULL);
 	}
 
-	if (server_thread) {
-		pthread_cancel(server_thread);
-		pthread_join(server_thread, NULL);
+	if (wifi->server_thread) {
+		pthread_cancel(wifi->server_thread);
+		pthread_join(wifi->server_thread, NULL);
 	}
 
-	if (server_fd)
-		close(server_fd);
+	if (wifi->server_fd)
+		close(wifi->server_fd);
 
 	pthread_mutex_destroy(&lock);
 }
@@ -1062,12 +1060,14 @@ int wifi_main(int argc, char **argv) {
 	set_debug(1);
 
 	int c;
-	while ((c = getopt(argc, argv, "d:ltu:")) != -1) {
+	while ((c = getopt(argc, argv, "cd:stu:")) != -1) {
 		switch (c) {
+		case 'c':
+			return command(argc, argv);
 		case 'd':
 			return delete(optarg);
-		case 'l':
-			return mcp_main(argc, argv);
+		case 's':
+			return server(argc, argv);
 		case 't':
 			return test();
 		case 'u':

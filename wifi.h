@@ -52,3 +52,11 @@ typedef struct description_t {
 	uint64_t mac;
 	char description[DESCRIPTION];
 } description_t;
+
+typedef struct wifi_t {
+	int command;
+	pthread_t command_thread;
+	int server;
+	int server_fd;
+	pthread_t server_thread;
+} wifi_t;
