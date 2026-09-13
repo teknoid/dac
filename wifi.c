@@ -75,7 +75,7 @@ static pthread_mutex_t lock;
 static time_t now_ts;
 
 static unsigned long line_count = 0;
-static int dump_line;
+static int line_dump;
 
 static void notify(const char *title, const char *text, const char *sound) {
 	mqtt_notify(title, text, sound);
@@ -84,7 +84,7 @@ static void notify(const char *title, const char *text, const char *sound) {
 
 static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
-	dump_line = 1;
+	line_dump = 1;
 
 	notify("New Station", NAME(s), "au.wav");
 }
@@ -96,7 +96,7 @@ static void notify_station_back(station_t *s) {
 		return;
 
 	xdebug("WIFI station %s is back, age=%d count=%d", NAME(s), age, s->count);
-	dump_line = 1;
+	line_dump = 1;
 
 	// not when in CACHE
 	for (int i = 0; i < CLIENTS; i++)
@@ -108,7 +108,7 @@ static void notify_station_back(station_t *s) {
 
 static void notify_client_new(station_t *s, client_t *c) {
 	xdebug("WIFI station %s assigned new client %s", NAME(s), NAME(c));
-	dump_line = 1;
+	line_dump = 1;
 
 	// only for zombies
 	if (s != zombies)
@@ -124,7 +124,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 		return;
 
 	xdebug("WIFI station %s client %s is back, age=%d count=%d", NAME(s), NAME(c), age, c->count);
-	dump_line = 1;
+	line_dump = 1;
 
 	// not when in CACHE
 	for (int i = 0; i < CLIENTS; i++)
@@ -392,7 +392,7 @@ static void parse(connection_t *conn) {
 	}
 
 	pthread_mutex_lock(&lock);
-	dump_line = 0;
+	line_dump = 0;
 
 	// update or create station
 	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
@@ -461,7 +461,7 @@ static void parse(connection_t *conn) {
 
 	line_count++;
 	conn->line_count++;
-	if (dump_line)
+	if (line_dump)
 		xdebug(conn->line_dump);
 
 	pthread_mutex_unlock(&lock);
@@ -1022,6 +1022,10 @@ static int init() {
 	zombies->mac = ZOMBIE_CACHE;
 	zombies->signal = -999;
 	mac2string(zombies->smac, zombies->mac);
+
+#ifndef WIFI_MAIN
+	wifi->server = 1;
+#endif
 
 	// start tcpdump command thread
 	if (wifi->command)
