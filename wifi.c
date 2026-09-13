@@ -67,6 +67,7 @@ static unsigned long line_count = 0;
 static int line_dump = 0, popen_x = 0;
 
 static void notify(const char *title, const char *text, const char *sound) {
+	// TODO blacklist
 	mqtt_notify(title, text, sound);
 //	mcp_notify(title, text, sound, 0);
 }
@@ -320,7 +321,7 @@ static void parse(connection_t *conn) {
 			char *x = strchr(rest, '(') + 1;
 			char *y = strchr(rest, ')');
 			if (y != x)
-				strncpy(ssid, x, (size_t) (y - x));
+				strncpy(ssid, x, (size_t) (y - x)); // TODO max size ?
 		}
 
 		oldt = t;
@@ -418,9 +419,9 @@ static void name(char *smac, char *n) {
 	for (station_t **ss = pstations; *ss; ss++) {
 		for (client_t **cc = SS->pclients; *cc; cc++)
 			if (mac == CC->mac)
-				strcpy(CC->name, n);
+				strncpy(CC->name, n, DESCRIPTION - 1);
 		if (mac == SS->mac)
-			strcpy(SS->name, n);
+			strncpy(SS->name, n, DESCRIPTION - 1);
 	}
 }
 
@@ -442,6 +443,9 @@ static void blacklist(char *smac) {
 
 static void command(connection_t *conn) {
 	xdebug("WIFI command %s", conn->line);
+
+	// TODO
+
 	fprintf(conn->stream, "echo command %s", conn->line);
 	fflush(conn->stream);
 }
@@ -457,7 +461,7 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombie->ccount, line_count);
+	fprintf(fp, "%d Stations, %d Blacklisted, %d Cached, %d Zombies, %lu Lines\n\n", scount, black->ccount, cache->ccount, zombie->ccount, line_count);
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
 		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
@@ -746,7 +750,7 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
-			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombie->ccount, line_count);
+			xdebug("\nWIFI %d Stations, %d Blacklisted, %d Cached, %d Zombies, %lu Lines", scount, black->ccount, cache->ccount, zombie->ccount, line_count);
 			dump_compact();
 			dump_flat();
 		}
@@ -767,7 +771,7 @@ static int init() {
 
 	strcpy(black->ssid, "BLACK");
 	black->mac = SPECIAL;
-	black->signal = -998;
+	black->signal = -997;
 	mac2string(black->smac, black->mac);
 
 	strcpy(cache->ssid, "CACHE");

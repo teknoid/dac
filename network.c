@@ -31,6 +31,7 @@ static void* popen_thread(void *arg) {
 	if (conn->stream == NULL)
 		return xerrv("popen failed");
 
+	xlog("WIFI %d pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
 		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
 			(server->handler)(conn);
@@ -84,7 +85,7 @@ static void* server_thread(void *arg) {
 		// get client ip address
 		struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
 		char *ip = inet_ntoa(sa_in->sin_addr);
-		strncpy(conn->ip, ip, 16);
+		strncpy(conn->ip, ip, 15);
 		xlog("WIFI new %s connection from %s", server->description, conn->ip);
 
 		// start new thread handling this connection
@@ -97,6 +98,45 @@ static void* server_thread(void *arg) {
 	}
 
 	pthread_exit(NULL);
+}
+
+int init_server(server_t *server, char *description, int port, handler_t handler) {
+	server->port = port;
+	server->handler = handler;
+	server->description = description;
+	server->addr_len = sizeof(server->address);
+
+	// create server socket
+	server->sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (server->sock < 0)
+		return xerr("socket failed");
+
+	struct sockaddr_in *sa_in = (struct sockaddr_in*) &server->address;
+	sa_in->sin_family = AF_INET;
+	sa_in->sin_addr.s_addr = INADDR_ANY;
+	sa_in->sin_port = htons(server->port);
+
+	if (bind(server->sock, &server->address, server->addr_len) < 0)
+		return xerr("bind failed");
+
+	if (listen(server->sock, SOMAXCONN) < 0)
+		return xerr("listen failed");
+
+	if (pthread_create(&server->thread, NULL, &server_thread, (void*) server))
+		return xerr("Error creating thread");
+
+	return 0;
+}
+
+int init_popen(server_t *local, char *description, char *command, handler_t handler) {
+	local->description = description;
+	local->command = command;
+	local->handler = handler;
+
+	if (pthread_create(&local->thread, NULL, &popen_thread, (void*) local))
+		return xerr("Error creating thread");
+
+	return 0;
 }
 
 const char* resolve_ip(const char *hostname) {
@@ -134,44 +174,6 @@ const char* resolve_ip(const char *hostname) {
 	return addrstr;
 }
 
-int init_server(server_t *server, char *description, int port, handler_t handler) {
-	server->port = port;
-	server->handler = handler;
-	server->description = description;
-	server->addr_len = sizeof(server->address);
-
-	// create server socket
-	server->sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (server->sock < 0)
-		return xerr("socket failed");
-
-	struct sockaddr_in *sa_in = (struct sockaddr_in*) &server->address;
-	sa_in->sin_family = AF_INET;
-	sa_in->sin_addr.s_addr = INADDR_ANY;
-	sa_in->sin_port = htons(server->port);
-
-	if (bind(server->sock, &server->address, server->addr_len) < 0)
-		return xerr("bind failed");
-
-	if (listen(server->sock, SOMAXCONN) < 0)
-		return xerr("listen failed");
-
-	if (pthread_create(&server->thread, NULL, &server_thread, (void*) server))
-		return xerr("Error creating thread");
-
-	return 0;
-}
-
-int init_popen(server_t *local, char *description, char *command, handler_t handler) {
-	local->handler = handler;
-	local->command = command;
-
-	if (pthread_create(&local->thread, NULL, &popen_thread, (void*) local))
-		return xerr("Error creating thread");
-
-	return 0;
-}
-
 const char* get_ethers_name(uint64_t mac) {
 	for (int i = 0; i < 0xff; i++)
 		if (ethers[i].mac == mac)
@@ -203,7 +205,7 @@ const char* get_ieee_ou(uint64_t mac) {
 void mac2name(char *name, uint64_t mac, size_t size) {
 	const char *c = get_ethers_name(mac);
 	if (c != NULL)
-		strncpy(name, c, size);
+		strncpy(name, c, size - 1);
 	else
 		*name = 0;
 }
@@ -211,7 +213,7 @@ void mac2name(char *name, uint64_t mac, size_t size) {
 void mac2ou(char *ou, uint64_t mac, size_t size) {
 	const char *c = get_ieee_ou(mac);
 	if (c != NULL)
-		strncpy(ou, c, size);
+		strncpy(ou, c, size - 1);
 	else
 		*ou = 0;
 }
@@ -240,6 +242,7 @@ void mac2string(char *smac, uint64_t mac) {
 
 	snprintf(smac, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
 }
+
 int load_ethers() {
 	char line[NETWORK_LINEBUF], vv[NETWORK_LINEBUF], name[NETWORK_DESCRIPTION];
 
@@ -395,7 +398,7 @@ void uint642ou(uint64_t mac, char *buf, size_t size) {
 	int l = e - s;
 	if (l > size)
 		l = size;
-	strncpy(buf, s, l);
+	strncpy(buf, s, l - 1);
 	*(buf + l) = 0;
 }
 
