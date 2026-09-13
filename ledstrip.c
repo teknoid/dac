@@ -12,6 +12,7 @@
 
 #include "tasmota-devices.h"
 #include "ledstrip.h"
+#include "network.h"
 #include "utils.h"
 #include "curl.h"
 #include "mcp.h"

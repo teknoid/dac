@@ -19,9 +19,9 @@ COBJS-ANUS 		= mcp.o utils.o $(COD) dac-alsa.o
 COBJS-PIWOLF 	= mcp.o utils.o $(COD) dac-piwolf.o devinput-infrared.o gpio-bcm2835.o
 COBJS-SABRE18 	= mcp.o utils.o $(COD) dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= mcp.o utils.o $(COD) dac-es9028.o devinput-infrared.o gpio-sunxi.o devinput-rotary.o display.o display-menu.o i2c.o
-COBJS-TRON 		= mcp.o utils.o $(COD) $(COS) xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o button.o lcd.o dac-alsa.o
-COBJS-ODROID 	= mcp.o utils.o $(COS)        xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o
-COBJS-PICAM		= mcp.o utils.o               xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o webcam.o frozen.o gpio-bcm2835.o
+COBJS-TRON 		= mcp.o utils.o $(COD) $(COS) network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o button.o lcd.o dac-alsa.o
+COBJS-ODROID 	= mcp.o utils.o $(COS)        network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o
+COBJS-PICAM		= mcp.o utils.o               network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o webcam.o frozen.o gpio-bcm2835.o
 
 all: $(OBJS)
 	@echo "detected $(UNAME_M) architecture"
@@ -81,8 +81,8 @@ sensors: clean mcp.o utils.o sensors.o i2c.o
 	$(CC) $(CFLAGS) -o sensors mcp.o utils.o sensors.o i2c.o
 
 wifi: CFLAGS += -DWIFI_MAIN -DSTDOUT -DDEBUG -DMQTT_HOST=\"mqtt\"
-wifi: clean mcp.o utils.o wifi.o mqtt-tx.o
-	$(CC) $(CFLAGS) -L$(LIB) -o wifi mcp.o utils.o wifi.o mqtt-tx.o -lmqttc
+wifi: clean wifi.o mcp.o utils.o network.o mqtt-tx.o
+	$(CC) $(CFLAGS) -L$(LIB) -o wifi wifi.o mcp.o utils.o network.o mqtt-tx.o -lmqttc
 
 tasmota: CFLAGS += -DMCP -DSTDOUT -DDEBUG
 tasmota: clean mcp.o utils.o tasmota.o mqtt-rx.o sensors.o i2c.o frozen.o

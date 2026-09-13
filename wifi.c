@@ -1,4 +1,4 @@
-// gcc -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi mcp.c utils.c wifi.c mqtt-tx.c -lmqttc
+// gcc -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi wifi.c mcp.c utils.c network.c mqtt-tx.c -lmqttc
 
 // iw phy phy1 interface add mon1 type monitor
 // ifconfig mon1 up
@@ -15,18 +15,15 @@
 #include <string.h>
 
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
 
+#include "network.h"
 #include "utils.h"
 #include "wifi.h"
 #include "mqtt.h"
 #include "mcp.h"
 
-#define COMMAND					"/usr/bin/tcpdump -nevi mon1"
-#define SERVER					6666
+#define POPEN					"/usr/bin/tcpdump -nevi mon1"
+#define PORT					6666
 
 #define BROADCAST				0xffffffffffff
 #define IPV6_MCAST				0x333300000000
@@ -34,7 +31,7 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-#define ZOMBIE_CACHE			0xaaffeeaaffee
+#define SPECIAL					0xaaffeeaaffee
 #define DUMMY					0x112233445566
 
 #define SECONDS_1W 				(60 * 60 * 24 * 7)
@@ -47,11 +44,6 @@
 #define WIFI_FLAT				"wifi-flat.txt"
 #define WIFI_BIN				"wifi.bin"
 
-// cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
-// and then manually remove last line (headline)
-#define IEEE					"/usr/share/ieee-data/oui_sorted.csv"
-#define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
-
 #define CHANNEL(x)				(x ? 1 + (x - 2412) / 5 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 
@@ -59,23 +51,20 @@
 #define CC						(*cc)
 #define ZZ						(*zz)
 
-static wifi_t wifi_local, *wifi = &wifi_local;
+static server_t data, cmd, local;
 
 static int scount;
 static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
-static station_t *zombies = &stations[STATIONS - 1];
+static station_t *zombie = &stations[STATIONS - 1];
 static station_t *cache = &stations[STATIONS - 2];
-
-static description_t ethers[0xff];
-static description_t ieee[0xffff];
-static int ieee_index[0xff];
+static station_t *black = &stations[STATIONS - 3];
 
 static pthread_mutex_t lock;
 static time_t now_ts;
 
 static unsigned long line_count = 0;
-static int line_dump;
+static int line_dump = 0, popen_x = 0;
 
 static void notify(const char *title, const char *text, const char *sound) {
 	mqtt_notify(title, text, sound);
@@ -111,7 +100,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 	line_dump = 1;
 
 	// only for zombies
-	if (s != zombies)
+	if (s != zombie)
 		return;
 
 	notify("New Zombie", NAME(c), "au.wav");
@@ -140,7 +129,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 		if (stations[i].mac == c->mac)
 			return;
 
-	notify(s == zombies ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
+	notify(s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
 }
 
 void notify_zombie_assigned(station_t *s, client_t *z) {
@@ -155,50 +144,6 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	notify(title, text, NULL);
-}
-
-static const char* get_ethers_name(uint64_t mac) {
-	for (int i = 0; i < 0xff; i++)
-		if (ethers[i].mac == mac)
-			return ethers[i].description;
-
-	return NULL;
-}
-
-static void mac2name(char *name, uint64_t mac, size_t size) {
-	const char *c = get_ethers_name(mac);
-	if (c != NULL)
-		strncpy(name, c, size);
-	else
-		*name = 0;
-}
-
-static const char* get_ieee_ou(uint64_t mac) {
-	// use index to calculate from/to search range in ieee table
-	int ii = mac >> 40 & 0xff;
-	int from = ieee_index[ii];
-	if (ii && !from)
-		return NULL;
-	int jj = ii + 1;
-	while (jj < 0xff && !ieee_index[jj])
-		jj++;
-	int to = ieee_index[jj] ? ieee_index[jj] : 0xffff;
-
-	// xdebug("%012lx -- from=%d to=%d", m, from, to);
-	uint64_t m = mac & U3MASK;
-	for (int i = from; i < to; i++)
-		if (ieee[i].mac == m)
-			return ieee[i].description;
-
-	return NULL;
-}
-
-static void mac2ou(char *ou, uint64_t mac, size_t size) {
-	const char *c = get_ieee_ou(mac);
-	if (c != NULL)
-		strncpy(ou, c, size);
-	else
-		*ou = 0;
 }
 
 static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -262,7 +207,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			client_t *c = &(s->clients[i]);
 
 			// zombies match on ssid, all others on mac
-			int match = s == zombies ? !strcmp(c->ssid, ssid) : c->mac == mac;
+			int match = s == zombie ? !strcmp(c->ssid, ssid) : c->mac == mac;
 			if (!match)
 				continue;
 
@@ -270,7 +215,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			notify_client_back(s, c);
 			c->count++;
 			c->ts = now_ts;
-			if (s == zombies) {
+			if (s == zombie) {
 				// update mac, smac and ou as long as zombie is unassigned
 				if (c->mac != mac && c->tag != 'a') {
 					xdebug("WIFI updating zombie %s tag=%c old mac=%12lx new mac=%12lx ", NAME(c), c->tag, c->mac, mac);
@@ -323,12 +268,12 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 }
 
 static void check_ssid(uint64_t mac, int channel, int signal, char *ssid) {
-	for (int i = 0; i < STATIONS - 2; i++)
+	for (int i = 0; i < STATIONS - 3; i++)
 		if (!strcmp(stations[i].ssid, ssid))
 			return; // already known
 
 	// create new zombie for unknown ssid
-	client(zombies, mac, channel, signal, ssid, 'z');
+	client(zombie, mac, channel, signal, ssid, 'z');
 }
 
 static void parse(connection_t *conn) {
@@ -338,7 +283,7 @@ static void parse(connection_t *conn) {
 	// xlog("WIFI read line %s %s", conn->ip, conn->line);
 
 	// make a copy for line dumping after strtok()
-	memcpy(conn->line_dump, conn->line, LINEBUF);
+	memcpy(conn->line_dump, conn->line, NETWORK_LINEBUF);
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
@@ -468,97 +413,37 @@ static void parse(connection_t *conn) {
 //	PROFILING_LOG("parse")
 }
 
-static void* reader(void *arg) {
-	connection_t *conn = (connection_t*) arg;
-
-	while (!feof(conn->stream))
-		if (fgets(conn->line, LINEBUF, conn->stream) != NULL)
-			parse(conn);
-
-	xlog("WIFI client %s disconnected, received %d lines", conn->ip, conn->line_count);
-	if (conn->stream)
-		fclose(conn->stream);
-	if (conn->sock)
-		close(conn->sock);
-	free(conn);
-
-	pthread_exit(NULL);
-}
-
-static void* init_command(void *arg) {
-	connection_t *conn = malloc(CONNECTION_SIZE);
-
-	conn->stream = popen(COMMAND, "r");
-	if (conn->stream == NULL)
-		return xerrv("popen failed");
-
-	return reader(conn);
-}
-
-static void* init_server(void *arg) {
-	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
-		return xerrv("Error setting pthread_setcancelstate");
-
-	// create server socket
-	wifi->server_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (wifi->server_fd < 0)
-		return xerrv("socket failed");
-
-	// tune buffers
-	int opt = 1, bufsize = LINEBUF * 10;
-	setsockopt(wifi->server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-	setsockopt(wifi->server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	setsockopt(wifi->server_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-	setsockopt(wifi->server_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-
-	struct sockaddr_in address;
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(SERVER);
-
-	if (bind(wifi->server_fd, (struct sockaddr*) &address, sizeof(address)) < 0)
-		return xerrv("bind failed");
-
-	if (listen(wifi->server_fd, SOMAXCONN) < 0)
-		return xerrv("listen failed");
-
-	xlog("WIFI listening on port %d for tcpdump output: tcpdump -nevi <device> | nc %s %d", SERVER, mcp->hostname, SERVER);
-	while (1) {
-		connection_t *conn = malloc(CONNECTION_SIZE);
-		conn->addr_len = sizeof(conn->address);
-
-		// wait for client connection
-		conn->sock = accept(wifi->server_fd, &conn->address, &conn->addr_len);
-		if (conn->sock < 0)
-			return xerrv("accept failed");
-
-		// get client ip address
-		struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
-		char *ip = inet_ntoa(sa_in->sin_addr);
-		strncpy(conn->ip, ip, 16);
-		xlog("WIFI new connection from %s", conn->ip);
-
-		// tune buffers
-		int opt = 1, bufsize = LINEBUF * 10;
-		setsockopt(conn->sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-		setsockopt(conn->sock, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-		setsockopt(conn->sock, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-
-		// convert socket into file stream for reading line by line
-		conn->stream = fdopen(conn->sock, "r");
-		if (conn->stream == NULL)
-			return xerrv("fdopen failed");
-
-		// start new thread
-		if (pthread_create(&conn->thread, 0, &reader, (void*) conn))
-			return xerrv("Error creating thread");
-
-		// detach it
-		if (pthread_detach(conn->thread))
-			return xerrv("Error detaching thread");
+static void name(char *smac, char *n) {
+	uint64_t mac = string2mac(smac);
+	for (station_t **ss = pstations; *ss; ss++) {
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			if (mac == CC->mac)
+				strcpy(CC->name, n);
+		if (mac == SS->mac)
+			strcpy(SS->name, n);
 	}
+}
 
-	pthread_exit(NULL);
+static void delete(char *smac) {
+	uint64_t mac = string2mac(smac);
+	for (station_t **ss = pstations; *ss; ss++) {
+		for (client_t **cc = SS->pclients; *cc; cc++)
+			if (mac == CC->mac)
+				CC->mac = 0;
+		if (mac == SS->mac)
+			SS->mac = 0;
+	}
+}
+
+static void blacklist(char *smac) {
+	uint64_t mac = string2mac(smac);
+	client(black, mac, 0, 0, NULL, 'b');
+}
+
+static void command(connection_t *conn) {
+	xdebug("WIFI command %s", conn->line);
+	fprintf(conn->stream, "echo command %s", conn->line);
+	fflush(conn->stream);
 }
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
@@ -572,7 +457,7 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombies->ccount, line_count);
+	fprintf(fp, "%d Stations, %d Cached, %d Zombies, %lu Lines\n\n", scount, cache->ccount, zombie->ccount, line_count);
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
 		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
@@ -606,12 +491,12 @@ static void dump_flat() {
 static void assign() {
 //	PROFILING_START
 
-	for (client_t **zz = zombies->pclients; *zz; zz++) {
+	for (client_t **zz = zombie->pclients; *zz; zz++) {
 
 		int assigned = 0, remove = 0;
 		for (station_t **ss = pstations; *ss; ss++) {
 
-			if (SS == cache || SS == zombies)
+			if (SS == black || SS == cache || SS == zombie)
 				continue;
 
 			if (ZZ->mac == SS->mac) {
@@ -671,13 +556,14 @@ static void expired() {
 
 		// remove expired clients
 		for (client_t **cc = SS->pclients; *cc; cc++) {
+			int keep = SS == black || SS == zombie;
 			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
 			int ee = age > SECONDS_1W;
 			int ec = SS == cache && age > SECONDS_1H;
-			int e1 = SS != zombies && CC->count < 5 && age > SECONDS_5M && fake;
-			int e2 = SS != zombies && CC->count < 10 && age > SECONDS_1H && fake;
-			int e3 = SS != zombies && CC->count < 100 && age > SECONDS_1D;
+			int e1 = !keep && CC->count < 5 && age > SECONDS_5M && fake;
+			int e2 = !keep && CC->count < 10 && age > SECONDS_1H && fake;
+			int e3 = !keep && CC->count < 100 && age > SECONDS_1D;
 			if (ee || ec || e1 || e2 || e3) {
 				// xdebug("WIFI station %s client %s expired, age=%d count=%d", NAME(SS), NAME(CC), age, CC->count);
 				CC->mac = 0;
@@ -780,168 +666,39 @@ static void sort() {
 //	PROFILING_LOG("sort stations")
 }
 
-static int load_ethers() {
-	char line[LINEBUF], vv[LINEBUF], name[DESCRIPTION];
-
-	ZERO(ethers);
-	FILE *fp = fopen(ETHERS, "rt");
-	if (fp == NULL)
-		return xerr("UTILS Cannot open file %s for reading", ETHERS);
-
-	int ii = 0;
-	while (fgets(line, LINEBUF - 1, fp) != NULL) {
-
-		// not a ether entry
-		if (!starts_with("dhcp-host", line, strlen(line)))
-			continue;
-
-		// forward to values
-		char *v = strchr(line, '=') + 1;
-
-		// remove newline
-		v[strlen(v) - 1] = 0;
-
-		// copy line, then split into tokens and find name (next after mac list)
-		strncpy(vv, v, LINEBUF - 1);
-		char *t, *rest = vv;
-		while ((t = strtok_r(rest, ",", &rest))) {
-			while (*t == ' ')
-				t++; // trim
-			if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
-				break; // not a mac
-		}
-		while (*(t + strlen(t) - 1) == '\n')
-			*(t + strlen(t) - 1) = 0; // trim
-		strncpy(name, t, DESCRIPTION - 1);
-		// xdebug("line %s :: found name %s", line, name);
-
-		// now go again through line and extract macs
-		rest = v;
-		while ((t = strtok_r(rest, ",", &rest))) {
-			while (*t == ' ')
-				t++; // trim
-			// xdebug("t=%s rest=%s", t, rest);
-			if (*(t + 2) == ':' && *(t + 5) == ':' && *(t + 8) == ':') {
-				// pointer to next entry
-				description_t *d = &ethers[ii++];
-				d->mac = string2mac(t);
-				strncpy(d->description, name, DESCRIPTION - 1);
-			}
-		}
-	}
-
-	fclose(fp);
-	xlog("WIFI loaded %d entries from %s", ii, ETHERS);
-
-	// for (int i = 0; i < ii; i++)
-	// xlog("%lx = %s", ethers[i].mac, ethers[i].description);
-
-	return 0;
-}
-
-static int load_ieee() {
-	char line[LINEBUF], *s, *e;
-
-	ZERO(ieee);
-	FILE *fp = fopen(IEEE, "rt");
-	if (fp == NULL)
-		return xerr("UTILS Cannot open file %s for reading", IEEE);
-
-	int ii = 0;
-	while (fgets(line, LINEBUF - 1, fp) != NULL) {
-
-		// pointer to next entry
-		description_t *d = &ieee[ii++];
-
-		// Registry
-		s = line;
-		e = strchr(s + 1, ',');
-		*e = 0;
-
-		// Assignment
-		s = e + 1;
-		e = strchr(s, ',');
-		*e = 0;
-		d->mac = strtol(s, NULL, 16) << 24;
-
-		// Organization Name
-		s = e + 1;
-		if (s[0] == '\"') {
-			s++;
-			e = strchr(s, '\"');
-		} else
-			e = strchr(s, ',');
-		*e = 0;
-		strncpy(d->description, s, DESCRIPTION - 1);
-	}
-
-	fclose(fp);
-	xlog("WIFI loaded %d entries from %s", ii, IEEE);
-
-	// for (int i = 0; i < ii; i++)
-	// xlog("%lx = %s", ieee[i].mac, ieee[i].description);
-
-	// create index of highest byte
-	ZERO(ieee_index);
-	int x = ieee[0].mac >> 40 & 0xff;
-	for (int i = 1; i < ii; i++) {
-		int y = ieee[i].mac >> 40 & 0xff;
-		if (y != x) {
-			ieee_index[y] = i;
-			x = y;
-		}
-	}
-	ieee_index[0] = 0;
-
-	// for (int i = 0; i < 0xff; i++)
-	// xlog("%x = %d", i, ieee_index[i]);
-
-	return 0;
-}
-
-static int update(char **argv) {
-	mcp_init();
-
+static int main_name(char **argv) {
 	char *smac = argv[2];
-	char *name = argv[3];
-	uint64_t mac = string2mac(smac);
+	char *n = argv[3];
 
-	if (EMPTY(smac) || EMPTY(name))
+	if (EMPTY(smac) || EMPTY(n))
 		return xerr("Usage: wifi -u <mac> <name>");
 
-	for (station_t **ss = pstations; *ss; ss++) {
-		for (client_t **cc = SS->pclients; *cc; cc++)
-			if (mac == CC->mac)
-				strcpy(CC->name, name);
-		if (mac == SS->mac)
-			strcpy(SS->name, name);
-	}
-
+	mcp_init();
+	name(smac, n);
 	mcp_stop();
 	return 0;
 }
 
-static int delete(char *smac) {
-	mcp_init();
-
-	uint64_t mac = string2mac(smac);
-
+static int main_delete(char *smac) {
 	if (EMPTY(smac))
 		return xerr("Usage: wifi -d <mac>");
 
-	for (station_t **ss = pstations; *ss; ss++) {
-		for (client_t **cc = SS->pclients; *cc; cc++)
-			if (mac == CC->mac)
-				CC->mac = 0;
-		if (mac == SS->mac)
-			SS->mac = 0;
-	}
+	mcp_init();
+	delete(smac);
+	mcp_stop();
+	return 0;
+}
+static int main_blacklist(char *smac) {
+	if (EMPTY(smac))
+		return xerr("Usage: wifi -b <mac>");
 
+	mcp_init();
+	blacklist(smac);
 	mcp_stop();
 	return 0;
 }
 
-static int test() {
+static int main_test() {
 	mcp_init();
 
 	uint64_t mac;
@@ -956,7 +713,7 @@ static int test() {
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	client_t cc, *c = &cc;
-	c->mac = ZOMBIE_CACHE;
+	c->mac = SPECIAL;
 	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
 	notify("client is back", NAME(c), "au.wav");
@@ -968,20 +725,15 @@ static int test() {
 	return 0;
 }
 
-static int command(int argc, char **argv) {
-	wifi->command = 1;
-	return mcp_main(argc, argv);
-}
-
-static int server(int argc, char **argv) {
-	wifi->server = 1;
+int main_popen(int argc, char **argv) {
+	popen_x = 1;
 	return mcp_main(argc, argv);
 }
 
 static void loop() {
 	while (1) {
 		sleep(1);
-		now_ts = cache->ts = zombies->ts = time(NULL);
+		now_ts = black->ts = cache->ts = zombie->ts = time(NULL);
 		// xdebug("loop %d", SECONDS_1D - (now_ts % SECONDS_1D));
 
 		if (now_ts % 10 == 0)
@@ -994,7 +746,7 @@ static void loop() {
 			expired();
 
 		if (now_ts % 60 == 0) {
-			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombies->ccount, line_count);
+			xdebug("\nWIFI %d Stations, %d Cached, %d Zombies, %lu Lines", scount, cache->ccount, zombie->ccount, line_count);
 			dump_compact();
 			dump_flat();
 		}
@@ -1006,36 +758,35 @@ static void loop() {
 
 static int init() {
 	pthread_mutex_init(&lock, NULL);
-	now_ts = cache->ts = zombies->ts = time(NULL);
+	now_ts = black->ts = cache->ts = zombie->ts = time(NULL);
 
 	load_ieee();
 	load_ethers();
 	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 	sort(); // initially update station / client pointers
 
+	strcpy(black->ssid, "BLACK");
+	black->mac = SPECIAL;
+	black->signal = -998;
+	mac2string(black->smac, black->mac);
+
 	strcpy(cache->ssid, "CACHE");
-	cache->mac = ZOMBIE_CACHE;
+	cache->mac = SPECIAL;
 	cache->signal = -998;
 	mac2string(cache->smac, cache->mac);
 
-	strcpy(zombies->ssid, "ZOMBIES");
-	zombies->mac = ZOMBIE_CACHE;
-	zombies->signal = -999;
-	mac2string(zombies->smac, zombies->mac);
+	strcpy(zombie->ssid, "ZOMBIE");
+	zombie->mac = SPECIAL;
+	zombie->signal = -999;
+	mac2string(zombie->smac, zombie->mac);
 
-#ifndef WIFI_MAIN
-	wifi->server = 1;
-#endif
+	// start local tcpdump thread
+	if (popen_x)
+		init_popen(&local, "tcpdump", POPEN, &parse);
 
-	// start tcpdump command thread
-	if (wifi->command)
-		if (pthread_create(&wifi->command_thread, NULL, &init_command, NULL))
-			return xerr("Error creating thread");
-
-	// start tcpdump server thread
-	if (wifi->server)
-		if (pthread_create(&wifi->server_thread, NULL, &init_server, NULL))
-			return xerr("Error creating thread");
+	// start data and command servers
+	init_server(&data, "tcpdump", PORT, &parse);
+	init_server(&cmd, "command", PORT + 1, &command);
 
 	return 0;
 }
@@ -1043,18 +794,26 @@ static int init() {
 static void stop() {
 	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 
-	if (wifi->command_thread) {
-		pthread_cancel(wifi->command_thread);
-		pthread_join(wifi->command_thread, NULL);
+	if (local.thread) {
+		pthread_cancel(local.thread);
+		pthread_join(local.thread, NULL);
 	}
 
-	if (wifi->server_thread) {
-		pthread_cancel(wifi->server_thread);
-		pthread_join(wifi->server_thread, NULL);
+	if (data.thread) {
+		pthread_cancel(data.thread);
+		pthread_join(data.thread, NULL);
 	}
 
-	if (wifi->server_fd)
-		close(wifi->server_fd);
+	if (cmd.thread) {
+		pthread_cancel(cmd.thread);
+		pthread_join(cmd.thread, NULL);
+	}
+
+	if (data.sock)
+		close(data.sock);
+
+	if (cmd.sock)
+		close(cmd.sock);
 
 	pthread_mutex_destroy(&lock);
 }
@@ -1064,18 +823,20 @@ int wifi_main(int argc, char **argv) {
 	set_debug(1);
 
 	int c;
-	while ((c = getopt(argc, argv, "cd:stu:")) != -1) {
+	while ((c = getopt(argc, argv, "b:d:ln:pt")) != -1) {
 		switch (c) {
-		case 'c':
-			return command(argc, argv);
+		case 'b':
+			return main_blacklist(optarg);
 		case 'd':
-			return delete(optarg);
-		case 's':
-			return server(argc, argv);
+			return main_delete(optarg);
+		case 'l':
+			return mcp_main(argc, argv);
+		case 'n':
+			return main_name(argv);
+		case 'p':
+			return main_popen(argc, argv);
 		case 't':
-			return test();
-		case 'u':
-			return update(argv);
+			return main_test();
 		default:
 			xlog("unknown getopt %c", c);
 		}

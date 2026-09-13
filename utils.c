@@ -13,11 +13,9 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <time.h>
-#include <netdb.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <arpa/inet.h>
 
 #include <ansi-color-codes.h>
 #include <keytable.h>
@@ -700,138 +698,6 @@ int devinput_find_key(const char *name) {
 		}
 	}
 	return 0;
-}
-
-uint64_t string2mac(const char *mac) {
-	unsigned int u[6]; // %x needs "unsigned int"
-
-	int c = sscanf(mac, "%x:%x:%x:%x:%x:%x", u, u + 1, u + 2, u + 3, u + 4, u + 5);
-	if (c != 6)
-		return 0;
-
-	uint64_t x = 0;
-	for (int i = 0; i < 6; i++)
-		x = (x << 8) | (u[i] & 0xff);
-
-	return x;
-}
-
-void mac2string(char *smac, uint64_t mac) {
-	unsigned int u[6]; // %x needs "unsigned int"
-
-	for (int i = 0; i < 6; i++) {
-		u[i] = mac & 0xff;
-		mac = mac >> 8;
-	}
-
-	snprintf(smac, 18, "%02x:%02x:%02x:%02x:%02x:%02x", u[5], u[4], u[3], u[2], u[1], u[0]);
-}
-
-void uint642ou(uint64_t mac, char *buf, size_t size) {
-	char smac[16], cmd[128], line[1024];
-
-	ZERO(line);
-	snprintf(smac, 16, "%06lX", mac >> 24);
-	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
-	FILE *fd = popen(cmd, "r");
-	fgets(line, 1024, fd);
-	pclose(fd);
-
-	if (!*line)
-		return;
-
-	// Registry
-	char *e, *s = strchr(line, ',');
-	if (!s)
-		return;
-
-	// Assignment
-	s = strchr(s + 1, ',');
-	if (!s)
-		return;
-
-	// Organization Name
-	s++;
-	if (s[0] == '\"') {
-		s++;
-		e = strchr(s, '\"');
-	} else
-		e = strchr(s, ',');
-	if (!e)
-		return;
-
-	int l = e - s;
-	if (l > size)
-		l = size;
-	strncpy(buf, s, l);
-	*(buf + l) = 0;
-}
-
-void uint642name(uint64_t mac, char *buf, size_t size) {
-	char smac[16], cmd[128], line[1024];
-
-	ZERO(line);
-	mac2string(smac, mac);
-	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
-	FILE *fd = popen(cmd, "r");
-	fgets(line, 1024, fd);
-	pclose(fd);
-
-	if (!*line)
-		return;
-
-	// forward to values
-	char *v = strchr(line, '=') + 1;
-
-	// name is next after mac
-	char *t = strtok(v, ",");
-	while (t != NULL) {
-		while (*t == ' ')
-			t++; // trim
-		if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
-			break; // not a mac
-		t = strtok(NULL, ",");
-	}
-
-	while (*(t + strlen(t) - 1) == '\n')
-		*(t + strlen(t) - 1) = 0; // trim
-
-	strncpy(buf, t, size - 1);
-}
-
-const char* resolve_ip(const char *hostname) {
-	struct addrinfo hints = { 0 };
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_DGRAM;
-	hints.ai_protocol = IPPROTO_UDP;
-	hints.ai_flags |= AI_CANONNAME;
-
-	struct addrinfo *addr;
-
-	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
-		xdebug("UTILS Could not resolve inetAddr for %s", hostname);
-		return NULL;
-	}
-
-	void *ptr = 0;
-	switch (addr->ai_family) {
-	case AF_INET:
-		ptr = &((struct sockaddr_in*) addr->ai_addr)->sin_addr;
-		break;
-	case AF_INET6:
-		ptr = &((struct sockaddr_in6*) addr->ai_addr)->sin6_addr;
-		break;
-	default:
-	}
-
-	char *addrstr = malloc(16);
-	ZEROP(addrstr);
-
-	inet_ntop(addr->ai_family, ptr, addrstr, 16);
-	xdebug("UTILS %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
-	freeaddrinfo(addr);
-
-	return addrstr;
 }
 
 int round10(int n) {

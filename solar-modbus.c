@@ -7,10 +7,9 @@
 #include <time.h>
 
 #include <sys/time.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 
 #include "solar-common.h"
+#include "network.h"
 #include "sunspec.h"
 #include "utils.h"
 #include "mqtt.h"

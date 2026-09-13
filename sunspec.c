@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #include "sunspec.h"
+#include "network.h"
 #include "utils.h"
 
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm

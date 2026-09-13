@@ -5,10 +5,8 @@
 #include <unistd.h>
 #include <math.h>
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
-
 #include "solar-common.h"
+#include "network.h"
 #include "frozen.h"
 #include "utils.h"
 #include "curl.h"

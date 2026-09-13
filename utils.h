@@ -155,13 +155,6 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 char* devinput_keyname(unsigned int key);
 int devinput_find_key(const char *name);
 
-uint64_t string2mac(const char *mac);
-void mac2string(char *smac, uint64_t mac);
-void uint642ou(uint64_t mac, char *buf, size_t size);
-void uint642name(uint64_t mac, char *buf, size_t size);
-
-const char* resolve_ip(const char *hostname);
-
 int round10(int n);
 int round100(int n);
 int atoin(const char *s, int n);
