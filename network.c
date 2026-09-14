@@ -26,7 +26,7 @@ static int ieee_index[0xff];
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
 
-	connection_t *conn = malloc(sizeof(connection_t));
+	connection_t *conn = calloc(1, sizeof(connection_t));
 	conn->stream = popen(server->command, "r");
 	if (conn->stream == NULL)
 		return xerrv("popen failed");
@@ -72,7 +72,7 @@ static void* server_thread(void *arg) {
 
 	xlog("WIFI listening on port %d for %s", server->port, server->description);
 	while (1) {
-		connection_t *conn = malloc(sizeof(connection_t));
+		connection_t *conn = calloc(1, sizeof(connection_t));
 		conn->addr_len = sizeof(conn->address);
 		conn->description = server->description;
 		conn->handler = server->handler;
@@ -110,6 +110,9 @@ int init_server(server_t *server, char *description, int port, handler_t handler
 	server->sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (server->sock < 0)
 		return xerr("socket failed");
+
+	int opt = 1;
+	setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
 
 	struct sockaddr_in *sa_in = (struct sockaddr_in*) &server->address;
 	sa_in->sin_family = AF_INET;

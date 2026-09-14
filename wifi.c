@@ -66,8 +66,12 @@ static time_t now_ts;
 static unsigned long line_count = 0;
 static int line_dump = 0, popen_x = 0;
 
-static void notify(const char *title, const char *text, const char *sound) {
-	// TODO blacklist
+static void notify(uint64_t mac, const char *title, const char *text, const char *sound) {
+	// check if mac is blacklisted
+	for (client_t **cc = black->pclients; *cc; cc++)
+		if (CC->mac == mac)
+			return;
+
 	mqtt_notify(title, text, sound);
 //	mcp_notify(title, text, sound, 0);
 }
@@ -76,7 +80,7 @@ static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
 	line_dump = 1;
 
-	notify("New Station", NAME(s), "au.wav");
+	notify(s->mac, "New Station", NAME(s), "au.wav");
 }
 
 static void notify_station_back(station_t *s) {
@@ -93,7 +97,7 @@ static void notify_station_back(station_t *s) {
 		if (cache->clients[i].mac == s->mac)
 			return;
 
-	notify("Station is back", NAME(s), "au.wav");
+	notify(s->mac, "Station is back", NAME(s), "au.wav");
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
@@ -104,7 +108,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 	if (s != zombie)
 		return;
 
-	notify("New Zombie", NAME(c), "au.wav");
+	notify(c->mac, "New Zombie", NAME(c), "au.wav");
 }
 
 static void notify_client_back(station_t *s, client_t *c) {
@@ -130,7 +134,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 		if (stations[i].mac == c->mac)
 			return;
 
-	notify(s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
+	notify(c->mac, s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
 }
 
 void notify_zombie_assigned(station_t *s, client_t *z) {
@@ -144,7 +148,7 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
-	notify(title, text, NULL);
+	notify(z->mac, title, text, NULL);
 }
 
 static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -415,38 +419,96 @@ static void parse(connection_t *conn) {
 }
 
 static void name(char *smac, char *n) {
+	if (EMPTY(smac) || EMPTY(n)) {
+		xerr("Usage: wifi -n <mac> <name>");
+		return;
+	}
+
 	uint64_t mac = string2mac(smac);
 	for (station_t **ss = pstations; *ss; ss++) {
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			if (mac == CC->mac)
+			if (mac == CC->mac) {
+				xlog("WIFI station %s updating client %s name '%s'", NAME(SS), NAME(CC), n);
 				strncpy(CC->name, n, DESCRIPTION - 1);
-		if (mac == SS->mac)
+			}
+		if (mac == SS->mac) {
+			xlog("WIFI updating station %s name '%s'", NAME(SS), n);
 			strncpy(SS->name, n, DESCRIPTION - 1);
+		}
 	}
 }
 
 static void delete(char *smac) {
+	if (EMPTY(smac)) {
+		xerr("Usage: wifi -d <mac>");
+		return;
+	}
+
 	uint64_t mac = string2mac(smac);
 	for (station_t **ss = pstations; *ss; ss++) {
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			if (mac == CC->mac)
+			if (mac == CC->mac) {
+				xlog("WIFI station %s deleting client %s", NAME(SS), NAME(CC));
 				CC->mac = 0;
-		if (mac == SS->mac)
+			}
+		if (mac == SS->mac) {
+			xlog("WIFI deleting station %s", NAME(SS));
 			SS->mac = 0;
+		}
 	}
 }
 
-static void blacklist(char *smac) {
+static void blacklist(char *smac, int op) {
+	if (EMPTY(smac)) {
+		xerr("Usage: wifi -b <mac> | -w <mac>");
+		return;
+	}
+
 	uint64_t mac = string2mac(smac);
-	client(black, mac, 0, 0, NULL, 'b');
+	if (op)
+		// add to blacklist
+		client(black, mac, 0, 0, NULL, 'b');
+	else {
+		// remove from blacklist
+		for (client_t **cc = black->pclients; *cc; cc++)
+			if (CC->mac == mac) {
+				xlog("WIFI deleting blacklist entry %s", NAME(CC));
+				CC->mac = 0;
+			}
+	}
 }
 
 static void command(connection_t *conn) {
-	xdebug("WIFI command %s", conn->line);
+	conn->line_count++;
+	conn->line[strlen(conn->line) - 1] = 0; // remove LF
+	conn->line[strlen(conn->line) - 1] = 0; // remove CR
+	// xdebug("WIFI command %s", conn->line);
 
-	// TODO
+	char *rest = conn->line;
+	char *c = strtok_r(rest, " ", &rest);
+	char *arg1 = strtok_r(rest, " ", &rest);
+	char *arg2 = strtok_r(rest, " ", &rest);
 
-	fprintf(conn->stream, "echo command %s", conn->line);
+	switch (c[0]) {
+	case 'b':
+		blacklist(arg1, 1);
+		break;
+	case 'd':
+		delete(arg1);
+		break;
+	case 'n':
+		name(arg1, arg2);
+		break;
+	case 'q':
+		shutdown(conn->sock, SHUT_WR);
+		break;
+	case 'w':
+		blacklist(arg1, 0);
+		break;
+	default:
+		fprintf(conn->stream, "unknown command %s\n", c);
+	}
+
 	fflush(conn->stream);
 }
 
@@ -670,34 +732,25 @@ static void sort() {
 //	PROFILING_LOG("sort stations")
 }
 
-static int main_name(char **argv) {
-	char *smac = argv[2];
-	char *n = argv[3];
-
-	if (EMPTY(smac) || EMPTY(n))
+static int main_name(int argc, char **argv) {
+	if (argc != 4)
 		return xerr("Usage: wifi -u <mac> <name>");
 
 	mcp_init();
-	name(smac, n);
+	name(argv[2], argv[3]);
 	mcp_stop();
 	return 0;
 }
 
 static int main_delete(char *smac) {
-	if (EMPTY(smac))
-		return xerr("Usage: wifi -d <mac>");
-
 	mcp_init();
 	delete(smac);
 	mcp_stop();
 	return 0;
 }
-static int main_blacklist(char *smac) {
-	if (EMPTY(smac))
-		return xerr("Usage: wifi -b <mac>");
-
+static int main_blacklist(char *smac, int op) {
 	mcp_init();
-	blacklist(smac);
+	blacklist(smac, op);
 	mcp_stop();
 	return 0;
 }
@@ -720,7 +773,7 @@ static int main_test() {
 	c->mac = SPECIAL;
 	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
-	notify("client is back", NAME(c), "au.wav");
+	notify(c->mac, "client is back", NAME(c), "au.wav");
 
 	dump_compact();
 	dump_flat();
@@ -830,17 +883,19 @@ int wifi_main(int argc, char **argv) {
 	while ((c = getopt(argc, argv, "b:d:ln:pt")) != -1) {
 		switch (c) {
 		case 'b':
-			return main_blacklist(optarg);
+			return main_blacklist(optarg, 1);
 		case 'd':
 			return main_delete(optarg);
 		case 'l':
 			return mcp_main(argc, argv);
 		case 'n':
-			return main_name(argv);
+			return main_name(argc, argv);
 		case 'p':
 			return main_popen(argc, argv);
 		case 't':
 			return main_test();
+		case 'w':
+			return main_blacklist(optarg, 0);
 		default:
 			xlog("unknown getopt %c", c);
 		}
