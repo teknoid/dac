@@ -902,7 +902,7 @@ static void loop() {
 
 #define OVERVIEW "\nWIFI %d Stations, %d Zombies, %d Active, %d Cached, %d Black, %lu Lines"
 		if (now_ts % 60 == 0) {
-			xdebug(OVERVIEW, scount, zombie->ccount, active->ccount, cache->ccount, black->count, line_count);
+			xdebug(OVERVIEW, scount, zombie->ccount, active->ccount, cache->ccount, black->ccount, line_count);
 			dump_compact();
 			dump_flat();
 		}
