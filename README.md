@@ -22,7 +22,9 @@ a MPD + DAC Controller for *Pi Boards
 
 # News
 
-Jan 2025 PV surplus power management
+Sep 2026 WiFi Sniffer
+
+Jan 2025 Solar PV surplus power management
 
 Aug 2023 insert [picam](https://github.com/teknoid/picam) functionality
 
