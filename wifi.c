@@ -749,7 +749,7 @@ static void sort_station_count(station_t *s) {
 static void sort_station_ts(station_t *s) {
 	pointers(s);
 
-	// bubble sort client pointers by count
+	// bubble sort client pointers by time stamp
 	s->dirty = 0;
 	for (int i = 0; i < s->ccount - 1; i++)
 		for (int j = 0; j < s->ccount - i - 1; j++) {
