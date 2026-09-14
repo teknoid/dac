@@ -6,7 +6,7 @@
 
 typedef struct _server server_t;
 typedef struct _connection connection_t;
-typedef void (*handler_t)(connection_t *conn);
+typedef int (*handler_t)(connection_t *conn);
 
 typedef struct description_t {
 	uint64_t mac;

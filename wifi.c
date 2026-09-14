@@ -281,7 +281,7 @@ static void check_ssid(uint64_t mac, int channel, int signal, char *ssid) {
 	client(zombie, mac, channel, signal, ssid, 'z');
 }
 
-static void parse(connection_t *conn) {
+static int parse(connection_t *conn) {
 //	PROFILING_START
 
 	conn->line[strlen(conn->line) - 1] = 0; // remove newline
@@ -416,13 +416,13 @@ static void parse(connection_t *conn) {
 
 	pthread_mutex_unlock(&lock);
 //	PROFILING_LOG("parse")
+
+	return 0;
 }
 
-static void name(char *smac, char *n) {
-	if (EMPTY(smac) || EMPTY(n)) {
-		xerr("Usage: wifi -n <mac> <name>");
-		return;
-	}
+static int name(char *smac, char *n) {
+	if (EMPTY(smac) || EMPTY(n))
+		return xerr("Usage: wifi -n <mac> <name>");
 
 	uint64_t mac = string2mac(smac);
 	for (station_t **ss = pstations; *ss; ss++) {
@@ -436,13 +436,13 @@ static void name(char *smac, char *n) {
 			strncpy(SS->name, n, DESCRIPTION - 1);
 		}
 	}
+
+	return 0;
 }
 
-static void delete(char *smac) {
-	if (EMPTY(smac)) {
+static int delete(char *smac) {
+	if (EMPTY(smac))
 		xerr("Usage: wifi -d <mac>");
-		return;
-	}
 
 	uint64_t mac = string2mac(smac);
 	for (station_t **ss = pstations; *ss; ss++) {
@@ -456,13 +456,13 @@ static void delete(char *smac) {
 			SS->mac = 0;
 		}
 	}
+
+	return 0;
 }
 
-static void blacklist(char *smac, int op) {
-	if (EMPTY(smac)) {
-		xerr("Usage: wifi -b <mac> | -w <mac>");
-		return;
-	}
+static int blacklist(char *smac, int op) {
+	if (EMPTY(smac))
+		return xerr("Usage: wifi -b <mac> | -w <mac>");
 
 	uint64_t mac = string2mac(smac);
 	if (op)
@@ -476,9 +476,11 @@ static void blacklist(char *smac, int op) {
 				CC->mac = 0;
 			}
 	}
+
+	return 0;
 }
 
-static void command(connection_t *conn) {
+static int command(connection_t *conn) {
 	conn->line_count++;
 	conn->line[strlen(conn->line) - 1] = 0; // remove LF
 	conn->line[strlen(conn->line) - 1] = 0; // remove CR
@@ -491,25 +493,21 @@ static void command(connection_t *conn) {
 
 	switch (c[0]) {
 	case 'b':
-		blacklist(arg1, 1);
-		break;
+		return blacklist(arg1, 1);
 	case 'd':
-		delete(arg1);
-		break;
+		return delete(arg1);
 	case 'n':
-		name(arg1, arg2);
-		break;
+		return name(arg1, arg2);
 	case 'q':
-		shutdown(conn->sock, SHUT_WR);
-		break;
+		return shutdown(conn->sock, SHUT_WR);
 	case 'w':
-		blacklist(arg1, 0);
-		break;
+		return blacklist(arg1, 0);
 	default:
 		fprintf(conn->stream, "unknown command %s\n", c);
+		fflush(conn->stream);
 	}
 
-	fflush(conn->stream);
+	return 0;
 }
 
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
@@ -732,26 +730,34 @@ static void sort() {
 //	PROFILING_LOG("sort stations")
 }
 
+int main_popen(int argc, char **argv) {
+	popen_x = 1;
+	return mcp_main(argc, argv);
+}
+
 static int main_name(int argc, char **argv) {
 	if (argc != 4)
 		return xerr("Usage: wifi -u <mac> <name>");
 
-	mcp_init();
+	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
+	sort();
 	name(argv[2], argv[3]);
-	mcp_stop();
+	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 	return 0;
 }
 
 static int main_delete(char *smac) {
-	mcp_init();
+	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
+	sort();
 	delete(smac);
-	mcp_stop();
+	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 	return 0;
 }
 static int main_blacklist(char *smac, int op) {
-	mcp_init();
+	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
+	sort();
 	blacklist(smac, op);
-	mcp_stop();
+	store_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 	return 0;
 }
 
@@ -780,11 +786,6 @@ static int main_test() {
 
 	mcp_stop();
 	return 0;
-}
-
-int main_popen(int argc, char **argv) {
-	popen_x = 1;
-	return mcp_main(argc, argv);
 }
 
 static void loop() {
