@@ -31,7 +31,7 @@
 #define STP						0x0180c2000000
 #define U2MASK					0xffff00000000
 #define U3MASK					0xffffff000000
-#define SPECIAL					0xaaffeeaaffee
+#define AFFE					0xaaffeeaaffee
 #define DUMMY					0x112233445566
 
 #define SECONDS_1W 				(60 * 60 * 24 * 7)
@@ -57,8 +57,9 @@ static int scount;
 static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombie = &stations[STATIONS - 1];
-static station_t *cache = &stations[STATIONS - 2];
+static station_t *active = &stations[STATIONS - 2];
 static station_t *black = &stations[STATIONS - 3];
+static station_t *cache = &stations[STATIONS - 4];
 
 static pthread_mutex_t lock;
 static time_t now_ts;
@@ -529,7 +530,7 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, "%d Stations, %d Blacklisted, %d Cached, %d Zombies, %lu Lines\n\n", scount, black->ccount, cache->ccount, zombie->ccount, line_count);
+	fprintf(fp, "%d Stations, %d Zombies, %d Active, %d Cached, %d Black, %lu Lines\n\n", scount, zombie->ccount, active->ccount, cache->ccount, black->ccount, line_count);
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
 		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
@@ -560,6 +561,7 @@ static void dump_flat() {
 	fclose(fp);
 }
 
+// check if zombie is assigned to any station
 static void assign() {
 //	PROFILING_START
 
@@ -568,7 +570,7 @@ static void assign() {
 		int assigned = 0, remove = 0;
 		for (station_t **ss = pstations; *ss; ss++) {
 
-			if (SS == black || SS == cache || SS == zombie)
+			if (SS->mac == AFFE)
 				continue;
 
 			if (ZZ->mac == SS->mac) {
@@ -612,6 +614,7 @@ static void assign() {
 //	PROFILING_LOG("assign")
 }
 
+// remove expired clients
 static void expired() {
 //	PROFILING_START
 
@@ -657,26 +660,77 @@ static void expired() {
 //	PROFILING_LOG("expired")
 }
 
-static void sort_station(station_t *s) {
-	station_t copy;
-	int count;
+// collect all active clients
+static void actives() {
+//	PROFILING_START
 
-	// update client pointer
-	count = 0;
+	ZERO(active->clients);
+	for (station_t **ss = pstations; *ss; ss++) {
+		if (SS->mac == AFFE)
+			continue;
+
+		for (client_t **cc = SS->pclients; *cc; cc++) {
+
+			// too less / expired
+			int age = now_ts - CC->ts;
+			if (CC->count < 1000 || age > SECONDS_1H)
+				continue;
+
+			// is a station
+			int is_station = 0;
+			for (station_t **sss = pstations; *sss; sss++)
+				if (CC->mac == (*sss)->mac)
+					is_station++;
+			if (is_station)
+				continue;
+
+			// is AVM hardware
+			if (!strncmp("AVM", CC->ou, 3))
+				continue;
+
+			// track client with maximum count per station
+			client_t *h = client(active, CC->mac, 0, 0, NULL, 'h');
+			if (CC->count > h->count) {
+				h->channel = CC->channel;
+				h->signal = CC->signal;
+				h->count = CC->count;
+				h->ts = CC->ts;
+				strcpy(h->name, CC->name);
+				strcpy(h->ssid, SS->ssid);
+			}
+		}
+	}
+//	PROFILING_LOG("active")
+}
+
+// copy clients in sorted order and then copy all back
+static void reorganize(station_t *s) {
+	//	xdebug("WIFI station %s reorganization needed", NAME(s));
+	station_t copy;
+	ZERO(copy);
+	int count = 0;
+	for (client_t **cc = s->pclients; *cc; cc++)
+		memcpy(&(copy.clients[count++]), CC, CLIENT_SIZE);
+	memcpy(&s->clients, &copy.clients, CLIENT_SIZE * CLIENTS);
+}
+
+// update client pointer
+static void pointers(station_t *s) {
+	int count = 0;
 	for (int i = 0; i < CLIENTS; i++)
 		if (s->clients[i].mac)
 			s->pclients[count++] = &s->clients[i];
 	s->pclients[count] = 0; // null terminate
 	s->ccount = count;
+}
 
-	// empty
-	if (!count)
-		return;
+static void sort_station_count(station_t *s) {
+	pointers(s);
 
 	// bubble sort client pointers by count
 	s->dirty = 0;
-	for (int i = 0; i < count - 1; i++)
-		for (int j = 0; j < count - i - 1; j++) {
+	for (int i = 0; i < s->ccount - 1; i++)
+		for (int j = 0; j < s->ccount - i - 1; j++) {
 			client_t *x = s->pclients[j];
 			client_t *y = s->pclients[j + 1];
 			if (y->count > x->count) {
@@ -686,25 +740,54 @@ static void sort_station(station_t *s) {
 			}
 		}
 
-	if (s->dirty < 10)
-		return;
+	if (s->dirty > 10)
+		reorganize(s);
 
-//	xdebug("WIFI station %s reorganization needed", NAME(s));
+	pointers(s);
+}
 
-	// copy clients in sorted order and then copy all back
-	memset(&copy, 0, STATION_SIZE);
-	count = 0;
-	for (client_t **cc = s->pclients; *cc; cc++)
-		memcpy(&(copy.clients[count++]), CC, CLIENT_SIZE);
-	memcpy(&s->clients, &copy.clients, CLIENT_SIZE * CLIENTS);
+static void sort_station_ts(station_t *s) {
+	pointers(s);
 
-	// update client pointer again
-	count = 0;
-	for (int i = 0; i < CLIENTS; i++)
-		if (s->clients[i].mac)
-			s->pclients[count++] = &s->clients[i];
-	s->pclients[count] = 0; // null terminate
-	s->ccount = count;
+	// bubble sort client pointers by count
+	s->dirty = 0;
+	for (int i = 0; i < s->ccount - 1; i++)
+		for (int j = 0; j < s->ccount - i - 1; j++) {
+			client_t *x = s->pclients[j];
+			client_t *y = s->pclients[j + 1];
+			if (y->ts > x->ts) {
+				s->pclients[j] = y;
+				s->pclients[j + 1] = x;
+				s->dirty++;
+			}
+		}
+
+	if (s->dirty > 10)
+		reorganize(s);
+
+	pointers(s);
+}
+
+static void sort_station_ssid(station_t *s) {
+	pointers(s);
+
+	// bubble sort client pointers by ssid
+	s->dirty = 0;
+	for (int i = 0; i < s->ccount - 1; i++)
+		for (int j = 0; j < s->ccount - i - 1; j++) {
+			client_t *x = s->pclients[j];
+			client_t *y = s->pclients[j + 1];
+			if (strcmp(y->ssid, x->ssid) < 0) {
+				s->pclients[j] = y;
+				s->pclients[j + 1] = x;
+				s->dirty++;
+			}
+		}
+
+	if (s->dirty > 10)
+		reorganize(s);
+
+	pointers(s);
 }
 
 static void sort() {
@@ -730,9 +813,15 @@ static void sort() {
 			}
 		}
 
-	// sort station clients
+	// initially sort all clients by count
 	for (station_t **ss = pstations; *ss; ss++)
-		sort_station(SS);
+		sort_station_count(SS);
+
+	// sort zombies by age
+	sort_station_ts(zombie);
+
+	// sort actives by ssid
+	sort_station_ssid(active);
 
 	pthread_mutex_unlock(&lock);
 //	PROFILING_LOG("sort stations")
@@ -784,7 +873,7 @@ static int main_test() {
 	xlog("ETHERS %012lx = %s", mac, get_ethers_name(mac));
 
 	client_t cc, *c = &cc;
-	c->mac = SPECIAL;
+	c->mac = AFFE;
 	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
 	notify("client is back", NAME(c), "au.wav");
@@ -811,11 +900,15 @@ static void loop() {
 		if (now_ts % 30 == 0)
 			expired();
 
+#define OVERVIEW "\nWIFI %d Stations, %d Zombies, %d Active, %d Cached, %d Black, %lu Lines"
 		if (now_ts % 60 == 0) {
-			xdebug("\nWIFI %d Stations, %d Blacklisted, %d Cached, %d Zombies, %lu Lines", scount, black->ccount, cache->ccount, zombie->ccount, line_count);
+			xdebug(OVERVIEW, scount, zombie->ccount, active->ccount, cache->ccount, black->count, line_count);
 			dump_compact();
 			dump_flat();
 		}
+
+		if (now_ts % SECONDS_5M == 0)
+			actives();
 
 		if (now_ts % SECONDS_1D == 0)
 			store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
@@ -831,20 +924,25 @@ static int init() {
 	load_blob(TMP SLASH WIFI_BIN, stations, sizeof(stations));
 	sort(); // initially update station / client pointers
 
+	strcpy(zombie->ssid, "ZOMBIE");
+	zombie->mac = AFFE;
+	zombie->signal = -999;
+	mac2string(zombie->smac, zombie->mac);
+
+	strcpy(active->ssid, "ACTIVE");
+	active->mac = AFFE;
+	active->signal = -998;
+	mac2string(active->smac, active->mac);
+
 	strcpy(black->ssid, "BLACK");
-	black->mac = SPECIAL;
+	black->mac = AFFE;
 	black->signal = -997;
 	mac2string(black->smac, black->mac);
 
 	strcpy(cache->ssid, "CACHE");
-	cache->mac = SPECIAL;
-	cache->signal = -998;
+	cache->mac = AFFE;
+	cache->signal = -996;
 	mac2string(cache->smac, cache->mac);
-
-	strcpy(zombie->ssid, "ZOMBIE");
-	zombie->mac = SPECIAL;
-	zombie->signal = -999;
-	mac2string(zombie->smac, zombie->mac);
 
 	// start local tcpdump thread
 	if (popen_x)
