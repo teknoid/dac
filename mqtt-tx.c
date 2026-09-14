@@ -11,9 +11,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <posix_sockets.h>
 #include <mqttc.h>
 
+#include "network.h"
 #include "utils.h"
 #include "mqtt.h"
 #include "mcp.h"
@@ -60,7 +60,7 @@ static int init() {
 	client->keep_alive = 30;
 
 	// create new socket
-	int fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	int fd = init_socket_nb(MQTT_HOST, MQTT_PORT);
 	if (fd == -1)
 		return xerr("MQTT-TX Failed to open socket: ");
 

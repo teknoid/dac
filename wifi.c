@@ -51,7 +51,7 @@
 #define CC						(*cc)
 #define ZZ						(*zz)
 
-static server_t data, cmd, local;
+static server_t data, cmnd, local;
 
 static int scount;
 static station_t stations[STATIONS];
@@ -66,12 +66,7 @@ static time_t now_ts;
 static unsigned long line_count = 0;
 static int line_dump = 0, popen_x = 0;
 
-static void notify(uint64_t mac, const char *title, const char *text, const char *sound) {
-	// check if mac is blacklisted
-	for (client_t **cc = black->pclients; *cc; cc++)
-		if (CC->mac == mac)
-			return;
-
+static void notify(const char *title, const char *text, const char *sound) {
 	mqtt_notify(title, text, sound);
 //	mcp_notify(title, text, sound, 0);
 }
@@ -80,7 +75,7 @@ static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
 	line_dump = 1;
 
-	notify(s->mac, "New Station", NAME(s), "au.wav");
+	notify("New Station", NAME(s), "au.wav");
 }
 
 static void notify_station_back(station_t *s) {
@@ -97,7 +92,12 @@ static void notify_station_back(station_t *s) {
 		if (cache->clients[i].mac == s->mac)
 			return;
 
-	notify(s->mac, "Station is back", NAME(s), "au.wav");
+	// not when in BLACK
+	for (int i = 0; i < CLIENTS; i++)
+		if (black->clients[i].mac == s->mac)
+			return;
+
+	notify("Station is back", NAME(s), "au.wav");
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
@@ -108,7 +108,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 	if (s != zombie)
 		return;
 
-	notify(c->mac, "New Zombie", NAME(c), "au.wav");
+	notify("New Zombie", NAME(c), "au.wav");
 }
 
 static void notify_client_back(station_t *s, client_t *c) {
@@ -125,16 +125,21 @@ static void notify_client_back(station_t *s, client_t *c) {
 		if (cache->clients[i].mac == c->mac)
 			return;
 
-	// not for volatile anonymous clients
-	if (c->count < 1000 && EMPTY(c->name))
-		return;
+	// not when in BLACK
+	for (int i = 0; i < CLIENTS; i++)
+		if (black->clients[i].mac == c->mac)
+			return;
 
 	// not for stations
 	for (int i = 0; i < STATIONS; i++)
 		if (stations[i].mac == c->mac)
 			return;
 
-	notify(c->mac, s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
+	// not for volatile anonymous clients
+	if (c->count < 1000 && EMPTY(c->name))
+		return;
+
+	notify(s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
 }
 
 void notify_zombie_assigned(station_t *s, client_t *z) {
@@ -148,7 +153,7 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
-	notify(z->mac, title, text, NULL);
+	notify(title, text, NULL);
 }
 
 static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -324,8 +329,11 @@ static int parse(connection_t *conn) {
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
 			char *x = strchr(rest, '(') + 1;
 			char *y = strchr(rest, ')');
-			if (y != x)
-				strncpy(ssid, x, (size_t) (y - x)); // TODO max size ?
+			if (y != x) {
+				size_t size = y - x;
+				HICUT(size, DESCRIPTION - 1);
+				strncpy(ssid, x, size);
+			}
 		}
 
 		oldt = t;
@@ -487,11 +495,11 @@ static int command(connection_t *conn) {
 	// xdebug("WIFI command %s", conn->line);
 
 	char *rest = conn->line;
-	char *c = strtok_r(rest, " ", &rest);
+	char *cmnd = strtok_r(rest, " ", &rest);
 	char *arg1 = strtok_r(rest, " ", &rest);
 	char *arg2 = strtok_r(rest, " ", &rest);
 
-	switch (c[0]) {
+	switch (cmnd[0]) {
 	case 'b':
 		return blacklist(arg1, 1);
 	case 'd':
@@ -499,11 +507,11 @@ static int command(connection_t *conn) {
 	case 'n':
 		return name(arg1, arg2);
 	case 'q':
-		return shutdown(conn->sock, SHUT_WR);
+		return shutdown(conn->sock, SHUT_RDWR);
 	case 'w':
 		return blacklist(arg1, 0);
 	default:
-		fprintf(conn->stream, "unknown command %s\n", c);
+		fprintf(conn->stream, "unknown command %s\n", cmnd);
 		fflush(conn->stream);
 	}
 
@@ -779,7 +787,7 @@ static int main_test() {
 	c->mac = SPECIAL;
 	mac2string(c->smac, c->mac);
 	strcpy(c->name, "Test");
-	notify(c->mac, "client is back", NAME(c), "au.wav");
+	notify("client is back", NAME(c), "au.wav");
 
 	dump_compact();
 	dump_flat();
@@ -844,7 +852,7 @@ static int init() {
 
 	// start data and command servers
 	init_server(&data, "tcpdump", PORT, &parse);
-	init_server(&cmd, "command", PORT + 1, &command);
+	init_server(&cmnd, "command", PORT + 1, &command);
 
 	return 0;
 }
@@ -862,16 +870,16 @@ static void stop() {
 		pthread_join(data.thread, NULL);
 	}
 
-	if (cmd.thread) {
-		pthread_cancel(cmd.thread);
-		pthread_join(cmd.thread, NULL);
+	if (cmnd.thread) {
+		pthread_cancel(cmnd.thread);
+		pthread_join(cmnd.thread, NULL);
 	}
 
 	if (data.sock)
 		close(data.sock);
 
-	if (cmd.sock)
-		close(cmd.sock);
+	if (cmnd.sock)
+		close(cmnd.sock);
 
 	pthread_mutex_destroy(&lock);
 }

@@ -48,10 +48,10 @@ const char* get_ethers_name(uint64_t mac);
 uint64_t string2mac(const char *mac);
 void mac2string(char *smac, uint64_t mac);
 void mac2name(char *name, uint64_t mac, size_t size);
+void mac2name_grep(char *buf, uint64_t mac, size_t size);
 void mac2ou(char *ou, uint64_t mac, size_t size);
-
-void uint642ou(uint64_t mac, char *buf, size_t size);
-void uint642name(uint64_t mac, char *buf, size_t size);
+void mac2ou_grep(char *ou, uint64_t mac, size_t size);
 
 int init_server(server_t *server, char *description, int port, handler_t handler);
 int init_popen(server_t *local, char *description, char *command, handler_t handler);
+int init_socket_nb(const char *addr, const char *port);

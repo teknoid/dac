@@ -11,11 +11,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <posix_sockets.h>
 #include <mqttc.h>
 
 #include "sensors.h"
 #include "tasmota.h"
+#include "network.h"
 #include "frozen.h"
 #include "solar.h"
 #include "utils.h"
@@ -194,7 +194,7 @@ static int init() {
 	ZEROP(client);
 	client->keep_alive = 30;
 
-	int fd = open_nb_socket(MQTT_HOST, MQTT_PORT);
+	int fd = init_socket_nb(MQTT_HOST, MQTT_PORT);
 	if (fd == -1)
 		return xerr("MQTT-RX Failed to open socket: ");
 

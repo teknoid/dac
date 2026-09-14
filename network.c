@@ -21,15 +21,13 @@ static description_t ethers[0xff];
 static description_t ieee[0xffff];
 static int ieee_index[0xff];
 
-// TODO insert include/posix_sockets.h
-
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
 
 	connection_t *conn = calloc(1, sizeof(connection_t));
 	conn->stream = popen(server->command, "r");
 	if (conn->stream == NULL)
-		return xerrv("popen failed");
+		return xerrv("NETWORK popen failed");
 
 	xlog("WIFI %d pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
@@ -48,13 +46,13 @@ static void* connection_thread(void *arg) {
 	// convert socket into file stream for reading line by line
 	conn->stream = fdopen(conn->sock, "r+");
 	if (conn->stream == NULL)
-		return xerrv("fdopen failed");
+		return xerrv("NETWORK fdopen failed");
 
 	while (!feof(conn->stream))
 		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
 			(conn->handler)(conn);
 
-	xlog("WIFI %s client %s disconnected, received %d lines", conn->description, conn->ip, conn->line_count);
+	xlog("NETWORK %s client %s disconnected, received %d lines", conn->description, conn->ip, conn->line_count);
 	if (conn->stream)
 		fclose(conn->stream);
 	if (conn->sock)
@@ -68,9 +66,9 @@ static void* server_thread(void *arg) {
 	server_t *server = (server_t*) arg;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
-		return xerrv("Error setting pthread_setcancelstate");
+		return xerrv("NETWORK pthread_setcancelstate failed");
 
-	xlog("WIFI listening on port %d for %s", server->port, server->description);
+	xlog("NETWORK listening on port %d for %s", server->port, server->description);
 	while (1) {
 		connection_t *conn = calloc(1, sizeof(connection_t));
 		conn->addr_len = sizeof(conn->address);
@@ -80,21 +78,21 @@ static void* server_thread(void *arg) {
 		// wait for client connection
 		conn->sock = accept(server->sock, &conn->address, &conn->addr_len);
 		if (conn->sock < 0)
-			return xerrv("accept failed");
+			return xerrv("NETWORK accept failed");
 
 		// get client ip address
 		struct sockaddr_in *sa_in = (struct sockaddr_in*) &conn->address;
 		char *ip = inet_ntoa(sa_in->sin_addr);
 		strncpy(conn->ip, ip, 15);
-		xlog("WIFI new %s connection from %s", server->description, conn->ip);
+		xlog("NETWORK new %s connection from %s", server->description, conn->ip);
 
 		// start new thread handling this connection
 		if (pthread_create(&conn->thread, 0, &connection_thread, (void*) conn))
-			return xerrv("Error creating thread");
+			return xerrv("NETWORK pthread_create failed");
 
 		// detach it
 		if (pthread_detach(conn->thread))
-			return xerrv("Error detaching thread");
+			return xerrv("NETWORK pthread_detach failed");
 	}
 
 	pthread_exit(NULL);
@@ -109,10 +107,10 @@ int init_server(server_t *server, char *description, int port, handler_t handler
 	// create server socket
 	server->sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (server->sock < 0)
-		return xerr("socket failed");
+		return xerr("NETWORK socket failed");
 
 	int opt = 1;
-	setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(int));
+	setsockopt(server->sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
 	struct sockaddr_in *sa_in = (struct sockaddr_in*) &server->address;
 	sa_in->sin_family = AF_INET;
@@ -120,13 +118,13 @@ int init_server(server_t *server, char *description, int port, handler_t handler
 	sa_in->sin_port = htons(server->port);
 
 	if (bind(server->sock, &server->address, server->addr_len) < 0)
-		return xerr("bind failed");
+		return xerr("NETWORK bind failed");
 
 	if (listen(server->sock, SOMAXCONN) < 0)
-		return xerr("listen failed");
+		return xerr("NETWORK listen failed");
 
 	if (pthread_create(&server->thread, NULL, &server_thread, (void*) server))
-		return xerr("Error creating thread");
+		return xerr("NETWORK Error creating thread");
 
 	return 0;
 }
@@ -137,9 +135,55 @@ int init_popen(server_t *local, char *description, char *command, handler_t hand
 	local->handler = handler;
 
 	if (pthread_create(&local->thread, NULL, &popen_thread, (void*) local))
-		return xerr("Error creating thread");
+		return xerr("NETWORK Error creating thread");
 
 	return 0;
+}
+
+int init_socket_nb(const char *addr, const char *port) {
+	struct addrinfo hints = { 0 };
+	hints.ai_family = AF_UNSPEC; /* IPv4 or IPv6 */
+	hints.ai_socktype = SOCK_STREAM; /* Must be TCP */
+
+	// get address information
+	struct addrinfo *p, *servinfo;
+	int rv = getaddrinfo(addr, port, &hints, &servinfo);
+	if (rv != 0)
+		return xerr("NETWORK getaddrinfo failed: %s", gai_strerror(rv));
+
+	// open the first possible socket
+	int sock = -1;
+	for (p = servinfo; p != NULL; p = p->ai_next) {
+		sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+		if (sock != -1)
+			break;
+	}
+
+	freeaddrinfo(servinfo);
+
+	if (sock == -1)
+		return xerr("NETWORK socket failed");
+
+	// set keep alive
+	int keepalive = 1;
+	rv = setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+	if (rv == -1)
+		xerr("NETWORK setsockopt SO_KEEPALIVE failed");
+
+	// connect to server
+	rv = connect(sock, p->ai_addr, p->ai_addrlen);
+	if (rv == -1) {
+		close(sock);
+		return xerr("NETWORK connect failed");
+	}
+
+	// make non-blocking
+	int flags = fcntl(sock, F_GETFL);
+	rv = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+	if (rv == -1)
+		xerr("NETWORK fcntl O_NONBLOCK failed");
+
+	return sock;
 }
 
 const char* resolve_ip(const char *hostname) {
@@ -151,10 +195,8 @@ const char* resolve_ip(const char *hostname) {
 
 	struct addrinfo *addr;
 
-	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0) {
-		xdebug("UTILS Could not resolve inetAddr for %s", hostname);
-		return NULL;
-	}
+	if (getaddrinfo(hostname, NULL, &hints, &addr) != 0)
+		return xerrv("NETWORK Could not resolve inetAddr for %s", hostname);
 
 	void *ptr = 0;
 	switch (addr->ai_family) {
@@ -171,7 +213,7 @@ const char* resolve_ip(const char *hostname) {
 	ZEROP(addrstr);
 
 	inet_ntop(addr->ai_family, ptr, addrstr, 16);
-	xdebug("UTILS %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
+	xlog("NETWORK %s IPv%d address: %s (%s)", hostname, addr->ai_family == PF_INET6 ? 6 : 4, addrstr, addr->ai_canonname);
 	freeaddrinfo(addr);
 
 	return addrstr;
@@ -252,7 +294,7 @@ int load_ethers() {
 	ZERO(ethers);
 	FILE *fp = fopen(ETHERS, "rt");
 	if (fp == NULL)
-		return xerr("UTILS Cannot open file %s for reading", ETHERS);
+		return xerr("NETWORK Cannot open file %s for reading", ETHERS);
 
 	int ii = 0;
 	while (fgets(line, NETWORK_LINEBUF - 1, fp) != NULL) {
@@ -297,7 +339,7 @@ int load_ethers() {
 	}
 
 	fclose(fp);
-	xlog("WIFI loaded %d entries from %s", ii, ETHERS);
+	xlog("NETWORK loaded %d entries from %s", ii, ETHERS);
 
 	// for (int i = 0; i < ii; i++)
 	// xlog("%lx = %s", ethers[i].mac, ethers[i].description);
@@ -311,7 +353,7 @@ int load_ieee() {
 	ZERO(ieee);
 	FILE *fp = fopen(IEEE, "rt");
 	if (fp == NULL)
-		return xerr("UTILS Cannot open file %s for reading", IEEE);
+		return xerr("NETWORK Cannot open file %s for reading", IEEE);
 
 	int ii = 0;
 	while (fgets(line, NETWORK_LINEBUF - 1, fp) != NULL) {
@@ -342,7 +384,7 @@ int load_ieee() {
 	}
 
 	fclose(fp);
-	xlog("WIFI loaded %d entries from %s", ii, IEEE);
+	xlog("NETWORK loaded %d entries from %s", ii, IEEE);
 
 	// for (int i = 0; i < ii; i++)
 	// xlog("%lx = %s", ieee[i].mac, ieee[i].description);
@@ -365,7 +407,38 @@ int load_ieee() {
 	return 0;
 }
 
-void uint642ou(uint64_t mac, char *buf, size_t size) {
+void mac2name_grep(char *buf, uint64_t mac, size_t size) {
+	char smac[16], cmd[128], line[1024];
+
+	ZERO(line);
+	mac2string(smac, mac);
+	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
+	FILE *fd = popen(cmd, "r");
+	fgets(line, 1024, fd);
+	pclose(fd);
+
+	if (!*line)
+		return;
+
+	// forward to values
+	char *v = strchr(line, '=') + 1;
+
+	// name is next after mac
+	char *t = strtok(v, ",");
+	while (t != NULL) {
+		while (*t == ' ')
+			t++; // trim
+		if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
+			break; // not a mac
+		t = strtok(NULL, ",");
+	}
+
+	while (*(t + strlen(t) - 1) == '\n')
+		*(t + strlen(t) - 1) = 0; // trim
+
+	strncpy(buf, t, size - 1);
+}
+void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 	char smac[16], cmd[128], line[1024];
 
 	ZERO(line);
@@ -401,39 +474,7 @@ void uint642ou(uint64_t mac, char *buf, size_t size) {
 	int l = e - s;
 	if (l > size)
 		l = size;
-	strncpy(buf, s, l - 1);
-	*(buf + l) = 0;
-}
-
-void uint642name(uint64_t mac, char *buf, size_t size) {
-	char smac[16], cmd[128], line[1024];
-
-	ZERO(line);
-	mac2string(smac, mac);
-	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
-	FILE *fd = popen(cmd, "r");
-	fgets(line, 1024, fd);
-	pclose(fd);
-
-	if (!*line)
-		return;
-
-	// forward to values
-	char *v = strchr(line, '=') + 1;
-
-	// name is next after mac
-	char *t = strtok(v, ",");
-	while (t != NULL) {
-		while (*t == ' ')
-			t++; // trim
-		if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
-			break; // not a mac
-		t = strtok(NULL, ",");
-	}
-
-	while (*(t + strlen(t) - 1) == '\n')
-		*(t + strlen(t) - 1) = 0; // trim
-
-	strncpy(buf, t, size - 1);
+	strncpy(ou, s, l - 1);
+	*(ou + l) = 0;
 }
 
