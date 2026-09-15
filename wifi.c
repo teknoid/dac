@@ -46,6 +46,7 @@
 
 #define CHANNEL(x)				(x ? 1 + (x - 2412) / 5 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
+#define AGE(x)					(x->ts ? now_ts - x->ts : 0)
 
 #define SS						(*ss)
 #define CC						(*cc)
@@ -72,13 +73,6 @@ static void notify(const char *title, const char *text, const char *sound) {
 //	mcp_notify(title, text, sound, 0);
 }
 
-static client_t* find(station_t *s, uint64_t mac) {
-	for (int i = 0; i < CLIENTS; i++)
-		if (s->clients[i].mac == mac)
-			return &s->clients[i];
-	return 0;
-}
-
 static client_t* controls(uint64_t mac, char tag, int op) {
 	if (!mac)
 		return 0;
@@ -100,9 +94,12 @@ static client_t* controls(uint64_t mac, char tag, int op) {
 		// insert and return when not found
 		for (int i = 0; i < CLIENTS; i++)
 			if (control->clients[i].mac == 0) {
-				control->clients[i].mac = mac;
-				control->clients[i].tag = tag;
-				return &control->clients[i];
+				client_t *c = &control->clients[i];
+				c->mac = mac;
+				c->tag = tag;
+				mac2string(c->smac, c->mac);
+				mac2ou(c->ou, c->mac, DESCRIPTION);
+				return c;
 			}
 		xerr("WIFI CONTROL table overflow!");
 		return 0;
@@ -116,21 +113,15 @@ static client_t* controls(uint64_t mac, char tag, int op) {
 	}
 }
 
-static int black(uint64_t mac) {
-	return controls(mac, 'b', 0) ? 1 : 0;
+static client_t* find(station_t *s, uint64_t mac) {
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->clients[i].mac == mac)
+			return &s->clients[i];
+	return 0;
 }
 
-static char* mac2xname(char *name, uint64_t mac, size_t size) {
-	client_t *c = controls(mac, 'n', 0);
-	if (c)
-		return strncpy(name, c->name, size - 1); // name from control
-
-	const char *n = get_ethers_name(mac);
-	if (n != NULL)
-		return strncpy(name, n, size - 1); // name from ethers
-
-	*name = 0;
-	return name;
+static int black(uint64_t mac) {
+	return controls(mac, 'b', 0) ? 1 : 0;
 }
 
 static void notify_station_new(station_t *s) {
@@ -216,6 +207,19 @@ void notify_zombie_assigned(station_t *s, client_t *z) {
 	snprintf(title, 128, "Zombie %s", NAME(z));
 	snprintf(text, 128, "assigned to %s", NAME(s));
 	notify(title, text, NULL);
+}
+
+static char* mac2xname(char *name, uint64_t mac, size_t size) {
+	client_t *c = controls(mac, 'n', 0);
+	if (c)
+		return strncpy(name, c->name, size - 1); // name from control
+
+	const char *n = get_ethers_name(mac);
+	if (n != NULL)
+		return strncpy(name, n, size - 1); // name from ethers
+
+	*name = 0;
+	return name;
 }
 
 static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -587,7 +591,7 @@ static void dump_flat() {
 	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "T", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++)
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, AGE(CC), CC->count, CC->ou);
 
 	fflush(fp);
 	fclose(fp);
@@ -607,9 +611,9 @@ static void dump_compact() {
 	fprintf(fp, "%d Stations, %d Zombies, %d Home, %d Cached, %d Control, %lu Lines\n\n", scount, zombies->ccount, home->ccount, cache->ccount, control->ccount, line_count);
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++) {
-		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, now_ts - SS->ts, SS->count, SS->ou);
+		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, AGE(SS), SS->count, SS->ou);
 		for (client_t **cc = SS->pclients; *cc; cc++)
-			fprintf(fp, CCOMP, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, now_ts - CC->ts, CC->count, CC->ou);
+			fprintf(fp, CCOMP, CC->tag, CC->smac, CC->ssid, CC->name, CC->channel, CC->signal, AGE(CC), CC->count, CC->ou);
 	}
 
 	fflush(fp);
@@ -681,6 +685,9 @@ static void expired() {
 
 	for (station_t **ss = pstations; *ss; ss++) {
 
+		if (SS == control)
+			continue;
+
 		// remove expired station
 		int age = now_ts - SS->ts;
 		int ee = age > SECONDS_1W;
@@ -692,7 +699,7 @@ static void expired() {
 
 		// remove expired clients
 		for (client_t **cc = SS->pclients; *cc; cc++) {
-			int keep = SS == control || SS == zombies;
+			int keep = SS == zombies;
 			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
 			int ee = age > SECONDS_1W;
@@ -713,7 +720,7 @@ static void expired() {
 			for (client_t **cc = SS->pclients; *cc; cc++)
 				if (CC->mac && CC->ts < oldest->ts)
 					oldest = CC;
-			xdebug("WIFI station %s force expire %s age=%d", NAME(SS), NAME(oldest), now_ts - oldest->ts);
+			xdebug("WIFI station %s force expire %s age=%d", NAME(SS), NAME(oldest), AGE(oldest));
 			oldest->mac = 0;
 		}
 	}
@@ -1036,6 +1043,13 @@ static int init() {
 	// start data and command servers
 	init_server(&data, "tcpdump", PORT, &parse);
 	init_server(&cmnd, "command", PORT + 1, &command);
+
+//	for (int i = 0; i < CLIENTS; i++)
+//		if (control->clients[i].mac == 0x38ca84fd1880)
+//			control->clients[i].mac = 0;
+//	for (int i = 0; i < CLIENTS; i++)
+//		if (control->clients[i].mac == 0x38ca84fd1881)
+//			control->clients[i].mac = 0;
 
 	return 0;
 }
