@@ -72,6 +72,13 @@ static void notify(const char *title, const char *text, const char *sound) {
 //	mcp_notify(title, text, sound, 0);
 }
 
+static client_t* find(station_t *s, uint64_t mac) {
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->clients[i].mac == mac)
+			return &s->clients[i];
+	return 0;
+}
+
 static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
 	line_dump = 1;
@@ -88,15 +95,9 @@ static void notify_station_back(station_t *s) {
 	xdebug("WIFI station %s is back, age=%d count=%d", NAME(s), age, s->count);
 	line_dump = 1;
 
-	// not when in CACHE
-	for (int i = 0; i < CLIENTS; i++)
-		if (cache->clients[i].mac == s->mac)
-			return;
-
-	// not when in BLACK
-	for (int i = 0; i < CLIENTS; i++)
-		if (black->clients[i].mac == s->mac)
-			return;
+	// not when in CACHE or BLACK station
+	if (find(cache, s->mac) || find(black, s->mac))
+		return;
 
 	notify("Station is back", NAME(s), "au.wav");
 }
@@ -105,7 +106,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 	xdebug("WIFI station %s assigned new client %s", NAME(s), NAME(c));
 	line_dump = 1;
 
-	// only for zombies
+	// only for ZOMBIE station
 	if (s != zombie)
 		return;
 
@@ -121,15 +122,9 @@ static void notify_client_back(station_t *s, client_t *c) {
 	xdebug("WIFI station %s client %s is back, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 	line_dump = 1;
 
-	// not when in CACHE
-	for (int i = 0; i < CLIENTS; i++)
-		if (cache->clients[i].mac == c->mac)
-			return;
-
-	// not when in BLACK
-	for (int i = 0; i < CLIENTS; i++)
-		if (black->clients[i].mac == c->mac)
-			return;
+	// not when in CACHE or BLACK station
+	if (find(cache, c->mac) || find(black, c->mac))
+		return;
 
 	// not for stations
 	for (int i = 0; i < STATIONS; i++)
@@ -138,6 +133,10 @@ static void notify_client_back(station_t *s, client_t *c) {
 
 	// not for volatile anonymous clients
 	if (c->count < 1000 && EMPTY(c->name))
+		return;
+
+	// not for (calculated) ACTIVE station
+	if (s == active)
 		return;
 
 	notify(s == zombie ? "Zombie is back" : "Client is back", NAME(c), "au.wav");
@@ -671,9 +670,8 @@ static void actives() {
 
 		for (client_t **cc = SS->pclients; *cc; cc++) {
 
-			// too less / expired
-			int age = now_ts - CC->ts;
-			if (CC->count < 1000 || age > SECONDS_1H)
+			// too less counts
+			if (CC->count < 1000)
 				continue;
 
 			// is a station
@@ -688,16 +686,18 @@ static void actives() {
 			if (!strncmp("AVM", CC->ou, 3))
 				continue;
 
-			// track client with maximum count per station
-			client_t *h = client(active, CC->mac, 0, 0, NULL, 'h');
+			// track client with maximum count over all stations
+			client_t *h = client(active, CC->mac, CC->channel, 0, SS->ssid, 'a');
 			if (CC->count > h->count) {
-				h->channel = CC->channel;
-				h->signal = CC->signal;
-				h->count = CC->count;
-				h->ts = CC->ts;
-				strcpy(h->name, CC->name);
+				memcpy(h, CC, CLIENT_SIZE);
 				strcpy(h->ssid, SS->ssid);
+				h->tag = 'a';
 			}
+
+			// update time stamp from cache
+			client_t *c = find(cache, h->mac);
+			if (c)
+				h->ts = c->ts;
 		}
 	}
 //	PROFILING_LOG("active")
