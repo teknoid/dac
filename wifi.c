@@ -79,21 +79,55 @@ static client_t* find(station_t *s, uint64_t mac) {
 	return 0;
 }
 
+static client_t* controls(uint64_t mac, char tag, int op) {
+	if (!mac)
+		return 0;
+
+	switch (op) {
+
+	case -1:
+		// remove when found
+		for (int i = 0; i < CLIENTS; i++)
+			if (control->clients[i].mac == mac && control->clients[i].tag == tag)
+				control->clients[i].mac = 0;
+		return 0;
+
+	case 1:
+		// return when found
+		for (int i = 0; i < CLIENTS; i++)
+			if (control->clients[i].mac == mac && control->clients[i].tag == tag)
+				return &control->clients[i];
+		// insert and return when not found
+		for (int i = 0; i < CLIENTS; i++)
+			if (control->clients[i].mac == 0) {
+				control->clients[i].mac = mac;
+				control->clients[i].tag = tag;
+				return &control->clients[i];
+			}
+		xerr("WIFI CONTROL table overflow!");
+		return 0;
+
+	default:
+		// return when found
+		for (int i = 0; i < CLIENTS; i++)
+			if (control->clients[i].mac == mac && control->clients[i].tag == tag)
+				return &control->clients[i];
+		return 0;
+	}
+}
+
 static int black(uint64_t mac) {
-	for (int i = 0; i < CLIENTS; i++)
-		if (control->clients[i].mac == mac && control->clients[i].tag == 'b')
-			return 1;
-	return 0;
+	return controls(mac, 'b', 0) ? 1 : 0;
 }
 
 static char* mac2xname(char *name, uint64_t mac, size_t size) {
-	const char *c = get_ethers_name(mac);
-	if (c != NULL)
-		return strncpy(name, c, size - 1); // name from ethers
+	client_t *c = controls(mac, 'n', 0);
+	if (c)
+		return strncpy(name, c->name, size - 1); // name from control
 
-	for (int i = 0; i < CLIENTS; i++)
-		if (control->clients[i].mac == mac && control->clients[i].tag == 'n')
-			return strncpy(name, control->clients[i].name, size - 1); // name from control
+	const char *n = get_ethers_name(mac);
+	if (n != NULL)
+		return strncpy(name, n, size - 1); // name from ethers
 
 	*name = 0;
 	return name;
@@ -134,7 +168,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 		notify("New Zombie", NAME(c), "au.wav");
 
 	if (s == cache && !EMPTY(c->name))
-		notify("Client is back", NAME(c), "au.wav");
+		notify("New Cache", NAME(c), "au.wav");
 }
 
 static void notify_client_back(station_t *s, client_t *c) {
@@ -462,8 +496,9 @@ static int name(char *smac, char *n) {
 
 	// update CONTROL
 	uint64_t mac = string2mac(smac);
-	client_t *c = client(control, mac, 0, 0, NULL, 'n');
-	strncpy(c->name, n, DESCRIPTION - 1);
+	client_t *c = controls(mac, 'n', 1);
+	if (c)
+		strncpy(c->name, n, DESCRIPTION - 1);
 
 	// update name in all entries
 	for (station_t **ss = pstations; *ss; ss++) {
@@ -481,6 +516,14 @@ static int name(char *smac, char *n) {
 	return 0;
 }
 
+static int blacklist(char *smac, int op) {
+	if (EMPTY(smac))
+		return xerr("Usage: wifi -b <mac> | -w <mac>");
+
+	uint64_t mac = string2mac(smac);
+	return controls(mac, 'b', op) ? 0 : -1;
+}
+
 static int delete(char *smac) {
 	if (EMPTY(smac))
 		xerr("Usage: wifi -d <mac>");
@@ -496,26 +539,6 @@ static int delete(char *smac) {
 			xlog("WIFI deleting station %s", NAME(SS));
 			SS->mac = 0;
 		}
-	}
-
-	return 0;
-}
-
-static int blacklist(char *smac, int op) {
-	if (EMPTY(smac))
-		return xerr("Usage: wifi -b <mac> | -w <mac>");
-
-	uint64_t mac = string2mac(smac);
-	if (op)
-		// add to blacklist
-		client(control, mac, 0, 0, NULL, 'b');
-	else {
-		// remove from blacklist
-		for (client_t **cc = control->pclients; *cc; cc++)
-			if (CC->mac == mac && CC->tag == 'b') {
-				xlog("WIFI deleting blacklist entry %s", NAME(CC));
-				CC->mac = 0;
-			}
 	}
 
 	return 0;
@@ -542,7 +565,7 @@ static int command(connection_t *conn) {
 	case 'q':
 		return shutdown(conn->sock, SHUT_RDWR);
 	case 'w':
-		return blacklist(arg1, 0);
+		return blacklist(arg1, -1);
 	default:
 		fprintf(conn->stream, "unknown command %s\n", cmnd);
 		fflush(conn->stream);
@@ -1064,7 +1087,7 @@ int wifi_main(int argc, char **argv) {
 		case 't':
 			return main_test();
 		case 'w':
-			return main_blacklist(optarg, 0);
+			return main_blacklist(optarg, -1);
 		default:
 			xlog("unknown getopt %c", c);
 		}
