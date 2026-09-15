@@ -46,6 +46,7 @@
 
 #define CHANNEL(x)				(x ? 1 + (x - 2412) / 5 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
+#define BLACK(x)				(controls(x, 'b', 0) ? 1 : 0)
 #define AGE(x)					(x->ts ? now_ts - x->ts : 0)
 
 #define SS						(*ss)
@@ -120,10 +121,6 @@ static client_t* find(station_t *s, uint64_t mac) {
 	return 0;
 }
 
-static int black(uint64_t mac) {
-	return controls(mac, 'b', 0) ? 1 : 0;
-}
-
 static void notify_station_new(station_t *s) {
 	xdebug("WIFI new station %s", NAME(s));
 	line_dump = 1;
@@ -145,15 +142,23 @@ static void notify_station_back(station_t *s) {
 		return;
 
 	// not when blacklisted
-	if (black(s->mac))
+	if (BLACK(s->mac))
 		return;
 
 	notify("Station is back", NAME(s), "au.wav");
 }
 
 static void notify_client_new(station_t *s, client_t *c) {
+	// not for (calculated) HOME station
+	if (s == home)
+		return;
+
 	xdebug("WIFI station %s assigned new client %s", NAME(s), NAME(c));
 	line_dump = 1;
+
+	// not when blacklisted
+	if (BLACK(c->mac))
+		return;
 
 	if (s == zombies)
 		notify("New Zombie", NAME(c), "au.wav");
@@ -180,7 +185,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 		return;
 
 	// not when blacklisted
-	if (black(c->mac))
+	if (BLACK(c->mac))
 		return;
 
 	// not for stations
@@ -758,7 +763,7 @@ static void homes() {
 			// track client with maximum count over all stations - assuming this is the home station
 			client_t *h = find(home, CC->mac);
 			if (!h)
-				h = client(home, CC->mac, CC->channel, CC->signal, SS->ssid, 'a');
+				h = client(home, CC->mac, CC->channel, CC->signal, SS->ssid, 'h');
 			if (CC->count > h->count) {
 				memcpy(h, CC, CLIENT_SIZE);
 				strcpy(h->ssid, SS->ssid);
@@ -1043,13 +1048,6 @@ static int init() {
 	// start data and command servers
 	init_server(&data, "tcpdump", PORT, &parse);
 	init_server(&cmnd, "command", PORT + 1, &command);
-
-//	for (int i = 0; i < CLIENTS; i++)
-//		if (control->clients[i].mac == 0x38ca84fd1880)
-//			control->clients[i].mac = 0;
-//	for (int i = 0; i < CLIENTS; i++)
-//		if (control->clients[i].mac == 0x38ca84fd1881)
-//			control->clients[i].mac = 0;
 
 	return 0;
 }
