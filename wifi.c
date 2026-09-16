@@ -52,6 +52,7 @@
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
 #define BLACK(x)				(controls(x, 'b', 0) ? 1 : 0)
 #define AGE(x)					(x->ts ? now_ts - x->ts : 0)
+#define CACHE(x)				(x % 2 ? ocache : ecache)
 
 #define SS						(*ss)
 #define CC						(*cc)
@@ -64,8 +65,9 @@ static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
 static station_t *control = &stations[STATIONS - 2];
-static station_t *cache = &stations[STATIONS - 3];
-static station_t *home = &stations[STATIONS - 4];
+static station_t *ecache = &stations[STATIONS - 3];
+static station_t *ocache = &stations[STATIONS - 4];
+static station_t *home = &stations[STATIONS - 5];
 
 static pthread_mutex_t lock;
 static time_t now_ts;
@@ -137,7 +139,7 @@ static void notify_station_back(station_t *s) {
 	line_dump = 1;
 
 	// not when in CACHE
-	if (find(cache, s->mac))
+	if (find(CACHE(s->mac), s->mac))
 		return;
 
 	// not when blacklisted
@@ -162,7 +164,7 @@ static void notify_client_new(station_t *s, client_t *c) {
 	if (s == zombies)
 		NOTIFY("New Zombie", NAME(c), "au.wav");
 
-	if (s == cache && !EMPTY(c->name))
+	if ((s == ecache || s == ocache) && !EMPTY(c->name))
 		NOTIFY("New Cache", NAME(c), "mau3.wav");
 }
 
@@ -180,7 +182,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 	line_dump = 1;
 
 	// not when in CACHE
-	if (find(cache, c->mac))
+	if (find(CACHE(c->mac), c->mac))
 		return;
 
 	// not when blacklisted
@@ -303,7 +305,8 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			if (s == zombies) {
 				// update mac, smac and ou as long as zombie is unassigned
 				if (c->mac != mac && c->tag != 'a') {
-					xdebug("WIFI updating zombie %s tag=%c old mac=%12lx new mac=%12lx ", NAME(c), c->tag, c->mac, mac);
+					if (!BLACK(c->mac))
+						xdebug("WIFI updating zombie %s tag=%c old mac=%12lx new mac=%12lx ", NAME(c), c->tag, c->mac, mac);
 					c->mac = mac;
 					mac2string(c->smac, c->mac);
 					mac2ou(c->ou, c->mac, DESCRIPTION);
@@ -491,13 +494,13 @@ static int parse(connection_t *conn) {
 
 	// update or insert CACHE station
 	if (sac)
-		client(cache, sa, cchannel, signal, ssid, 's');
+		client(CACHE(sa), sa, cchannel, signal, ssid, 's');
 	if (dac)
-		client(cache, da, cchannel, signal, ssid, 'd');
+		client(CACHE(da), da, cchannel, signal, ssid, 'd');
 	if (rac)
-		client(cache, ra, cchannel, signal, ssid, 'r');
+		client(CACHE(ra), ra, cchannel, signal, ssid, 'r');
 	if (tac)
-		client(cache, ta, cchannel, signal, ssid, 't');
+		client(CACHE(ta), ta, cchannel, signal, ssid, 't');
 
 	line_count++;
 	conn->line_count++;
@@ -616,6 +619,7 @@ static void dump_flat() {
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
 #define CCOMP "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
+#define TCOMP "%d Stations, %d Zombies, %d Home, %d/%d Cached, %d Controls, %lu Lines"
 
 static void dump_compact() {
 	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
@@ -624,7 +628,8 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, "%d Stations, %d Zombies, %d Home, %d Cached, %d Controls, %lu Lines\n\n", scount, zombies->ccount, home->ccount, cache->ccount, control->ccount, line_count);
+	fprintf(fp, TCOMP, scount, zombies->ccount, home->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
+	fprintf(fp, "\n\n");
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++)
 		if (SS->mac != AFFE) {
@@ -655,15 +660,18 @@ static void dump_station(station_t *s) {
 	fclose(fp);
 }
 
+#define TDUMP "\nWIFI %d Stations, %d Zombies, %d Home, %d/%d Cached, %d Controls, %lu Lines"
+
 static void dump() {
 	PROFILING_START
 
-	xdebug("\nWIFI %d Stations, %d Zombies, %d Home, %d Cached, %d Controls, %lu Lines", scount, zombies->ccount, home->ccount, cache->ccount, control->ccount, line_count);
+	xdebug(TDUMP, scount, zombies->ccount, home->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
 	dump_compact();
 	dump_flat();
 	dump_station(zombies);
 	dump_station(control);
-	dump_station(cache);
+	dump_station(ecache);
+	dump_station(ocache);
 	dump_station(home);
 
 	PROFILING_LOG("dump")
@@ -749,7 +757,7 @@ static void expired() {
 			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
 			int ee = age > SECONDS_1W;
-			int ec = SS == cache && age > SECONDS_1H;
+			int ec = (SS == ecache || SS == ocache) && age > SECONDS_1H;
 			int e1 = !keep && CC->count < 5 && age > SECONDS_5M && fake;
 			int e2 = !keep && CC->count < 10 && age > SECONDS_1H && fake;
 			int e3 = !keep && CC->count < 100 && age > SECONDS_1D;
@@ -815,7 +823,7 @@ static void homes() {
 			}
 
 			// update time stamp from cache
-			client_t *c = find(cache, h->mac);
+			client_t *c = find(CACHE(h->mac), h->mac);
 			if (c)
 				h->ts = c->ts;
 		}
@@ -989,7 +997,7 @@ static int main_test() {
 static void loop() {
 	while (1) {
 		sleep(1);
-		now_ts = zombies->ts = control->ts = cache->ts = home->ts = time(NULL);
+		now_ts = zombies->ts = control->ts = ecache->ts = ocache->ts = home->ts = time(NULL);
 		// xdebug("loop %d", SECONDS_1D - (now_ts % SECONDS_1D));
 
 		if (now_ts % 10 == 0)
@@ -1014,7 +1022,7 @@ static void loop() {
 
 static int init() {
 	pthread_mutex_init(&lock, NULL);
-	now_ts = zombies->ts = control->ts = cache->ts = home->ts = time(NULL);
+	now_ts = zombies->ts = control->ts = ecache->ts = ocache->ts = home->ts = time(NULL);
 
 	load_ieee();
 	load_ethers();
@@ -1029,9 +1037,13 @@ static int init() {
 	control->mac = AFFE;
 	mac2string(control->smac, control->mac);
 
-	strcpy(cache->ssid, "CACHE");
-	cache->mac = AFFE;
-	mac2string(cache->smac, cache->mac);
+	strcpy(ecache->ssid, "ECACHE");
+	ecache->mac = AFFE;
+	mac2string(ecache->smac, ecache->mac);
+
+	strcpy(ocache->ssid, "OCACHE");
+	ocache->mac = AFFE;
+	mac2string(ocache->smac, ocache->mac);
 
 	strcpy(home->ssid, "HOME");
 	home->mac = AFFE;
