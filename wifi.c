@@ -5,7 +5,7 @@
 // tcpdump -nevi mon1 | nc tron 6666
 //
 // tcpdump -nevi mon1 | tee -a /ram/tcpdump.log | nc tron 6666
-// while true; do for c in `seq 1 14`; do iwconfig mon1 channel $c; sleep 1s; done; done
+// while true; do for c in `seq 1 13`; do iwconfig mon1 channel $c; sleep 1s; done; done
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,9 +65,10 @@ static station_t stations[STATIONS];
 static station_t *pstations[STATIONS + 1];
 static station_t *zombies = &stations[STATIONS - 1];
 static station_t *control = &stations[STATIONS - 2];
-static station_t *ecache = &stations[STATIONS - 3];
-static station_t *ocache = &stations[STATIONS - 4];
-static station_t *home = &stations[STATIONS - 5];
+static station_t *bcache = &stations[STATIONS - 3];
+static station_t *ecache = &stations[STATIONS - 4];
+static station_t *ocache = &stations[STATIONS - 5];
+static station_t *homes = &stations[STATIONS - 6];
 
 static pthread_mutex_t lock;
 static time_t now_ts;
@@ -107,7 +108,7 @@ static client_t* controls(uint64_t mac, char tag, int op) {
 		return 0;
 
 	default:
-		// return when found
+		// return when found, 0 when not found
 		for (int i = 0; i < CLIENTS; i++)
 			if (control->clients[i].mac == mac && control->clients[i].tag == tag)
 				return &control->clients[i];
@@ -122,36 +123,9 @@ static client_t* find(station_t *s, uint64_t mac) {
 	return 0;
 }
 
-static void notify_station_new(station_t *s) {
-	xdebug("WIFI new station %s", NAME(s));
-	line_dump = 1;
-
-	NOTIFY("New Station", NAME(s), "au.wav");
-}
-
-static void notify_station_back(station_t *s) {
-	// only after 1+ hour
-	int age = now_ts - s->ts;
-	if (age < SECONDS_1HX)
-		return;
-
-	xdebug("WIFI station %s is back, age=%d count=%d", NAME(s), age, s->count);
-	line_dump = 1;
-
-	// not when in CACHE
-	if (find(CACHE(s->mac), s->mac))
-		return;
-
-	// not when blacklisted
-	if (BLACK(s->mac))
-		return;
-
-	NOTIFY("Station is back", NAME(s), "au.wav");
-}
-
-static void notify_client_new(station_t *s, client_t *c) {
-	// not for (calculated) HOME station
-	if (s == home)
+static void notify_new(station_t *s, client_t *c) {
+	// not for (calculated) HOMES station
+	if (s == homes)
 		return;
 
 	xdebug("WIFI station %s assigned new client %s", NAME(s), NAME(c));
@@ -164,40 +138,43 @@ static void notify_client_new(station_t *s, client_t *c) {
 	if (s == zombies)
 		NOTIFY("New Zombie", NAME(c), "au.wav");
 
+	if (s == bcache)
+		NOTIFY("New Station", NAME(c), "au.wav");
+
 	if ((s == ecache || s == ocache) && !EMPTY(c->name))
-		NOTIFY("New Cache", NAME(c), "mau3.wav");
+		NOTIFY("New Client", NAME(c), "mau3.wav");
 }
 
-static void notify_client_back(station_t *s, client_t *c) {
+static void notify_back(station_t *s, client_t *c) {
+	// not for (calculated) HOMES station
+	if (s == homes)
+		return;
+
 	// only after 1+ hour
 	int age = now_ts - c->ts;
 	if (age < SECONDS_1HX)
 		return;
 
-	// not for (calculated) HOME station
-	if (s == home)
-		return;
-
 	xdebug("WIFI station %s client %s is back, age=%d count=%d", NAME(s), NAME(c), age, c->count);
 	line_dump = 1;
-
-	// not when in CACHE
-	if (find(CACHE(c->mac), c->mac))
-		return;
 
 	// not when blacklisted
 	if (BLACK(c->mac))
 		return;
 
-	// not for stations
-	for (int i = 0; i < STATIONS; i++)
-		if (stations[i].mac == c->mac)
-			return;
+	if (s == bcache) {
+		NOTIFY("Station is back", NAME(c), "au.wav");
+		return;
+	}
 
 	if (s == zombies) {
 		NOTIFY("Zombie is back", NAME(c), "au.wav");
 		return;
 	}
+
+	// not when in CACHE
+	if (find(CACHE(c->mac), c->mac))
+		return;
 
 	// not for volatile anonymous clients
 	if (c->count < 1000 && EMPTY(c->name))
@@ -206,7 +183,7 @@ static void notify_client_back(station_t *s, client_t *c) {
 	NOTIFY("Client is back", NAME(c), "au.wav");
 }
 
-void notify_zombie_assigned(station_t *s, client_t *z) {
+void notify_assigned(station_t *s, client_t *z) {
 	char title[128], text[128];
 
 	// already assigned
@@ -242,7 +219,6 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			station_t *s = &stations[i];
 
 			// station found
-			notify_station_back(s);
 			s->count++;
 			s->ts = now_ts;
 			if (channel)
@@ -277,7 +253,6 @@ static station_t* station(uint64_t mac, int channel, int signal, char *ssid, int
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
 
-			notify_station_new(s);
 			return s;
 		}
 
@@ -299,7 +274,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				continue;
 
 			// client found
-			notify_client_back(s, c);
+			notify_back(s, c);
 			c->count++;
 			c->ts = now_ts;
 			if (s == zombies) {
@@ -337,7 +312,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 			c->ts = now_ts;
 			c->tag = tag;
 			c->channel = channel;
-			c->signal = signal;
+			c->signal = signal ? signal : -999;
 
 			mac2string(c->smac, c->mac);
 			mac2xname(c->name, c->mac, DESCRIPTION);
@@ -347,7 +322,7 @@ static client_t* client(station_t *s, uint64_t mac, int channel, int signal, cha
 				if (strcmp(s->ssid, ssid))
 					strcpy(c->ssid, ssid);
 
-			notify_client_new(s, c);
+			notify_new(s, c);
 			return c;
 		}
 
@@ -377,7 +352,7 @@ static int parse(connection_t *conn) {
 	// make a copy for line dumping after strtok()
 	memcpy(conn->line_dump, conn->line, NETWORK_LINEBUF);
 
-	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
+	uint64_t bs = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
 	char ssid[DESCRIPTION];
 	ZERO(ssid);
@@ -386,7 +361,7 @@ static int parse(connection_t *conn) {
 	char *t, *oldt, *rest = conn->line;
 	while ((t = strtok_r(rest, " ", &rest))) {
 		if (!strncmp("BSSID:", t, 6))
-			bssid = string2mac(t + 6);
+			bs = string2mac(t + 6);
 
 		if (!strncmp("SA:", t, 3))
 			sa = string2mac(t + 3);
@@ -423,7 +398,7 @@ static int parse(connection_t *conn) {
 
 	// packet from station or client
 	int schannel = 0, cchannel = 0, ssignal = 0, csignal = 0;
-	if (bssid && bssid == sa) {
+	if (bs && bs == sa) {
 		schannel = CHANNEL(freq);
 		ssignal = signal;
 	} else {
@@ -435,8 +410,12 @@ static int parse(connection_t *conn) {
 	line_dump = 0;
 	client_t *sac = 0, *dac = 0, *rac = 0, *tac = 0;
 
+	// update or insert BCACHE
+	if (bs)
+		client(bcache, bs, schannel, ssignal, ssid, 'b');
+
 	// update or create station
-	station_t *bss = station(bssid, schannel, ssignal, ssid, 1);
+	station_t *bss = station(bs, schannel, ssignal, ssid, 1);
 	if (bss) {
 
 		// assign to BSS station
@@ -492,14 +471,14 @@ static int parse(connection_t *conn) {
 			check_ssid(ta, cchannel, csignal, ssid);
 	}
 
-	// update or insert CACHE station
-	if (sac)
+	// update or insert EVEN/ODD CACHE
+	if (sac && sa != bs)
 		client(CACHE(sa), sa, cchannel, signal, ssid, 's');
-	if (dac)
+	if (dac && da != bs)
 		client(CACHE(da), da, cchannel, signal, ssid, 'd');
-	if (rac)
+	if (rac && ra != bs)
 		client(CACHE(ra), ra, cchannel, signal, ssid, 'r');
-	if (tac)
+	if (tac && ta != bs)
 		client(CACHE(ta), ta, cchannel, signal, ssid, 't');
 
 	line_count++;
@@ -619,7 +598,7 @@ static void dump_flat() {
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %10s %-35s\n"
 #define SCOMP "\n%-20s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
 #define CCOMP "%c %-18s %-35s %-35s %8d %8d %8ld %10d %-35s\n"
-#define TCOMP "%d Stations, %d Zombies, %d Home, %d/%d Cached, %d Controls, %lu Lines"
+#define TCOMP "%d Stations, %d Zombies, %d Home, %d/%d/%d Cached, %d Controls, %lu Lines"
 
 static void dump_compact() {
 	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
@@ -628,7 +607,7 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, TCOMP, scount, zombies->ccount, home->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
+	fprintf(fp, TCOMP, scount, zombies->ccount, homes->ccount, bcache->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
 	fprintf(fp, "\n\n");
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Count", "Hardware");
 	for (station_t **ss = pstations; *ss; ss++)
@@ -660,19 +639,20 @@ static void dump_station(station_t *s) {
 	fclose(fp);
 }
 
-#define TDUMP "\nWIFI %d Stations, %d Zombies, %d Home, %d/%d Cached, %d Controls, %lu Lines"
+#define TDUMP "\nWIFI %d Stations, %d Zombies, %d Home, %d/%d/%d Cached, %d Controls, %lu Lines"
 
 static void dump() {
 	PROFILING_START
 
-	xdebug(TDUMP, scount, zombies->ccount, home->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
+	xdebug(TDUMP, scount, zombies->ccount, homes->ccount, bcache->ccount, ecache->ccount, ocache->ccount, control->ccount, line_count);
 	dump_compact();
 	dump_flat();
 	dump_station(zombies);
 	dump_station(control);
 	dump_station(ecache);
 	dump_station(ocache);
-	dump_station(home);
+	dump_station(bcache);
+	dump_station(homes);
 
 	PROFILING_LOG("dump")
 }
@@ -708,7 +688,7 @@ static void assign() {
 					// take over zombie's ssid (probe request)
 					strcpy(CC->ssid, ZZ->ssid);
 
-				notify_zombie_assigned(SS, ZZ);
+				notify_assigned(SS, ZZ);
 				break;
 			}
 		}
@@ -732,10 +712,10 @@ static void assign() {
 }
 
 // remove expired clients
-static void expired() {
+static void expire() {
 	PROFILING_START
 
-	xdebug("expired");
+	xdebug("expire");
 	for (station_t **ss = pstations; *ss; ss++) {
 
 		// CONTROL never expires
@@ -744,7 +724,7 @@ static void expired() {
 
 		// remove expired station
 		int age = now_ts - SS->ts;
-		int ee = age > SECONDS_1W;
+		int ee = age > SECONDS_1D * 2;
 		int e1 = SS->ccount == 0 && age > SECONDS_1D && EMPTY(SS->ssid);
 		if (ee || e1) {
 			xdebug("WIFI station %s expired, age=%d count=%d ccount=%d", NAME(SS), age, SS->count, SS->ccount);
@@ -779,15 +759,15 @@ static void expired() {
 		}
 	}
 
-	PROFILING_LOG("expired")
+	PROFILING_LOG("expire")
 }
 
 // guess home station for each client
-static void homes() {
+static void home() {
 	PROFILING_START
 
-	xdebug("homes");
-	ZERO(home->clients);
+	xdebug("home");
+	ZERO(homes->clients);
 	for (station_t **ss = pstations; *ss; ss++) {
 		if (SS->mac == AFFE)
 			continue;
@@ -799,11 +779,7 @@ static void homes() {
 				continue;
 
 			// is a station
-			int is_station = 0;
-			for (station_t **sss = pstations; *sss; sss++)
-				if (CC->mac == (*sss)->mac)
-					is_station++;
-			if (is_station)
+			if (find(bcache, CC->mac))
 				continue;
 
 			// is AVM hardware
@@ -811,15 +787,15 @@ static void homes() {
 				continue;
 
 			// track client with maximum count over all stations - assuming this is the home station
-			client_t *h = find(home, CC->mac);
+			client_t *h = find(homes, CC->mac);
 			if (!h)
-				h = client(home, CC->mac, CC->channel, CC->signal, SS->ssid, 'h');
+				h = client(homes, CC->mac, CC->channel, CC->signal, SS->ssid, 'h');
 			if (!h)
 				continue;
 			if (CC->count > h->count) {
 				memcpy(h, CC, CLIENT_SIZE);
 				strcpy(h->ssid, SS->ssid);
-				h->tag = 'a';
+				h->tag = 'h';
 			}
 
 			// update time stamp from cache
@@ -829,7 +805,7 @@ static void homes() {
 		}
 	}
 
-	PROFILING_LOG("homes")
+	PROFILING_LOG("home")
 }
 
 // copy clients in sorted order and then copy all back
@@ -858,35 +834,42 @@ static void pointers(station_t *s) {
 
 #include "wifi-sort.h"
 
-static void sort_station_mac(station_t *s) {
+static void sort_mac(station_t *s) {
 	pointers(s);
 	bubble_sort_mac(s);
 	reorganize(s);
 	pointers(s);
 }
 
-static void sort_station_count(station_t *s) {
+static void sort_signal(station_t *s) {
+	pointers(s);
+	bubble_sort_signal(s);
+	reorganize(s);
+	pointers(s);
+}
+
+static void sort_count(station_t *s) {
 	pointers(s);
 	bubble_sort_count(s);
 	reorganize(s);
 	pointers(s);
 }
 
-static void sort_station_ts(station_t *s) {
+static void sort_ts(station_t *s) {
 	pointers(s);
 	bubble_sort_ts(s);
 	reorganize(s);
 	pointers(s);
 }
 
-static void sort_station_ssid(station_t *s) {
+static void sort_ssid(station_t *s) {
 	pointers(s);
 	bubble_sort_ssid(s);
 	reorganize(s);
 	pointers(s);
 }
 
-static void sort_station_name(station_t *s) {
+static void sort_name(station_t *s) {
 	pointers(s);
 	bubble_sort_name(s);
 	reorganize(s);
@@ -920,17 +903,20 @@ static void sort() {
 
 	// initially sort all clients by count
 	for (station_t **ss = pstations; *ss; ss++)
-		sort_station_count(SS);
+		sort_count(SS);
 
 	// sort ZOMBIES by age
-	sort_station_ts(zombies);
+	sort_ts(zombies);
 
 	// sort CONTROL by mac and name
-	sort_station_mac(control);
-	sort_station_name(control);
+	sort_mac(control);
+	sort_name(control);
 
-	// sort HOME by ssid
-	sort_station_ssid(home);
+	// sort BCACHE by signal
+	sort_signal(bcache);
+
+	// sort HOMES by ssid
+	sort_ssid(homes);
 
 	pthread_mutex_unlock(&lock);
 	PROFILING_LOG("sort")
@@ -997,7 +983,7 @@ static int main_test() {
 static void loop() {
 	while (1) {
 		sleep(1);
-		now_ts = zombies->ts = control->ts = ecache->ts = ocache->ts = home->ts = time(NULL);
+		now_ts = zombies->ts = control->ts = bcache->ts = ecache->ts = ocache->ts = homes->ts = time(NULL);
 		// xdebug("loop %d", SECONDS_1D - (now_ts % SECONDS_1D));
 
 		if (now_ts % 10 == 0)
@@ -1007,13 +993,13 @@ static void loop() {
 			assign();
 
 		if (now_ts % 30 == 0)
-			expired();
+			expire();
 
 		if (now_ts % 60 == 0)
 			dump();
 
 		if (now_ts % SECONDS_5M == 0)
-			homes();
+			home();
 
 		if (now_ts % SECONDS_1D == 0)
 			store_blob(STATE SLASH WIFI_BIN, stations, sizeof(stations));
@@ -1022,7 +1008,7 @@ static void loop() {
 
 static int init() {
 	pthread_mutex_init(&lock, NULL);
-	now_ts = zombies->ts = control->ts = ecache->ts = ocache->ts = home->ts = time(NULL);
+	now_ts = zombies->ts = control->ts = bcache->ts = ecache->ts = ocache->ts = homes->ts = time(NULL);
 
 	load_ieee();
 	load_ethers();
@@ -1037,6 +1023,10 @@ static int init() {
 	control->mac = AFFE;
 	mac2string(control->smac, control->mac);
 
+	strcpy(bcache->ssid, "BCACHE");
+	bcache->mac = AFFE;
+	mac2string(bcache->smac, bcache->mac);
+
 	strcpy(ecache->ssid, "ECACHE");
 	ecache->mac = AFFE;
 	mac2string(ecache->smac, ecache->mac);
@@ -1045,9 +1035,9 @@ static int init() {
 	ocache->mac = AFFE;
 	mac2string(ocache->smac, ocache->mac);
 
-	strcpy(home->ssid, "HOME");
-	home->mac = AFFE;
-	mac2string(home->smac, home->mac);
+	strcpy(homes->ssid, "HOMES");
+	homes->mac = AFFE;
+	mac2string(homes->smac, homes->mac);
 
 	// start local tcpdump thread
 	if (popen_x)
