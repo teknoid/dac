@@ -623,15 +623,21 @@ char* make_string(const char *c, size_t s) {
 	return str;
 }
 
-void string_replace_char(char *string, char x, char y) {
+char* string_replace_char(const char *string, char x, char y) {
 	if (EMPTY(string))
-		return;
+		return (char*) string;
 
-	char *pos = strchr(string, x);
+	if (!strchr(string, x))
+		return (char*) string;
+
+	char *copy = strdup(string);
+	char *pos = strchr(copy, x);
 	while (pos) {
 		*pos = y;
 		pos = strchr(pos, x);
 	}
+
+	return copy;
 }
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
