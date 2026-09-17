@@ -106,8 +106,13 @@ int publish(const char *topic, const char *message, int retain) {
 	return mqtt_sync(client);
 }
 
-int mqtt_notify(const char *title, const char *text, const char *sound) {
+int mqtt_notify(char *title, char *text, char *sound) {
 	char message[0xff];
+
+	string_replace_char(title, '\"', '\'');
+	string_replace_char(text, '\"', '\'');
+	string_replace_char(sound, '\"', '\'');
+
 	snprintf(message, 0xff, TEMPLATE_NOTIFICATION, title, text, sound);
 	return publish(TOPIC_NOTIFICATION, message, 0);
 }

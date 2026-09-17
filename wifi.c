@@ -733,7 +733,7 @@ static void expire() {
 
 		// remove expired clients
 		for (client_t **cc = SS->pclients; *cc; cc++) {
-			int keep = SS == zombies;
+			int keep = SS == zombies || SS == bcache;
 			int fake = EMPTY(CC->ou);
 			int age = now_ts - CC->ts;
 			int ee = age > SECONDS_1W;

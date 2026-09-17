@@ -8,4 +8,4 @@
 #define TOPIC_STAT			"stat"
 
 int publish(const char *topic, const char *message, int retain);
-int mqtt_notify(const char *title, const char *text, const char *sound);
+int mqtt_notify(char *title, char *text, char *sound);

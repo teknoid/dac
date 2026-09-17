@@ -623,6 +623,17 @@ char* make_string(const char *c, size_t s) {
 	return str;
 }
 
+void string_replace_char(char *string, char x, char y) {
+	if (EMPTY(string))
+		return;
+
+	char *pos = strchr(string, x);
+	while (pos) {
+		*pos = y;
+		pos = strchr(pos, x);
+	}
+}
+
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
 	const char *p;
 	struct stat st = { 0 };
