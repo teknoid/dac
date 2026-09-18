@@ -594,7 +594,8 @@ static void calculate_gstate() {
 	gstate->ttl = al && gstate->soc > msoc ? gstate->available * 60 / al : 0; // in minutes
 
 	// collect mosmix forecasts
-	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod);
+	int eodh;
+	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod, &eodh);
 	gstate->success = gstate->sod > params->minimum && gstate->pv > 0 ? gstate->pv * 1000 / gstate->sod : 0;
 	HICUT(gstate->success, 2000)
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
@@ -611,14 +612,17 @@ static void calculate_gstate() {
 		gstate->needed = GSTATE_MIN_LAST1->needed;
 
 	// survival factor
+	int baseload = (params->baseload + params->baseload / 10) * eodh; // 10% more baseload over day
 	int tocharge = gstate->needed - gstate->available;
 	LOCUT(tocharge, 0)
-	int available = pstate->pv > 0 ? gstate->eod - tocharge : 0;
+	int available = pstate->pv > 0 ? gstate->eod - tocharge - baseload : 0;
 	LOCUT(available, 0)
 	gstate->survive = gstate->needed ? gstate->available * 1000 / gstate->needed : 2000;
 	HICUT(gstate->survive, 2000)
-#define TEMPLATE_SURVIVE "SOLAR survive eod=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
-	xlog(TEMPLATE_SURVIVE, gstate->eod, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
+	if (gstate->survive < 1000 && available > params->akku_capacity)
+		gstate->survive = 1000; // set to 100% as long as enough pv available
+#define TEMPLATE_SURVIVE "SOLAR survive eodh=%d eod=%d baseload=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
+	xlog(TEMPLATE_SURVIVE, eodh, gstate->eod, baseload, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when average pv goes below minimum or rsl below 90
 	int offline = avgmm->pv < params->minimum || avgmm->rsl < 90;

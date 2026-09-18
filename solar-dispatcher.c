@@ -492,7 +492,7 @@ static int choose_program() {
 		return select_program(potd_manual);
 
 	// summer or enough pv
-	if (GSTATE_SUMMER || gstate->today > acx3)
+	if (GSTATE_SUMMER || gstate->today > acx3 || gstate->eod > acx2)
 		return select_program(&PLENTY);
 
 	// we will NOT survive
