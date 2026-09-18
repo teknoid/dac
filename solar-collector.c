@@ -532,9 +532,10 @@ static void calculate_gstate_online() {
 	// gstate->flags &= ~FLAG_HEATING; // hard disabled
 
 	// akku charging
+	int acx1 = params->akku_capacity, acx2 = acx1 * 2, acx3 = acx1 * 3, acx4 = acx1 * 4;
 	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // keep charging if already indicated
 	int criti = gstate->survive < SURVIVE90; // we will probably not survive
-	int tomor = gstate->soc < 500 && gstate->tomorrow < params->akku_capacity; // akku below 50% and tomorrow low pv expected
+	int tomor = gstate->soc < 666 && gstate->today > acx2 && gstate->tomorrow < acx2; // akku below 66% and tomorrow low pv expected
 	int weekd = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
 	int soc33 = gstate->soc < 333 && !SUMMER && now->tm_hour < 12; // autumn/spring when below 33%
 	int soc22 = gstate->soc < 222 && SUMMER && now->tm_hour < 12; // summer when below 22%
@@ -545,11 +546,11 @@ static void calculate_gstate_online() {
 
 	// akku charge limit
 	params->akku_climit = 0;
-	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 2)
+	if (GSTATE_SUMMER || gstate->today > acx2)
 		params->akku_climit = params->akku_cmax / 2;
-	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 3)
+	if (GSTATE_SUMMER || gstate->today > acx3)
 		params->akku_climit = params->akku_cmax / 3;
-	if (GSTATE_SUMMER || gstate->today > params->akku_capacity * 4)
+	if (GSTATE_SUMMER || gstate->today > acx4)
 		params->akku_climit = params->akku_cmax / 4;
 	if (800 < gstate->soc && gstate->soc < 999)
 		params->akku_climit = 666; // charging slow between 80% and 100%
@@ -621,7 +622,7 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
-#define TEMPLATE_SURVIVE "SOLAR survive eodh=%d eod=%d baseload=%d tocharge=%d avail=%d akku=%d need=%d minutes=%d --> %.1f%%"
+#define TEMPLATE_SURVIVE "SOLAR survive eodh=%d eod=%d baseload=%d tocharge=%d pv=%d akku=%d need=%d minutes=%d --> %.1f%%"
 	xlog(TEMPLATE_SURVIVE, eodh, gstate->eod, baseload, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(gstate->survive));
 
 	// offline when average pv goes below minimum or rsl below 90

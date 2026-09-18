@@ -34,7 +34,7 @@ struct _connection {
 	char ip[16];
 	FILE *stream;
 	char line[NETWORK_LINEBUF];
-	char line_dump[NETWORK_LINEBUF];
+	char copy[NETWORK_LINEBUF];
 	unsigned int line_count;
 };
 

@@ -12,14 +12,19 @@
 
 // cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
 // and then manually remove last line (headline)
-#define IEEE					"/usr/share/ieee-data/oui_sorted.csv"
+#define IEEE					"/usr/share/ieee-data/oui.csv"
+#define IEEE_SORTED				"/usr/share/ieee-data/oui_sorted.csv"
 #define IEEE_MASK				0xffffff000000
 
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
+#define TRACE_FILE				"/tmp/network.txt"
+
 static description_t ethers[0xff];
 static description_t ieee[0xffff];
 static int ieee_index[0xff];
+
+static FILE *file;
 
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
@@ -31,7 +36,7 @@ static void* popen_thread(void *arg) {
 
 	xlog("WIFI %d pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
-		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
+		if (fgets(conn->line, NETWORK_LINEBUF - 1, conn->stream) != NULL)
 			(server->handler)(conn);
 
 	fclose(conn->stream);
@@ -49,8 +54,32 @@ static void* connection_thread(void *arg) {
 		return xerrv("NETWORK fdopen failed");
 
 	while (!feof(conn->stream))
-		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
+		if (fgets(conn->line, NETWORK_LINEBUF - 1, conn->stream) != NULL) {
+			conn->line_count++;
+
+#ifdef TRACE_FILE
+			fprintf(file, conn->line);
+			fflush(file);
+#endif
+
+			size_t len = strlen(conn->line);
+			if (len >= NETWORK_LINEBUF - 10)
+				xerr("NETWORK Warning! line length near maximum %d", NETWORK_LINEBUF);
+
+			// remove CR and LF
+			if (conn->line[strlen(conn->line) - 1] == 0x0a)
+				conn->line[strlen(conn->line) - 1] = 0;
+			if (conn->line[strlen(conn->line) - 1] == 0x0d)
+				conn->line[strlen(conn->line) - 1] = 0;
+
+			// make a copy for line dumping after strtok()
+			memcpy(conn->copy, conn->line, NETWORK_LINEBUF);
+
+			// xdebug("NETWORK [%s] %s", conn->ip, conn->line);
+
+			// execute connection handler to process line
 			(conn->handler)(conn);
+		}
 
 	xlog("NETWORK %s client %s disconnected, received %d lines", conn->description, conn->ip, conn->line_count);
 	if (conn->stream)
@@ -67,6 +96,12 @@ static void* server_thread(void *arg) {
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
 		return xerrv("NETWORK pthread_setcancelstate failed");
+
+#ifdef TRACE_FILE
+	file = fopen(TRACE_FILE, "wt");
+	if (file == NULL)
+		return xerrv("NETWORK error opening file %s", TRACE_FILE);
+#endif
 
 	xlog("NETWORK listening on port %d for %s", server->port, server->description);
 	while (1) {
@@ -94,6 +129,11 @@ static void* server_thread(void *arg) {
 		if (pthread_detach(conn->thread))
 			return xerrv("NETWORK pthread_detach failed");
 	}
+
+#ifdef TRACE_FILE
+	if (file != NULL)
+		fclose(file);
+#endif
 
 	pthread_exit(NULL);
 }
@@ -351,9 +391,9 @@ int load_ieee() {
 	char line[NETWORK_LINEBUF], *s, *e;
 
 	ZERO(ieee);
-	FILE *fp = fopen(IEEE, "rt");
+	FILE *fp = fopen(IEEE_SORTED, "rt");
 	if (fp == NULL)
-		return xerr("NETWORK Cannot open file %s for reading", IEEE);
+		return xerr("NETWORK Cannot open file %s for reading", IEEE_SORTED);
 
 	int ii = 0;
 	while (fgets(line, NETWORK_LINEBUF - 1, fp) != NULL) {
@@ -384,7 +424,7 @@ int load_ieee() {
 	}
 
 	fclose(fp);
-	xlog("NETWORK loaded %d entries from %s", ii, IEEE);
+	xlog("NETWORK loaded %d entries from %s", ii, IEEE_SORTED);
 
 	// for (int i = 0; i < ii; i++)
 	// xlog("%lx = %s", ieee[i].mac, ieee[i].description);
@@ -443,7 +483,7 @@ void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 
 	ZERO(line);
 	snprintf(smac, 16, "%06lX", mac >> 24);
-	snprintf(cmd, 128, "grep %s /usr/share/ieee-data/oui.csv", smac);
+	snprintf(cmd, 128, "grep %s %s", smac, IEEE);
 	FILE *fd = popen(cmd, "r");
 	fgets(line, 1024, fd);
 	pclose(fd);
