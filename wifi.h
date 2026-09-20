@@ -12,65 +12,53 @@
 #define META_NAME				"NAME"
 #define META_HOME				"HOME"
 
-typedef struct client_t {
-	uint64_t mac;
-	time_t ts;
-	int count;
-	int signal;
-	int channel;
-	char tag;
-	char ssid[DESCRIPTION];
-	char ou[DESCRIPTION];
-	char name[DESCRIPTION];
+#define __MAC \
+	uint64_t mac; \
+	time_t ts_first; \
+	time_t ts_last; \
+	int count; \
+	int signal; \
+	int channel; \
+	char tag; \
+	char ssid[DESCRIPTION]; \
+	char ou[DESCRIPTION]; \
+	char name[DESCRIPTION]; \
 	char smac[18];
-} client_t;
-size_t CLIENT_SIZE = sizeof(client_t);
 
-typedef struct station_t {
-	uint64_t mac;
-	time_t ts;
-	int dirty;
-	int ccount;
-	int count;
-	int signal;
-	int channel;
-	char ssid[DESCRIPTION];
-	char ou[DESCRIPTION];
-	char name[DESCRIPTION];
-	char smac[18];
-	client_t clients[CLIENTS];
-	client_t *pclients[CLIENTS + 1];
-} station_t;
-size_t STATION_SIZE = sizeof(station_t);
+typedef struct mac_t {
+	__MAC
+} mac_t;
+size_t MAC_SIZE = sizeof(mac_t);
 
-typedef struct meta_station_t {
-	uint64_t mac;
-	time_t ts;
+typedef struct small_station_t {
+	__MAC
 	int dirty;
-	int ccount;
-	int count;
-	int signal;
-	int channel;
-	char ssid[DESCRIPTION];
-	char ou[DESCRIPTION];
-	char name[DESCRIPTION];
-	char smac[18];
-	client_t clients[CLIENTS4];
-	client_t *pclients[CLIENTS4 + 1];
-} meta_station_t;
-size_t META_STATION_SIZE = sizeof(meta_station_t);
+	int mcount;
+	mac_t macs[CLIENTS];
+	mac_t *pmacs[CLIENTS + 1];
+} small_station_t;
+size_t SMALL_STATION_SIZE = sizeof(small_station_t);
+
+typedef struct big_station_t {
+	__MAC
+	int dirty;
+	int mcount;
+	mac_t macs[CLIENTS4];
+	mac_t *pmacs[CLIENTS4 + 1];
+} big_station_t;
+size_t BIG_STATION_SIZE = sizeof(big_station_t);
 
 typedef struct wifi_t {
 	int station_count;
-	station_t station[STATIONS];
-	station_t *pstation[STATIONS + 1];
-	meta_station_t beacon;
-	meta_station_t zombie;
-	meta_station_t cache;
-	meta_station_t black;
-	meta_station_t name;
-	meta_station_t home;
-	meta_station_t *pmeta[7];
+	small_station_t station[STATIONS];
+	small_station_t *pstation[STATIONS + 1];
+	big_station_t beacon;
+	big_station_t zombie;
+	big_station_t cache;
+	big_station_t black;
+	big_station_t name;
+	big_station_t home;
+	big_station_t *pmeta[7];
 } wifi_t;
 size_t WIFI_SIZE = sizeof(wifi_t);
 
