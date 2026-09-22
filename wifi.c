@@ -25,7 +25,7 @@
 #define POPEN					"/usr/bin/tcpdump -nevi mon0"
 #define PORT					6666
 #define DIRTY					10
-#define PPM_MIN					10
+#define PPH_MIN					10
 
 #define BROADCAST				0xffffffffffff
 #define IPV6_MCAST				0x333300000000
@@ -49,6 +49,7 @@
 
 #define CHANNEL(x)				(x ? 1 + (x - 2412) / 5 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
+#define PPH(x)					(x->ts_last - x->ts_first > 3600 ? x->count / ((int)(x->ts_last - x->ts_first) / 3600) : 0)
 #define PPM(x)					(x->ts_last - x->ts_first > 60 ? x->count / ((int)(x->ts_last - x->ts_first) / 60) : 0)
 #define AGE(x)					(x->ts_last ? (int)(now_ts - x->ts_last) : 0)
 
@@ -116,8 +117,9 @@ static void notify_new(mac_t *s, mac_t *m) {
 	}
 
 	// BEACON if ssid is present
-	if (s == (mac_t*) beacons && !EMPTY(m->ssid)) {
-		NOTIFY("New Station", NAME(m), "au.wav");
+	if (s == (mac_t*) beacons) {
+		if (!EMPTY(m->ssid))
+			NOTIFY("New Station", NAME(m), "au.wav");
 		return;
 	}
 
@@ -141,25 +143,25 @@ static void notify_new(mac_t *s, mac_t *m) {
 }
 
 static void notify_back(mac_t *s, mac_t *m) {
-
 	// only after 1+ hour
 	int age = AGE(m);
 	if (age < SECONDS_1H)
 		return;
 
-	int ppm = PPM(m);
-	xdebug("WIFI station %s client %s is back, age=%d ppm=%d count=%d", NAME(s), NAME(m), age, ppm, m->count);
+	int pph = PPH(m);
+	xdebug("WIFI station %s client %s is back, age=%d rate=%d count=%d", NAME(s), NAME(m), age, pph, m->count);
 	line_dump = 1;
 
 	// ZOMBIE always
 	if (s == (mac_t*) zombies) {
-		NOTIFY("Zombie is back", NAME(m), "au.wav");
+		NOTIFY("Zombie is back", NAME(m), "mau2.wav");
 		return;
 	}
 
 	// BEACON if ssid is present
-	if (s == (mac_t*) beacons && !EMPTY(m->ssid)) {
-		NOTIFY("Station is back", NAME(m), "au.wav");
+	if (s == (mac_t*) beacons) {
+		if (!EMPTY(m->ssid))
+			NOTIFY("Station is back", NAME(m), "mau2.wav");
 		return;
 	}
 
@@ -175,8 +177,8 @@ static void notify_back(mac_t *s, mac_t *m) {
 	if (EMPTY(s->ssid))
 		return;
 
-	// too less packets per minute
-	if (ppm < PPM_MIN)
+	// too less packets per hour
+	if (pph < PPH_MIN)
 		return;
 
 	NOTIFY(NAME(s), NAME(m), "mau2.wav");
@@ -669,7 +671,7 @@ static void dump_flat() {
 	fprintf(fp, HFLAT, "Station MAC", "Station SSID", "Station Name", "T", "Client MAC", "Client SSID", "Client Name", "Chan", "Sig", "Age", "Rate", "Count", "Hardware");
 	for (small_station_t **ss = wifi.pstation; *ss; ss++)
 		for (mac_t **mm = SS->pmacs; *mm; mm++)
-			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPM(MM), MM->count, MM->ou);
+			fprintf(fp, CFLAT, SS->smac, SS->ssid, SS->name, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPH(MM), MM->count, MM->ou);
 
 	fflush(fp);
 	fclose(fp);
@@ -678,7 +680,7 @@ static void dump_flat() {
 #define HCOMP "%-20s %-35s %-35s %8s %8s %8s %8s %10s %-35s\n"
 #define SCOMP "\n%-20s %-35s %-35s %8d %8d %8d %8d %10d %-35s\n"
 #define CCOMP "%c %-18s %-35s %-35s %8d %8d %8d %8d %10d %-35s\n"
-#define TCOMP "%d Stations, %d Zombies, %d Home, %d Beacons,  %d Cached, %lu Lines"
+#define TCOMP "%d Stations, %d Beacons, %d Zombies, %d Cached, %d Home, %lu Lines"
 
 static void dump_compact() {
 	FILE *fp = fopen(RUN SLASH WIFI_COMPACT, "wt");
@@ -687,13 +689,13 @@ static void dump_compact() {
 		return;
 	}
 
-	fprintf(fp, TCOMP, wifi.station_count, zombies->mcount, homes->mcount, beacons->mcount, cache->mcount, line_count);
+	fprintf(fp, TCOMP, wifi.station_count, beacons->mcount, zombies->mcount, cache->mcount, homes->mcount, line_count);
 	fprintf(fp, "\n\n");
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Rate", "Count", "Hardware");
 	for (small_station_t **ss = wifi.pstation; *ss; ss++) {
-		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, AGE(SS), PPM(SS), SS->count, SS->ou);
+		fprintf(fp, SCOMP, SS->smac, SS->ssid, SS->name, SS->channel, SS->signal, AGE(SS), PPH(SS), SS->count, SS->ou);
 		for (mac_t **mm = SS->pmacs; *mm; mm++)
-			fprintf(fp, CCOMP, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPM(MM), MM->count, MM->ou);
+			fprintf(fp, CCOMP, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPH(MM), MM->count, MM->ou);
 	}
 
 	fflush(fp);
@@ -712,18 +714,18 @@ static void dump_meta(big_station_t *s) {
 
 	fprintf(fp, HCOMP, "MAC", "SSID", "Name", "Channel", "Signal", "Age", "Rate", "Count", "Hardware");
 	for (mac_t **mm = s->pmacs; *mm; mm++)
-		fprintf(fp, CCOMP, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPM(MM), MM->count, MM->ou);
+		fprintf(fp, CCOMP, MM->tag, MM->smac, MM->ssid, MM->name, MM->channel, MM->signal, AGE(MM), PPH(MM), MM->count, MM->ou);
 
 	fflush(fp);
 	fclose(fp);
 }
 
-#define TDUMP "\nWIFI %d Stations, %d Zombies, %d Home, %d Beacons,  %d Cached, %lu Lines"
+#define TDUMP "\nWIFI %d Stations, %d Beacons, %d Zombies, %d Cached, %d Home, %lu Lines"
 
 static void dump() {
 //	PROFILING_START
 
-	xlog(TDUMP, wifi.station_count, zombies->mcount, homes->mcount, beacons->mcount, cache->mcount, line_count);
+	xlog(TDUMP, wifi.station_count, beacons->mcount, zombies->mcount, cache->mcount, homes->mcount, line_count);
 	dump_compact();
 	dump_flat();
 	dump_meta(beacons);
@@ -850,7 +852,7 @@ static void expire() {
 
 		// remove expired station
 		if (station_expired(SS)) {
-			xdebug("WIFI station %s expired, age=%d count=%d ccount=%d", NAME(SS), AGE(SS), SS->count, SS->mcount);
+			xdebug("WIFI station %s expired, age=%d rate=%d count=%d ccount=%d", NAME(SS), AGE(SS), PPH(SS), SS->count, SS->mcount);
 			SS->mac = 0;
 		}
 
@@ -886,9 +888,9 @@ static void home() {
 	for (small_station_t **ss = wifi.pstation; *ss; ss++) {
 		for (mac_t **mm = SS->pmacs; *mm; mm++) {
 
-			// too less packets per minute
-			int ppm = PPM(MM);
-			if (ppm < PPM_MIN)
+			// too less packets per hour
+			int pph = PPH(MM);
+			if (pph < PPH_MIN)
 				continue;
 
 			// is a station
@@ -912,104 +914,16 @@ static void home() {
 			}
 
 			// update time stamp from cache
-			mac_t *m = CACHE(h);
-			if (m)
-				h->ts_last = m->ts_last;
+			mac_t *c = CACHE(h);
+			if (c)
+				h->ts_last = c->ts_last;
 		}
 	}
 
 //	PROFILING_LOG("home")
 }
 
-// copy clients in sorted order and then copy all back
-static void reorganize_small(small_station_t *s) {
-	if (s->dirty < DIRTY)
-		return; // not needed
-
-	//	xdebug("WIFI station %s reorganization needed", NAME(s));
-	small_station_t copy;
-	ZERO(copy);
-	int count = 0;
-	for (mac_t **mm = s->pmacs; *mm; mm++)
-		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
-	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS);
-}
-
-static void reorganize_big(big_station_t *s) {
-	if (s->dirty < DIRTY)
-		return; // not needed
-
-	//	xdebug("WIFI station %s reorganization needed", NAME(s));
-	big_station_t copy;
-	ZERO(copy);
-	int count = 0;
-	for (mac_t **mm = s->pmacs; *mm; mm++)
-		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
-	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS4);
-}
-
-// update client pointer
-static void pointers_small(small_station_t *s) {
-	int count = 0;
-	for (int i = 0; i < CLIENTS; i++)
-		if (s->macs[i].mac)
-			s->pmacs[count++] = &s->macs[i];
-	s->pmacs[count] = 0; // null terminate
-	s->mcount = count;
-}
-
-static void pointers_big(big_station_t *s) {
-	int count = 0;
-	for (int i = 0; i < CLIENTS4; i++)
-		if (s->macs[i].mac)
-			s->pmacs[count++] = &s->macs[i];
-	s->pmacs[count] = 0; // null terminate
-	s->mcount = count;
-}
-
 #include "wifi-sort.h"
-
-static void sort_count_small(small_station_t *s) {
-	pointers_small(s);
-	bubble_sort_count_small(s);
-	reorganize_small(s);
-	pointers_small(s);
-}
-
-static void sort_count_big(big_station_t *s) {
-	pointers_big(s);
-	bubble_sort_count_big(s);
-	reorganize_big(s);
-	pointers_big(s);
-}
-
-static void sort_signal(big_station_t *s) {
-	pointers_big(s);
-	bubble_sort_signal(s);
-	reorganize_big(s);
-	pointers_big(s);
-}
-
-static void sort_ts(big_station_t *s) {
-	pointers_big(s);
-	bubble_sort_ts(s);
-	reorganize_big(s);
-	pointers_big(s);
-}
-
-static void sort_ssid(big_station_t *s) {
-	pointers_big(s);
-	bubble_sort_ssid(s);
-	reorganize_big(s);
-	pointers_big(s);
-}
-
-static void sort_name(big_station_t *s) {
-	pointers_big(s);
-	bubble_sort_name(s);
-	reorganize_big(s);
-	pointers_big(s);
-}
 
 static void sort() {
 //	PROFILING_START
@@ -1062,32 +976,6 @@ static void sort() {
 int main_popen(int argc, char **argv) {
 	popen_x = 1;
 	return mcp_main(argc, argv);
-}
-
-static int main_name(int argc, char **argv) {
-	if (argc != 4)
-		return xerr("Usage: wifi -u <mac> <name>");
-
-	load_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	sort();
-	name(argv[2], argv[3]);
-	store_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	return 0;
-}
-
-static int main_delete(char *smac) {
-	load_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	sort();
-	delete(smac);
-	store_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	return 0;
-}
-static int main_blacklist(char *smac, int op) {
-	load_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	sort();
-	blacklist(smac, op);
-	store_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
-	return 0;
 }
 
 static int main_test() {
@@ -1151,7 +1039,7 @@ static void loop() {
 			evaluate();
 
 		if (now_ts % SECONDS_1D == 0)
-			store_blob(STATE SLASH WIFI_BIN, &wifi, sizeof(wifi));
+			store_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
 	}
 }
 
@@ -1161,15 +1049,15 @@ static int init() {
 
 	load_ieee();
 	load_ethers();
-	load_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
+	load_blob(TMP SLASH WIFI_BIN, &wifi, WIFI_SIZE);
 	sort(); // initially update all pointers
 
-	strcpy(beacons->ssid, META_BEACON);
-	strcpy(zombies->ssid, META_ZOMBIE);
-	strcpy(cache->ssid, META_CACHE);
-	strcpy(black->ssid, META_BLACK);
-	strcpy(names->ssid, META_NAME);
-	strcpy(homes->ssid, META_HOME);
+	strcpy(beacons->ssid, SSID_BEACON);
+	strcpy(zombies->ssid, SSID_ZOMBIE);
+	strcpy(cache->ssid, SSID_CACHE);
+	strcpy(black->ssid, SSID_BLACK);
+	strcpy(names->ssid, SSID_NAME);
+	strcpy(homes->ssid, SSID_HOME);
 
 	wifi.pmeta[0] = beacons;
 	wifi.pmeta[1] = zombies;
@@ -1191,7 +1079,7 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(TMP SLASH WIFI_BIN, &wifi, sizeof(wifi));
+	store_blob(TMP SLASH WIFI_BIN, &wifi, WIFI_SIZE);
 
 	if (local.thread) {
 		pthread_cancel(local.thread);
@@ -1222,22 +1110,14 @@ int wifi_main(int argc, char **argv) {
 	set_debug(1);
 
 	int c;
-	while ((c = getopt(argc, argv, "b:d:ln:pt")) != -1) {
+	while ((c = getopt(argc, argv, "lpt")) != -1) {
 		switch (c) {
-		case 'b':
-			return main_blacklist(optarg, 1);
-		case 'd':
-			return main_delete(optarg);
 		case 'l':
 			return mcp_main(argc, argv);
-		case 'n':
-			return main_name(argc, argv);
 		case 'p':
 			return main_popen(argc, argv);
 		case 't':
 			return main_test();
-		case 'w':
-			return main_blacklist(optarg, -1);
 		default:
 			xlog("unknown getopt %c", c);
 		}

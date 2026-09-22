@@ -106,13 +106,16 @@ int publish(const char *topic, const char *message, int retain) {
 	return mqtt_sync(client);
 }
 
-int mqtt_notify(const char *title, const char *text, const char *sound) {
-	char *rtitle = string_replace_char(title, '\"', '\'');
-	char *rtext = string_replace_char(text, '\"', '\'');
-	char *rsound = string_replace_char(sound, '\"', '\'');
+int mqtt_notify(const char *tit, const char *txt, const char *snd) {
+	char *rtit = string_replace_char(tit, '\"', ' ');
+	rtit = string_replace_char(rtit, '\\', ' ');
+	char *rtxt = string_replace_char(txt, '\"', ' ');
+	rtxt = string_replace_char(rtxt, '\\', ' ');
+	char *rsnd = string_replace_char(snd, '\"', ' ');
+	rsnd = string_replace_char(rsnd, '\\', ' ');
 
 	char message[0xff];
-	snprintf(message, 0xff, TEMPLATE_NOTIFICATION, rtitle, rtext, rsound);
+	snprintf(message, 0xff, TEMPLATE_NOTIFICATION, rtit, rtxt, rsnd);
 
 	return publish(TOPIC_NOTIFICATION, message, 0);
 }

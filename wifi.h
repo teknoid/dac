@@ -5,12 +5,12 @@
 #define DESCRIPTION				64
 #define DESCRIPTION2			(DESCRIPTION * 2)
 
-#define META_BEACON				"BEACON"
-#define META_ZOMBIE				"ZOMBIE"
-#define META_CACHE				"CACHE"
-#define META_BLACK				"BLACK"
-#define META_NAME				"NAME"
-#define META_HOME				"HOME"
+#define SSID_BEACON				"BEACON"
+#define SSID_ZOMBIE				"ZOMBIE"
+#define SSID_CACHE				"CACHE"
+#define SSID_BLACK				"BLACK"
+#define SSID_NAME				"NAME"
+#define SSID_HOME				"HOME"
 
 #define __MAC \
 	uint64_t mac; \
