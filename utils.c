@@ -640,6 +640,42 @@ char* string_replace_char(const char *string, char x, char y) {
 	return copy;
 }
 
+void decode_meta_utf8(char *string) {
+	// empty
+	if (EMPTY(string))
+		return;
+
+	// does not contain meta sequence
+	if (strstr(string, "M-") == NULL)
+		return;
+
+	size_t len = strlen(string);
+	unsigned char raw;
+	char *copy = strdup(string);
+	int c = 0, i = 0;
+	while (c < len) {
+		// check if sequence starts with "M-"
+		if (c + 2 <= len && copy[c] == 'M' && copy[c + 1] == '-') {
+			c += 2; // skip "M-"
+			if (c < len) {
+				if (copy[c] == '^' && c + 1 < len) {
+					// control character like ^L oder ^B
+					char ctrl = copy[c + 1];
+					raw = (ctrl - 'A' + 1) + 128;
+					c += 2; // skip '^' and next char
+				} else {
+					// normal character
+					raw = (unsigned char) copy[c] + 128;
+					c += 1;
+				}
+				string[i++] = raw;
+			}
+		} else
+			string[i++] = copy[c++];
+	}
+	string[i++] = 0; // null terminate
+}
+
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
 	const char *p;
 	struct stat st = { 0 };

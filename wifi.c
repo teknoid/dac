@@ -372,7 +372,7 @@ static int parse(connection_t *conn) {
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
-	char ssid[DESCRIPTION];
+	char ssid[DESCRIPTION2];
 	ZERO(ssid);
 
 	// split line into tokens
@@ -406,8 +406,11 @@ static int parse(connection_t *conn) {
 			char *y = strchr(rest, ')');
 			if (y != x) {
 				size_t size = y - x;
-				HICUT(size, DESCRIPTION - 1);
+				HICUT(size, DESCRIPTION2 - 1);
 				strncpy(ssid, x, size);
+				decode_meta_utf8(ssid);
+				if (strlen(ssid) > DESCRIPTION)
+					ssid[DESCRIPTION - 1] = 0; // cut to 64 chars max
 			}
 		}
 
@@ -1089,6 +1092,11 @@ static int main_blacklist(char *smac, int op) {
 
 static int main_test() {
 	mcp_init();
+
+	char str[] = "M-PM-?M-PM->M-PM-;M-QM-^LM-PM-7M-PM->M-PM-2M-PM-0M-QM-^BM-PM-5M-PM-;";
+	xlog("encoded string %s", str);
+	decode_meta_utf8(str);
+	xlog("decoded string %s", str);
 
 	uint64_t mac;
 	mac = string2mac("d4:ca:6e:43:a0:25");
