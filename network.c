@@ -36,7 +36,7 @@ static void* popen_thread(void *arg) {
 
 	xlog("WIFI %d pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
-		if (fgets(conn->line, NETWORK_LINEBUF - 1, conn->stream) != NULL)
+		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
 			(server->handler)(conn);
 
 	fclose(conn->stream);
@@ -54,7 +54,7 @@ static void* connection_thread(void *arg) {
 		return xerrv("NETWORK fdopen failed");
 
 	while (!feof(conn->stream))
-		if (fgets(conn->line, NETWORK_LINEBUF - 1, conn->stream) != NULL) {
+		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL) {
 			conn->line_count++;
 
 #ifdef TRACE_FILE
@@ -290,7 +290,7 @@ const char* get_ieee_ou(uint64_t mac) {
 void mac2name(char *name, uint64_t mac, size_t size) {
 	const char *c = get_ethers_name(mac);
 	if (c != NULL)
-		strncpy(name, c, size - 1);
+		strncpy(name, c, size);
 	else
 		*name = 0;
 }
@@ -298,7 +298,7 @@ void mac2name(char *name, uint64_t mac, size_t size) {
 void mac2ou(char *ou, uint64_t mac, size_t size) {
 	const char *c = get_ieee_ou(mac);
 	if (c != NULL)
-		strncpy(ou, c, size - 1);
+		strncpy(ou, c, size);
 	else
 		*ou = 0;
 }
@@ -329,7 +329,7 @@ void mac2string(char *smac, uint64_t mac) {
 }
 
 int load_ethers() {
-	char line[NETWORK_LINEBUF], vv[NETWORK_LINEBUF], name[NETWORK_DESCRIPTION];
+	char line[NETWORK_LINEBUF + 1], vv[NETWORK_LINEBUF + 1], name[NETWORK_DESCRIPTION + 1];
 
 	ZERO(ethers);
 	FILE *fp = fopen(ETHERS, "rt");
@@ -337,7 +337,7 @@ int load_ethers() {
 		return xerr("NETWORK Cannot open file %s for reading", ETHERS);
 
 	int ii = 0;
-	while (fgets(line, NETWORK_LINEBUF - 1, fp) != NULL) {
+	while (fgets(line, NETWORK_LINEBUF, fp) != NULL) {
 
 		// not a ether entry
 		if (!starts_with("dhcp-host", line, strlen(line)))
@@ -350,7 +350,7 @@ int load_ethers() {
 		v[strlen(v) - 1] = 0;
 
 		// copy line, then split into tokens and find name (next after mac list)
-		strncpy(vv, v, NETWORK_LINEBUF - 1);
+		strncpy(vv, v, NETWORK_LINEBUF);
 		char *t, *rest = vv;
 		while ((t = strtok_r(rest, ",", &rest))) {
 			while (*t == ' ')
@@ -360,7 +360,7 @@ int load_ethers() {
 		}
 		while (*(t + strlen(t) - 1) == '\n')
 			*(t + strlen(t) - 1) = 0; // trim
-		strncpy(name, t, NETWORK_DESCRIPTION - 1);
+		strncpy(name, t, NETWORK_DESCRIPTION);
 		// xdebug("line %s :: found name %s", line, name);
 
 		// now go again through line and extract macs
@@ -373,7 +373,7 @@ int load_ethers() {
 				// pointer to next entry
 				description_t *d = &ethers[ii++];
 				d->mac = string2mac(t);
-				strncpy(d->description, name, NETWORK_DESCRIPTION - 1);
+				strncpy(d->description, name, NETWORK_DESCRIPTION);
 			}
 		}
 	}
@@ -388,7 +388,7 @@ int load_ethers() {
 }
 
 int load_ieee() {
-	char line[NETWORK_LINEBUF], *s, *e;
+	char line[NETWORK_LINEBUF + 1], *s, *e;
 
 	ZERO(ieee);
 	FILE *fp = fopen(IEEE_SORTED, "rt");
@@ -396,7 +396,7 @@ int load_ieee() {
 		return xerr("NETWORK Cannot open file %s for reading", IEEE_SORTED);
 
 	int ii = 0;
-	while (fgets(line, NETWORK_LINEBUF - 1, fp) != NULL) {
+	while (fgets(line, NETWORK_LINEBUF, fp) != NULL) {
 
 		// pointer to next entry
 		description_t *d = &ieee[ii++];
@@ -420,7 +420,7 @@ int load_ieee() {
 		} else
 			e = strchr(s, ',');
 		*e = 0;
-		strncpy(d->description, s, NETWORK_DESCRIPTION - 1);
+		strncpy(d->description, s, NETWORK_DESCRIPTION);
 	}
 
 	fclose(fp);

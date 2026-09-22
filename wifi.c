@@ -85,11 +85,11 @@ static int line_dump = 0, popen_x = 0;
 static char* mac2xname(char *name, uint64_t mac, size_t size) {
 	for (int i = 0; i < CLIENTS4; i++)
 		if (names->macs[i].mac == mac)
-			return strncpy(name, names->macs[i].name, size - 1); // name from NAMES
+			return strncpy(name, names->macs[i].name, size); // name from NAMES
 
 	const char *n = get_ethers_name(mac);
 	if (n != NULL)
-		return strncpy(name, n, size - 1); // name from ETHERS
+		return strncpy(name, n, size); // name from ETHERS
 
 	*name = 0;
 	return name;
@@ -196,8 +196,8 @@ void notify_assigned(small_station_t *s, mac_t *z) {
 	xdebug("WIFI zombie %s assigned to %s", NAME(z), NAME(s));
 
 	char title[DESCRIPTION2], text[DESCRIPTION2];
-	snprintf(title, DESCRIPTION2, "Zombie %s", NAME(z));
-	snprintf(text, DESCRIPTION2, "assigned to %s", NAME(s));
+	snprintf(title, DESCRIPTION, "Zombie %s", NAME(z));
+	snprintf(text, DESCRIPTION, "assigned to %s", NAME(s));
 	NOTIFY(title, text, NULL);
 }
 
@@ -239,7 +239,7 @@ static small_station_t* station(uint64_t mac, int channel, int signal, char *ssi
 			s->ts_first = s->ts_last = now_ts;
 
 			mac2string(s->smac, s->mac);
-			mac2xname(s->name, s->mac, DESCRIPTION);
+			mac2xname(s->name, s->mac, SSID_LEN);
 			mac2ou(s->ou, s->mac, DESCRIPTION);
 			if (!EMPTY(ssid))
 				strcpy(s->ssid, ssid);
@@ -291,7 +291,7 @@ static mac_t* insert(mac_t *s, mac_t *m, uint64_t mac, int channel, int signal, 
 	m->ts_first = m->ts_last = now_ts;
 
 	mac2string(m->smac, m->mac);
-	mac2xname(m->name, m->mac, DESCRIPTION);
+	mac2xname(m->name, m->mac, SSID_LEN);
 	mac2ou(m->ou, m->mac, DESCRIPTION);
 
 	// take over ssid when different to station and not empty
@@ -374,7 +374,7 @@ static int parse(connection_t *conn) {
 
 	uint64_t bssid = 0, sa = 0, da = 0, ra = 0, ta = 0;
 	int signal = 0, freq = 0;
-	char ssid[DESCRIPTION2];
+	char ssid[SSID_LEN * 8 + 1]; // more space for utf8 meta sequences
 	ZERO(ssid);
 
 	// split line into tokens
@@ -408,11 +408,11 @@ static int parse(connection_t *conn) {
 			char *y = strchr(rest, ')');
 			if (y != x) {
 				size_t size = y - x;
-				HICUT(size, DESCRIPTION2 - 1);
+				HICUT(size, SSID_LEN * 8);
 				strncpy(ssid, x, size);
 				decode_meta_utf8(ssid);
-				if (strlen(ssid) > DESCRIPTION)
-					ssid[DESCRIPTION - 1] = 0; // cut to 64 chars max
+				if (strlen(ssid) > SSID_LEN)
+					ssid[SSID_LEN] = 0; // cut to 32 characters - 802.11 spec
 			}
 		}
 
@@ -508,7 +508,7 @@ static int name(char *smac, char *n) {
 	mac_t *m = mac_big(names, mac, 0, 0, NULL, 'n');
 	if (m) {
 		m->ts_first = m->ts_last = m->signal = m->count = 0;
-		strncpy(m->name, n, DESCRIPTION - 1);
+		strncpy(m->name, n, SSID_LEN);
 	}
 
 	// update name in all station entries
@@ -516,11 +516,11 @@ static int name(char *smac, char *n) {
 		for (mac_t **mm = SS->pmacs; *mm; mm++)
 			if (mac == MM->mac) {
 				xlog("WIFI station %s updating client %s name '%s'", NAME(SS), NAME(MM), n);
-				strncpy(MM->name, n, DESCRIPTION - 1);
+				strncpy(MM->name, n, SSID_LEN);
 			}
 		if (mac == SS->mac) {
 			xlog("WIFI updating station %s name '%s'", NAME(SS), n);
-			strncpy(SS->name, n, DESCRIPTION - 1);
+			strncpy(SS->name, n, SSID_LEN);
 		}
 	}
 
@@ -529,11 +529,11 @@ static int name(char *smac, char *n) {
 		for (mac_t **mm = SS->pmacs; *mm; mm++)
 			if (mac == MM->mac) {
 				xlog("WIFI station %s updating client %s name '%s'", NAME(SS), NAME(MM), n);
-				strncpy(MM->name, n, DESCRIPTION - 1);
+				strncpy(MM->name, n, SSID_LEN);
 			}
 		if (mac == SS->mac) {
 			xlog("WIFI updating station %s name '%s'", NAME(SS), n);
-			strncpy(SS->name, n, DESCRIPTION - 1);
+			strncpy(SS->name, n, SSID_LEN);
 		}
 	}
 
@@ -658,8 +658,8 @@ static void evaluate() {
 	}
 }
 
-#define HFLAT "%-18s %-35s %-25s %s %-18s %-35s %-25s %4s %4s %6s %6s %10s %-35s\n"
-#define CFLAT "%-18s %-35s %-25s %c %-18s %-35s %-25s %4d %4d %6d %6d %10d %-35s\n"
+#define HFLAT "%-18s %-32s %-25s %s %-18s %-32s %-25s %4s %4s %6s %6s %10s %-40s\n"
+#define CFLAT "%-18s %-32s %-25s %c %-18s %-32s %-25s %4d %4d %6d %6d %10d %-40s\n"
 
 static void dump_flat() {
 	FILE *fp = fopen(RUN SLASH WIFI_FLAT, "wt");
@@ -677,9 +677,9 @@ static void dump_flat() {
 	fclose(fp);
 }
 
-#define HCOMP "%-20s %-35s %-35s %8s %8s %8s %8s %10s %-35s\n"
-#define SCOMP "\n%-20s %-35s %-35s %8d %8d %8d %8d %10d %-35s\n"
-#define CCOMP "%c %-18s %-35s %-35s %8d %8d %8d %8d %10d %-35s\n"
+#define HCOMP "%-20s %-32s %-32s %8s %8s %8s %8s %10s %-64s\n"
+#define SCOMP "\n%-20s %-32s %-32s %8d %8d %8d %8d %10d %-64s\n"
+#define CCOMP "%c %-18s %-32s %-32s %8d %8d %8d %8d %10d %-64s\n"
 #define TCOMP "%d Stations, %d Beacons, %d Zombies, %d Cached, %d Home, %lu Lines"
 
 static void dump_compact() {

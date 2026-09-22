@@ -2,6 +2,7 @@
 #define CLIENTS					256
 #define CLIENTS4				(CLIENTS * 4)
 
+#define SSID_LEN				32
 #define DESCRIPTION				64
 #define DESCRIPTION2			(DESCRIPTION * 2)
 
@@ -20,9 +21,9 @@
 	int signal; \
 	int channel; \
 	char tag; \
-	char ssid[DESCRIPTION]; \
-	char ou[DESCRIPTION]; \
-	char name[DESCRIPTION]; \
+	char ssid[SSID_LEN + 1]; \
+	char name[SSID_LEN + 1]; \
+	char ou[DESCRIPTION + 1]; \
 	char smac[18];
 
 typedef struct mac_t {

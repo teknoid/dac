@@ -10,7 +10,7 @@ typedef int (*handler_t)(connection_t *conn);
 
 typedef struct description_t {
 	uint64_t mac;
-	char description[NETWORK_DESCRIPTION];
+	char description[NETWORK_DESCRIPTION + 1];
 } description_t;
 
 struct _server {
@@ -33,8 +33,8 @@ struct _connection {
 	socklen_t addr_len;
 	char ip[16];
 	FILE *stream;
-	char line[NETWORK_LINEBUF];
-	char copy[NETWORK_LINEBUF];
+	char line[NETWORK_LINEBUF + 1];
+	char copy[NETWORK_LINEBUF + 1];
 	unsigned int line_count;
 };
 
