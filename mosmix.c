@@ -41,9 +41,10 @@
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 
 #define HISTORY_SIZE			(24 * 7)
+#define CH						(now->tm_hour < 23 ? now->tm_hour + 1 : 0)
 
 #define NOISE					10
-#define BASELOAD				250
+#define BASELOAD				170
 #define FMAX					9999
 #define FRMAX					9999
 #define FSMAX					999
@@ -65,8 +66,12 @@ static mosmix_t today[24], tomorrow[24], history[HISTORY_SIZE];
 static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
-// fake dummy average akkus over 24/7
-static int fake_loads[24] = { 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173 };
+// calculate needed power
+static power_t power[48];
+
+// average akku and load over 24/7
+static int akku[24] = { 310, 245, 216, 216, 185, 229, 196, 194, 2, -266, -426, -486, -511, -504, -459, -289, -145, -153, -30, 127, 275, 335, 296, 272 };
+static int load[24] = { 286, 222, 181, 181, 149, 193, 160, 161, 415, 1194, 1641, 2833, 1883, 1448, 1112, 750, 778, 1885, 785, 254, 240, 314, 281, 255 };
 
 static void sum(mosmix_t *to, mosmix_t *from) {
 	int *t = (int*) to;
@@ -102,39 +107,31 @@ static void parse(char **strings, size_t size) {
 
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
 static void expect(mosmix_t *m, factor_t *f) {
-	float fSunD1_s = 1.0 + (float) m->SunD1 / SUND1_S;
-	float fSunD1_ew = 1.0 + (float) m->SunD1 / SUND1_EW;
 	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	fSunD1_s = 1.0, fSunD1_ew = 1.0;
+	// xdebug("TTT=%d ftco=%.3f", m->TTT, ftco);
 
-	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1_s, ftco);
-
-	float f1 = (float) m->Rad1h * (float) f->r1 * fSunD1_s * ftco;
+	float f1 = (float) m->Rad1h * (float) f->r1 * ftco;
 	m->exp1 = f1 / 100;
-	float f2 = (float) m->Rad1h * (float) f->r2 * fSunD1_ew * ftco;
+	float f2 = (float) m->Rad1h * (float) f->r2 * ftco;
 	m->exp2 = f2 / 100;
-	float f3 = (float) m->Rad1h * (float) f->r3 * fSunD1_ew * ftco;
+	float f3 = (float) m->Rad1h * (float) f->r3 * ftco;
 	m->exp3 = f3 / 100;
-	float f4 = (float) m->Rad1h * (float) f->r4 * fSunD1_s * ftco;
+	float f4 = (float) m->Rad1h * (float) f->r4 * ftco;
 	m->exp4 = f4 / 100;
 }
 
 // calculate factor from actual mppt
 static void factor(mosmix_t *m, factor_t *f) {
-	float fSunD1_s = 1.0 + (float) m->SunD1 / SUND1_S;
-	float fSunD1_ew = 1.0 + (float) m->SunD1 / SUND1_EW;
 	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	fSunD1_s = 1.0, fSunD1_ew = 1.0;
+	// xdebug("TTT=%d ftco=%.3f", m->TTT, ftco);
 
-	// xdebug("TTT=%d fSunD1=%.3f ftco=%.3f", m->TTT, fSunD1_s, ftco);
-
-	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / fSunD1_s / ftco / (float) m->Rad1h : 0.0;
+	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / ftco / (float) m->Rad1h : 0.0;
 	f->r1 = f1 * 100;
-	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / fSunD1_ew / ftco / (float) m->Rad1h : 0.0;
+	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / ftco / (float) m->Rad1h : 0.0;
 	f->r2 = f2 * 100;
-	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / fSunD1_ew / ftco / (float) m->Rad1h : 0.0;
+	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / ftco / (float) m->Rad1h : 0.0;
 	f->r3 = f3 * 100;
-	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / fSunD1_s / ftco / (float) m->Rad1h : 0.0;
+	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / ftco / (float) m->Rad1h : 0.0;
 	f->r4 = f4 * 100;
 }
 
@@ -152,13 +149,12 @@ static void errors(mosmix_t *m) {
 	m->err4 = m->mppt4 && m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
 }
 
-static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod, int *eodh) {
+static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod) {
 	ZEROP(mtomorrow);
 	ZEROP(mtoday);
 	ZEROP(msod);
 	ZEROP(meod);
 
-	*eodh = 0;
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m1 = TOMORROW(h);
 		mosmix_t *m0 = TODAY(h);
@@ -172,8 +168,6 @@ static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmi
 		else if (h > now->tm_hour + 1) {
 			// full remaining hours into eod
 			sum(meod, m0);
-			if (SUM_EXP(m0) > BASELOAD)
-				*eodh += 1;
 		} else {
 			// current hour - split at current minute
 			int xs1 = m0->exp1 * now->tm_min / 60, xe1 = m0->exp1 - xs1;
@@ -311,7 +305,7 @@ static void calculate_factors() {
 	}
 
 	store_table_csv(factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
-	dump_table(factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
+//	dump_table(factors, FACTOR_SIZE, 24, 0, "MOSMIX factors", FACTOR_HEADER);
 }
 
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
@@ -338,10 +332,9 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	mosmix_t mtoday, mtomorrow, msod, meod;
 	*succ1 = *succ2 = 0;
-	int eodh;
 
 	// before scale
-	collect(now, &mtomorrow, &mtoday, &msod, &meod, &eodh);
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 	int exp1 = round100(SUM_EXP(&mtoday));
 	int sodx1 = round100(SUM_EXP(&msod));
 	int sodm1 = SUM_MPPT(&msod);
@@ -351,12 +344,11 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	if (TODAY(now->tm_hour)->Rad1h == 0)
 		return;
 
-	int ch = now->tm_hour + 1;
 	mosmix_t m;
 	ZERO(m);
 
 	// sum up mppt and expected till now
-	for (int h = 0; h < ch; h++)
+	for (int h = 0; h < CH; h++)
 		sum(&m, TODAY(h));
 
 	// calculate diff and error
@@ -400,7 +392,7 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	}
 
 	// after scale
-	collect(now, &mtomorrow, &mtoday, &msod, &meod, &eodh);
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 	int exp2 = round100(SUM_EXP(&mtoday));
 	int sodx2 = round100(SUM_EXP(&msod));
 	int sodm2 = SUM_MPPT(&msod);
@@ -411,84 +403,233 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 }
 
 // collect total expected today, tomorrow and till end of day / start of day
-void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod, int *eodh) {
+void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
 	mosmix_t mtoday, mtomorrow, msod, meod;
-	collect(now, &mtomorrow, &mtoday, &msod, &meod, eodh);
+	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 
 	*itomorrow = round100(SUM_EXP(&mtomorrow));
 	*itoday = round100(SUM_EXP(&mtoday));
 	*isod = round100(SUM_EXP(&msod));
 	*ieod = round100(SUM_EXP(&meod));
-	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d eodh=%d", *itomorrow, *itoday, *isod, *ieod, *eodh);
+	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
 }
 
-// night: collect akku power when pv is not enough
-void mosmix_needed(struct tm *now, int baseload, int *needed, int *minutes, int akkus[], int loads[]) {
+void mosmix_update_akku_load(int h, int a, int l) {
+	akku[h] = a;
+	load[h] = l;
+}
+
+static const char* get_flag(power_t *s) {
+	switch (s->flag) {
+	case Night:
+		return "n";
+	case Day:
+		return "d";
+	case DayLow:
+		return "l";
+	case Dusk:
+		return "↓";
+	case Dawn:
+		return "↑";
+	default:
+		return "";
+	}
+}
+
+// calculate power to survive the night and heating over day
+void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat) {
 	char line[LINEBUF * 2], value[48];
-	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, h = ch, night = 0, midnight = 0;
-	*needed = *minutes = 0;
+	*day_mins = *day = *night_mins = *night = *heat_mins = *heat = 0;
 
-	strcpy(line, "MOSMIX survive h:a:x");
-	while (1) {
-		mosmix_t *m = midnight ? TOMORROW(h) : TODAY(h);
+	int bday = baseload + baseload / 10 + 1; // +10 over day
+	ZERO(power);
 
-		// current hour -> partly, remaining hours -> full
-		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
-		int a = h == ch ? akkus[h] * (60 - now->tm_min) / 60 : akkus[h];
-		int l = h == ch ? loads[h] * (60 - now->tm_min) / 60 : loads[h];
+	// fill hour, akku, load and expected for today and tomorrow
+	for (int i = 0; i < 48; i++) {
+		int h = i % 24;
+		mosmix_t *m = i < 24 ? TODAY(h) : TOMORROW(h);
+		power_t *p = &power[i];
 
-		// akku might be limited on discharge - use bigger one
-		int al = l > a ? l : a;
+		p->hour = h;
+		p->flag = Day;
+		p->akku = akku[h];
+		p->load = load[h];
+		p->expt = SUM_EXP(m);
+	}
 
-		// akku is discharging and expected below baseload - night
-		if (a > 0 && x < baseload) {
-			snprintf(value, 48, " %d:%d:%d", h, al, x);
-			strcat(line, value);
-			*needed += al;
-			*minutes += h == ch ? 60 - now->tm_min : 60;
-			night = 1;
+	// calculate minutes and power for each hour
+	for (int i = 0; i < 48; i++) {
+		int dusk = 0, zero = 0, dawn = 0;
+		power_t *p = &power[i], *p1m = &power[i > 1 ? i - 1 : 0], *p1p = &power[i < 47 ? i + 1 : 47];
+
+		// dusk (x -> zero)
+		if (p->expt && !p1p->expt) {
+			p->night_mins = bday * 60 / p->expt;
+			HICUT(p->night_mins, 60)
+			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
+			p->day_mins = p->expt * 60 / bday;
+			HICUT(p->day_mins, 60)
+			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
+			p->flag = Dusk;
+			dusk = 1;
 		}
 
-		// reached end of night or high noon this/next day
-		if ((night && x > baseload) || (night && h == 12) || (midnight && h == 12))
+		// dawn (zero -> x)
+		if (!p1m->expt && p->expt) {
+			p->night_mins = bday * 60 / p->expt;
+			HICUT(p->night_mins, 60)
+			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
+			p->day_mins = p->expt * 60 / bday;
+			HICUT(p->day_mins, 60)
+			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
+			p->flag = Dawn;
+			dawn = 1;
+		}
+
+		// night (zero) - use akku or load to calculate needed power
+		if (!p->expt && !dusk && !dawn) {
+			p->night_mins = 60;
+			p->night = p->load > p->akku ? p->load : p->akku; // akku might be limited on discharge - use bigger one
+			p->flag = Night;
+			zero = 1;
+		}
+
+		// day (x) but not enough - calculate needed power from baseload difference
+		if (p->expt < bday && !zero && !dusk && !dawn) {
+			p->night_mins = 60;
+			p->night = bday - p->expt;
+			p->day_mins = 60;
+			p->day = p->expt;
+			p->flag = DayLow;
+		}
+
+		// day
+		if (p->expt > bday && !dusk && !dawn) {
+			p->day_mins = 60;
+			p->day = bday;
+		}
+
+		// day and enough to heat
+		if (p->expt > heating) {
+			p->heat_mins = 60;
+			p->heat = heating;
+		}
+
+		// shape
+		if (p->night < NOISE)
+			p->night = p->night_mins = 0;
+		if (p->day < NOISE)
+			p->day = p->day_mins = 0;
+	}
+	dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
+
+	// collect base load day power starting at current hour
+	strcpy(line, "MOSMIX   day h:m:p");
+	for (int i = now->tm_hour + 1; i < 24; i++) {
+		power_t *p = &power[i];
+
+		if (!p->day)
+			continue;
+
+		// current hour -> partly, remaining hours -> full
+		int mins = p->hour == CH ? 60 - now->tm_min : 60;
+		int need = p->hour == CH ? p->day * mins / p->day_mins : p->day;
+		if (mins < 0)
+			need = 0;
+
+		// dawn - count down at end of hour
+		if (p->flag == Dawn && p->hour == CH) {
+			if (60 - now->tm_min > p->day_mins) {
+				mins = p->day_mins;
+				need = p->day;
+			} else {
+				mins = 60 - now->tm_min;
+				need = p->day * mins / p->day_mins;
+			}
+		}
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*day_mins += mins;
+		*day += need;
+	}
+
+	*day = round10(*day);
+	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *day, *day_mins, FLOAT60(*day_mins));
+	strcat(line, value);
+	xlog(line);
+
+	// collect base load night power starting at current hour
+	strcpy(line, "MOSMIX night h:m:p");
+	int i = now->tm_hour + 1, dark = 0;
+	while (1) {
+
+		// reached high noon this day
+		if (i == 12 && dark)
 			break;
 
-		// reached midnight
-		if (++h == 24) {
-			midnight = 1;
-			h = 0;
-		}
-	}
+		// reached high noon next day
+		if (i == 36)
+			break;
 
-	*needed = round10(*needed);
-	snprintf(value, 48, " --> need=%d hours=%.1f", *needed, FLOAT60(*minutes));
-	strcat(line, value);
-	xdebug(line);
-}
+		power_t *p = &power[i++];
+		if (!p->night_mins || !p->night)
+			continue;
 
-// day: collect heating power where we can use pv for
-int mosmix_heating(struct tm *now, int power) {
-	char line[LINEBUF], value[48];
-	int ch = now->tm_hour < 23 ? now->tm_hour + 1 : 0, hours = 0, needed = 0;
-
-	strcpy(line, "MOSMIX heating h:x:p");
-	for (int h = ch; h < 24; h++) {
-		mosmix_t *m = TODAY(h);
 		// current hour -> partly, remaining hours -> full
-		int p = h == ch ? power * (60 - now->tm_min) / 60 : power;
-		int x = h == ch ? SUM_EXP(m) * (60 - now->tm_min) / 60 : SUM_EXP(m);
-		if (x > p) {
-			snprintf(value, 48, " %d:%d:%d", h, x, p);
-			strcat(line, value);
-			needed += p;
-			hours++;
+		int mins = p->hour == CH ? p->night_mins - now->tm_min : p->night_mins;
+		int need = p->hour == CH ? p->night * mins / p->night_mins : p->night;
+		if (mins < 0)
+			mins = need = 0;
+
+		// dusk - count down at end of hour
+		if (p->flag == Dusk && p->hour == CH) {
+			if (60 - now->tm_min > p->night_mins) {
+				mins = p->night_mins;
+				need = p->night;
+			} else {
+				mins = 60 - now->tm_min;
+				need = p->night * mins / p->night_mins;
+			}
 		}
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*night_mins += mins;
+		*night += need;
+		dark++;
 	}
 
-	snprintf(value, 48, " --> %d hours = %d", hours, needed);
+	*night = round10(*night);
+	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *night, *night_mins, FLOAT60(*night_mins));
 	strcat(line, value);
-	xdebug(line);
-	return needed;
+	xlog(line);
+
+	// collect heating power for this day starting at current hour
+	strcpy(line, "MOSMIX  heat h:m:p");
+	for (int i = now->tm_hour + 1; i < 24; i++) {
+		power_t *p = &power[i];
+
+		if (!p->heat)
+			continue;
+
+		// current hour -> partly, remaining hours -> full
+		int mins = p->hour == CH ? p->heat_mins - now->tm_min : p->heat_mins;
+		int need = p->hour == CH ? p->heat * mins / p->heat_mins : p->heat;
+		if (mins < 0)
+			mins = need = 0;
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*heat_mins += mins;
+		*heat += need;
+	}
+
+	*heat = round10(*heat);
+	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *heat, *heat_mins, FLOAT60(*heat_mins));
+	strcat(line, value);
+	if (*heat)
+		xlog(line);
 }
 
 // sum up 24 mosmix slots for one day (with offset)
@@ -515,14 +656,14 @@ void mosmix_24h(int day, mosmix_csv_t *sum) {
 void mosmix_dump_today(struct tm *now) {
 	mosmix_t m;
 	icumulate(&m, today, MOSMIX_SIZE, 24);
-	dump_table(today, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX today", MOSMIX_HEADER);
+	dump_table(today, MOSMIX_SIZE, 24, CH, "MOSMIX today", MOSMIX_HEADER);
 	dump_array(&m, MOSMIX_SIZE, "[++]", 0);
 }
 
 void mosmix_dump_tomorrow(struct tm *now) {
 	mosmix_t m;
 	icumulate(&m, tomorrow, MOSMIX_SIZE, 24);
-	dump_table(tomorrow, MOSMIX_SIZE, 24, now->tm_hour, "MOSMIX tomorrow", MOSMIX_HEADER);
+	dump_table(tomorrow, MOSMIX_SIZE, 24, CH, "MOSMIX tomorrow", MOSMIX_HEADER);
 	dump_array(&m, MOSMIX_SIZE, "[++]", 0);
 }
 
@@ -640,57 +781,61 @@ static int test() {
 
 	// load state and update forecasts
 	mosmix_load_state(now);
-	mosmix_load(now, WORK SLASH MARIENBERG, 1);
-
-	// calculate total daily values
-	mosmix_csv_t m0, m1, m2;
-	mosmix_24h(0, &m0);
-	mosmix_24h(1, &m1);
-	mosmix_24h(2, &m2);
-	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
-
-	int itoday, itomorrow, sod, eod, eodh, succ1, succ2;
-
-	// calculate expected today and tomorrow
-	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
-	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+	mosmix_load(now, TMP SLASH MARIENBERG, 1);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
-	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
-	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now, &succ1, &succ2);
-	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//	// calculate total daily values
+//	mosmix_csv_t m0, m1, m2;
+//	mosmix_24h(0, &m0);
+//	mosmix_24h(1, &m1);
+//	mosmix_24h(2, &m2);
+//	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
+//
+//	int itoday, itomorrow, sod, eod, eodh, succ1, succ2;
+//
+//	// calculate expected today and tomorrow
+//	xlog("MOSMIX *** now (%02d) ***", now->tm_hour);
+//	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//	mosmix_dump_today(now);
+//	mosmix_dump_tomorrow(now);
+//
+//	xlog("MOSMIX *** updated now (%02d) ***", now->tm_hour);
+//	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+//	mosmix_scale(now, &succ1, &succ2);
+//	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//
+//	now->tm_hour = 9;
+//	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
+//	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+//	mosmix_scale(now, &succ1, &succ2);
+//	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//
+//	now->tm_hour = 12;
+//	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
+//	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+//	mosmix_scale(now, &succ1, &succ2);
+//	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//
+//	now->tm_hour = 15;
+//	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
+//	mosmix_mppt(now, 4000, 3000, 2000, 1000);
+//	mosmix_scale(now, &succ1, &succ2);
+//	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//
+//	mosmix_dump_history(now);
+//	mosmix_dump_history_hours(9);
+//	mosmix_dump_history_hours(12);
+//	mosmix_dump_history_hours(15);
 
-	now->tm_hour = 9;
-	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
-	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now, &succ1, &succ2);
-	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//	now->tm_hour = 7;
+//	now->tm_min = 40;
 
-	now->tm_hour = 12;
-	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
-	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now, &succ1, &succ2);
-	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+//	mosmix_dump_history_hours(8);
 
-	now->tm_hour = 15;
-	xlog("MOSMIX *** updated hour %02d ***", now->tm_hour);
-	mosmix_mppt(now, 4000, 3000, 2000, 1000);
-	mosmix_scale(now, &succ1, &succ2);
-	mosmix_collect(now, &itomorrow, &itoday, &sod, &eod, &eodh);
+	int day_mins, day, night_mins, night, heat_mins, heat;
+	mosmix_power(now, BASELOAD, 2000, &day_mins, &day, &night_mins, &night, &heat_mins, &heat);
 
-	mosmix_dump_history(now);
-	mosmix_dump_history_hours(9);
-	mosmix_dump_history_hours(12);
-	mosmix_dump_history_hours(15);
-
-	now->tm_hour = 16;
-	mosmix_dump_today(now);
-	mosmix_dump_tomorrow(now);
-	int needed, hours;
-	mosmix_needed(now, BASELOAD, &needed, &hours, fake_loads, fake_loads);
-	mosmix_heating(now, 1500);
 	return 0;
 }
 
@@ -698,7 +843,7 @@ static int recalc() {
 	LOCALTIME
 
 	mosmix_load_state(now);
-	mosmix_load(now, WORK SLASH MARIENBERG, 0);
+	mosmix_load(now, TMP SLASH MARIENBERG, 0);
 	calculate_factors();
 	recalc_expected();
 	history_total();

@@ -150,6 +150,8 @@ int starts_with(const char *pre, const char *str, size_t strsize);
 int ends_with(const char *post, const char *str, size_t strsize);
 char* make_string(const char *c, size_t t);
 char* string_replace_char(const char *string, char x, char y);
+void string_isvalid(char *string);
+void string_isprint(char *string);
 void decode_meta_utf8(char *string);
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...);

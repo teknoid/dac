@@ -408,7 +408,7 @@ static void create_devices_json() {
 }
 
 static void print_dstate() {
-	char line[512], value[6]; // 256 is not enough due to color escape sequences!!!
+	char line[LINEBUF * 2], value[6]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
 	xlogl_int(line, "DLimit", AKKU->dlimit);
@@ -495,27 +495,19 @@ static int choose_program() {
 	if (GSTATE_SUMMER || gstate->today > acx3 || gstate->eod > acx2)
 		return select_program(&PLENTY);
 
+	// safety rule if mosmix forecast is wrong
+	if (GSTATE_CHARGE_AKKU && gstate->eod < acx2 && gstate->forecast < 500)
+		return select_program(&MODEST);
+
 	// we will NOT survive
-	if (gstate->survive < SURVIVE150)
+	if (GSTATE_CHARGE_AKKU && gstate->eod < acx1 && gstate->survive < SURVIVE110)
 		return select_program(&MODEST);
 
-	// PV less than akku capacity
-	if (gstate->today < acx1)
-		return select_program(&MODEST);
-
-	// PV less than twice akku capacity and forecast below 50%
-	if (gstate->today < acx2 && gstate->forecast < 500)
-		return select_program(&MODEST);
-
-	// PV less than twice akku capacity today and less than akku capacity tomorrow
-	if (gstate->today < acx2 && gstate->tomorrow < acx1)
-		return select_program(&MODEST);
-
-	// PV less than twice akku capacity - heat with infrared panels before noon, heat boilers afternoon
+	// PV less than twice capacity - heat with infrared panels before noon, heat boilers afternoon
 	if (gstate->today < acx2)
 		return now->tm_hour < 13 ? select_program(&INFRAR) : select_program(&BOILER);
 
-	// start heating asap and charge akku tommorrow
+	// tomorrow more than today
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
 
@@ -979,10 +971,13 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR dispatcher executing hourly tasks...");
 
-	// set all devices back to automatic
-	for (device_t **dd = DEVICES; *dd; dd++)
+	for (device_t **dd = DEVICES; *dd; dd++) {
+		// set all devices back to automatic
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
+		// clear flags
+		DD->flags = 0;
+	}
 }
 
 static void minly() {
@@ -1186,6 +1181,7 @@ static int init() {
 		return xerr("Error creating socket");
 
 	// initialize all devices with start values
+	params->heating = 0;
 	xlog("SOLAR initializing devices");
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		if (DD->state == Disabled)
@@ -1200,6 +1196,10 @@ static int init() {
 			if (DD->addr == 0)
 				DD->state = Disabled;
 		}
+
+		// collect heating power
+		if (!DD->adj)
+			params->heating += DD->total;
 	}
 
 	// set interlock vice versa as both boilers hang on the same power line

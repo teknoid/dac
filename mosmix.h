@@ -89,6 +89,27 @@ struct _factor {
 	int e4;
 };
 
+enum e_survive {
+	Undefined, Night, Dusk, Dawn, DayLow, Day
+};
+
+typedef struct _power power_t;
+#define POWER_SIZE	(sizeof(power_t) / sizeof(int))
+#define POWER_HEADER	"  flag  hour  akku  load  expt  daym   day nitem  nite heatm  heat"
+struct _power {
+	enum e_survive flag;
+	int hour;
+	int akku;
+	int load;
+	int expt;
+	int day_mins;
+	int day;
+	int night_mins;
+	int night;
+	int heat_mins;
+	int heat;
+};
+
 void mosmix_store_state();
 void mosmix_load_state(struct tm *now);
 void mosmix_factors();
@@ -99,8 +120,8 @@ void mosmix_dump_history_hours(int hour);
 void mosmix_store_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_scale(struct tm *now, int *succ1, int *succ2);
-void mosmix_collect(struct tm *now, int *tomorrow, int *today, int *sod, int *eod, int *eodh);
-void mosmix_needed(struct tm *now, int baseload, int *minutes, int *hours, int akkus[], int loads[]);
-int mosmix_heating(struct tm *now, int power);
+void mosmix_collect(struct tm *now, int *tomorrow, int *today, int *sod, int *eod);
+void mosmix_update_akku_load(int h, int a, int l);
+void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat);
 void mosmix_24h(int day, mosmix_csv_t *sum);
 int mosmix_load(struct tm *now, const char *filename, int clear);

@@ -17,7 +17,6 @@
 #define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
 
 #define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
-#define SURVIVE150				1500
 #define SURVIVE110				1100
 #define SURVIVE100				1000
 #define SURVIVE90				900
@@ -119,6 +118,7 @@ struct _params {
 	int akku_dlimit_override;
 	int akku_minsoc; // TODO
 	int baseload;
+	int heating;
 	int minimum;
 };
 

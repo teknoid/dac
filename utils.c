@@ -640,16 +640,59 @@ char* string_replace_char(const char *string, char x, char y) {
 	return copy;
 }
 
-void decode_meta_utf8(char *string) {
-	// empty
+static int isvalid(uint32_t c) {
+	if (c <= 0x7F)
+		return 1;
+	if (0xC080 == c)
+		return 1;   // Accept 0xC080 as representation for '\0'
+	if (0xC280 <= c && c <= 0xDFBF)
+		return ((c & 0xE0C0) == 0xC080);
+	if (0xEDA080 <= c && c <= 0xEDBFBF)
+		return 0; // Reject UTF-16 surrogates
+	if (0xE0A080 <= c && c <= 0xEFBFBF)
+		return ((c & 0xF0C0C0) == 0xE08080);
+	if (0xF0908080 <= c && c <= 0xF48FBFBF)
+		return ((c & 0xF8C0C0C0) == 0xF0808080);
+	return 0;
+}
+
+void string_isvalid(char *string) {
 	if (EMPTY(string))
 		return;
 
-	// does not contain meta sequence
-	if (strstr(string, "M-") == NULL)
+	for (char *c = string; *c; c++)
+		if (!isvalid(*c))
+			*c = '#';
+}
+
+void string_isprint(char *string) {
+	if (EMPTY(string))
 		return;
 
+	for (char *c = string; *c; c++)
+		if (!isprint(*c))
+			*c = '#';
+}
+
+void decode_meta_utf8(char *string) {
 	size_t len = strlen(string);
+
+	// empty
+	if (string == ((void*) 0) || len == 0)
+		return;
+
+	// does not contain meta sequence intro
+	char *m = strstr(string, "M-");
+	if (m == NULL)
+		return;
+
+	// at end of string or not a full meta sequence 'M-*M-*'
+	if (m - string + 6 > len)
+		return;
+	if (*(m + 3) != 'M' && *(m + 4) != '-')
+		return;
+
+	// string definitively contains meta sequence - decoding
 	unsigned char raw;
 	char *copy = strdup(string);
 	int c = 0, i = 0;

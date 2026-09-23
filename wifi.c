@@ -1,4 +1,4 @@
-// gcc -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi wifi.c mcp.c utils.c network.c mqtt-tx.c -lmqttc
+// gcc -Wall -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi wifi.c mcp.c utils.c network.c mqtt-tx.c -lmqttc
 
 // iw phy phy2 interface add mon0 type monitor
 // ifconfig mon0 up
@@ -177,8 +177,8 @@ static void notify_back(mac_t *s, mac_t *m) {
 	if (EMPTY(s->ssid))
 		return;
 
-	// too less packets per hour
-	if (pph < PPH_MIN)
+	// anonymous / too less packets per hour
+	if (EMPTY(m->name) || pph < PPH_MIN)
 		return;
 
 	NOTIFY(NAME(s), NAME(m), "mau2.wav");
@@ -256,11 +256,11 @@ static mac_t* update(mac_t *s, mac_t *m, uint64_t mac, int channel, int signal, 
 
 	// update mac, smac and ou as long as zombie is unassigned
 	if (mac && mac != m->mac && m->tag != 'a') {
+		if (!BLACK(m))
+			xdebug("WIFI updating station %s client %s tag=%c old mac=%012lx new mac=%012lx ", NAME(s), NAME(m), m->tag, m->mac, mac);
 		m->mac = mac;
 		mac2string(m->smac, m->mac);
 		mac2ou(m->ou, m->mac, DESCRIPTION);
-		if (!BLACK(m))
-			xdebug("WIFI updating station %s client %s tag=%c old mac=%012lx new mac=%012lx ", NAME(s), NAME(m), m->tag, m->mac, mac);
 	}
 
 	m->count++;
@@ -411,6 +411,7 @@ static int parse(connection_t *conn) {
 				HICUT(size, SSID_LEN * 8);
 				strncpy(ssid, x, size);
 				decode_meta_utf8(ssid);
+				string_isprint(ssid);
 				if (strlen(ssid) > SSID_LEN)
 					ssid[SSID_LEN] = 0; // cut to 32 characters - 802.11 spec
 			}
@@ -981,10 +982,62 @@ int main_popen(int argc, char **argv) {
 static int main_test() {
 	mcp_init();
 
-	char str[] = "M-PM-?M-PM->M-PM-;M-QM-^LM-PM-7M-PM->M-PM-2M-PM-0M-QM-^BM-PM-5M-PM-;";
-	xlog("encoded string %s", str);
-	decode_meta_utf8(str);
-	xlog("decoded string %s", str);
+	char str1[] = "Test End M-XM-";
+	char str2[] = "OEM-HQB52A2605008054";
+	char str3[] = "GartenstraM-CM-^_e 2a_EXT";
+	char str4[] = "MauiM-BM-4s Gast";
+	char str5[] = "M-PM-?M-PM->M-PM-;M-QM-^LM-PM-7M-PM->M-PM-2M-PM-0M-QM-^BM-PM-5M-PM-;";
+	char str6[] = "^HpM-TM-2M-^J)THM-^Z^JM-<M-U^N^XM-(DM-,[M-sM-^NLM-W-M-^[^IBM-e^FM-D3M-/M-M";
+	char str7[] = "^KM-a^Z^\\^?#M-x)M-xM-$^[^SM-5M-JNM-hM-^X28M-`yM=4M-<_NwM-zM-Kl^E";
+
+	xlog("encoded string %s", str1);
+	decode_meta_utf8(str1);
+	xlog("decoded string %s", str1);
+	string_isvalid(str1);
+	xlog("isvalid string %s", str1);
+	mqtt_notify("Test", str1, NULL);
+
+	xlog("encoded string %s", str2);
+	decode_meta_utf8(str2);
+	xlog("decoded string %s", str2);
+	string_isvalid(str2);
+	xlog("isvalid string %s", str2);
+	mqtt_notify("Test", str2, NULL);
+
+	xlog("encoded string %s", str3);
+	decode_meta_utf8(str3);
+	xlog("decoded string %s", str3);
+	string_isvalid(str3);
+	xlog("isvalid string %s", str3);
+	mqtt_notify("Test", str3, NULL);
+
+	xlog("encoded string %s", str4);
+	decode_meta_utf8(str4);
+	xlog("decoded string %s", str4);
+	string_isvalid(str4);
+	xlog("isvalid string %s", str4);
+	mqtt_notify("Test", str4, NULL);
+
+	xlog("encoded string %s", str5);
+	decode_meta_utf8(str5);
+	xlog("decoded string %s", str5);
+	string_isvalid(str5);
+	xlog("isvalid string %s", str5);
+	mqtt_notify("Test", str5, NULL);
+
+	xlog("encoded string %s", str6);
+	decode_meta_utf8(str6);
+	xlog("decoded string %s", str6);
+	string_isvalid(str6);
+	xlog("isvalid string %s", str6);
+	mqtt_notify("Test", str6, NULL);
+
+	xlog("encoded string %s", str7);
+	decode_meta_utf8(str7);
+	xlog("decoded string %s", str7);
+	string_isvalid(str7);
+	xlog("isvalid string %s", str7);
+	mqtt_notify("Test", str7, NULL);
 
 	uint64_t mac;
 	mac = string2mac("d4:ca:6e:43:a0:25");
@@ -1015,6 +1068,11 @@ static int main_test() {
 }
 
 static void loop() {
+	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
+		xlog("Error setting pthread_setcancelstate");
+		return;
+	}
+
 	while (1) {
 		sleep(1);
 		now_ts = time(NULL);
@@ -1108,6 +1166,10 @@ static void stop() {
 int wifi_main(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
+
+	// no arguments - test
+	if (argc == 1)
+		return main_test();
 
 	int c;
 	while ((c = getopt(argc, argv, "lpt")) != -1) {
