@@ -108,30 +108,32 @@ static void parse(char **strings, size_t size) {
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
 static void expect(mosmix_t *m, factor_t *f) {
 	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	// xdebug("TTT=%d ftco=%.3f", m->TTT, ftco);
+	float frad1h = m->Rad1h * m->Rad1h / 1000.0;
+	// xdebug("TTT=%d ftco=%.3f Rad1h=%d frad1h=%.1f", m->TTT, ftco, m->Rad1h, frad1h);
 
-	float f1 = (float) m->Rad1h * (float) f->r1 * ftco;
+	float f1 = (float) f->r1 * frad1h * ftco;
 	m->exp1 = f1 / 100;
-	float f2 = (float) m->Rad1h * (float) f->r2 * ftco;
+	float f2 = (float) f->r2 * frad1h * ftco;
 	m->exp2 = f2 / 100;
-	float f3 = (float) m->Rad1h * (float) f->r3 * ftco;
+	float f3 = (float) f->r3 * frad1h * ftco;
 	m->exp3 = f3 / 100;
-	float f4 = (float) m->Rad1h * (float) f->r4 * ftco;
+	float f4 = (float) f->r4 * frad1h * ftco;
 	m->exp4 = f4 / 100;
 }
 
 // calculate factor from actual mppt
 static void factor(mosmix_t *m, factor_t *f) {
 	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	// xdebug("TTT=%d ftco=%.3f", m->TTT, ftco);
+	float frad1h = m->Rad1h * m->Rad1h / 1000.0;
+	// xdebug("TTT=%d ftco=%.3f Rad1h=%d frad1h=%.1f", m->TTT, ftco, m->Rad1h, frad1h);
 
-	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / ftco / (float) m->Rad1h : 0.0;
+	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / frad1h / ftco : 0.0;
 	f->r1 = f1 * 100;
-	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / ftco / (float) m->Rad1h : 0.0;
+	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / frad1h / ftco : 0.0;
 	f->r2 = f2 * 100;
-	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / ftco / (float) m->Rad1h : 0.0;
+	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / frad1h / ftco : 0.0;
 	f->r3 = f3 * 100;
-	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / ftco / (float) m->Rad1h : 0.0;
+	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / frad1h / ftco : 0.0;
 	f->r4 = f4 * 100;
 }
 
@@ -451,7 +453,6 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 		power_t *p = &power[i];
 
 		p->hour = h;
-		p->flag = Day;
 		p->akku = akku[h];
 		p->load = load[h];
 		p->expt = SUM_EXP(m);
@@ -459,7 +460,6 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 
 	// calculate minutes and power for each hour
 	for (int i = 0; i < 48; i++) {
-		int dusk = 0, zero = 0, dawn = 0;
 		power_t *p = &power[i], *p1m = &power[i > 1 ? i - 1 : 0], *p1p = &power[i < 47 ? i + 1 : 47];
 
 		// dusk (x -> zero)
@@ -471,7 +471,6 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 			HICUT(p->day_mins, 60)
 			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
 			p->flag = Dusk;
-			dusk = 1;
 		}
 
 		// dawn (zero -> x)
@@ -483,19 +482,17 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 			HICUT(p->day_mins, 60)
 			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
 			p->flag = Dawn;
-			dawn = 1;
 		}
 
 		// night (zero) - use akku or load to calculate needed power
-		if (!p->expt && !dusk && !dawn) {
+		if (!p->flag && !p->expt) {
 			p->night_mins = 60;
 			p->night = p->load > p->akku ? p->load : p->akku; // akku might be limited on discharge - use bigger one
 			p->flag = Night;
-			zero = 1;
 		}
 
 		// day (x) but not enough - calculate needed power from baseload difference
-		if (p->expt < bday && !zero && !dusk && !dawn) {
+		if (!p->flag && p->expt < bday) {
 			p->night_mins = 60;
 			p->night = bday - p->expt;
 			p->day_mins = 60;
@@ -504,9 +501,10 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 		}
 
 		// day
-		if (p->expt > bday && !dusk && !dawn) {
+		if (!p->flag && p->expt >= bday) {
 			p->day_mins = 60;
 			p->day = bday;
+			p->flag = Day;
 		}
 
 		// day and enough to heat
@@ -521,7 +519,7 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 		if (p->day < NOISE)
 			p->day = p->day_mins = 0;
 	}
-	dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
+	// dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
 
 	// collect base load day power starting at current hour
 	strcpy(line, "MOSMIX   day h:m:p");
@@ -557,7 +555,8 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 	*day = round10(*day);
 	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *day, *day_mins, FLOAT60(*day_mins));
 	strcat(line, value);
-	xlog(line);
+	if (*day)
+		xlog(line);
 
 	// collect base load night power starting at current hour
 	strcpy(line, "MOSMIX night h:m:p");
@@ -603,7 +602,8 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 	*night = round10(*night);
 	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *night, *night_mins, FLOAT60(*night_mins));
 	strcat(line, value);
-	xlog(line);
+	if (*night)
+		xlog(line);
 
 	// collect heating power for this day starting at current hour
 	strcpy(line, "MOSMIX  heat h:m:p");
