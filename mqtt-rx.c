@@ -142,7 +142,7 @@ static int dispatch(struct mqtt_response_publish *p) {
 	if (starts_with(TOPIC_SENSOR, p->topic_name, p->topic_name_size))
 		return dispatch_sensor(p);
 
-	// sensor
+	// solar
 	if (starts_with(TOPIC_SOLAR, p->topic_name, p->topic_name_size))
 		return dispatch_solar(p);
 

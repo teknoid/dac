@@ -496,11 +496,11 @@ static int choose_program() {
 		return select_program(&PLENTY);
 
 	// safety rule if mosmix forecast is wrong
-	if (GSTATE_CHARGE_AKKU && gstate->eod < acx2 && gstate->forecast < 500)
+	if (GSTATE_CHARGE_AKKU && gstate->eod < acx1 && gstate->forecast < 500)
 		return select_program(&MODEST);
 
 	// we will NOT survive
-	if (GSTATE_CHARGE_AKKU && gstate->eod < acx1 && gstate->survive < SURVIVE110)
+	if (GSTATE_CHARGE_AKKU && gstate->survive < SURVIVE100)
 		return select_program(&MODEST);
 
 	// PV less than twice capacity - heat with infrared panels before noon, heat boilers afternoon

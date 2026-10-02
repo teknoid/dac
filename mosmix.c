@@ -7,8 +7,6 @@
 #include <string.h>
 #include <time.h>
 
-#include <sys/sysinfo.h>
-
 #include "mosmix.h"
 #include "utils.h"
 #include "mcp.h"
@@ -33,12 +31,10 @@
 // temperature coefficient scaled as x100
 #define TCOP					-34
 
-// SunD1 factor South and East/West orientation
-#define SUND1_S					35
-#define SUND1_EW				75
-
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
+#define FTCO(m)					(1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100)
+#define FX(m)					(m->Rad1h + m->Rad1h * m->Rad1h / 1000 + m->SunD1 * 100)
 
 #define HISTORY_SIZE			(24 * 7)
 #define CH						(now->tm_hour < 23 ? now->tm_hour + 1 : 0)
@@ -93,6 +89,23 @@ static void sum_abs(mosmix_t *to, mosmix_t *from) {
 	}
 }
 
+static const char* get_flag(power_t *s) {
+	switch (s->flag) {
+	case Night:
+		return "n";
+	case Day:
+		return "d";
+	case DayLow:
+		return "l";
+	case Dusk:
+		return "↓";
+	case Dawn:
+		return "↑";
+	default:
+		return "";
+	}
+}
+
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
 	mosmix_csv_t *m = &mosmix_csv[idx];
@@ -107,33 +120,33 @@ static void parse(char **strings, size_t size) {
 
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
 static void expect(mosmix_t *m, factor_t *f) {
-	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	float frad1h = m->Rad1h * m->Rad1h / 1000.0;
-	// xdebug("TTT=%d ftco=%.3f Rad1h=%d frad1h=%.1f", m->TTT, ftco, m->Rad1h, frad1h);
+	float ftco = FTCO(m); // 1.170 (-20°) to 0.966 (+35°)
+	int x = FX(m); // magic factor
+	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
-	float f1 = (float) f->r1 * frad1h * ftco;
+	float f1 = (float) f->r1 * ftco * x;
 	m->exp1 = f1 / 100;
-	float f2 = (float) f->r2 * frad1h * ftco;
+	float f2 = (float) f->r2 * ftco * x;
 	m->exp2 = f2 / 100;
-	float f3 = (float) f->r3 * frad1h * ftco;
+	float f3 = (float) f->r3 * ftco * x;
 	m->exp3 = f3 / 100;
-	float f4 = (float) f->r4 * frad1h * ftco;
+	float f4 = (float) f->r4 * ftco * x;
 	m->exp4 = f4 / 100;
 }
 
 // calculate factor from actual mppt
 static void factor(mosmix_t *m, factor_t *f) {
-	float ftco = 1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100; // 1.170 (-20°) to 0.966 (+35°)
-	float frad1h = m->Rad1h * m->Rad1h / 1000.0;
-	// xdebug("TTT=%d ftco=%.3f Rad1h=%d frad1h=%.1f", m->TTT, ftco, m->Rad1h, frad1h);
+	float ftco = FTCO(m); // 1.170 (-20°) to 0.966 (+35°)
+	int x = FX(m); // magic factor
+	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
-	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / frad1h / ftco : 0.0;
+	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / ftco / x : 0.0;
 	f->r1 = f1 * 100;
-	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / frad1h / ftco : 0.0;
+	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / ftco / x : 0.0;
 	f->r2 = f2 * 100;
-	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / frad1h / ftco : 0.0;
+	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / ftco / x : 0.0;
 	f->r3 = f3 * 100;
-	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / frad1h / ftco : 0.0;
+	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / ftco / x : 0.0;
 	f->r4 = f4 * 100;
 }
 
@@ -217,6 +230,7 @@ static void recalc_expected() {
 static void history_total() {
 	mosmix_t t;
 	ZERO(t);
+	xlog("MOSMIX history total");
 	for (int h = 0; h < 24; h++) {
 		mosmix_t th;
 		ZERO(th);
@@ -227,13 +241,11 @@ static void history_total() {
 		}
 		sum_abs(&t, &th);
 
-		if (th.err1 != 700) {
-			xlog("MOSMIX history total h=%2d diff1=%4d diff2=%4d diff3=%4d diff4=%4d", h, th.diff1, th.diff2, th.diff3, th.diff4);
-			// xlog("MOSMIX history total h=%2d err1=%d err2=%d err3=%d err4=%d", h, th.err1, th.err2, th.err3, th.err4);
-		}
+		if (th.diff1 || th.diff2 || th.diff3 || th.diff4)
+			xlog("h=%2d diff1=%4d  diff2=%4d  diff3=%4d  diff4=%4d", h, th.diff1, th.diff2, th.diff3, th.diff4);
 	}
-	xlog("MOSMIX history total diff1=%5d diff2=%5d diff3=%5d diff4=%5d", t.diff1, t.diff2, t.diff3, t.diff4);
-	// xlog("MOSMIX history total err1=%d err2=%d err3=%d err4=%d", h, t.err1, t.err2, t.err3, t.err4);
+	int total = t.diff1 + t.diff2 + t.diff3 + t.diff4;
+	xlog("sum       %5d       %5d       %5d       %5d   total=%d", t.diff1, t.diff2, t.diff3, t.diff4, total);
 }
 
 // update today and tomorrow with actual data from mosmix kml download
@@ -419,23 +431,6 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 void mosmix_update_akku_load(int h, int a, int l) {
 	akku[h] = a;
 	load[h] = l;
-}
-
-static const char* get_flag(power_t *s) {
-	switch (s->flag) {
-	case Night:
-		return "n";
-	case Day:
-		return "d";
-	case DayLow:
-		return "l";
-	case Dusk:
-		return "↓";
-	case Dawn:
-		return "↑";
-	default:
-		return "";
-	}
 }
 
 // calculate power to survive the night and heating over day
@@ -630,27 +625,6 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 	strcat(line, value);
 	if (*heat)
 		xlog(line);
-}
-
-// sum up 24 mosmix slots for one day (with offset)
-void mosmix_24h(int day, mosmix_csv_t *sum) {
-	LOCALTIME
-
-	// calculate today 0:00:00 as start and +24h as end time frame
-	now->tm_hour = now->tm_min = now->tm_sec = 0;
-	time_t ts_from = mktime(now) + 60 * 60 * 24 * day;
-	time_t ts_to = ts_from + 60 * 60 * 24; // + 1 day
-
-	ZEROP(sum);
-	for (int i = 0; i < ARRAY_SIZE(mosmix_csv); i++) {
-		mosmix_csv_t *m = &mosmix_csv[i];
-		if (ts_from < m->ts && m->ts <= ts_to) {
-			sum->Rad1h += m->Rad1h;
-			sum->SunD1 += m->SunD1;
-			if (m->RSunD)
-				sum->RSunD = m->RSunD;	// last 24 hours calculated at 0 and 6
-		}
-	}
 }
 
 void mosmix_dump_today(struct tm *now) {

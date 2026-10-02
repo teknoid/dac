@@ -265,6 +265,7 @@ static void collect_average_247() {
 			xlog("SOLAR average 24/7   pv mismatch hour=%02d mppt1+mppt2+mppt3+mppt4=%d load=%d", h, cpv, pavg->load);
 	}
 
+	// average 24/7 akku
 	strcpy(line, "SOLAR average 24/7 akku: { ");
 	for (int h = 0; h < 24; h++) {
 		snprintf(value, 10, " %4d%c", PSTATE_AVG_247(h)->akku, h < 23 ? ',' : '}');
@@ -272,6 +273,7 @@ static void collect_average_247() {
 	}
 	xlog(line);
 
+	// average 24/7 load
 	strcpy(line, "SOLAR average 24/7 load: { ");
 	for (int h = 0; h < 24; h++) {
 		snprintf(value, 10, " %4d%c", PSTATE_AVG_247(h)->load, h < 23 ? ',' : '}');
@@ -473,7 +475,7 @@ static void calculate_gstate_offline() {
 		int dlimit = round10(params->akku_dlimit ? params->akku_dlimit + adjust : PSTATE_MIN_NOW->load);
 		LOCUT(dlimit, params->baseload)
 		int delta = maxm->grid - minm->grid;
-		xlog("SOLAR unstable   grid min=%d max=%d delta=%d   dlimit now=%d adjust=%d new=%d", minm->grid, maxm->grid, delta, params->akku_dlimit, adjust, dlimit);
+		xlog("SOLAR unstable GRID min=%d max=%d delta=%d DLIMIT now=%d adjust=%d new=%d", minm->grid, maxm->grid, delta, params->akku_dlimit, adjust, dlimit);
 		params->akku_dlimit = dlimit;
 
 	} else if (gstate->survive < SURVIVE100) {
@@ -484,7 +486,7 @@ static void calculate_gstate_offline() {
 		// take over initial limit or when delta 20+
 		int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
 		if (!params->akku_dlimit || diff >= 20) {
-			xlog("SOLAR dlimit now=%d new=%d diff=%d baseload=%d", params->akku_dlimit, dlimit, diff, params->baseload);
+			xlog("SOLAR DLIMIT now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
 			params->akku_dlimit = dlimit;
 		}
 	}
@@ -541,15 +543,14 @@ static void calculate_gstate_online() {
 	int acx1 = params->akku_capacity, acx2 = acx1 * 2, acx3 = acx1 * 3, acx4 = acx1 * 4;
 	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // keep charging if already indicated
 	int criti = gstate->survive < SURVIVE90; // we will probably not survive
-	int tomo1 = gstate->soc < 666 && !SUMMER && gstate->today > acx2 && gstate->tomorrow < acx2; // akku below 66% and tomorrow not enough for heating and akku charging
-	int tomo2 = gstate->soc < 666 && !SUMMER && gstate->today > (gstate->tomorrow * 2); // akku below 66% and tomorrow less than half of today
-	int weekd = gstate->soc < 500 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
+	int tomor = gstate->soc < 777 && !SUMMER && gstate->today > acx2 && gstate->tomorrow < acx1; // charge today and heat tomorrow
+	int weekd = gstate->soc < 555 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
 	int soc33 = gstate->soc < 333 && !SUMMER && now->tm_hour < 12; // autumn/spring when below 33%
 	int soc22 = gstate->soc < 222 && SUMMER && now->tm_hour < 12; // summer when below 22%
 	int empty = gstate->soc < 100; // akku below 10%
-	if (WINTER || last || criti || tomo1 || tomo2 || weekd || soc33 || soc22 || empty)
+	if (WINTER || last || criti || tomor || weekd || soc33 || soc22 || empty)
 		gstate->flags |= FLAG_CHARGE_AKKU;
-	xlog("SOLAR charge akku winter=%d last=%d critical=%d tomo1=%d tomo2=%d weekend=%d soc33=%d soc22=%d empty=%d", WINTER, last, criti, tomo1, tomo2, weekd, soc33, soc22, empty);
+	xlog("SOLAR charge akku winter=%d last=%d critical=%d tomo1=%d tomo2=%d weekend=%d soc33=%d soc22=%d empty=%d", WINTER, last, criti, tomor, weekd, soc33, soc22, empty);
 
 	// akku charge limit
 	params->akku_climit = 0;
@@ -624,7 +625,7 @@ static void calculate_gstate() {
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
 	HICUT(gstate->survive, 2000)
-#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d pv=%d akku=%d need=%d night=%d --> %.1f%%"
+#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d akku=%d need=%d night=%d --> %.1f%%"
 	xlog(TEMPLATE_SURVIVE, gstate->eod, day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive));
 
 	// offline when average pv goes below minimum or rsl below 90
