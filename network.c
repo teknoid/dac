@@ -18,13 +18,15 @@
 
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
-#define TRACE_FILE				"/tmp/network.txt"
+// #define TRACE_FILE				"/tmp/network.txt"
 
 static description_t ethers[0xff];
 static description_t ieee[0xffff];
 static int ieee_index[0xff];
 
+#ifdef TRACE_FILE
 static FILE *file;
+#endif
 
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
@@ -103,7 +105,6 @@ static void* server_thread(void *arg) {
 		return xerrv("NETWORK error opening file %s", TRACE_FILE);
 #endif
 
-	xlog("NETWORK listening on port %d for %s", server->port, server->description);
 	while (1) {
 		connection_t *conn = calloc(1, sizeof(connection_t));
 		conn->addr_len = sizeof(conn->address);
@@ -162,6 +163,8 @@ int init_server(server_t *server, char *description, int port, handler_t handler
 
 	if (listen(server->sock, SOMAXCONN) < 0)
 		return xerr("NETWORK listen failed");
+
+	xlog("NETWORK listening on port %d for %s", server->port, server->description);
 
 	if (pthread_create(&server->thread, NULL, &server_thread, (void*) server))
 		return xerr("NETWORK Error creating thread");

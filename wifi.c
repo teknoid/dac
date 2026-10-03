@@ -60,8 +60,8 @@
 #define NAMES(x)				find(names, x->mac)
 #define HOMES(x)				find(homes, x->mac)
 
-#define NOTIFY(x, y, z)			mqtt_notify(x, y, z)
-//#define NOTIFY(x, y, z)			mcp_notify(x, y, z, 0)
+// #define NOTIFY(x, y, z)			mqtt_notify(x, y, z)
+#define NOTIFY(x, y, z)			mcp_notify(x, y, z, 0)
 
 #define SS						(*ss)
 #define MM						(*mm)
@@ -721,12 +721,12 @@ static void dump_meta(big_station_t *s) {
 	fclose(fp);
 }
 
-#define TDUMP "\nWIFI %d Stations, %d Beacons, %d Zombies, %d Cached, %d Home, %lu Lines"
+#define DUMP_LOG "WIFI %d Stations, %d Beacons, %d Zombies, %d Cached, %d Home, %lu Lines"
 
 static void dump() {
 //	PROFILING_START
 
-	xlog(TDUMP, wifi.station_count, beacons->mcount, zombies->mcount, cache->mcount, homes->mcount, line_count);
+	xlog(DUMP_LOG, wifi.station_count, beacons->mcount, zombies->mcount, cache->mcount, homes->mcount, line_count);
 	dump_compact();
 	dump_flat();
 	dump_meta(beacons);
