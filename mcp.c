@@ -91,8 +91,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/stat.h>
-
 #include "utils.h"
 #include "mcp.h"
 
@@ -197,43 +195,6 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 #endif
 }
 
-static void daemonize() {
-	pid_t pid;
-
-	/* Fork off the parent process */
-	pid = fork();
-	if (pid < 0)
-		exit(EXIT_FAILURE);
-
-	if (pid > 0)
-		exit(EXIT_SUCCESS);
-
-	if (setsid() < 0)
-		exit(EXIT_FAILURE);
-
-	/* Catch, ignore and handle signals */
-	signal(SIGCHLD, SIG_IGN);
-	signal(SIGHUP, SIG_IGN);
-
-	/* Fork off for the second time*/
-	pid = fork();
-	if (pid < 0)
-		exit(EXIT_FAILURE);
-
-	if (pid > 0)
-		exit(EXIT_SUCCESS);
-
-	/* Set new file permissions, set new root, close standard file descriptors */
-	umask(0);
-	chdir("/");
-
-	close(STDIN_FILENO);
-	close(STDOUT_FILENO);
-	close(STDERR_FILENO);
-
-	xlog("MCP forked into background");
-}
-
 // loop recursively over module chain and call each module's init() function
 static void module_init(mcp_module_t *m) {
 	int ret = (m->init)();
@@ -308,22 +269,14 @@ int mcp_main(int argc, char **argv) {
 
 	// parse command line arguments
 	int c;
-	while ((c = getopt(argc, argv, "di")) != -1) {
+	while ((c = getopt(argc, argv, "i")) != -1) {
 		switch (c) {
-		case 'd':
-			cfg->daemonize = 1;
-			break;
 		case 'i':
 			cfg->interactive = 1;
 			break;
 		default:
 		}
 	}
-
-	// fork into background
-	// not necessary anymore, see https://jdebp.uk/FGA/unix-daemon-design-mistakes-to-avoid.html
-	if (cfg->daemonize)
-		daemonize();
 
 	// install signal handler
 	if (signal(SIGINT, sig_handler) == SIG_ERR) {
