@@ -343,4 +343,4 @@ int main(int argc, char **argv) {
 }
 #endif
 
-MCP_REGISTER(flamingo, 2, &init, &stop, NULL);
+MCP_REGISTER(flamingo, 3, &init, &stop, NULL);

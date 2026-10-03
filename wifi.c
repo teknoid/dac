@@ -14,8 +14,6 @@
 #include <unistd.h>
 #include <string.h>
 
-#include <sys/types.h>
-
 #include "network.h"
 #include "utils.h"
 #include "wifi.h"
@@ -79,7 +77,7 @@ static server_t data, cmnd, local;
 static pthread_mutex_t lock;
 static time_t now_ts;
 
-static unsigned long line_count = 0;
+static unsigned long line_count = 0, old_line_count = 0;
 static int line_dump = 0, popen_x = 0;
 
 static char* mac2xname(char *name, uint64_t mac, size_t size) {
@@ -736,6 +734,11 @@ static void dump() {
 	dump_meta(names);
 	dump_meta(homes);
 
+	//check if input stopped
+	if (old_line_count == line_count)
+		NOTIFY("tcpdump", "stalls", NULL);
+	old_line_count = line_count;
+
 //	PROFILING_LOG("dump")
 }
 
@@ -1076,7 +1079,6 @@ static void loop() {
 	while (1) {
 		sleep(1);
 		now_ts = time(NULL);
-		// xdebug("loop %d", SECONDS_1D - (now_ts % SECONDS_1D));
 
 		if (now_ts % 10 == 0)
 			sort();
@@ -1107,7 +1109,7 @@ static int init() {
 
 	load_ieee();
 	load_ethers();
-	load_blob(TMP SLASH WIFI_BIN, &wifi, WIFI_SIZE);
+	load_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
 	sort(); // initially update all pointers
 
 	strcpy(beacons->ssid, SSID_BEACON);
@@ -1137,7 +1139,7 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(TMP SLASH WIFI_BIN, &wifi, WIFI_SIZE);
+	store_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
 
 	if (local.thread) {
 		pthread_cancel(local.thread);

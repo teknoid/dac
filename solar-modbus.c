@@ -698,4 +698,4 @@ int main(int argc, char **argv) {
 }
 #endif
 
-MCP_REGISTER(solar, 10, &init, &stop, NULL);
+MCP_REGISTER(solar_modbus, 10, &init, &stop, NULL);

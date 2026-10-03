@@ -504,4 +504,4 @@ int main(int argc, char **argv) {
 }
 #endif
 
-MCP_REGISTER(solar, 10, &init, &stop, &loop);
+MCP_REGISTER(solar_api, 10, &init, &stop, &loop);

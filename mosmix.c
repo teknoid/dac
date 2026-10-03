@@ -34,16 +34,13 @@
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
 #define FTCO(m)					(1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100)
-#define FX(m)					(m->Rad1h + m->Rad1h * m->Rad1h / 1000 + m->SunD1 * 100)
+#define FX(m)					(m->Rad1h + m->Rad1h * m->Rad1h / 100 + m->SunD1 * 10)
 
 #define HISTORY_SIZE			(24 * 7)
 #define CH						(now->tm_hour < 23 ? now->tm_hour + 1 : 0)
 
 #define NOISE					10
 #define BASELOAD				170
-#define FMAX					9999
-#define FRMAX					9999
-#define FSMAX					999
 #define MOSMIX_COLUMNS			6
 #define LINEBUF					256
 
@@ -125,13 +122,13 @@ static void expect(mosmix_t *m, factor_t *f) {
 	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
 	float f1 = (float) f->r1 * ftco * x;
-	m->exp1 = f1 / 100;
+	m->exp1 = f1 / 1000;
 	float f2 = (float) f->r2 * ftco * x;
-	m->exp2 = f2 / 100;
+	m->exp2 = f2 / 1000;
 	float f3 = (float) f->r3 * ftco * x;
-	m->exp3 = f3 / 100;
+	m->exp3 = f3 / 1000;
 	float f4 = (float) f->r4 * ftco * x;
-	m->exp4 = f4 / 100;
+	m->exp4 = f4 / 1000;
 }
 
 // calculate factor from actual mppt
@@ -141,13 +138,13 @@ static void factor(mosmix_t *m, factor_t *f) {
 	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
 	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / ftco / x : 0.0;
-	f->r1 = f1 * 100;
+	f->r1 = f1 * 1000;
 	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / ftco / x : 0.0;
-	f->r2 = f2 * 100;
+	f->r2 = f2 * 1000;
 	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / ftco / x : 0.0;
-	f->r3 = f3 * 100;
+	f->r3 = f3 * 1000;
 	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / ftco / x : 0.0;
-	f->r4 = f4 * 100;
+	f->r4 = f4 * 1000;
 }
 
 static void errors(mosmix_t *m) {
@@ -162,6 +159,12 @@ static void errors(mosmix_t *m) {
 	m->err2 = m->mppt2 && m->exp2 ? m->mppt2 * 100 / m->exp2 : 100;
 	m->err3 = m->mppt3 && m->exp3 ? m->mppt3 * 100 / m->exp3 : 100;
 	m->err4 = m->mppt4 && m->exp4 ? m->mppt4 * 100 / m->exp4 : 100;
+
+	// limit error to 300 max
+	HICUT(m->err1, 300)
+	HICUT(m->err2, 300)
+	HICUT(m->err3, 300)
+	HICUT(m->err4, 300)
 }
 
 static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmix_t *msod, mosmix_t *meod) {
@@ -433,8 +436,8 @@ void mosmix_update_akku_load(int h, int a, int l) {
 	load[h] = l;
 }
 
-// calculate power to survive the night and heating over day
-void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat) {
+// look into future and try to calculate power to survive next night and heating over day
+void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat) {
 	char line[LINEBUF * 2], value[48];
 	*day_mins = *day = *night_mins = *night = *heat_mins = *heat = 0;
 
@@ -808,7 +811,7 @@ static int test() {
 //	mosmix_dump_history_hours(8);
 
 	int day_mins, day, night_mins, night, heat_mins, heat;
-	mosmix_power(now, BASELOAD, 2000, &day_mins, &day, &night_mins, &night, &heat_mins, &heat);
+	mosmix_marble(now, BASELOAD, 2000, &day_mins, &day, &night_mins, &night, &heat_mins, &heat);
 
 	return 0;
 }

@@ -122,6 +122,6 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_scale(struct tm *now, int *succ1, int *succ2);
 void mosmix_collect(struct tm *now, int *tomorrow, int *today, int *sod, int *eod);
 void mosmix_update_akku_load(int h, int a, int l);
-void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat);
+void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat);
 void mosmix_24h(int day, mosmix_csv_t *sum);
 int mosmix_load(struct tm *now, const char *filename, int clear);

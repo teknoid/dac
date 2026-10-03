@@ -589,11 +589,11 @@ static void calculate_gstate() {
 		gstate->flags |= FLAG_WINTER;
 
 	// akku discharge / grid download / grid upload - always check average against actual
-	if (PSTATE_MIN_NOW->akku > params->baseload || (avgmm->akku > RAMP && PSTATE_MIN_NOW->akku > 0))
+	if (PSTATE_MIN_NOW->akku > params->minimum || (avgmm->akku > RAMP && PSTATE_MIN_NOW->akku > 0))
 		gstate->flags |= FLAG_AKKU_DCHARGE;
-	if (PSTATE_MIN_NOW->grid > params->baseload || (avgmm->grid > RAMP && PSTATE_MIN_NOW->grid > 0))
+	if (PSTATE_MIN_NOW->grid > params->minimum || (avgmm->grid > RAMP && PSTATE_MIN_NOW->grid > 0))
 		gstate->flags |= FLAG_GRID_DLOAD;
-	if (PSTATE_MIN_NOW->grid < RAMP * -4 || (avgmm->grid < RAMP * -2 && PSTATE_MIN_NOW->grid < 0))
+	if (PSTATE_MIN_NOW->grid < params->minimum * -1 || (avgmm->grid < RAMP * -2 && PSTATE_MIN_NOW->grid < 0))
 		gstate->flags |= FLAG_GRID_ULOAD;
 
 	// akku usable energy and estimated time to live based on 10 min average load or akku discharge
@@ -613,14 +613,14 @@ static void calculate_gstate() {
 
 	// calculate power to survive the night and heating over day
 	int day_mins, day, heat_mins, heat;
-	mosmix_power(now, params->baseload, params->heating, &day_mins, &day, &gstate->minutes, &gstate->needed, &heat_mins, &heat);
+	mosmix_marble(now, params->baseload, params->heating, &day_mins, &day, &gstate->minutes, &gstate->needed, &heat_mins, &heat);
 
 	// survival factor
 	int tocharge = gstate->needed - gstate->available;
 	LOCUT(tocharge, 0)
 	int available = pstate->pv > 0 ? gstate->eod - tocharge - day : 0;
 	LOCUT(available, 0)
-	int survive = gstate->needed ? gstate->available * 1000 / gstate->needed : 1000;
+	int survive = gstate->needed ? gstate->available * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last value if zero need
 	gstate->survive = survive;
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
@@ -664,7 +664,7 @@ static void calculate_pstate_ramp() {
 	if (pstate->akku) {
 		if (avgss->rsl < 100 || avgss->grid > RAMP * 2)
 			pstate->ramp = -RAMP;
-		if (avgss->rsl > 105 && avgss->grid < RAMP * -2)
+		if (avgss->rsl > 110 && avgss->grid < RAMP * -2)
 			pstate->ramp = RAMP;
 	}
 
@@ -672,27 +672,26 @@ static void calculate_pstate_ramp() {
 	if (!pstate->akku) {
 		if (avgss->rsl < 100 || avgss->grid > -RAMP)
 			pstate->ramp = -RAMP;
-		if (avgss->rsl > 105 && avgss->grid < RAMP * -4)
+		if (avgss->rsl > 110 && avgss->grid < RAMP * -4)
 			pstate->ramp = RAMP;
 	}
 
-	// rsl 100..105: look ahead down ramp on falling pv or grid download
-	if (100 <= avgss->rsl && avgss->rsl <= 105)
-		if (PSTATE_PVFALL || pstate->grid > NOISE5)
-			pstate->ramp = -RAMP;
-
-	// coarse absolute ramp below 90 or above 110
-	if (avgss->rsl < 90 || avgss->rsl > 110) {
-		if (avgss->grid > 0)
-			// grid download - double down when pv falling
-			pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1);
-		else if (avgss->grid < 0) {
-			// grid upload - maximum (->minimum when inverted) or average
-			int limit = deltacc->pv > DELTACC && maxmm->grid > avgss->grid && avgss->rsl < 200;
-			pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
-			xdebug("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
-		}
+	// coarse absolute up ramp above 150
+	if (avgss->rsl > 150 && avgss->grid < 0) {
+		// grid upload - maximum (->minimum when inverted) or average
+		int limit = deltacc->pv > DELTACC && maxmm->grid > avgss->grid && avgss->rsl < 200;
+		xdebug("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
+		pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
+		HICUT(pstate->ramp, pstate->grid * -1); // not more than actual grid upload
 	}
+
+	// look ahead down ramp on pv fall
+	if (avgss->rsl < 150 && pstate->rsl < 110 && PSTATE_PVFALL)
+		pstate->ramp = -RAMP;
+
+	// coarse absolute down ramp below 90
+	if (avgss->rsl < 90 && avgss->grid > 0)
+		pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // double down on pv fall
 
 	// shape
 	ZSHAPE(pstate->ramp, RAMP)
@@ -757,8 +756,8 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int wast = pstate->grid < -NOISE20 && pstate->akku > NOISE20; // wasting akku power to grid
-	int draw = pstate->grid > NOISE20 && pstate->akku < -NOISE20; // akku draws power from grid
+	int wast = pstate->grid < -NOISE20 && pstate->akku > 0; // wasting akku power to grid
+	int draw = pstate->grid > NOISE20 && pstate->akku < 0; // akku draws power from grid
 	if (wast || draw) {
 		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, wast, draw);
 		pstate->flags |= FLAG_INVALID;
@@ -884,8 +883,8 @@ static void calculate_pstate() {
 	// calculate online state and ramp power when valid
 	if (!GSTATE_OFFLINE) {
 		calculate_pstate_online();
-		if (!PSTATE_INVALID)
-			calculate_pstate_ramp();
+//		if (!PSTATE_INVALID)
+		calculate_pstate_ramp();
 	}
 
 	// copy to history

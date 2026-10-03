@@ -797,6 +797,9 @@ int devinput_find_key(const char *name) {
 }
 
 int round10(int n) {
+	if (n < 10)
+		return n;
+
 	int x = n / 10;
 	int y = n % 10;
 
@@ -807,6 +810,9 @@ int round10(int n) {
 }
 
 int round100(int n) {
+	if (n < 100)
+		return n;
+
 	int x = n / 100;
 	int y = n % 100;
 
@@ -876,7 +882,7 @@ int load_blob(const char *filename, void *data, size_t size) {
 		return xerr("UTILS Cannot open file %s for reading", filename);
 	size_t count = fread(data, size, 1, fp);
 	fclose(fp);
-	xdebug("UTILS loaded %5d bytes from %s", count * size, filename);
+	xlog("UTILS loaded %5d bytes from %s", count * size, filename);
 	return 0;
 }
 
@@ -887,7 +893,7 @@ int store_blob(const char *filename, void *data, size_t size) {
 	size_t count = fwrite(data, size, 1, fp);
 	fflush(fp);
 	fclose(fp);
-	xdebug("UTILS stored %5d bytes to %s", count * size, filename);
+	xlog("UTILS stored %5d bytes to %s", count * size, filename);
 	return 0;
 }
 

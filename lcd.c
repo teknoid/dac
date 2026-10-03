@@ -285,4 +285,4 @@ static void stop() {
 		close(i2cfd);
 }
 
-MCP_REGISTER(lcd, 2, &init, &stop, &lcd);
+MCP_REGISTER(lcd, 3, &init, &stop, &lcd);

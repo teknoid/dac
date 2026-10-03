@@ -30,9 +30,8 @@
 #define DEVICES_JSON			"devices.json"
 
 #define AKKU_STANDBY			(AKKU->state == Standby)
-#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > RAMP)
-#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < RAMP)
-#define AKKU_PASSIVE			(pstate->akku == 0 || pstate->ac1 == 0)
+#define AKKU_CHARGING			(AKKU->state == Charge    && AKKU->load > 0)
+#define AKKU_DISCHARGING		(AKKU->state == Discharge && AKKU->load < 0)
 
 #define OVERRIDE				600
 #define STANDBY_NORESPONSE		5
@@ -44,6 +43,7 @@
 #define WAIT_RAMP				5
 #define WAIT_RESPONSE			6
 #define WAIT_THERMOSTAT			12
+#define WAIT_STANDBY			13
 #define WAIT_AKKU				15
 #define WAIT_START_CHARGE		30
 
@@ -181,7 +181,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
+	dstate->lock = AKKU->load ? WAIT_AKKU : WAIT_RAMP;
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
@@ -230,8 +230,12 @@ static void ramp_boiler(device_t *boiler) {
 	if (!step)
 		return;
 
+	// half step when boiler switching on first time
+	if (boiler->power == 0 && step > 10)
+		step /= 2;
+
 	// do single steps at warm up due to much smaller cold resistance
-	if (boiler->power < 5 && 1 < step && step < 5)
+	if (boiler->power < 10 && 1 < step && step < 10)
 		step = 1;
 
 	// -100..100
@@ -285,8 +289,8 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
-	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE; // electronic thermostat takes more time at startup
+	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : AKKU->load ? WAIT_AKKU : WAIT_RAMP; // electronic thermostat takes more time at startup
+	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE;
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
@@ -694,7 +698,7 @@ static void steal() {
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
 		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
-		int steal_akku = !AKKU_PASSIVE;
+		int steal_akku = AKKU->load > 0;
 		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
 		if (steal_akku || steal_device) {
 			if (DD->min) {
@@ -791,7 +795,7 @@ static void steal() {
 		ramp_device(t);
 
 		// wait even if no response expected when transferring power from one to another device, give akku time to release or consume power
-		dstate->lock = AKKU_PASSIVE ? WAIT_RAMP : WAIT_AKKU;
+		dstate->lock = AKKU->load ? WAIT_AKKU : WAIT_RAMP;
 		return;
 	}
 }
@@ -815,6 +819,7 @@ static void response(device_t *d) {
 		if (l1r || l2r || l3r) {
 			xlog("SOLAR %s standby check negative, delta expected %d actual %d %d %d", d->name, delta, d1, d2, d3);
 			d->flags |= FLAG_RESPONSE_OK;
+			dstate->lock = WAIT_STANDBY; // avoid swing
 		} else {
 			xlog("SOLAR %s standby check positive, delta expected %d actual %d %d %d  --> entering standby", d->name, delta, d1, d2, d3);
 			d->flags &= ~FLAG_RESPONSE_OK;
@@ -869,15 +874,15 @@ static void calculate_actions() {
 	// permanent overload - force standby check without any restrictions
 	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST20->rload > OVERLOAD_STANDBY_FORCE;
 	if (overload_force && !DSTATE_ALL_DOWN) {
-		xlog("SOLAR overload_force rload=%d rload5=%d rload10=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
+		xlog("SOLAR overload_force rload=%d rload10=%d rload20=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}
 
-	// permanent overload - normal standby check when stable and no grid download
+	// permanent overload - normal standby check when stable and no grid download and no akku discharge
 	int overload = dstate->rload > OVERLOAD_STANDBY && DSTATE_LAST10->rload > OVERLOAD_STANDBY && DSTATE_LAST20->rload > OVERLOAD_STANDBY;
-	if (overload && PSTATE_STABLE_3S && !PSTATE_GRID_DLOAD && !DSTATE_ALL_DOWN) {
-		xlog("SOLAR overload rload=%d rload5=%d rload10=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
+	if (overload && PSTATE_STABLE_3S && !PSTATE_GRID_DLOAD && !PSTATE_AKKU_DCHARGE && !DSTATE_ALL_DOWN) {
+		xlog("SOLAR overload rload=%d rload10=%d rload20=%d", dstate->rload, DSTATE_LAST10->rload, DSTATE_LAST20->rload);
 		dstate->flags |= FLAG_ACTION_STANDBY;
 		return;
 	}

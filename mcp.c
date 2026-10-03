@@ -81,7 +81,7 @@
 //.,lc;;;:ccllodxxkkOO000000OOOkkxxddoollcc:::;;;;;;;;;;;::::::::;;;;;;;;;;;;::cclloooddxxkkOO0000000OOkkxddollc::;;;lc...
 //.;lc;;;:ccloodxxkkOO000000OOOkkxxddoollcc:::;;;;;;;;;;;::::::::;;;;;;;;;;;;::cclllooddxxkkOO0000000OOkkxddollc::;;;l:...
 
-//                                            I am the Master Control Program
+//                                                Master Control Program
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,71 +127,6 @@ static void __attribute__((constructor(101))) constructor() {
 #endif
 #ifdef DEBUG
 	set_debug(1);
-#endif
-}
-
-// register a new module in the module chain
-// called in each module via macro MCP_REGISTER(...) before main()
-void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
-	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
-	ZEROP(new_module);
-
-	new_module->name = name;
-	new_module->init = init;
-	new_module->stop = stop;
-	new_module->loop = loop;
-	new_module->next = NULL;
-
-	if (module == NULL)
-		// this is the head
-		module = new_module;
-	else {
-		// append to last in chain
-		mcp_module_t *m = module;
-		while (m->next != NULL)
-			m = m->next;
-		m->next = new_module;
-	}
-
-	xlog("MCP registered module {%d} %s", prio, name);
-}
-
-void mcp_notify(const char *title, const char *text, const char *sound, const char color) {
-	char command[1024];
-	ZERO(command);
-
-	time_t now_ts = time(NULL);
-	int last = now_ts - mcp->last_notification;
-	mcp->last_notification = now_ts;
-
-	xlog("MCP notification %s / %s / %s / %c last=%d", title, text, sound, color ? color : '0', last);
-
-	// TODO color
-
-#ifdef LCD
-	// show on LCD display line 1 and 2
-	if (mcp->notifications_lcd)
-		lcd_print(title, text);
-
-	// desktop notifications via DBUS
-	if (mcp->notifications_desktop) {
-		snprintf(command, 1023, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
-		xdebug("MCP system: %s", command);
-		system(command);
-	}
-
-	// ledstrip blink
-	if (mcp->notifications_led && color && last > 5)
-		ledstrip_blink_red();
-#endif
-
-#ifdef MIXER
-	// play sound
-	if (mcp->notifications_sound && sound != NULL && last > 10) {
-		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\" &", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
-		xdebug("MCP system: %s", command);
-		system(command);
-	}
 #endif
 }
 
@@ -243,6 +178,69 @@ static void sig_handler(int signo) {
 	xlog("MCP received signal %d", signo);
 }
 
+// register a new module in the module chain
+// called in each module via macro MCP_REGISTER(...) before main()
+void mcp_register(const char *name, const int prio, const init_t init, const stop_t stop, const loop_t loop) {
+	mcp_module_t *new_module = malloc(sizeof(mcp_module_t));
+	ZEROP(new_module);
+
+	new_module->name = name;
+	new_module->init = init;
+	new_module->stop = stop;
+	new_module->loop = loop;
+	new_module->next = NULL;
+
+	if (module == NULL)
+		// this is the head
+		module = new_module;
+	else {
+		// append to last in chain
+		mcp_module_t *m = module;
+		while (m->next != NULL)
+			m = m->next;
+		m->next = new_module;
+	}
+
+	xlog("MCP registered module {%d} %s", prio, name);
+}
+
+void mcp_notify(const char *title, const char *text, const char *sound, const char color) {
+	char command[1024];
+	ZERO(command);
+
+	time_t now_ts = time(NULL);
+	int last = now_ts - mcp->last_notify;
+	mcp->last_notify = now_ts;
+
+	xlog("MCP notify %s / %s / %s / %c last_notify=%d", title, text, sound, color ? color : '0', last);
+
+	// desktop notifications via DBUS
+	if (mcp->notify_desktop) {
+		snprintf(command, 1023, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
+		system(command);
+	}
+
+	// TODO color
+
+#ifdef LCD
+	// show on LCD display line 1 and 2
+	if (mcp->notify_lcd)
+		lcd_print(title, text);
+
+	// ledstrip blink
+	if (mcp->notify_led && color && last > 10)
+		ledstrip_blink_red();
+#endif
+
+#ifdef MIXER
+	// play sound
+	if (mcp->notify_sound && sound && last > 10) {
+		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
+		system(command);
+	}
+#endif
+}
+
 void mcp_init() {
 	module_init(module);
 }
@@ -261,11 +259,13 @@ int mcp_main(int argc, char **argv) {
 	// allocate global data exchange structures
 	ZEROP(cfg);
 	ZEROP(mcp);
-	mcp->notifications_led = 1;
-	mcp->notifications_lcd = 1;
-	mcp->notifications_sound = 1;
-	mcp->notifications_desktop = 1;
+
 	gethostname(mcp->hostname, 64);
+
+	mcp->notify_led = 1;
+	mcp->notify_lcd = 1;
+	mcp->notify_sound = 1;
+	mcp->notify_desktop = 1;
 
 	// parse command line arguments
 	int c;
@@ -289,6 +289,10 @@ int mcp_main(int argc, char **argv) {
 	}
 	if (signal(SIGHUP, sig_handler) == SIG_ERR) {
 		xlog("can't catch SIGHUP");
+		exit(EXIT_FAILURE);
+	}
+	if (signal(SIGALRM, sig_handler) == SIG_ERR) {
+		xlog("can't catch SIGALRM");
 		exit(EXIT_FAILURE);
 	}
 

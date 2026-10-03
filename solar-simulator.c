@@ -113,4 +113,4 @@ static int init() {
 static void stop() {
 }
 
-MCP_REGISTER(solar, 10, &init, &stop, &loop);
+MCP_REGISTER(solar_simulator, 10, &init, &stop, &loop);

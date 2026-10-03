@@ -120,4 +120,4 @@ int mqtt_notify(const char *tit, const char *txt, const char *snd) {
 	return publish(TOPIC_NOTIFICATION, message, 0);
 }
 
-MCP_REGISTER(mqtt_tx, 3, &init, &stop, &loop);
+MCP_REGISTER(mqtt_tx, 2, &init, &stop, &loop);
