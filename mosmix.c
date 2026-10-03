@@ -509,10 +509,10 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 		}
 
 		// shape
-		if (p->night < NOISE)
-			p->night = p->night_mins = 0;
-		if (p->day < NOISE)
-			p->day = p->day_mins = 0;
+//		if (p->night < NOISE)
+//			p->night = p->night_mins = 0;
+//		if (p->day < NOISE)
+//			p->day = p->day_mins = 0;
 	}
 	// dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
 
@@ -525,12 +525,12 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 			continue;
 
 		// current hour -> partly, remaining hours -> full
-		int mins = p->hour == CH ? 60 - now->tm_min : 60;
+		int mins = p->hour == CH ? p->day_mins - now->tm_min : p->day_mins;
 		int need = p->hour == CH ? p->day * mins / p->day_mins : p->day;
 		if (mins < 0)
-			need = 0;
+			mins = need = 0;
 
-		// dawn - count down at end of hour
+		// dawn - start day count down at end of hour
 		if (p->flag == Dawn && p->hour == CH) {
 			if (60 - now->tm_min > p->day_mins) {
 				mins = p->day_mins;
@@ -576,7 +576,7 @@ void mosmix_power(struct tm *now, int baseload, int heating, int *day_mins, int 
 		if (mins < 0)
 			mins = need = 0;
 
-		// dusk - count down at end of hour
+		// dusk - start night count down at end of hour
 		if (p->flag == Dusk && p->hour == CH) {
 			if (60 - now->tm_min > p->night_mins) {
 				mins = p->night_mins;
