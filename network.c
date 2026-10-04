@@ -18,15 +18,11 @@
 
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
-// #define TRACE_FILE				"/tmp/network.txt"
+#define TRACE_FILE
 
 static description_t ethers[0xff];
 static description_t ieee[0xffff];
 static int ieee_index[0xff];
-
-#ifdef TRACE_FILE
-static FILE *file;
-#endif
 
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
@@ -50,6 +46,14 @@ static void* popen_thread(void *arg) {
 static void* connection_thread(void *arg) {
 	connection_t *conn = (connection_t*) arg;
 
+#ifdef TRACE_FILE
+	char fname[NETWORK_DESCRIPTION];
+	snprintf(fname, NETWORK_DESCRIPTION, "/tmp/network-%s-%s.txt", conn->description, conn->ip);
+	conn->trace = fopen(fname, "wt");
+	if (conn->trace == NULL)
+		return xerrv("NETWORK error opening trace file %s", fname);
+#endif
+
 	// convert socket into file stream for reading line by line
 	conn->stream = fdopen(conn->sock, "r+");
 	if (conn->stream == NULL)
@@ -60,8 +64,8 @@ static void* connection_thread(void *arg) {
 			conn->line_count++;
 
 #ifdef TRACE_FILE
-			fprintf(file, conn->line);
-			fflush(file);
+			fprintf(conn->trace, conn->line);
+			fflush(conn->trace);
 #endif
 
 			size_t len = strlen(conn->line);
@@ -84,6 +88,8 @@ static void* connection_thread(void *arg) {
 		}
 
 	xlog("NETWORK %s client %s disconnected, received %d lines", conn->description, conn->ip, conn->line_count);
+	if (conn->trace)
+		fclose(conn->trace);
 	if (conn->stream)
 		fclose(conn->stream);
 	if (conn->sock)
@@ -98,12 +104,6 @@ static void* server_thread(void *arg) {
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
 		return xerrv("NETWORK pthread_setcancelstate failed");
-
-#ifdef TRACE_FILE
-	file = fopen(TRACE_FILE, "wt");
-	if (file == NULL)
-		return xerrv("NETWORK error opening file %s", TRACE_FILE);
-#endif
 
 	while (1) {
 		connection_t *conn = calloc(1, sizeof(connection_t));
@@ -130,11 +130,6 @@ static void* server_thread(void *arg) {
 		if (pthread_detach(conn->thread))
 			return xerrv("NETWORK pthread_detach failed");
 	}
-
-#ifdef TRACE_FILE
-	if (file != NULL)
-		fclose(file);
-#endif
 
 	pthread_exit(NULL);
 }

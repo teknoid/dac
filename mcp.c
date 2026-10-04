@@ -159,7 +159,7 @@ static void module_stop(mcp_module_t *m) {
 
 	(m->stop)();
 
-	xlog("MCP stopped %s", m->name);
+	xlog("MCP stop %s", m->name);
 }
 
 // loop recursively over module chain and call each module's loop() function in a new thread
@@ -167,7 +167,7 @@ static void module_loop(mcp_module_t *m) {
 	if (m->loop != NULL) {
 		if (pthread_create(&m->thread, NULL, (void* (*)(void*)) m->loop, NULL))
 			exit(EXIT_FAILURE);
-		xlog("MCP started thread %s", m->name);
+		xlog("MCP loop %s", m->name);
 	}
 
 	if (m->next != NULL)
@@ -175,7 +175,7 @@ static void module_loop(mcp_module_t *m) {
 }
 
 static void sig_handler(int signo) {
-	xlog("MCP received signal %d", signo);
+	xlog("MCP signal %d", signo);
 }
 
 // register a new module in the module chain
@@ -308,7 +308,6 @@ int mcp_main(int argc, char **argv) {
 		display_interactive();
 #endif
 	} else {
-		xlog("MCP online");
 		mcp_notify("MCP online", "", "mau4.wav", 0);
 		pause();
 	}

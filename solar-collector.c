@@ -611,7 +611,7 @@ static void calculate_gstate() {
 	HICUT(gstate->success, 2000)
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
-	// calculate power to survive the night and heating over day
+	// look ahead and calculate power to survive next night and heating over day
 	int day_mins, day, heat_mins, heat;
 	mosmix_marble(now, params->baseload, params->heating, &day_mins, &day, &gstate->minutes, &gstate->needed, &heat_mins, &heat);
 
@@ -676,17 +676,16 @@ static void calculate_pstate_ramp() {
 			pstate->ramp = RAMP;
 	}
 
-	// coarse absolute up ramp above 150
-	if (avgss->rsl > 150 && avgss->grid < 0) {
+	// coarse absolute up ramp above 120
+	if (avgss->rsl > 120 && avgss->grid < 0) {
 		// grid upload - maximum (->minimum when inverted) or average
 		int limit = deltacc->pv > DELTACC && maxmm->grid > avgss->grid && avgss->rsl < 200;
 		xdebug("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
 		pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
-		HICUT(pstate->ramp, pstate->grid * -1); // not more than actual grid upload
 	}
 
 	// look ahead down ramp on pv fall
-	if (avgss->rsl < 150 && pstate->rsl < 110 && PSTATE_PVFALL)
+	if (avgss->rsl < 150 && pstate->rsl < 120 && PSTATE_PVFALL)
 		pstate->ramp = -RAMP;
 
 	// coarse absolute down ramp below 90
@@ -698,11 +697,12 @@ static void calculate_pstate_ramp() {
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
+		HICUT(pstate->ramp, pstate->grid * -1); // not more than actual grid upload
 		int less = avgss->grid > RAMP * -2; // too less grid upload
 		int dgrid = pstate->grid > 0; // actual grid download
 		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
 		if (PSTATE_PVFALL || less || dgrid || over) {
-			xdebug("SOLAR suppress up ramp=%d fall=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, less, dgrid, over);
+			xlog("SOLAR suppress up ramp=%d fall=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, less, dgrid, over);
 			pstate->ramp = 0;
 		}
 	}
@@ -713,7 +713,7 @@ static void calculate_pstate_ramp() {
 		int ugrid = pstate->grid < -RAMP; // actual grid upload
 		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 		if (PSTATE_PVRISE || plenty || ugrid || extra) {
-			xdebug("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, extra);
+			xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, extra);
 			pstate->ramp = 0;
 		}
 	}

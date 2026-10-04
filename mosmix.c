@@ -431,12 +431,7 @@ void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int 
 	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
 }
 
-void mosmix_update_akku_load(int h, int a, int l) {
-	akku[h] = a;
-	load[h] = l;
-}
-
-// look into future and try to calculate power to survive next night and heating over day
+// look ahead and calculate power to survive next night and heating over day
 void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat) {
 	char line[LINEBUF * 2], value[48];
 	*day_mins = *day = *night_mins = *night = *heat_mins = *heat = 0;
@@ -630,6 +625,11 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 		xlog(line);
 }
 
+void mosmix_update_akku_load(int h, int a, int l) {
+	akku[h] = a;
+	load[h] = l;
+}
+
 void mosmix_dump_today(struct tm *now) {
 	mosmix_t m;
 	icumulate(&m, today, MOSMIX_SIZE, 24);
@@ -762,13 +762,6 @@ static int test() {
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
-//	// calculate total daily values
-//	mosmix_csv_t m0, m1, m2;
-//	mosmix_24h(0, &m0);
-//	mosmix_24h(1, &m1);
-//	mosmix_24h(2, &m2);
-//	xlog("MOSMIX Rad1h/SunD1/RSunD today %d/%d/%d tomorrow %d/%d/%d tomorrow+1 %d/%d/%d", m0.Rad1h, m0.SunD1, m0.RSunD, m1.Rad1h, m1.SunD1, m1.RSunD, m2.Rad1h, m2.SunD1, m2.RSunD);
-//
 //	int itoday, itomorrow, sod, eod, eodh, succ1, succ2;
 //
 //	// calculate expected today and tomorrow

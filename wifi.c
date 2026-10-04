@@ -315,7 +315,7 @@ static mac_t* mac_small(small_station_t *s, uint64_t mac, int channel, int signa
 		if (s->macs[i].mac == 0)
 			return insert((mac_t*) s, &s->macs[i], mac, channel, signal, ssid, tag);
 
-	xerr("WIFI station %s client table overflow!", NAME(s));
+	xerr("WIFI station %s table overflow!", NAME(s));
 	return 0;
 }
 
@@ -333,7 +333,7 @@ static mac_t* mac_big(big_station_t *s, uint64_t mac, int channel, int signal, c
 		if (s->macs[i].mac == 0)
 			return insert((mac_t*) s, &s->macs[i], mac, channel, signal, ssid, tag);
 
-	xerr("WIFI station %s client table overflow!", NAME(s));
+	xerr("WIFI station %s table overflow!", NAME(s));
 	return 0;
 }
 
@@ -360,7 +360,7 @@ static mac_t* zombie(uint64_t mac, int channel, int signal, char *ssid) {
 		if (zombies->macs[i].mac == 0)
 			return insert((mac_t*) zombies, &zombies->macs[i], mac, channel, signal, ssid, 'z');
 
-	xerr("WIFI ZOMBIES client table overflow!");
+	xerr("WIFI ZOMBIES table overflow!");
 	return 0;
 }
 

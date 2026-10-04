@@ -33,6 +33,7 @@ struct _connection {
 	socklen_t addr_len;
 	char ip[16];
 	FILE *stream;
+	FILE *trace;
 	char line[NETWORK_LINEBUF + 1];
 	char copy[NETWORK_LINEBUF + 1];
 	unsigned int line_count;

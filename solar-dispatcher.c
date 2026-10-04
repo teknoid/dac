@@ -223,16 +223,16 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->power == 0 && boiler->state == Auto && boiler->ramp_in < boiler->min)
 		return;
 
+	// 2/3 when boiler switching on first time
+	if (boiler->power == 0 && boiler->ramp_in < boiler->total)
+		boiler->ramp_in = boiler->ramp_in * 2 / 3;
+
 	// power steps
 	int step = boiler->ramp_in * 100 / boiler->total;
 	if (boiler->ramp_in < 0 && (boiler->ramp_in < step * boiler->total / 100))
 		step -= 1; // one step more when not enough
 	if (!step)
 		return;
-
-	// half step when boiler switching on first time
-	if (boiler->power == 0 && step > 10)
-		step /= 2;
 
 	// do single steps at warm up due to much smaller cold resistance
 	if (boiler->power < 10 && 1 < step && step < 10)
@@ -314,7 +314,7 @@ static void ramp_akku(device_t *akku) {
 			akku->ramp_out = akku->ramp_in < akku->load * -1 ? akku->load * -1 : akku->ramp_in;
 			if (akku->load < params->minimum)
 				akku->ramp_out = 0; // leave a little bit charging - forward ramp down request
-			xlog("SOLAR akku ramp↓ power=%d load=%d ramp=%d", akku->ramp_in, akku->load, akku->ramp_out);
+			xdebug("SOLAR akku ramp↓ power=%d load=%d ramp=%d", akku->ramp_in, akku->load, akku->ramp_out);
 		}
 	}
 
@@ -343,7 +343,7 @@ static void ramp_akku(device_t *akku) {
 			HICUT(akku->ramp_out, remain)
 			if (akku->load < params->minimum)
 				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
-			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
+			xdebug("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
 			// update CLimit
 			akku_charge(akku);
 			return;
