@@ -63,8 +63,8 @@ static factor_t factors[24];
 static power_t power[48];
 
 // average akku and load over 24/7
-static int akku[24] = { 310, 245, 216, 216, 185, 229, 196, 194, 2, -266, -426, -486, -511, -504, -459, -289, -145, -153, -30, 127, 275, 335, 296, 272 };
-static int load[24] = { 286, 222, 181, 181, 149, 193, 160, 161, 415, 1194, 1641, 2833, 1883, 1448, 1112, 750, 778, 1885, 785, 254, 240, 314, 281, 255 };
+static int akku[24] = { 260, 279, 272, 218, 209, 221, 180, 209, 26, -220, -420, -306, -464, -504, -567, -310, -137, -117, 26, 183, 280, 317, 245, 270 };
+static int load[24] = { 229, 262, 262, 191, 180, 188, 149, 182, 299, 721, 889, 1305, 1013, 875, 588, 1183, 1249, 1494, 639, 252, 243, 280, 542, 246 };
 
 static void sum(mosmix_t *to, mosmix_t *from) {
 	int *t = (int*) to;
@@ -658,6 +658,9 @@ void mosmix_dump_history_hours(int h) {
 
 void mosmix_load_state(struct tm *now) {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+
+	// fix wrong values
+	// history[45].mppt1 = history[45].mppt2 = history[45].mppt3 = history[45].mppt4 = 0;
 
 	ZERO(today);
 	ZERO(tomorrow);

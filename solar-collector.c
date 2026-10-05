@@ -646,7 +646,7 @@ static void calculate_gstate() {
 static void calculate_pstate_ramp() {
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
-		pstate->ramp = pstate->akku * -1;
+		pstate->ramp = PSTATE_PVFALL ? (pstate->akku * -2) : (pstate->akku * -1);
 		HICUT(pstate->ramp, -RAMP)
 		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avgss->akku, pstate->akku, pstate->ramp);
 		return;
@@ -654,7 +654,7 @@ static void calculate_pstate_ramp() {
 
 	// always ramp down on grid download
 	if (PSTATE_GRID_DLOAD) {
-		pstate->ramp = pstate->grid * -1;
+		pstate->ramp = PSTATE_PVFALL ? (pstate->grid * -2) : (pstate->grid * -1);
 		HICUT(pstate->ramp, -RAMP)
 		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avgss->grid, pstate->grid, pstate->ramp);
 		return;
@@ -688,8 +688,8 @@ static void calculate_pstate_ramp() {
 	if (avgss->rsl < 150 && pstate->rsl < 120 && PSTATE_PVFALL)
 		pstate->ramp = -RAMP;
 
-	// coarse absolute down ramp below 90
-	if (avgss->rsl < 90 && avgss->grid > 0)
+	// coarse absolute down ramp below 95
+	if (avgss->rsl < 95 && avgss->grid > 0)
 		pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // double down on pv fall
 
 	// shape

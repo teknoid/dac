@@ -933,8 +933,8 @@ static void calculate_dstate() {
 			if (!check)
 				continue;
 
-			// calculated load
-			if (DD != AKKU)
+			// calculated load (suppress minimum when in STANDBY)
+			if (DD != AKKU && DD->state != Standby)
 				dstate->cload += DD->load;
 
 			// flags for all devices up/down/standby

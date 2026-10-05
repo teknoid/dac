@@ -18,7 +18,7 @@
 
 #define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
 
-#define TRACE_FILE
+// #define TRACE_FILE
 
 static description_t ethers[0xff];
 static description_t ieee[0xffff];
