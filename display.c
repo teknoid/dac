@@ -347,6 +347,7 @@ void display_interactive() {
 	tcsetattr(STDIN_FILENO, TCSANOW, &old_io);
 	printf("quit\r\n");
 }
+
 static void display() {
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -428,6 +429,8 @@ int display_main(int argc, char **argv) {
 
 	init();
 	es9028_prepare_menus();
+
+	display_interactive();
 
 	int z = -23;
 	while (1) {

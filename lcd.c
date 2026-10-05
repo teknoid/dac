@@ -42,12 +42,14 @@
 #define I2C				"/dev/i2c-3"
 #endif
 
+#define TEXTSIZE		64
+
 // static const int overflow_mode = LCD_OFLOW_SCROLL;
 static const int overflow_mode = LCD_OFLOW_ALTERN;
 
 static int i2cfd;
 
-static char *text1 = NULL, *text2 = NULL;
+static char text1[TEXTSIZE], text2[TEXTSIZE];
 static int new_text = 0;
 static int backlight;
 
@@ -135,9 +137,6 @@ static void lcd_printl(const char *text, int row) {
 }
 
 static void lcd_scroll(int row, const char *text, int *scrollptr) {
-	if (text == NULL)
-		return;
-
 	int length = strlen(text);
 	if (length < LCD_COLS)
 		return;
@@ -173,13 +172,15 @@ static void lcd_print_break(const char *text) {
 }
 
 void lcd_print(const char *t1, const char *t2) {
-	if (text1 != NULL)
-		free(text1);
-	text1 = strdup(t1);
+	if (t1 != NULL)
+		strncpy(text1, t1, TEXTSIZE);
+	else
+		*text1 = 0;
 
-	if (text2 != NULL)
-		free(text2);
-	text2 = strdup(t2);
+	if (t2 != NULL)
+		strncpy(text2, t2, TEXTSIZE);
+	else
+		*text2 = 0;
 
 	// force display update
 	new_text = 1;
@@ -197,16 +198,13 @@ static void lcd() {
 	while (1) {
 		msleep(100);
 
-		if (text1 == NULL || text2 == NULL)
-			continue;
-
 		// new text arrived, clear and check if we need to scroll
 		if (new_text) {
 			lcd_command(LCD_CLEAR);
 			msleep(250); // it's really slow
 			lcd_backlight_on();
 
-			overflow = strlen(text1) > LCD_COLS || strlen(text2) > LCD_COLS;
+			overflow = (strlen(text1) > LCD_COLS) || (strlen(text2) > LCD_COLS);
 			if (!overflow) {
 				lcd_printl(text1, 1);
 				lcd_printl(text2, 2);

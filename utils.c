@@ -627,12 +627,12 @@ char* string_replace_char(const char *string, char x, char y) {
 	if (EMPTY(string))
 		return (char*) string;
 
-	if (!strchr(string, x))
+	if (strchr(string, x) == NULL)
 		return (char*) string;
 
 	char *copy = strdup(string);
 	char *pos = strchr(copy, x);
-	while (pos) {
+	while (pos != NULL) {
 		*pos = y;
 		pos = strchr(pos, x);
 	}

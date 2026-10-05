@@ -54,7 +54,7 @@ typedef struct mcp_state_t {
 extern mcp_state_t *mcp;
 
 typedef struct mcp_config_t {
-	int interactive;
+//	int interactive;
 } mcp_config_t;
 extern mcp_config_t *cfg;
 

@@ -404,7 +404,7 @@ static int parse(connection_t *conn) {
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {
 			char *x = strchr(rest, '(') + 1;
 			char *y = strchr(rest, ')');
-			if (y != x) {
+			if (x != NULL && y != NULL && x != y) {
 				size_t size = y - x;
 				HICUT(size, SSID_LEN * 8);
 				strncpy(ssid, x, size);

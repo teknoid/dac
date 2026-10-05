@@ -94,10 +94,6 @@
 #include "utils.h"
 #include "mcp.h"
 
-#ifdef DISPLAY
-#include "display.h"
-#endif
-
 #ifdef LCD
 #include "lcd.h"
 #include "ledstrip.h"
@@ -256,7 +252,6 @@ void mcp_loop() {
 int mcp_main(int argc, char **argv) {
 	xlog("MCP startup");
 
-	// allocate global data exchange structures
 	ZEROP(cfg);
 	ZEROP(mcp);
 
@@ -272,7 +267,7 @@ int mcp_main(int argc, char **argv) {
 	while ((c = getopt(argc, argv, "i")) != -1) {
 		switch (c) {
 		case 'i':
-			cfg->interactive = 1;
+//			cfg->interactive = 1;
 			break;
 		default:
 		}
@@ -302,15 +297,8 @@ int mcp_main(int argc, char **argv) {
 	// start main loop of all modules
 	module_loop(module);
 
-	if (cfg->interactive) {
-		xlog("MCP online, waiting for input");
-#ifdef DISPLAY
-		display_interactive();
-#endif
-	} else {
-		mcp_notify("MCP online", "", "mau4.wav", 0);
-		pause();
-	}
+	mcp_notify(mcp->hostname, "MCP online", "mau4.wav", 0);
+	pause();
 
 	// stop all modules
 	module_stop(module);
