@@ -670,7 +670,7 @@ static void calculate_pstate_ramp() {
 
 	// akku is passive - keep a little bit grid upload
 	if (!pstate->akku) {
-		if (avgss->rsl < 100 || avgss->grid > -RAMP)
+		if (avgss->rsl < 100 || avgss->grid > RAMP * -2)
 			pstate->ramp = -RAMP;
 		if (avgss->rsl > 110 && avgss->grid < RAMP * -4)
 			pstate->ramp = RAMP;
@@ -688,9 +688,9 @@ static void calculate_pstate_ramp() {
 	if (avgss->rsl < 150 && pstate->rsl < 120 && PSTATE_PVFALL)
 		pstate->ramp = -RAMP;
 
-	// coarse absolute down ramp below 95
+	// coarse absolute down ramp below 95 / double down on pv fall
 	if (avgss->rsl < 95 && avgss->grid > 0)
-		pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1); // double down on pv fall
+		pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1);
 
 	// shape
 	ZSHAPE(pstate->ramp, RAMP)
