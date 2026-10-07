@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+
+<head>
+	<title>WiFi</title>
+	<meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+	<link rel="shortcut icon" type="image/png" href="favicon.png">
+	<link rel="stylesheet" href="datatables.min.css">
+	<link rel="stylesheet" href="wifi.css">
+	<script src="jquery-4.0.0.min.js"></script>
+	<script src="datatables.min.js"></script>
+	<script src="wifi.js"></script>
+</head>
+
+<body>
+	<div class="page">
+	
+	<div class="buttons">
+		<button class="reload button" data-file="ZOMBIE">Zombies</button>
+		<button class="reload button" data-file="BEACON">Beacons</button>
+		<button class="reload button" data-file="HOME">Homes</button>
+		<button class="reload button" data-file="NAME">Names</button>
+		<button class="reload button" data-file="BLACK">Blacklist</button>
+		<button class="reload button" data-file="CACHE">Cache</button>
+	</div>
+		
+	<table id="wifi" class="display" style="width: 100%;">
+		<thead>
+			<tr>
+				<th>T</th>
+				<th>MAC</th>
+				<th>SSID</th>
+				<th>Name</th>
+				<th>Channel</th>
+				<th>Signal</th>
+				<th>Age</th>
+				<th>Rate</th>
+				<th>Count</th>
+				<th>Hardware</th>
+			</tr>
+		</thead>
+		<tfoot>
+			<tr>
+				<th>T</th>
+				<th>MAC</th>
+				<th>SSID</th>
+				<th>Name</th>
+				<th>Channel</th>
+				<th>Signal</th>
+				<th>Age</th>
+				<th>Rate</th>
+				<th>Count</th>
+				<th>Hardware</th>
+			</tr>
+		</tfoot>
+	</table>
+	</div>
+</body>
+
+</html>

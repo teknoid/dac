@@ -1,0 +1,81 @@
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Light.6d2d51951f189f7f.ttf) format("truetype");font-weight:300;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Regular.6d220b904eef61e1.ttf) format("truetype");font-weight:400;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Medium.50e73d0c201f239d.ttf) format("truetype");font-weight:500;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Bold.015f3ac44f081e28.ttf) format("truetype");font-weight:700;font-style:normal}
+@font-face{font-family:Roboto;src:url(fonts/Roboto-Black.64c342ce0a2472b7.ttf) format("truetype");font-weight:900;font-style:normal}
+
+body, html { 
+	font-family: Roboto,Arial,sans-serif;
+	font-weight: 400;
+	font-style: normal;
+	font-size: 14px;
+	line-height: 1.0;
+	padding: 0;
+	margin: 0;
+	color: #3b3b3d;
+}
+
+table.dataTable>tbody>tr>th,
+table.dataTable>tbody>tr>td {
+	padding: 5px 10px;
+}
+
+table.dataTable>tbody>tr>td:nth-child(2) {
+	font-family: monospace;
+}
+
+.buttons {
+	display:flex;
+	flex-direction: row;
+	margin: 10px 0 10px 10px;
+	gap: 20px
+}
+
+.button {
+	background-image: linear-gradient(#42A1EC, #0070C9);
+	border: 1px solid #0077CC;
+	border-radius: 5px;
+	box-sizing: border-box;
+	font-weight: bold;
+	color: #FFFFFF;
+	cursor: pointer;
+	direction: ltr;
+	display: block;
+	overflow: visible;
+	padding: 5px 15px;
+	text-align: center;
+	vertical-align: baseline;
+	white-space: nowrap;
+}
+
+.button:hover {
+	background-image: linear-gradient(#51A9EE, #147BCD);
+	border-color: #1482D0;
+	text-decoration: none;
+}
+
+.button:focus {
+	box-shadow: rgba(131, 192, 253, 0.5) 0 0 0 3px;
+	outline: none;
+}
+
+.button:active {
+	background-image: linear-gradient(#3D94D9, #0067B9);
+	border-color: #006DBC;
+	outline: none;
+}
+
+.button:disabled {
+	cursor: default;
+	opacity: .3;
+}
+
+@media (max-width: 1000px) {
+	body, html { 
+		font-size: 42px;
+	}
+	
+	.button {
+		font-size: 36px;
+	}
+}
