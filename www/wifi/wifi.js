@@ -4,6 +4,7 @@ $(document).ready(function() {
 		paging : false,
 		ajax : 'wifi.php?file=ZOMBIE',
         language : { "url": "German.json" },
+//        columnDefs: [{ orderable: false, targets: 0 }]
 	});
 
 	$('.reload').click(function reload(e) {

@@ -7,6 +7,8 @@ if (!isset($f)) {
 
 header('Content-Type: application/json; charset=utf-8');
 
+$colums = array(1, 18, 32, 32, 8, 8, 8, 8, 10, 64);
+
 print("{\"data\":[");
 
 $file = fopen("/run/mcp/wifi-".$f.".txt", "r");
@@ -18,18 +20,37 @@ while (!feof($file)) {
 	if (!$lines++)
 		continue; 
 
-	$tag = trim(substr($line, 0, 1));
-	$mac = trim(substr($line, 2, 19));
-	$ssid = trim(substr($line, 21, 32));
-	$name = trim(substr($line, 54, 32));
-	$channel = trim(substr($line, 87, 8));
-	$signal = trim(substr($line, 96, 8));
-	$age = trim(substr($line, 105, 8));
-	$rate = trim(substr($line, 114, 8));
-	$count = trim(substr($line, 123, 10));
-	$hardware = trim(substr($line, 134, 64));
+	$x = 0; $y = $colums[0];
+	$tag = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[1];
+	$mac = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[2];
+	$ssid = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[3];
+	$name = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[4];
+	$channel = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[5];
+	$signal = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[6];
+	$age = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[7];
+	$rate = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[8];
+	$count = trim(substr($line, $x, $y));
+	
+	$x = $x + $y + 1; $y = $colums[9];
+	$hardware = trim(substr($line, $x, $y));
 
-	$array = array($tag, $mac, $ssid, $name, $channel, $signal, $age, $rate, $count, $hardware);
+	$array = array($tag, $ssid, $channel, $signal, $age, $rate, $count, $name, $mac, $hardware);
 	$json = json_encode($array);
 
 	// empty line
