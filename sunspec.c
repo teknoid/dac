@@ -301,10 +301,6 @@ static void* poll(void *arg) {
 	while (1) {
 		errors_all = 0;
 
-		// initially execute callback zeroing values
-		if (ss->callback)
-			(ss->callback)(ss);
-
 		ss->mb = modbus_new_tcp(ss->ip, 502);
 		modbus_set_response_timeout(ss->mb, 5, 0);
 		modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
@@ -378,6 +374,18 @@ static void* poll(void *arg) {
 		modbus_close(ss->mb);
 		modbus_free(ss->mb);
 		ss->mb = 0;
+
+		// clear dynamic models and execute callback one last time
+		if (ss->inverter)
+			ZEROP(ss->inverter);
+		if (ss->mppt)
+			ZEROP(ss->mppt);
+		if (ss->meter)
+			ZEROP(ss->meter);
+		if (ss->storage)
+			ZEROP(ss->storage);
+		if (ss->callback)
+			(ss->callback)(ss);
 	}
 
 	return (void*) 0;

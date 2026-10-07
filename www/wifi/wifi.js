@@ -7,11 +7,18 @@ $(document).ready(function() {
 //        columnDefs: [{ orderable: false, targets: 0 }]
 	});
 
-	$('.reload').click(function reload(e) {
+	// reload on button click
+	$('.reload').click(function(e) {
 		var file = $(e.target).data('file');
 		var dt = $('#wifi').DataTable();
 		dt.ajax.url('wifi.php?file=' + file).load();
 	});
+	
+	// reload every 60 sec
+	setInterval(function() {
+		var dt = $('#wifi').DataTable();
+		dt.ajax.reload(null, false);
+	}, 60000);
 });
 
 

@@ -22,8 +22,8 @@
 #define DELTAS					1
 #define DELTAM					5
 #define DELTACC					12
-#define RAMP					25
-#define SUSPICIOUS				500
+#define SUSPICIOUS_METER		50
+#define SUSPICIOUS_INVERTER		500
 #define SPIKE					500
 #define EMERGENCY				2000
 #define EMERGENCY_AVG			500
@@ -427,8 +427,8 @@ static void calculate_counter() {
 
 		if (DAILY) {
 			// compare daily self and meter counter
-			xlog("SOLAR counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
-			xlog("SOLAR counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+			xlog("SOLAR counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+			xlog("SOLAR counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
 
 			// reset self counter and copy self/meter counter to NULL entry
 			memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
@@ -470,7 +470,7 @@ static void calculate_gstate_offline() {
 
 		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start
 		int adjust = minm->grid - minm->grid / 10;
-		ZSHAPE(adjust, RAMP)
+		ZSHAPE(adjust, NOISE20)
 		// initially set limit to average load, otherwise push grid uploads to grid downloads by lowering discharge rate
 		int dlimit = round10(params->akku_dlimit ? params->akku_dlimit + adjust : PSTATE_MIN_NOW->load);
 		LOCUT(dlimit, params->baseload)
@@ -662,17 +662,17 @@ static void calculate_pstate_ramp() {
 
 	// akku is active - regulate around 0
 	if (pstate->akku) {
-		if (avgss->rsl < 100 || avgss->grid > RAMP * 2)
+		if (avgss->grid > RAMP * 2)
 			pstate->ramp = -RAMP;
-		if (avgss->rsl > 110 && avgss->grid < RAMP * -2)
+		if (avgss->grid < RAMP * -2)
 			pstate->ramp = RAMP;
 	}
 
 	// akku is passive - keep a little bit grid upload
 	if (!pstate->akku) {
-		if (avgss->rsl < 100 || avgss->grid > RAMP * -2)
+		if (avgss->grid > RAMP * -2)
 			pstate->ramp = -RAMP;
-		if (avgss->rsl > 110 && avgss->grid < RAMP * -4)
+		if (avgss->grid < RAMP * -4)
 			pstate->ramp = RAMP;
 	}
 
@@ -688,9 +688,9 @@ static void calculate_pstate_ramp() {
 	if (avgss->rsl < 150 && pstate->rsl < 120 && PSTATE_PVFALL)
 		pstate->ramp = -RAMP;
 
-	// coarse absolute down ramp below 95 / double down on pv fall
-	if (avgss->rsl < 95 && avgss->grid > 0)
-		pstate->ramp = PSTATE_PVFALL ? (avgss->grid * -2) : (avgss->grid * -1);
+	// coarse absolute down ramp below 100 / double down on pv fall
+	if (pstate->rsl < 100 || pstate->grid > RAMP)
+		pstate->ramp = PSTATE_PVFALL ? (pstate->grid * -2) : (pstate->grid * -1);
 
 	// shape
 	ZSHAPE(pstate->ramp, RAMP)
@@ -698,11 +698,12 @@ static void calculate_pstate_ramp() {
 	// suppress ramp up
 	if (pstate->ramp > 0) {
 		HICUT(pstate->ramp, pstate->grid * -1); // not more than actual grid upload
+		int low = avgss->rsl < 110; // rsl too low
 		int less = avgss->grid > RAMP * -2; // too less grid upload
 		int dgrid = pstate->grid > 0; // actual grid download
 		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
-		if (PSTATE_PVFALL || less || dgrid || over) {
-			xlog("SOLAR suppress up ramp=%d fall=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, less, dgrid, over);
+		if (PSTATE_PVFALL || low || less || dgrid || over) {
+			xlog("SOLAR suppress up ramp=%d fall=%d low=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, low, less, dgrid, over);
 			pstate->ramp = 0;
 		}
 	}
@@ -710,7 +711,7 @@ static void calculate_pstate_ramp() {
 	// suppress ramp down
 	if (pstate->ramp < 0) {
 		int plenty = avgss->rsl > 200; // plenty surplus
-		int ugrid = pstate->grid < -RAMP; // actual grid upload
+		int ugrid = pstate->grid < RAMP * -2; // actual grid upload
 		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
 		if (PSTATE_PVRISE || plenty || ugrid || extra) {
 			xlog("SOLAR suppress down ramp=%d rise=%d plenty=%d ugrid=%d extra=%d", pstate->ramp, PSTATE_PVRISE, plenty, ugrid, extra);
@@ -734,14 +735,14 @@ static void calculate_pstate_online() {
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / whatever
 	// TODO anpassen nach korrigierter Berechnung - s3 values nehmen?
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
-	if (abs(sum) > SUSPICIOUS) {
+	if (sum < -SUSPICIOUS_INVERTER || sum > SUSPICIOUS_INVERTER) {
 		xlog("SOLAR suspicious inverter values detected: sum=%d", sum);
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int gdiff = pstate->grid - pstate->l1p - pstate->l2p - pstate->l3p;
-	if (gdiff < -RAMP || gdiff > RAMP) {
-		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, gdiff);
+	int diff = pstate->grid - pstate->l1p - pstate->l2p - pstate->l3p;
+	if (diff < -SUSPICIOUS_METER || diff > SUSPICIOUS_METER) {
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, diff);
 		pstate->flags |= FLAG_INVALID;
 	}
 

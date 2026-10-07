@@ -182,6 +182,10 @@ void lcd_print(const char *t1, const char *t2) {
 	else
 		*text2 = 0;
 
+	// sanitize
+	string_isprint(text1);
+	string_isprint(text2);
+
 	// force display update
 	new_text = 1;
 }

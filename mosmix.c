@@ -122,13 +122,19 @@ static void expect(mosmix_t *m, factor_t *f) {
 	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
 	float f1 = (float) f->r1 * ftco * x;
-	m->exp1 = f1 / 1000;
 	float f2 = (float) f->r2 * ftco * x;
-	m->exp2 = f2 / 1000;
 	float f3 = (float) f->r3 * ftco * x;
-	m->exp3 = f3 / 1000;
 	float f4 = (float) f->r4 * ftco * x;
+
+	m->exp1 = f1 / 1000;
+	m->exp2 = f2 / 1000;
+	m->exp3 = f3 / 1000;
 	m->exp4 = f4 / 1000;
+
+	ZSHAPE(m->exp1, NOISE);
+	ZSHAPE(m->exp2, NOISE);
+	ZSHAPE(m->exp3, NOISE);
+	ZSHAPE(m->exp4, NOISE);
 }
 
 // calculate factor from actual mppt
@@ -138,12 +144,13 @@ static void factor(mosmix_t *m, factor_t *f) {
 	// xdebug("Rad1h=%-4d SunD1=%-3d TTT=%d ftco=%.3f x=%d", m->Rad1h, m->SunD1, m->TTT, ftco, x);
 
 	float f1 = m->Rad1h && m->mppt1 ? (float) m->mppt1 / ftco / x : 0.0;
-	f->r1 = f1 * 1000;
 	float f2 = m->Rad1h && m->mppt2 ? (float) m->mppt2 / ftco / x : 0.0;
-	f->r2 = f2 * 1000;
 	float f3 = m->Rad1h && m->mppt3 ? (float) m->mppt3 / ftco / x : 0.0;
-	f->r3 = f3 * 1000;
 	float f4 = m->Rad1h && m->mppt4 ? (float) m->mppt4 / ftco / x : 0.0;
+
+	f->r1 = f1 * 1000;
+	f->r2 = f2 * 1000;
+	f->r3 = f3 * 1000;
 	f->r4 = f4 * 1000;
 }
 
@@ -546,9 +553,9 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 	}
 
 	*day = round10(*day);
-	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *day, *day_mins, FLOAT60(*day_mins));
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *day_mins, FLOAT60(*day_mins), *day);
 	strcat(line, value);
-	if (*day)
+	if (*day_mins)
 		xlog(line);
 
 	// collect base load night power starting at current hour
@@ -593,9 +600,9 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 	}
 
 	*night = round10(*night);
-	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *night, *night_mins, FLOAT60(*night_mins));
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *night_mins, FLOAT60(*night_mins), *night);
 	strcat(line, value);
-	if (*night)
+	if (*night_mins)
 		xlog(line);
 
 	// collect heating power for this day starting at current hour
@@ -619,9 +626,9 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 	}
 
 	*heat = round10(*heat);
-	snprintf(value, 48, " --> power=%d minutes=%d hours=%.1f", *heat, *heat_mins, FLOAT60(*heat_mins));
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *heat_mins, FLOAT60(*heat_mins), *heat);
 	strcat(line, value);
-	if (*heat)
+	if (*heat_mins)
 		xlog(line);
 }
 
@@ -820,7 +827,7 @@ static int recalc() {
 	calculate_factors();
 	recalc_expected();
 	history_total();
-	mosmix_dump_history_hours(12);
+	mosmix_dump_history_hours(18);
 	mosmix_store_csv();
 	return 0;
 }

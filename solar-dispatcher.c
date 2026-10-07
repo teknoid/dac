@@ -223,8 +223,8 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->power == 0 && boiler->state == Auto && boiler->ramp_in < boiler->min)
 		return;
 
-	// 2/3 when boiler switching on first time
-	if (boiler->power == 0 && boiler->ramp_in < boiler->total)
+	// 2/3 when boiler switching on first time because of cold resistance
+	if (boiler->power == 0)
 		boiler->ramp_in = boiler->ramp_in * 2 / 3;
 
 	// power steps
@@ -234,7 +234,7 @@ static void ramp_boiler(device_t *boiler) {
 	if (!step)
 		return;
 
-	// do single steps at warm up due to much smaller cold resistance
+	// do single steps at warm up because of cold resistance
 	if (boiler->power < 10 && 1 < step && step < 10)
 		step = 1;
 

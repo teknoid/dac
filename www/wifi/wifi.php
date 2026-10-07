@@ -50,16 +50,18 @@ while (!feof($file)) {
 	$x = $x + $y + 1; $y = $colums[9];
 	$hardware = trim(substr($line, $x, $y));
 
+	// empty line
+	if (!$mac)
+		continue;
+
 	$array = array($tag, $ssid, $channel, $signal, $age, $rate, $count, $name, $mac, $hardware);
 	$json = json_encode($array);
-
-	// empty line
-	if ($mac) {
-		if ($lines > 2)
-			print(",");
-		print($json);
-	}
+	
+	if ($lines > 2)
+		print(",");
+	print($json);
 }
+
 fclose($file);
 
 print("]}");

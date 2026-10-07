@@ -409,7 +409,6 @@ static int parse(connection_t *conn) {
 				HICUT(size, SSID_LEN * 8);
 				strncpy(ssid, x, size);
 				decode_meta_utf8(ssid);
-				string_isprint(ssid);
 				if (strlen(ssid) > SSID_LEN)
 					ssid[SSID_LEN] = 0; // cut to 32 characters - 802.11 spec
 			}
@@ -736,7 +735,7 @@ static void dump() {
 
 	//check if input stopped
 	if (old_line_count == line_count)
-		NOTIFY("tcpdump", "stalls", NULL);
+		NOTIFY("tcpdump", "stall", NULL);
 	old_line_count = line_count;
 
 //	PROFILING_LOG("dump")
