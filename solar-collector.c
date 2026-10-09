@@ -28,11 +28,9 @@
 #define EMERGENCY				2000
 #define EMERGENCY_AVG			500
 
-#define PVARIANCE				5
 #define PSLOPE					10
 #define PSTATE_SPREAD			50
 
-#define GVARIANCE				20
 #define GSLOPE					50
 #define GSTATE_SPREAD			100
 #define GSTATE_SPREAD_PV		500
@@ -64,6 +62,11 @@
 #define PSTATE_H_CSV			"pstate-hours.csv"
 #define PSTATE_M_CSV			"pstate-minutes.csv"
 #define PSTATE_S_CSV			"pstate-seconds.csv"
+
+#define PSTAT_CSV				"pstat.csv"
+#define SLOPE_CSV				"slope.csv"
+#define AHEAD_CSV				"ahead.csv"
+
 #define PSTATE_AVG247_CSV		"pstate-avg-247.csv"
 #define STATS_CSV				"statistics.csv"
 
@@ -122,14 +125,14 @@ static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
 static stats_t stats_minutes[60];
 
-// local statistics memory, delta, slope and variance pointer
+// local statistics memory, delta, slope and ahead pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
 static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7];
 static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
 static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[14];
 static pstate_t *delta = &pstates[15], *deltac = &pstates[16], *deltacc = &pstates[17], *deltas = &pstates[18], *deltass = &pstates[19];
 static pstate_t *deltam = &pstates[20], *deltamm = &pstates[21];
-static pstate_t *slos = &pstates[22], *vars = &pstates[23], *slom = &pstates[24], *varm = &pstates[25], *slomm = &pstates[26], *varmm = &pstates[27];
+static pstate_t *slope = &pstates[22], *slom = &pstates[24], *slomm = &pstates[26], *ahead = &pstates[28];
 
 // local semaphores memory
 static sequential_t sequential;
@@ -144,6 +147,8 @@ pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
 
 // TODO solar_t single BIN file
+
+// int offset = 0;
 
 static void load_state() {
 	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
@@ -500,8 +505,8 @@ static void calculate_gstate_offline() {
 static void calculate_gstate_online() {
 	// tendency: falling or rising or stable
 	// xlog("SOLAR gstate falling or rising: deltam=%d varm=%d slom=%d", delta->pv, varm->pv, slom->pv);
-	int pvfall = deltam->pv < -500 || varm->pv < -GVARIANCE || slom->pv < -GSLOPE;
-	int pvrise = deltam->pv > 500 || varm->pv > GVARIANCE || slom->pv > GSLOPE;
+	int pvfall = deltam->pv < -500 || slom->pv < -GSLOPE;
+	int pvrise = deltam->pv > 500 || slom->pv > GSLOPE;
 	if (pvfall) {
 		gstate->flags |= FLAG_PVFALL;
 		xdebug("SOLAR set gstate FLAG_PVFALL");
@@ -648,7 +653,7 @@ static void calculate_pstate_ramp() {
 	if (PSTATE_AKKU_DCHARGE) {
 		pstate->ramp = PSTATE_PVFALL ? (pstate->akku * -2) : (pstate->akku * -1);
 		HICUT(pstate->ramp, -RAMP)
-		xdebug("SOLAR akku discharge ramp aakku=%d akku=%d ramp=%d", avgss->akku, pstate->akku, pstate->ramp);
+		xlog("SOLAR akku discharge ramp akku=%d avg=%d ramp=%d", pstate->akku, avgss->akku, pstate->ramp);
 		return;
 	}
 
@@ -656,7 +661,15 @@ static void calculate_pstate_ramp() {
 	if (PSTATE_GRID_DLOAD) {
 		pstate->ramp = PSTATE_PVFALL ? (pstate->grid * -2) : (pstate->grid * -1);
 		HICUT(pstate->ramp, -RAMP)
-		xdebug("SOLAR grid download ramp agrid=%d grid=%d ramp=%d", avgss->grid, pstate->grid, pstate->ramp);
+		xlog("SOLAR grid download ramp grid=%d avg=%d ramp=%d", pstate->grid, avgss->grid, pstate->ramp);
+		return;
+	}
+
+	// look ahead down ramp
+	if (ahead->grid > RAMP * 2) {
+		pstate->ramp = ahead->grid * -1;
+		HICUT(pstate->ramp, -RAMP)
+		xlog("SOLAR look ahead down ramp grid=%d ahead=%d avg=%d ramp=%d", pstate->grid, ahead->grid, avgss->grid, pstate->ramp);
 		return;
 	}
 
@@ -684,13 +697,9 @@ static void calculate_pstate_ramp() {
 		pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
 	}
 
-	// look ahead down ramp on pv fall
-	if (avgss->rsl < 150 && pstate->rsl < 120 && PSTATE_PVFALL)
-		pstate->ramp = -RAMP;
-
-	// coarse absolute down ramp below 100 / double down on pv fall
-	if (pstate->rsl < 100 || pstate->grid > RAMP)
-		pstate->ramp = PSTATE_PVFALL ? (pstate->grid * -2) : (pstate->grid * -1);
+	// coarse absolute down ramp below 100
+	if (avgss->rsl < 100 || avgss->grid > 0)
+		pstate->ramp = avgss->grid * -1;
 
 	// shape
 	ZSHAPE(pstate->ramp, RAMP)
@@ -775,16 +784,16 @@ static void calculate_pstate_online() {
 	}
 
 	// tendency: falling or rising or stable, fall has prio
-	// xlog("SOLAR pstate falling or rising: delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
-	int pvfall = delta->pv < -100 || vars->pv < -PVARIANCE || slos->pv < -PSLOPE;
-	int pvrise = delta->pv > 100 || vars->pv > PVARIANCE || slos->pv > PSLOPE;
+	// xlog("SOLAR pstate falling or rising: delta=%d slos=%d", delta->pv, slos->pv);
+	int pvfall = delta->pv < -100 || slope->pv < -PSLOPE;
+	int pvrise = delta->pv > 100 || slope->pv > PSLOPE;
 	if (pvfall) {
 		pstate->flags |= FLAG_PVFALL;
-		xdebug("SOLAR set pstate FLAG_PVFALL delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
+		xdebug("SOLAR set pstate FLAG_PVFALL delta=%d slope=%d", delta->pv, slope->pv);
 	}
 	if (!pvfall && pvrise) {
 		pstate->flags |= FLAG_PVRISE;
-		xdebug("SOLAR set pstate FLAG_PVRISE delta=%d vars=%d slos=%d", delta->pv, vars->pv, slos->pv);
+		xdebug("SOLAR set pstate FLAG_PVRISE delta=%d slope=%d", delta->pv, slope->pv);
 	}
 
 	// acdelta - delta on any ac lines (dc makes no sense, will be true most time)
@@ -857,20 +866,29 @@ static void calculate_pstate() {
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
 	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
 
-	// calculate slope and variance five seconds ago
-	islope(slos, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);
-	ivariance(vars, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE);
+	// calculate ahead and slope
+	iahead(ahead, pstate, avgss, PSTATE_SIZE);
+	islope(slope, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);
 
-	// calculate delta, slope and variance
+//	if (access(RUN SLASH PSTAT_CSV, F_OK)) {
+//		store_csv_header(PSTATE_HEADER, RUN SLASH PSTAT_CSV);
+//		store_csv_header(PSTATE_HEADER, RUN SLASH SLOPE_CSV);
+//		store_csv_header(PSTATE_HEADER, RUN SLASH AHEAD_CSV);
+//		offset = 0;
+//	}
+//	append_line_csv(pstate, PSTATE_SIZE, offset, RUN SLASH PSTAT_CSV);
+//	append_line_csv(ahead, PSTATE_SIZE, offset, RUN SLASH AHEAD_CSV);
+//	append_line_csv(slope, PSTATE_SIZE, offset, RUN SLASH SLOPE_CSV);
+//	offset++;
+
+	// calculate delta and slope
 	if (MINLY) {
 		// one minute ago
 		idelta(deltam, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, DELTAM);
 		islope(slom, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 5);
-		ivariance(varm, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE);
 		// five minutes ago
 		idelta(deltamm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, DELTAM);
 		islope(slomm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE, 5);
-		ivariance(varmm, PSTATE_MIN_NOW, PSTATE_MIN_LAST5, PSTATE_SIZE);
 
 		// copy & reset delta sum and delta count every 10 minutes
 		if (now->tm_min % 10 == 0) {

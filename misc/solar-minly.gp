@@ -2,6 +2,10 @@
 
 pstates="/run/mcp/pstate-seconds.csv"
 
+#pstat="/tmp/pstat.csv"
+#slope="/tmp/slope.csv"
+#ahead="/tmp/ahead.csv"
+
 set terminal svg size 1920,800
 set datafile separator whitespace
 set key autotitle columnhead
@@ -48,4 +52,12 @@ p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"rsl"     t "rsl"     w lines ls 6,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1,\
        100              t "100%"    w lines lt 0
-       
+
+#set output "/run/mcp/pstate-slopes-ahead.svg"
+#set y2range [-500:500]
+#set y2tics
+#p 0                     t "0"       w lines lt 8 axes x1y2,\
+#  slope   u 1:"pv"    t "slope"   w lines ls 3 axes x1y2,\
+#  pstat   u 1:"pv"    t "pstat"   w lines ls 1,\
+#  ahead   u 1:"pv"    t "ahead"   w lines ls 2
+      
