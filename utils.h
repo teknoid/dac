@@ -176,6 +176,7 @@ void iaggregate_mams(void *src, void *min, void *avg, void *max, void *spread, i
 void iaggregate(void *dst, void *src, int cols, int rows);
 void icumulate(void *dst, void *src, int cols, int rows);
 void iadd(void *dst, void *src, int cols);
+void iavg(void *dst, void *src1, void *src2, int cols);
 void idelta(void *dst, void *src1, void *src2, int cols, int shape);
 void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape);
 void islope(void *dst, void *src1, void *src2, int cols, int divisor);

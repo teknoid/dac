@@ -996,6 +996,13 @@ void iadd(void *dst, void *src, int cols) {
 		*dptr++ += *sptr++;
 }
 
+// calculate (src1 + src2) / 2 and store to dest
+void iavg(void *dst, void *src1, void *src2, int cols) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++)
+		*dptr++ = (*sptr1++ + *sptr2++) / 2;
+}
+
 // calculate src1 - src2 and store to dest, shape in percent or absolute 20
 void idelta(void *dst, void *src1, void *src2, int cols, int shape) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
