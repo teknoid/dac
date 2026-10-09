@@ -1052,9 +1052,8 @@ void islope(void *dst, void *src1, void *src2, int cols, int divisor) {
 void iahead(void *dst, void *src1, void *src2, int cols) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
 	for (int x = 0; x < cols; x++) {
-		int diff = *sptr1 - *sptr2;
-		*dptr++ = *sptr2++ + diff;
-		sptr1++;
+		int diff = *sptr1 - *sptr2++;
+		*dptr++ = *sptr1++ + diff;
 	}
 }
 

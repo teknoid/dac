@@ -225,8 +225,7 @@ static void update_inverter2(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_STARTING:
-		// TODO prüfen ob Werte stimmen
-		// pstate->ac2 = pstate->dc2 = pstate->mppt3 = pstate->mppt4 = 0;
+		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
 		break;
 
 	case I_STATUS_MPPT:
@@ -286,6 +285,12 @@ static void update_meter(sunspec_t *ss) {
 		CM_NULL->produced = CM_NOW->produced;
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
+
+	// TODO validate
+	// don't use meter grid, calculate self
+	// int gmeter = pstate->grid;
+	int gcalc = pstate->l1p + pstate->l2p + pstate->l3p;
+	pstate->grid = gcalc;
 
 	// MICROSECONDS("     meter")
 

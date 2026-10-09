@@ -16,6 +16,20 @@ body, html {
 	white-space: nowrap;
 }
 
+.dt-layout-end {
+	height: 0
+}
+
+.dt-search {
+	position: relative;
+	top: -20px;
+	right: 20px;
+}
+
+.dt-info {
+	padding-left: 10px;
+}
+
 table.dataTable>tbody>tr>th,
 table.dataTable>tbody>tr>td {
 	padding: 5px 10px;
@@ -76,6 +90,10 @@ table.dataTable>tbody>tr>td:nth-child(9) {
 		font-size: 42px;
 	}
 	
+	.dt-search {
+		display: none;
+	}
+
 	.buttons {
 		margin-top: 50px;
 	}

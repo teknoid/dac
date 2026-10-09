@@ -183,10 +183,6 @@ static void notify_back(mac_t *s, mac_t *m) {
 }
 
 void notify_assigned(small_station_t *s, mac_t *z) {
-	// already assigned
-	if (z->tag == 'a')
-		return;
-
 	// not when blacklisted
 	if (BLACK(z))
 		return;
@@ -196,6 +192,19 @@ void notify_assigned(small_station_t *s, mac_t *z) {
 	char title[DESCRIPTION2], text[DESCRIPTION2];
 	snprintf(title, DESCRIPTION, "Zombie %s", NAME(z));
 	snprintf(text, DESCRIPTION, "assigned to %s", NAME(s));
+	NOTIFY(title, text, NULL);
+}
+
+void notify_hotspot(small_station_t *s, mac_t *z) {
+	// not when blacklisted
+	if (BLACK(z))
+		return;
+
+	xdebug("WIFI zombie %s is (hotspot) station %s", NAME(z), NAME(s));
+
+	char title[DESCRIPTION2], text[DESCRIPTION2];
+	snprintf(title, DESCRIPTION, "Zombie %s", NAME(z));
+	snprintf(text, DESCRIPTION, "is hotspot %s", NAME(s));
 	NOTIFY(title, text, NULL);
 }
 
@@ -428,6 +437,7 @@ static int parse(connection_t *conn) {
 	}
 
 	// update or insert BEACONS
+// TODO tag clean BEACON or DATA
 	mac_big(beacons, bssid, schannel, ssignal, ssid, 'b');
 
 	// update or insert station
@@ -546,7 +556,7 @@ static int blacklist(char *smac, int op) {
 
 	// insert
 	if (op == 1) {
-		mac_t *m = mac_big(black, mac, 0, 0, NULL, 'b');
+		mac_t *m = mac_big(black, mac, 0, 0, NULL, 'x');
 		if (m)
 			m->ts_first = m->ts_last = m->signal = m->count = 0;
 		return 0;
@@ -724,14 +734,14 @@ static void dump() {
 //	PROFILING_START
 
 	xlog(DUMP_LOG, wifi.station_count, beacons->mcount, zombies->mcount, cache->mcount, homes->mcount, line_count);
-	dump_compact();
-	dump_flat();
 	dump_meta(beacons);
 	dump_meta(zombies);
 	dump_meta(cache);
 	dump_meta(black);
 	dump_meta(names);
 	dump_meta(homes);
+	dump_compact();
+	dump_flat();
 
 	//check if input stopped
 	if (old_line_count == line_count)
@@ -741,20 +751,25 @@ static void dump() {
 //	PROFILING_LOG("dump")
 }
 
-// check if zombie is assigned to any station
+// check if zombie is assigned to any station or is itself a station
 static void assign() {
 //	PROFILING_START
 
 	for (mac_t **zz = zombies->pmacs; *zz; zz++) {
 
-		int assigned = 0, remove = 0;
-		for (small_station_t **ss = wifi.pstation; *ss; ss++) {
+		// check if zombie is a (hotspot) station
+		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			if (ZZ->mac == SS->mac) {
-				xdebug("WIFI zombie %s is station %s -> removing", NAME(ZZ), NAME(SS));
-				remove++;
-				break;
+				if (ZZ->tag == 'h')
+					continue; // already notified
+
+				notify_hotspot(SS, ZZ);
+				ZZ->tag = 'h';
 			}
 
+		// check if zombie is assigned to any station
+		int assigned = 0, remove = 0;
+		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			for (mac_t **mm = SS->pmacs; *mm; mm++) {
 				if (ZZ->mac != MM->mac)
 					continue;
@@ -767,10 +782,11 @@ static void assign() {
 					// take over zombie's ssid (probe request)
 					strcpy(MM->ssid, ZZ->ssid);
 
+				if (ZZ->tag == 'a' || ZZ->tag == 'h')
+					continue; // already notified
+
 				notify_assigned(SS, ZZ);
-				break;
 			}
-		}
 
 		// mark as assigned
 		if (ZZ->tag == 'z' && assigned)

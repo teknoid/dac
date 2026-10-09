@@ -1,3 +1,22 @@
+// update client pointer
+static void pointers_small(small_station_t *s) {
+	int count = 0;
+	for (int i = 0; i < CLIENTS; i++)
+		if (s->macs[i].mac)
+			s->pmacs[count++] = &s->macs[i];
+	s->pmacs[count] = 0; // null terminate
+	s->mcount = count;
+}
+
+static void pointers_big(big_station_t *s) {
+	int count = 0;
+	for (int i = 0; i < CLIENTS4; i++)
+		if (s->macs[i].mac)
+			s->pmacs[count++] = &s->macs[i];
+	s->pmacs[count] = 0; // null terminate
+	s->mcount = count;
+}
+
 // bubble sort by count
 static void bubble_sort_count_small(small_station_t *s) {
 	s->dirty = 0;
@@ -100,6 +119,9 @@ static void reorganize_small(small_station_t *s) {
 	for (mac_t **mm = s->pmacs; *mm; mm++)
 		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
 	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS);
+
+	// update pointers to new order
+	pointers_small(s);
 }
 
 static void reorganize_big(big_station_t *s) {
@@ -113,65 +135,43 @@ static void reorganize_big(big_station_t *s) {
 	for (mac_t **mm = s->pmacs; *mm; mm++)
 		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
 	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS4);
-}
 
-// update client pointer
-static void pointers_small(small_station_t *s) {
-	int count = 0;
-	for (int i = 0; i < CLIENTS; i++)
-		if (s->macs[i].mac)
-			s->pmacs[count++] = &s->macs[i];
-	s->pmacs[count] = 0; // null terminate
-	s->mcount = count;
-}
-
-static void pointers_big(big_station_t *s) {
-	int count = 0;
-	for (int i = 0; i < CLIENTS4; i++)
-		if (s->macs[i].mac)
-			s->pmacs[count++] = &s->macs[i];
-	s->pmacs[count] = 0; // null terminate
-	s->mcount = count;
+	// update pointers to new order
+	pointers_big(s);
 }
 
 static void sort_count_small(small_station_t *s) {
 	pointers_small(s);
 	bubble_sort_count_small(s);
 	reorganize_small(s);
-	pointers_small(s);
 }
 
 static void sort_count_big(big_station_t *s) {
 	pointers_big(s);
 	bubble_sort_count_big(s);
 	reorganize_big(s);
-	pointers_big(s);
 }
 
 static void sort_signal(big_station_t *s) {
 	pointers_big(s);
 	bubble_sort_signal(s);
 	reorganize_big(s);
-	pointers_big(s);
 }
 
 static void sort_ts(big_station_t *s) {
 	pointers_big(s);
 	bubble_sort_ts(s);
 	reorganize_big(s);
-	pointers_big(s);
 }
 
 static void sort_ssid(big_station_t *s) {
 	pointers_big(s);
 	bubble_sort_ssid(s);
 	reorganize_big(s);
-	pointers_big(s);
 }
 
 static void sort_name(big_station_t *s) {
 	pointers_big(s);
 	bubble_sort_name(s);
 	reorganize_big(s);
-	pointers_big(s);
 }

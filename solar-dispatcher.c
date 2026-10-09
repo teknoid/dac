@@ -42,9 +42,8 @@
 
 #define WAIT_RAMP				5
 #define WAIT_RESPONSE			6
-#define WAIT_THERMOSTAT			12
 #define WAIT_STANDBY			13
-#define WAIT_AKKU				15
+#define WAIT_THERMOSTAT			15
 #define WAIT_START_CHARGE		30
 
 #define MPPT_VOLTAGE_STANDBY	100
@@ -181,7 +180,7 @@ static void ramp_heater(device_t *heater) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = AKKU->load ? WAIT_AKKU : WAIT_RAMP;
+	dstate->lock = WAIT_RAMP;
 	heater->response = WAIT_RESPONSE;
 	heater->ramp_out = heater->power ? heater->total : heater->total * -1;
 	heater->load = heater->power ? heater->total : 0;
@@ -289,7 +288,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : AKKU->load ? WAIT_AKKU : WAIT_RAMP; // electronic thermostat takes more time at startup
+	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
 	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE;
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -507,13 +506,13 @@ static int choose_program() {
 	if (GSTATE_CHARGE_AKKU && gstate->survive < SURVIVE100)
 		return select_program(&MODEST);
 
-	// PV less than twice capacity - heat with infrared panels before noon, heat boilers afternoon
-	if (gstate->today < acx2)
-		return now->tm_hour < 13 ? select_program(&INFRAR) : select_program(&BOILER);
-
 	// tomorrow more than today
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
+
+	// PV less than twice capacity - heat with infrared panels before noon, heat boilers afternoon
+	if (gstate->today < acx2)
+		return now->tm_hour < 13 ? select_program(&INFRAR) : select_program(&BOILER);
 
 	// enough PV available to survive + heating
 	return select_program(&PLENTY);
@@ -592,7 +591,7 @@ static void emergency() {
 	if (dstate->lock || PSTATE_INVALID)
 		return;
 
-	xlog("SOLAR emergency");
+	xlog("SOLAR dispatcher emergency shut down");
 
 	// enable discharge no limit when all devices down and soc above 10%
 	if (DSTATE_ALL_DOWN && gstate->soc > 100) {
@@ -697,10 +696,16 @@ static void steal() {
 	int overall_steal = 0;
 	for (device_t **dd = DEVICES; *dd; dd++) {
 		DD->steal = 0;
-		// only when in CHARGE or AUTO mode with RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
-		int steal_akku = AKKU->load > 0;
-		int steal_device = DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL;
-		if (steal_akku || steal_device) {
+
+		// AKKU: only when charging above baseload to keep room for balancing
+		if (DD == AKKU && DD->load > params->baseload) {
+			DD->steal = DD->load - params->minimum;
+			overall_steal += DD->steal;
+			continue;
+		}
+
+		// only when in AUTO mode and RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
+		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
 			if (DD->min) {
 				if (DD->min > DD->total)
 					DD->steal = DD->load; // dumb devices - all
@@ -709,8 +714,8 @@ static void steal() {
 			} else
 				DD->steal = DD->load; // all
 			xdebug("SOLAR collect steal %s=%d", DD->name, DD->steal);
+			overall_steal += DD->steal;
 		}
-		overall_steal += DD->steal;
 	}
 
 	// nothing to steal
@@ -779,7 +784,7 @@ static void steal() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		int to_steal = dstate->steal * -1;
+		int to_steal = (t->adj ? dstate->steal : thief_min) * -1;
 		while (--vv != tt && to_steal < 0) {
 			device_t *v = *vv;
 			v->ramp_in = to_steal;
@@ -794,8 +799,8 @@ static void steal() {
 		t->ramp_in = dstate->steal;
 		ramp_device(t);
 
-		// wait even if no response expected when transferring power from one to another device, give akku time to release or consume power
-		dstate->lock = AKKU->load ? WAIT_AKKU : WAIT_RAMP;
+		// wait even if no response expected when transferring power from one to another device
+		dstate->lock = WAIT_RAMP;
 		return;
 	}
 }
