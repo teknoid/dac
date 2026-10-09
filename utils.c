@@ -1034,6 +1034,13 @@ void islope(void *dst, void *src1, void *src2, int cols, int divisor) {
 	}
 }
 
+// calculate src1 + src2 * multiplicator
+void iahead(void *dst, void *src1, void *src2, int cols, int multiplicator) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++)
+		*dptr++ = *sptr1++ + *sptr2++ * multiplicator;
+}
+
 // calculate (src1 - src2) * 100 / src2
 void ivariance(void *dst, void *src1, void *src2, int cols) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;

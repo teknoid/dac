@@ -179,6 +179,7 @@ void iadd(void *dst, void *src, int cols);
 void idelta(void *dst, void *src1, void *src2, int cols, int shape);
 void idelta_x(void *dst, void *src1, void *src2, void *dc, void *ds, int cols, int shape);
 void islope(void *dst, void *src1, void *src2, int cols, int divisor);
+void iahead(void *dst, void *src1, void *src2, int cols, int multiplicator);
 void ivariance(void *dst, void *src1, void *src2, int cols);
 void idiv_const(void *dst, int cols, int divisor);
 void store_csv_header(const char *header, const char *filename);
