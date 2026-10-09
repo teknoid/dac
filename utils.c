@@ -996,6 +996,13 @@ void iadd(void *dst, void *src, int cols) {
 		*dptr++ += *sptr++;
 }
 
+// calculate src1 - src2 and store to dest
+void isub(void *dst, void *src1, void *src2, int cols) {
+	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
+	for (int x = 0; x < cols; x++)
+		*dptr++ += *sptr1++ - *sptr2++;
+}
+
 // calculate (src1 + src2) / 2 and store to dest
 void iavg(void *dst, void *src1, void *src2, int cols) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
@@ -1041,11 +1048,14 @@ void islope(void *dst, void *src1, void *src2, int cols, int divisor) {
 	}
 }
 
-// calculate src1 + src2 * multiplicator
-void iahead(void *dst, void *src1, void *src2, int cols, int multiplicator) {
+// calculate src2 - src1, add difference to src2 and store to dst
+void iahead(void *dst, void *src1, void *src2, int cols) {
 	int *dptr = (int*) dst, *sptr1 = (int*) src1, *sptr2 = (int*) src2;
-	for (int x = 0; x < cols; x++)
-		*dptr++ = *sptr1++ + *sptr2++ * multiplicator;
+	for (int x = 0; x < cols; x++) {
+		int diff = *sptr1 - *sptr2;
+		*dptr++ = *sptr2++ + diff;
+		sptr1++;
+	}
 }
 
 // calculate (src1 - src2) * 100 / src2
