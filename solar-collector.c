@@ -659,16 +659,24 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// akku is charging and can still balance grid download
-	int balance = pstate->akku < 0 && pstate->grid > 0 && pstate->grid + params->minimum < pstate->akku * -1;
-
 	// always ramp down on grid download if akku cannot balance
-	if (PSTATE_GRID_DLOAD && !balance) {
+	if (PSTATE_GRID_DLOAD && !PSTATE_BALANCE) {
 		pstate->ramp = PSTATE_PVFALL ? (pstate->grid * -2) : (pstate->grid * -1);
 		HICUT(pstate->ramp, -RAMP)
 		xlog("SOLAR grid download ramp grid=%d avg=%d ramp=%d", pstate->grid, avgss->grid, pstate->ramp);
 		return;
 	}
+
+	// look ahead down ramp
+	if (PSTATE_PVFALL && ahead->grid > 0) {
+		pstate->ramp = ahead->grid * -1;
+		xlog("SOLAR look ahead down ramp grid=%d avg=%d ahead=%d ramp=%d", pstate->grid, avgss->grid, ahead->grid, pstate->ramp);
+		return;
+	}
+
+	// no ramp while akku is balancing
+	if (PSTATE_BALANCE)
+		return;
 
 	// akku is active - regulate around 0
 	if (pstate->akku) {
@@ -686,48 +694,39 @@ static void calculate_pstate_ramp() {
 			pstate->ramp = RAMP;
 	}
 
-	// coarse absolute up above baseload grid upload
-	if (avgss->grid < params->baseload * -1) {
+	// coarse absolute up
+	if (PSTATE_GRID_ULOAD) {
 		// grid upload - maximum (->minimum when inverted) or average
 		int limit = deltacc->pv > DELTACC && avgss->grid < maxmm->grid && maxmm->grid < 0 && avgss->rsl < 200;
 		xlog("DELTACC=%d maxmm->grid=%d avgss->grid=%d limit=%d", DELTACC, maxmm->grid, avgss->grid, limit);
 		pstate->ramp = limit ? (maxmm->grid * -1) : (avgss->grid * -1);
 	}
 
-	// look ahead down ramp
-	if (PSTATE_PVFALL && ahead->grid > 0)
-		pstate->ramp = ahead->grid * -1;
-
-	// coarse absolute down ramp below 90 or grid download
-	if (pstate->rsl < 90 || pstate->grid > params->minimum)
-		pstate->ramp = pstate->grid * -1;
-
 	// shape
 	ZSHAPE(pstate->ramp, RAMP)
-	ZSHAPE(avgss->grid, NOISE10);
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
 		HICUT(pstate->ramp, pstate->grid * -1); // not more than actual grid upload
-		int gfall = avgss->grid < 0 && slope->grid > PSLOPE; // grid upload tendency falling
 		int low = avgss->rsl < 110; // rsl too low
 		int less = avgss->grid > RAMP * -2; // too less grid upload
-		int dgrid = pstate->grid > 0; // actual grid download
 		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
-		if (PSTATE_PVFALL || gfall || low || less || dgrid || over) {
-			xlog("SOLAR suppress up ramp=%d fall=%d gfall=%d low=%d less=%d dgrid=%d over=%d", pstate->ramp, PSTATE_PVFALL, gfall, low, less, dgrid, over);
+		int gdload = pstate->grid > 0; // actual grid download
+		int gufall = pstate->grid < 0 && PSTATE_GRISE; // grid upload tendency falling
+		if (PSTATE_PVFALL || gufall || gdload || low || less || over) {
+			xlog("SOLAR suppress up ramp=%d pvfall=%d gufall=%d gdload=%d low=%d less=%d over=%d", pstate->ramp, PSTATE_PVFALL, gufall, gdload, low, less, over);
 			pstate->ramp = 0;
 		}
 	}
 
 	// suppress ramp down
 	if (pstate->ramp < 0) {
-		int gfall = avgss->grid > 0 && slope->grid < -PSLOPE; // grid download tendency falling
 		int plenty = avgss->rsl > 200; // plenty surplus
-		int ugrid = pstate->grid < params->baseload * -1; // actual enough grid upload
 		int extra = pstate->load < pstate->ac2; // load completely satisfied by secondary inverter
-		if (PSTATE_PVRISE || gfall || plenty || ugrid || extra || balance) {
-			xlog("SOLAR suppress down ramp=%d rise=%d gfall=%d plenty=%d ugrid=%d extra=%d balance=%d", pstate->ramp, PSTATE_PVRISE, gfall, plenty, ugrid, extra, balance);
+		int guload = pstate->grid < params->baseload * -1; // actual enough grid upload
+		int gdfall = pstate->grid > 0 && PSTATE_GFALL; // grid download tendency falling
+		if (PSTATE_PVRISE || gdfall || guload || plenty || extra) {
+			xlog("SOLAR suppress down ramp=%d pvrise=%d gdfall=%d guload=%d plenty=%d extra=%d", pstate->ramp, PSTATE_PVRISE, gdfall, guload, plenty, extra);
 			pstate->ramp = 0;
 		}
 	}
@@ -738,11 +737,11 @@ static void calculate_pstate_ramp() {
 
 static void calculate_pstate_online() {
 	// akku discharge / grid download / grid upload - always check average against actual
-	if (pstate->akku > RAMP * 4 || (avgss->akku > RAMP * 2 && pstate->akku > 0))
+	if (pstate->akku > params->minimum || (avgss->akku > RAMP * 2 && pstate->akku > 0))
 		pstate->flags |= FLAG_AKKU_DCHARGE;
-	if (pstate->grid > RAMP * 4 || (avgss->grid > RAMP * 2 && pstate->grid > 0))
+	if (pstate->grid > params->minimum || (avgss->grid > RAMP * 2 && pstate->grid > 0))
 		pstate->flags |= FLAG_GRID_DLOAD;
-	if (pstate->grid < RAMP * -4 || (avgss->grid < RAMP * -2 && pstate->grid < 0))
+	if (pstate->grid < params->minimum * -1 || (avgss->grid < RAMP * -2 && pstate->grid < 0))
 		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / whatever
@@ -770,13 +769,6 @@ static void calculate_pstate_online() {
 		pstate->flags |= FLAG_INVALID;
 	}
 
-	int wast = pstate->grid < -NOISE20 && pstate->akku > 0; // wasting akku power to grid
-	int draw = pstate->grid > NOISE20 && pstate->akku < 0 && pstate->grid < pstate->akku * -1; // akku draws power from grid but can be balanced yet
-	if (wast || draw) {
-		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, wast, draw);
-		pstate->flags |= FLAG_INVALID;
-	}
-
 	if (inv1->state != I_STATUS_MPPT) {
 		xlog("SOLAR Inverter1 state %d expected %d", inv1->state, I_STATUS_MPPT);
 		pstate->flags |= FLAG_INVALID;
@@ -787,8 +779,15 @@ static void calculate_pstate_online() {
 		// pstate->flags |= FLAG_INVALID;
 	}
 
-	// tendency: falling or rising or stable, fall has prio
-	// xlog("SOLAR pstate falling or rising: delta=%d slos=%d", delta->pv, slos->pv);
+	int wast = pstate->grid < -NOISE20 && pstate->akku > 0; // wasting akku power to grid
+	int draw = pstate->grid > NOISE20 && pstate->akku < 0 && pstate->grid < pstate->akku * -1; // akku draws power from grid but can be balanced yet
+	if (wast || draw) {
+		xlog("SOLAR akku is unbalanced grid=%d akku=%d waste=%d draw=%d", pstate->grid, pstate->akku, wast, draw);
+		pstate->flags |= FLAG_BALANCE;
+	}
+
+	// PV tendency: falling or rising or stable, fall has prio
+	// xlog("SOLAR pstate PV falling or rising: delta=%d slos=%d", delta->pv, slos->pv);
 	int pvfall = delta->pv < -100 || slope->pv < -PSLOPE;
 	int pvrise = delta->pv > 100 || slope->pv > PSLOPE;
 	if (pvfall) {
@@ -800,14 +799,26 @@ static void calculate_pstate_online() {
 		xdebug("SOLAR set pstate FLAG_PVRISE delta=%d slope=%d", delta->pv, slope->pv);
 	}
 
+	// GRID tendency: falling or rising or stable, fall has prio
+	xlog("SOLAR pstate GRID falling or rising: delta=%d slos=%d", delta->grid, slope->grid);
+	int gfall = delta->grid < -100 || slope->grid < -PSLOPE;
+	int grise = delta->grid > 100 || slope->grid > PSLOPE;
+	if (gfall) {
+		pstate->flags |= FLAG_GFALL;
+		xlog("SOLAR set pstate FLAG_GFALL delta=%d slope=%d", delta->grid, slope->grid);
+	}
+	if (!gfall && grise) {
+		pstate->flags |= FLAG_GRISE;
+		xdebug("SOLAR set pstate FLAG_GRISE delta=%d slope=%d", delta->grid, slope->grid);
+	}
+
 	// acdelta - delta on any ac lines (dc makes no sense, will be true most time)
 //	int stable = spreadss->pv < PSTATE_SPREAD && spreadss->grid < PSTATE_SPREAD && spreadss->load < PSTATE_SPREAD;
 	int acdelta = delta->l1p || delta->l2p || delta->l3p || delta->ac1 || delta->ac2;
-	if (!pvfall && !pvrise && !acdelta) {
+	if (!pvfall && !pvrise && !gfall && !grise && !acdelta) {
 		pstate->flags |= FLAG_STABLE;
 		xdebug("SOLAR set pstate FLAG_STABLE");
-	} else
-		xdebug("SOLAR unstable pvfall=%d pvrise=%d acdelta=%d", pvfall, pvrise, acdelta);
+	}
 
 	// stable over 3 seconds
 	if (PSTATE_3S_STABLE)

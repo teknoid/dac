@@ -873,7 +873,7 @@ static void calculate_actions() {
 		dstate->lock--;
 
 	// no action
-	if (dstate->lock || PSTATE_INVALID || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
+	if (dstate->lock || PSTATE_INVALID || PSTATE_BALANCE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return;
 
 	// permanent overload - force standby check without any restrictions

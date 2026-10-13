@@ -56,12 +56,18 @@
 
 // pstate flags
 #define FLAG_STABLE_3S			(1 << 7)
-#define FLAG_EMERGENCY			(1 << 1)
+#define FLAG_GRISE				(1 << 4)
+#define FLAG_GFALL				(1 << 3)
+#define FLAG_EMERGENCY			(1 << 2)
+#define FLAG_BALANCE			(1 << 1)
 #define FLAG_INVALID			(1 << 0)
 
 #define PSTATE_INVALID			(pstate->flags & FLAG_INVALID)
-#define PSTATE_STABLE_3S		(pstate->flags & FLAG_STABLE_3S)
+#define PSTATE_BALANCE			(pstate->flags & FLAG_BALANCE)
 #define PSTATE_EMERGENCY		(pstate->flags & FLAG_EMERGENCY)
+#define PSTATE_GFALL			(pstate->flags & FLAG_GFALL)
+#define PSTATE_GRISE			(pstate->flags & FLAG_GRISE)
+#define PSTATE_STABLE_3S		(pstate->flags & FLAG_STABLE_3S)
 #define PSTATE_AKKU_DCHARGE		(pstate->flags & FLAG_AKKU_DCHARGE)
 #define PSTATE_GRID_DLOAD		(pstate->flags & FLAG_GRID_DLOAD)
 #define PSTATE_GRID_ULOAD		(pstate->flags & FLAG_GRID_ULOAD)
