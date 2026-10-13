@@ -16,6 +16,14 @@ body, html {
 	white-space: nowrap;
 }
 
+.present {
+	background-color: PaleGreen;
+}
+
+.away {
+	background-color: LemonChiffon;
+}
+
 .dt-layout-end {
 	height: 0
 }

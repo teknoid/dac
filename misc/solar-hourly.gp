@@ -108,16 +108,19 @@ p history u 1:"err1"  t "err1" w lines ls 11,\
 
 # gstate week
 set ylabel "GState Week"
+set yrange [0:2050] 
 set xrange [0:168]
 set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
 set output "/run/mcp/gstate-week.svg"
-p gstateh u 1:"soc"   t "soc"      w lines ls 6,\
-       '' u 1:"ttl"   t "ttl"      w lines lt 4,\
-       '' u 1:"surv"  t "survive"  w lines lt 1
+p 1000                  t "100%"     w lines lt 8,\
+  gstateh u 1:"soc"     t "soc"      w lines ls 6,\
+       '' u 1:"foca"    t "forecast" w lines lt 2,\
+       '' u 1:"surv"    t "survive"  w lines lt 1
 
 
 # pstate day
 set ylabel "PState Day"
+set yrange [*:*] 
 set xrange [0:1440]
 set xtics time 60 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
@@ -139,11 +142,12 @@ set y2range [0:*]
 set xtics time 60 format "%tM"
 set output "/run/mcp/gstate.svg"
 p pstate u 1:(0):"pv"   t "pv"    w filledc ls 1 axes x1y2,\
+  1000                  t "100%"  w lines   lt 8,\
   gstate u 1:"soc"      t "soc"   w lines   ls 6,\
       '' u 1:"surv"     t "surv"  w lines   lt 1,\
       '' u 1:"succ"     t "succ"  w lines   lt 2,\
-      '' u 1:"foca"     t "foca"  w lines   ls 3,\
-      1000              t "100%"  w lines   lt 8
+      '' u 1:"foca"     t "foca"  w lines   ls 3
+
 
 set ylabel "Statistics"
 set yrange [*:*]

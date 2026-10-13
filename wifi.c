@@ -985,7 +985,8 @@ static void sort() {
 	sort_name(black);
 	sort_name(names);
 
-	// sort HOMES by ssid
+	// sort HOMES by age and then ssid
+	sort_ts(homes);
 	sort_ssid(homes);
 
 	pthread_mutex_unlock(&lock);

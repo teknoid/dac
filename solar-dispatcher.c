@@ -84,7 +84,7 @@ static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,
 static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Initial };
 static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Disabled };
 static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
-static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9", .state = Disabled };
+static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9", .state = Initial };
 
 // all (consumer) devices, needed for initialization
 static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6, &h7, 0 };
@@ -288,7 +288,7 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
+	dstate->lock = boiler->power == 0 && boiler->min ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
 	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE;
 	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
 	boiler->load = power * boiler->total / 100;
@@ -765,7 +765,7 @@ static void steal() {
 			continue;
 
 		// collect steal power from victims
-		dstate->steal = 0;
+		dstate->steal = pstate->grid * -1 > params->minimum ? pstate->grid * -1 : 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
 			dstate->steal += (*vv)->steal;
 
@@ -1032,12 +1032,17 @@ void solar_toggle_id(unsigned int id, int relay) {
 void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size_t msize) {
 
 	// mosquitto_pub -h mqtt -t "solar/params/climit" -m 2500
-	if (!strncmp("solar/params/climit", topic, tsize))
-		params->akku_climit_override = atoin(message, msize);
+	if (!strncmp("solar/params/climit", topic, tsize)) {
+		gstate->flags |= FLAG_CHARGE_AKKU;
+		params->akku_climit_override = params->akku_climit = atoin(message, msize);
+		akku_charge(AKKU); // update climit
+	}
 
 	// mosquitto_pub -h mqtt -t "solar/params/dlimit" -m 500
-	if (!strncmp("solar/params/dlimit", topic, tsize))
-		params->akku_dlimit_override = atoin(message, msize);
+	if (!strncmp("solar/params/dlimit", topic, tsize)) {
+		params->akku_dlimit_override = params->akku_dlimit = atoin(message, msize);
+		akku_discharge(AKKU); // update dlimit
+	}
 
 	// mosquitto_pub -h mqtt -t "solar/params/minsoc" -m 5
 	if (!strncmp("solar/params/minsoc", topic, tsize))
