@@ -913,6 +913,10 @@ static void calculate_actions() {
 
 static void calculate_dstate() {
 
+	// TODO
+	dstate->limit = limits->load;
+	dstate->steal = limits->steal * -1;
+
 	// clear state flags
 	dstate->flags &= ~STATE_FLAGS_MASK;
 
@@ -1161,8 +1165,9 @@ static void loop() {
 		if (DSTATE_ACTION_STANDBY)
 			standby();
 
-		if (DSTATE_ACTION_STEAL)
-			steal();
+		// TODO
+//		if (DSTATE_ACTION_STEAL)
+//			steal();
 
 		// cron jobs
 		if (MINLY)

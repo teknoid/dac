@@ -21,7 +21,8 @@
 
 #define DELTAS					1
 #define DELTAM					5
-#define DELTACCPV				100
+#define DELTACC					100
+#define DELTASS					100000
 #define SUSPICIOUS_METER		50
 #define SUSPICIOUS_INVERTER		500
 #define SPIKE					500
@@ -118,11 +119,12 @@
 
 static struct tm now_tm, *now = &now_tm;
 
-// local params/counter/gstate/pstate/statistics memory
-static params_t params_current;
+// local params/limits/counter/gstate/pstate/statistics memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
+static params_t params_current;
+static limits_t limits_current;
 static stats_t stats_minutes[60];
 
 // local statistics memory, delta, slope and ahead pointer
@@ -144,6 +146,7 @@ counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
+limits_t *limits = &limits_current;
 
 // TODO solar_t single BIN file
 
@@ -177,17 +180,13 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_FILE, pstates, sizeof(pstates));
 }
 
-static void create_pstate_json() {
-	store_array_json(avgss, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_AVG_JSON);
+// TODO alles in ein json file als separate pstate/gstate/avgss/limit objekte
+static void create_json() {
 	store_array_json(pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
-}
-
-static void create_gstate_json() {
 	store_array_json(gstate, GSTATE_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_JSON);
-}
+	store_array_json(avgss, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_AVG_JSON);
 
 // feed Fronius powerflow web application
-static void create_powerflow_json() {
 	FILE *fp = fopen(RUN SLASH POWERFLOW_JSON, "wt");
 	if (fp == NULL)
 		return;
@@ -195,7 +194,7 @@ static void create_powerflow_json() {
 	// Fronius expects negative load
 	int load = pstate->load * -1;
 
-#define POWERFLOW_TEMPLATE		"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"storeryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
+#define POWERFLOW_TEMPLATE	"{\"common\":{\"datestamp\":\"01.01.2025\",\"timestamp\":\"00:00:00\"},\"inverters\":[{\"BatMode\":1,\"CID\":0,\"DT\":0,\"E_Total\":1,\"ID\":1,\"P\":1,\"SOC\":%f}],\"site\":{\"BackupMode\":false,\"storeryStandby\":false,\"E_Day\":null,\"E_Total\":1,\"E_Year\":null,\"MLoc\":0,\"Mode\":\"bidirectional\",\"P_Akku\":%d,\"P_Grid\":%d,\"P_Load\":%d,\"P_PV\":%d,\"rel_Autonomy\":100.0,\"rel_SelfConsumption\":100.0},\"version\":\"13\"}"
 	fprintf(fp, POWERFLOW_TEMPLATE, FLOAT10(gstate->soc), pstate->akku, pstate->grid, load, pstate->pv);
 	fflush(fp);
 	fclose(fp);
@@ -639,8 +638,8 @@ static void calculate_gstate() {
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d akku=%d need=%d night=%d --> %.1f%% (%.1f%%)"
 	xlog(TEMPLATE_SURVIVE, gstate->eod, day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
 
-	// offline when average pv goes below minimum or rsl below 90
-	int offline = avgmm->pv < params->minimum || avgmm->rsl < 90;
+	// offline when average surplus goes below minimum
+	int offline = avgmm->surp < params->minimum;
 	if (offline)
 		calculate_gstate_offline();
 	else
@@ -654,8 +653,35 @@ static void calculate_gstate() {
 	print_gstate();
 }
 
+static void calculate_limits() {
+	// push down load limit if actual surplus goes below
+	int limit = pstate->surp > params->minimum ? round100(pstate->surp - params->minimum) : 0;
+	HICUT(limits->load, limit)
+
+	// push up akku steal if actual charge goes above
+	int steal = pstate->akku < params->minimum * -1 ? round100(pstate->akku + params->minimum) : 0;
+	LOCUT(limits->steal, steal)
+
+	if (MINLY) {
+		// set new load limit: minimum surplus over 1 minute when stable or 10 minutes when we have distortion
+		limit = deltass->pv > DELTASS ? minmm->surp : minm->surp;
+		limits->load = limit > params->minimum ? round100(limit - params->minimum) : 0;
+
+		// set new akku steal: minimum charge over 1 minute when stable or 10 minutes when we have distortion
+		steal = deltass->pv > DELTASS ? maxmm->akku : maxm->akku;
+		limits->steal = steal < params->minimum * -1 ? round100(steal + params->minimum) : 0;
+	}
+
+	// TODO
+	// nach steal muß limit angehoben werden sonst wird sofort wieder runter geramped - load dann größer als minm->surp
+	// steal() vom akku nur wenn steal * -1 > thief
+}
+
 static void calculate_pstate_ramp() {
 	char line[LINEBUF], value[32];
+
+	// reset
+	pstate->ramp = 0;
 
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
@@ -673,70 +699,38 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// look ahead down ramp
-	if (PSTATE_PVFALL && ahead->grid > params->minimum) {
-		pstate->ramp = ahead->grid * -1;
-		xlog("SOLAR look ahead down ramp grid=%d avg=%d ahead=%d ramp=%d", pstate->grid, avgss->grid, ahead->grid, pstate->ramp);
-		return;
+	// look ahead down ramp if surplus goes below limit
+	if (ahead->surp < limits->load) {
+		pstate->ramp = ahead->surp - limits->load;
+		if (pstate->ramp < params->minimum * -1) {
+			xlog("SOLAR look ahead down ramp limit=%d ahead=%d grid=%d ramp=%d", limits->load, ahead->surp, pstate->grid, pstate->ramp);
+			return;
+		}
 	}
 
 	// no ramp while akku is balancing
 	if (PSTATE_BALANCE)
 		return;
 
-	// akku is active - regulate around 0
-	if (pstate->akku) {
-		if (avgss->grid > RAMP * 2)
-			pstate->ramp = -RAMP;
-		if (avgss->grid < RAMP * -2)
-			pstate->ramp = RAMP;
-	}
-
-	// akku is passive - keep a little bit grid upload
-	if (!pstate->akku) {
-		if (avgss->grid > RAMP * -2)
-			pstate->ramp = -RAMP;
-		if (avgss->grid < RAMP * -4)
-			pstate->ramp = RAMP;
-	}
-
-	// coarse absolute up if we have grid upload
-	if (PSTATE_GRID_ULOAD) {
-		pstate->ramp = (avgss->grid + params->minimum) * -1;
-		// not more than actual grid upload
-		HICUT(pstate->ramp, pstate->grid * -1)
-		LOCUT(pstate->ramp, 0)
-
-		// TODO
-		// steal vom akku würde drüber gehen -> globales load limit setzen welches ramp() und steal() nicht überschreiten dürfen
-
-		// limit to 1 minute minimum surplus
-		int limit1 = minm->surp > avgss->load ? round10(minm->surp - avgss->load) : 0;
-		if (pstate->ramp > limit1) {
-			xlog("SOLAR ramp up %d  min1 limit %d surp=%d load=%d", pstate->ramp, limit1, minm->surp, avgss->load);
-			HICUT(pstate->ramp, limit1)
-		}
-
-		// limit to 10 minutes minimum surplus
-		int limit10 = minmm->surp > avgss->load ? round10(minmm->surp - avgss->load) : 0;
-		if (pstate->ramp > limit10 && deltass->pv > 100000) {
-			xlog("SOLAR ramp up %d min10 limit %d surp=%d load=%d", pstate->ramp, limit10, minmm->surp, avgss->load);
-			HICUT(pstate->ramp, limit10)
-		}
-	}
-
-	// shape
+	// ramp is load to limit delta
+	pstate->ramp = limits->load - pstate->load;
 	ZSHAPE(pstate->ramp, RAMP)
+
+	// single step below +/- minimum
+	if (params->minimum * -1 < pstate->ramp && pstate->ramp < 0)
+		pstate->ramp = -RAMP;
+	if (0 < pstate->ramp && pstate->ramp < params->minimum)
+		pstate->ramp = RAMP;
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
 		int low = avgss->rsl < 110; // rsl too low
 		int less = avgss->grid > RAMP * -2; // too less grid upload
-		int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
+		// int over = dstate->cload > avgmm->pv && !GSTATE_GRID_ULOAD; // calculated load above average pv
 		int above = pstate->grid > avgss->grid; // actual grid above average
 		int gdload = pstate->grid > 0; // actual grid download
 		int gufall = pstate->grid < 0 && PSTATE_GRISE; // grid upload tendency falling
-		if (PSTATE_PVFALL || gufall || gdload || above || over || less || low) {
+		if (PSTATE_PVFALL || gufall || gdload || above || less || low) {
 			strcpy(line, "SOLAR suppress up");
 			sprintf(value, " ramp=%d", pstate->ramp);
 			strcat(line, value);
@@ -744,7 +738,6 @@ static void calculate_pstate_ramp() {
 			strcat(line, gufall ? " gufall" : "");
 			strcat(line, gdload ? " gdload" : "");
 			strcat(line, above ? " above" : "");
-			strcat(line, over ? " over" : "");
 			strcat(line, less ? " less" : "");
 			strcat(line, low ? " low" : "");
 			xlog(line);
@@ -779,6 +772,30 @@ static void calculate_pstate_ramp() {
 }
 
 static void calculate_pstate_online() {
+	// clear flags
+	pstate->flags = 0;
+
+	// ratio surplus / load - calculate only when load is positive
+	if (pstate->load > 0) {
+		pstate->rsl = pstate->surp * 100 / pstate->load;
+		HICUT(pstate->rsl, 1000)
+	}
+
+	// calculate ahead and slope
+	iahead(ahead, pstate, avgss, PSTATE_SIZE);
+	islope(slope, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);
+
+	//	if (access(RUN SLASH PSTAT_CSV, F_OK)) {
+	//		store_csv_header(PSTATE_HEADER, RUN SLASH PSTAT_CSV);
+	//		store_csv_header(PSTATE_HEADER, RUN SLASH AHEAD_CSV);
+	//		store_csv_header(PSTATE_HEADER, RUN SLASH SLOPE_CSV);
+	//		offset = 0;
+	//	}
+	//	append_line_csv(pstate, PSTATE_SIZE, offset, RUN SLASH PSTAT_CSV);
+	//	append_line_csv(ahead, PSTATE_SIZE, offset, RUN SLASH AHEAD_CSV);
+	//	append_line_csv(slope, PSTATE_SIZE, offset, RUN SLASH SLOPE_CSV);
+	//	offset++;
+
 	// akku discharge / grid download / grid upload - always check average against actual
 	if (pstate->akku > params->minimum || (avgss->akku > RAMP * 2 && pstate->akku > 0))
 		pstate->flags |= FLAG_AKKU_DCHARGE;
@@ -879,9 +896,6 @@ static void calculate_pstate_online() {
 }
 
 static void calculate_pstate() {
-	// clear flags and values
-	pstate->flags = pstate->ramp = 0;
-
 	// update self counter
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;
@@ -917,37 +931,18 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->load, NOISE5)
 	ZSHAPE(pstate->akku, NOISE20)
 
-	// ratio surplus / load - calculate only when load is positive
-	if (pstate->load > 0) {
-		pstate->rsl = pstate->surp * 100 / pstate->load;
-		HICUT(pstate->rsl, 1000)
-	} else
-		xlog("SOLAR skip rsl calculation load=%d rsl=%d", pstate->load, pstate->rsl);
-
 	// calculate delta, update delta sum, delta count in one loop, shape in percent
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
 	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
-
-	// calculate ahead and slope
-	iahead(ahead, pstate, avgss, PSTATE_SIZE);
-	islope(slope, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);
-
-//	if (access(RUN SLASH PSTAT_CSV, F_OK)) {
-//		store_csv_header(PSTATE_HEADER, RUN SLASH PSTAT_CSV);
-//		store_csv_header(PSTATE_HEADER, RUN SLASH AHEAD_CSV);
-//		store_csv_header(PSTATE_HEADER, RUN SLASH SLOPE_CSV);
-//		offset = 0;
-//	}
-//	append_line_csv(pstate, PSTATE_SIZE, offset, RUN SLASH PSTAT_CSV);
-//	append_line_csv(ahead, PSTATE_SIZE, offset, RUN SLASH AHEAD_CSV);
-//	append_line_csv(slope, PSTATE_SIZE, offset, RUN SLASH SLOPE_CSV);
-//	offset++;
 
 	// calculate online state and ramp power
 	if (!GSTATE_OFFLINE) {
 		calculate_pstate_online();
 		calculate_pstate_ramp();
-	}
+		calculate_limits();
+	} else
+		// clear online values
+		pstate->flags = pstate->rsl = pstate->ramp = limits->load = limits->steal = 0;
 
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
@@ -1106,9 +1101,7 @@ static void loop() {
 		sem_post(&sq->collector);
 
 		// web output - outside critical path
-		create_pstate_json();
-		create_gstate_json();
-		create_powerflow_json();
+		create_json();
 
 #ifdef GNUPLOT_MINLY
 		if (MINLY)

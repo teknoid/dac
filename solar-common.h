@@ -38,6 +38,7 @@
 #define FLAG_WINTER				(1 << 2)
 #define FLAG_SUMMER				(1 << 1)
 #define FLAG_OFFLINE			(1 << 0)
+// TODO FLAG_ONLINE -> alles invertieren
 
 #define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
 #define GSTATE_BURNOUT			(gstate->flags & FLAG_BURNOUT)
@@ -126,6 +127,18 @@ struct _params {
 	int baseload;
 	int heating;
 	int minimum;
+};
+
+// limits
+typedef struct _limits limits_t;
+#define LIMITS_SIZE		(sizeof(limits_t) / sizeof(int))
+#define LIMITS_HEADER	"  load steal  chrg dchrg   soc"
+struct _limits {
+	int load;
+	int steal;
+	int charge;
+	int discharge;
+	int soc;
 };
 
 // device definitions
@@ -263,11 +276,12 @@ struct _stats {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags   inv  lock  ramp steal cload rload"
+#define DSTATE_HEADER	" flags   inv  lock limit  ramp steal cload rload"
 struct _dstate {
 	int flags;
 	int inv;
 	int lock;
+	int limit;
 	int ramp;
 	int steal;
 	int cload;
@@ -291,6 +305,7 @@ extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;
 extern params_t *params;
+extern limits_t *limits;
 
 // global thread synchronization with semaphores
 extern sequential_t *sq;
