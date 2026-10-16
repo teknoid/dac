@@ -84,7 +84,8 @@
 
 // dstate action flags
 #define ACTION_FLAGS_MASK		0x00FF
-#define FLAG_ACTION_STEAL		(1 << 3)
+#define FLAG_ACTION_STEAL_A		(1 << 4)
+#define FLAG_ACTION_STEAL_D		(1 << 3)
 #define FLAG_ACTION_STANDBY		(1 << 2)
 #define FLAG_ACTION_RAMP		(1 << 1)
 #define FLAG_ACTION				(1 << 0)
@@ -92,7 +93,8 @@
 #define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)
 #define DSTATE_ACTION_STANDBY	(dstate->flags & FLAG_ACTION_STANDBY)
-#define DSTATE_ACTION_STEAL		(dstate->flags & FLAG_ACTION_STEAL)
+#define DSTATE_ACTION_STEAL_A	(dstate->flags & FLAG_ACTION_STEAL_A)
+#define DSTATE_ACTION_STEAL_D	(dstate->flags & FLAG_ACTION_STEAL_D)
 #define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
 #define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)
@@ -127,18 +129,6 @@ struct _params {
 	int baseload;
 	int heating;
 	int minimum;
-};
-
-// limits
-typedef struct _limits limits_t;
-#define LIMITS_SIZE		(sizeof(limits_t) / sizeof(int))
-#define LIMITS_HEADER	"  load steal  chrg dchrg   soc"
-struct _limits {
-	int load;
-	int steal;
-	int charge;
-	int discharge;
-	int soc;
 };
 
 // device definitions
@@ -226,7 +216,7 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   m1p   m2p   m3p   m4p   m1v   m2v   m3v   m4v   l1p   l2p   l3p   l1v   l2v   l3v     f  surp  load   rsl  ramp flags"
+#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   m1p   m2p   m3p   m4p   m1v   m2v   m3v   m4v   l1p   l2p   l3p   l1v   l2v   l3v     f  surp  load   rsl   tgt steal  ramp flags"
 struct _pstate {
 	int pv;
 	int grid;
@@ -253,6 +243,8 @@ struct _pstate {
 	int surp;
 	int load;
 	int rsl;
+	int target;
+	int steal;
 	int ramp;
 	int flags;
 };
@@ -276,13 +268,14 @@ struct _stats {
 // dstate
 typedef struct _dstate dstate_t;
 #define DSTATE_SIZE		(sizeof(dstate_t) / sizeof(int))
-#define DSTATE_HEADER	" flags   inv  lock limit  ramp steal cload rload"
+#define DSTATE_HEADER	" flags   inv  lock   rin  ramp  rout steal cload rload"
 struct _dstate {
 	int flags;
 	int inv;
 	int lock;
-	int limit;
+	int ramp_in;
 	int ramp;
+	int ramp_out;
 	int steal;
 	int cload;
 	int rload;
@@ -305,7 +298,6 @@ extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;
 extern params_t *params;
-extern limits_t *limits;
 
 // global thread synchronization with semaphores
 extern sequential_t *sq;

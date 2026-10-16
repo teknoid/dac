@@ -100,23 +100,23 @@ dl dd.d						{ cursor:default }
 .pv-p						{ background-color:#FAD967 }
 .grid-p						{ background-color:orangered }
 .grid-m						{ background-color:palegreen }
-.akku-p						{ background-color:#FEAD00 }
-.akku-m						{ background-color:palegreen }
-.load-p, .load-m			{ background-color:skyblue }
-.cload-p, .cload-m			{ background-color:skyblue }
-.rload-p, .rload-m			{ background-color:skyblue }
+.akku-p, .steal-m			{ background-color:#FEAD00 }
+.akku-m		 				{ background-color:palegreen }
 .m1p-p						{ background-color:#FAD967 }
 .m2p-p						{ background-color:#FAD967 }
 .m3p-p						{ background-color:#FAD967 }
 .m4p-p						{ background-color:#FAD967 }
-.surp-p						{ background-color:turquoise }
-.ramp-p						{ background-color:aquamarine }
-.ramp-m						{ background-color:lightsalmon }
+.load-p						{ background-color:skyblue }
+.cload-p, .rload-p			{ background-color:skyblue }
+.cload-m, .rload-m			{ background-color:skyblue }
+.surp-p, .tgt-p				{ background-color:turquoise }
+.ramp_in-p, .ramp_out-p		{ background-color:aquamarine }
+.ramp_in-m, .ramp_out-m		{ background-color:lightsalmon }
 .steal-p					{ background-color:cyan }
 
 .pv-p						{ background-color:#FAD967 }
 .dgrid-p					{ background-color:lightsalmon }
-.ugrid-p					{ background-color:palegreen }
+.ugrid-p					{ background-color:plum }
 .today-p					{ background-color:lightgrey }
 .tomo-p						{ background-color:lightgrey }
 .eod-p						{ background-color:lightgrey }

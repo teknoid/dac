@@ -797,26 +797,20 @@ int devinput_find_key(const char *name) {
 }
 
 int round10(int n) {
-	if (n < 10)
-		return n;
-
 	int x = n / 10;
 	int y = n % 10;
 
-	if (y < 5)
+	if (-5 < y && y < 5)
 		return x * 10;
 	else
 		return (x + 1) * 10;
 }
 
 int round100(int n) {
-	if (n < 100)
-		return n;
-
 	int x = n / 100;
 	int y = n % 100;
 
-	if (y < 5)
+	if (-50 < y && y < 50)
 		return x * 100;
 	else
 		return (x + 1) * 100;

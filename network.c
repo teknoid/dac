@@ -476,6 +476,7 @@ void mac2name_grep(char *buf, uint64_t mac, size_t size) {
 
 	strncpy(buf, t, size - 1);
 }
+
 void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 	char smac[16], cmd[128], line[1024];
 
@@ -515,4 +516,3 @@ void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 	strncpy(ou, s, l - 1);
 	*(ou + l) = 0;
 }
-
