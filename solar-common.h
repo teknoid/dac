@@ -75,6 +75,7 @@
 #define PSTATE_PVFALL			(pstate->flags & FLAG_PVFALL)
 #define PSTATE_PVRISE			(pstate->flags & FLAG_PVRISE)
 #define PSTATE_STABLE			(pstate->flags & FLAG_STABLE)
+#define PSTATE_EXTRA			(pstate->ac2 > pstate->load + RAMP)
 
 // dstate state flags
 #define STATE_FLAGS_MASK		0xFF00

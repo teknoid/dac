@@ -15,6 +15,8 @@
 #include "mqtt.h"
 #include "mcp.h"
 
+#define SUSPICIOUS_METER		50
+
 #define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
 #define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
 #define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
@@ -268,7 +270,6 @@ static void update_meter(sunspec_t *ss) {
 	if (!ss->meter)
 		return;
 
-	pstate->grid = SFI(ss->meter->W, ss->meter->W_SF);
 	pstate->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
 	pstate->l2p = SFI(ss->meter->WphB, ss->meter->W_SF);
 	pstate->l3p = SFI(ss->meter->WphC, ss->meter->W_SF);
@@ -286,10 +287,14 @@ static void update_meter(sunspec_t *ss) {
 	if (CM_NULL->consumed == 0)
 		CM_NULL->consumed = CM_NOW->consumed;
 
-	// TODO validate
-	// don't use meter grid, calculate self
-	// int gmeter = pstate->grid;
+	// validate meter and self calculated
+	int gmeter = SFI(ss->meter->W, ss->meter->W_SF);
 	int gcalc = pstate->l1p + pstate->l2p + pstate->l3p;
+	int diff = gmeter - gcalc;
+	if (diff < -SUSPICIOUS_METER || diff > SUSPICIOUS_METER)
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, diff);
+
+	// don't use meter grid, use self calculated
 	pstate->grid = gcalc;
 
 	// MICROSECONDS("     meter")

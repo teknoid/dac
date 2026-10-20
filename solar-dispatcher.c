@@ -332,7 +332,7 @@ static void ramp_akku(device_t *akku) {
 		// akku is charging
 		if (AKKU_CHARGING) {
 			// akku already consumes all available pv
-			if (!pstate->ac1)
+			if (pstate->ac1 <= 0)
 				return;
 			// all mppt1+mppt2 up to maximum
 			int max = pstate->mppt1p + pstate->mppt2p;
@@ -697,7 +697,7 @@ static device_t* standby() {
 	return 0;
 }
 
-static void steal_device() {
+static void steal() {
 	// calculate steal power for each device
 	for (device_t **dd = DEVICES; *dd; dd++) {
 
@@ -705,9 +705,9 @@ static void steal_device() {
 		if (DD == AKKU)
 			continue;
 
-		// only when in AUTO mode and RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
+		// only when in AUTO mode and RESPONSE flag set
 		DD->steal = 0;
-		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
+		if (DD->state == Auto && DEV_RESPONSE(DD)) {
 			if (DD->min) {
 				if (DD->min > DD->total)
 					DD->steal = DD->load; // dumb devices - all
@@ -732,10 +732,6 @@ static void steal_device() {
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// separate logic in steal_akku()
-		if (t == AKKU)
-			continue;
-
 		// only thief in AUTO mode can steal
 		if (t->state != Auto)
 			continue;
@@ -749,30 +745,30 @@ static void steal_device() {
 			continue;
 
 		// collect steal power from victims
-		int steal = 0;
+		int loot = 0;
 		for (device_t **vv = tt + 1; *vv; vv++)
-			steal += (*vv)->steal;
+			loot += (*vv)->steal;
 
 		// nothing to steal
-		if (!steal)
+		if (!loot)
 			continue;
 
 		// positive ramp power can additionally be used
-		steal += pstate->ramp > 0 ? pstate->ramp : 0;
+		loot += pstate->ramp > 0 ? pstate->ramp : 0;
 
 		// calculate needed power to ramp up thief
 		int need = 0;
 		if (t == AKKU) {
-			// akku can steal AC output of inverter 1 if not yet satisfied
+			// akku can steal AC (positive output) of inverter 1 if not yet satisfied
 			need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
 			HICUT(need, pstate->ac1)
 			LOCUT(need, 0)
 		} else
-			// adjustable devices: up to steal, dumb devices: total
-			need = t->adj && steal < t->total ? steal : t->min ? t->min : t->total;
+			// adjustable devices: all we can get up to total, dumb devices: total
+			need = t->adj && loot < t->total ? loot : t->min ? t->min : t->total;
 
 		// not enough to ramp up thief
-		if (need > steal)
+		if (need > loot)
 			continue;
 
 		// jump to last entry
@@ -781,18 +777,18 @@ static void steal_device() {
 			vv++;
 
 		// ramp down victims in inverse order till we have enough to ramp up thief
-		steal = pstate->ramp > 0 ? pstate->ramp : 0;
-		xlog("SOLAR %s   use ∑%4d <-- %3d ramp need=%d", t->name, steal, pstate->ramp, need);
-		while (--vv != tt && steal < need) {
+		loot = pstate->ramp > 0 ? pstate->ramp : 0;
+		xlog("SOLAR %s   use ∑%4d <-- %4d ramp need=%d", t->name, loot, pstate->ramp, need);
+		while (--vv != tt && loot < need) {
 			device_t *v = *vv; // victim
 			v->ramp_in = v->steal * -1;
 			ramp_device(v);
-			steal += v->ramp_out * -1;
-			xlog("SOLAR %s steal ∑%4d <-- %4d <-- %4d from %s need=%d", t->name, steal, v->ramp_out, v->ramp_in, v->name, need);
+			loot += v->ramp_out * -1;
+			xlog("SOLAR %s steal ∑%4d <-- %4d <-- %4d from %s need=%d", t->name, loot, v->ramp_out, v->ramp_in, v->name, need);
 		}
 
 		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
-		t->ramp_in = steal;
+		t->ramp_in = loot;
 		ramp_device(t);
 
 		// wait even if no response expected when transferring power from one to another device
@@ -873,6 +869,12 @@ static void calculate_actions() {
 	if (dstate->lock || PSTATE_INVALID || PSTATE_BALANCE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
 		return;
 
+	// ramp down
+	if (pstate->ramp < 0 && !DSTATE_ALL_DOWN) {
+		dstate->flags |= FLAG_ACTION_RAMP;
+		return;
+	}
+
 	// permanent overload - force standby check without any restrictions
 	int overload_force = dstate->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST10->rload > OVERLOAD_STANDBY_FORCE && DSTATE_LAST20->rload > OVERLOAD_STANDBY_FORCE;
 	if (overload_force && !DSTATE_ALL_DOWN) {
@@ -889,15 +891,9 @@ static void calculate_actions() {
 		return;
 	}
 
-	// ramp down
-	if (pstate->ramp < 0 && !DSTATE_ALL_DOWN) {
-		dstate->flags |= FLAG_ACTION_RAMP;
-		return;
-	}
-
-	// steal logic twice per minute
+	// steal logic twice per minute (only if no OVERLOAD - we cannot be sure if the power is really consumed)
 	if (now->tm_sec == 15 || now->tm_sec == 45)
-		if (!GSTATE_PVFALL && !DSTATE_ALL_UP) {
+		if (!GSTATE_PVFALL && !DSTATE_ALL_UP && dstate->rload < OVERLOAD_STEAL) {
 			dstate->flags |= FLAG_ACTION_STEAL;
 			return;
 		}
@@ -925,6 +921,10 @@ static void calculate_dstate() {
 		dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 		for (device_t **dd = DEVICES; *dd; dd++) {
 
+			//  not for akku
+			if (DD == AKKU)
+				continue;
+
 			// decrement response counter and check when reached 0
 			if (DD->response)
 				if (--DD->response == 0)
@@ -936,7 +936,7 @@ static void calculate_dstate() {
 				continue;
 
 			// calculated load (suppress minimum when in STANDBY)
-			if (DD != AKKU && DD->state != Standby)
+			if (DD->state != Standby)
 				dstate->cload += DD->load;
 
 			// flags for all devices up/down/standby
@@ -970,9 +970,6 @@ static void daily() {
 	// dump phase response counter
 	for (device_t **dd = DEVICES; *dd; dd++)
 		xlog("SOLAR phase response counter l1=%02d l2=%02d l3=%02d %s", DD->l1rc, DD->l2rc, DD->l3rc, DD->name);
-
-	// set potd back to auto
-	potd_manual = 0;
 }
 
 static void hourly() {
@@ -985,6 +982,9 @@ static void hourly() {
 		// clear flags
 		DD->flags = 0;
 	}
+
+	// set potd back to auto
+	potd_manual = 0;
 }
 
 static void minly() {
@@ -1001,6 +1001,7 @@ static void minly() {
 	choose_program();
 
 	// enable discharge if we have grid download
+	// TODO (!) wird bei offline nicht gesetzt weil pstate->flags leer sind - problematisch?
 	if (GSTATE_GRID_DLOAD && !AKKU_DISCHARGING && gstate->soc > 100)
 		akku_discharge(AKKU);
 
@@ -1163,7 +1164,7 @@ static void loop() {
 			standby();
 
 		if (DSTATE_ACTION_STEAL)
-			steal_device();
+			steal();
 
 		// cron jobs
 		if (MINLY)

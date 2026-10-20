@@ -16,25 +16,25 @@ set terminal svg size 1920,400
 set datafile separator whitespace
 set key autotitle columnhead
 
-set style line 1 linecolor rgb "#FAD967" lw 1			# PV
-set style line 2 linecolor rgb "#FEAD00" lw 1			# Akku discharge
-set style line 3 linecolor rgb "#93CF82" lw 1			# Akku charge
-set style line 4 linecolor "orange-red" lw 1			# Grid download / SoC
-set style line 5 linecolor "orchid" lw 1				# Grid upload
-set style line 6 linecolor "navy" lw 1					# Load
-set style line 9 linecolor "coral" lw 12		        # Rad1h over SunD1
+set style line 1 linecolor rgb "#FAD967"	lw 1		# PV
+set style line 2 linecolor rgb "#FEAD00"	lw 1		# Akku discharge
+set style line 3 linecolor rgb "#93CF82"	lw 1		# Akku charge
+set style line 4 linecolor "orange-red"		lw 1		# Grid download / SoC
+set style line 5 linecolor "orchid"			lw 1		# Grid upload
+set style line 6 linecolor "navy"			lw 1		# Load
+set style line 9 linecolor "coral"			lw 12		# Rad1h over SunD1
 
-set style line 11 linecolor rgb "#ae5a41" lw 1			# MPPT1
-set style line 12 linecolor rgb "#1b85b8" lw 1			# MPPT2
-set style line 13 linecolor rgb "#c3cb71" lw 1			# MPPT3
+set style line 11 linecolor rgb "#ae5a41"	lw 1		# MPPT1
+set style line 12 linecolor rgb "#1b85b8"	lw 1		# MPPT2
+set style line 13 linecolor rgb "#c3cb71"	lw 1		# MPPT3
 
-set style line 21 linecolor rgb "#ae5a41" lw 1 dt 3		# MPPT1 dots
-set style line 22 linecolor rgb "#1b85b8" lw 1 dt 3		# MPPT2 dots
-set style line 23 linecolor rgb "#c3cb71" lw 1 dt 3		# MPPT3 dots
+set style line 21 linecolor rgb "#ae5a41"	lw 1 dt 3	# MPPT1 dots
+set style line 22 linecolor rgb "#1b85b8"	lw 1 dt 3	# MPPT2 dots
+set style line 23 linecolor rgb "#c3cb71"	lw 1 dt 3	# MPPT3 dots
 
-set style line 31 linecolor rgb "#ae5a41" lw 1 dt 2		# MPPT1 dashes
-set style line 32 linecolor rgb "#1b85b8" lw 1 dt 2		# MPPT2 dashes
-set style line 33 linecolor rgb "#c3cb71" lw 1 dt 2		# MPPT3 dashes
+set style line 31 linecolor rgb "#ae5a41"	lw 1 dt 2	# MPPT1 dashes
+set style line 32 linecolor rgb "#1b85b8"	lw 1 dt 2	# MPPT2 dashes
+set style line 33 linecolor rgb "#c3cb71"	lw 1 dt 2	# MPPT3 dashes
 
 
 set style fill solid 1.0
@@ -123,9 +123,9 @@ set xrange [0:1440]
 set xtics time 60 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate.svg"
-p pstate u 1:(0):"akku" t "akku-d" w filledc below ls 2,\
+p pstate u 1:(0):"pv"   t "pv"     w filledc below ls 1,\
+      '' u 1:(0):"akku" t "akku-d" w filledc below ls 2,\
       '' u 1:(0):"akku" t "akku-c" w filledc above ls 3,\
-      '' u 1:(0):"pv"   t "pv"     w filledc below ls 1,\
       '' u 1:(0):"grid" t "grid-d" w filledc below ls 4,\
       '' u 1:(0):"grid" t "grid-u" w filledc above ls 5,\
       '' u 1:"load"     t "load"   w lines ls 6
