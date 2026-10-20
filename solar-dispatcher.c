@@ -697,57 +697,6 @@ static device_t* standby() {
 	return 0;
 }
 
-static void steal_akku() {
-	// device steal from akku - push up target to release charging power
-	// TODO target kann nicht einfach angehoben werden weil sofort look ahead down ramp erfolgt
-	// target kann nur durch mehr surplus (AC1) angehoben werden indem aktiv die load erhöht wird und der akku charge power frei gibt
-//	for (device_t **tt = potd->devices; *tt; tt++) {
-//		device_t *t = *tt; // thief
-//
-//		// thief before akku can steal
-//		if (t == AKKU)
-//			break;
-//
-//		// thief already (full) on
-//		if (t->power == (t->adj ? 100 : 1))
-//			continue;
-//
-//		// not enough to ramp up thief
-//		int need = t->adj && AKKU->steal < t->total ? AKKU->steal : t->min ? t->min : t->total;
-//		if (need > AKKU->steal)
-//			continue;
-//
-//		xlog("SOLAR %s steal %d from AKKU", t->name, need);
-//		pstate->target += need;
-//		pstate->steal -= need;
-//		return;
-//	}
-
-	// akku can steal AC output of inverter 1 if not yet satisfied
-	int need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
-	HICUT(need, pstate->ac1)
-	if (need < params->minimum)
-		return;
-
-	// akku steal from device - push down target to get more charging power
-	int steal = 0;
-	for (device_t **vv = potd->devices; *vv; vv++) {
-		device_t *v = *vv; // victim
-
-		// steal from victim behind akku
-		if (v == AKKU) {
-			steal = 1;
-			continue;
-		}
-
-		if (steal && v->load) {
-			xlog("SOLAR AKKU steal %d from %s need=%d", v->load, v->name, need);
-			pstate->target -= v->load;
-			return;
-		}
-	}
-}
-
 static void steal_device() {
 	// calculate steal power for each device
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -811,8 +760,18 @@ static void steal_device() {
 		// positive ramp power can additionally be used
 		steal += pstate->ramp > 0 ? pstate->ramp : 0;
 
+		// calculate needed power to ramp up thief
+		int need = 0;
+		if (t == AKKU) {
+			// akku can steal AC output of inverter 1 if not yet satisfied
+			need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
+			HICUT(need, pstate->ac1)
+			LOCUT(need, 0)
+		} else
+			// adjustable devices: up to steal, dumb devices: total
+			need = t->adj && steal < t->total ? steal : t->min ? t->min : t->total;
+
 		// not enough to ramp up thief
-		int need = t->adj && steal < t->total ? steal : t->min ? t->min : t->total;
 		if (need > steal)
 			continue;
 
@@ -830,8 +789,6 @@ static void steal_device() {
 			ramp_device(v);
 			steal += v->ramp_out * -1;
 			xlog("SOLAR %s steal ∑%4d <-- %4d <-- %4d from %s need=%d", t->name, steal, v->ramp_out, v->ramp_in, v->name, need);
-			if (v->ramp_out)
-				msleep(111);
 		}
 
 		// ramp up thief - no multi-ramp as boiler gets diff between total and min back!
@@ -938,17 +895,10 @@ static void calculate_actions() {
 		return;
 	}
 
-	// akku steal logic once per minute
-	if (now->tm_sec == 30)
-		if (!GSTATE_PVFALL && !DSTATE_ALL_UP && AKKU_CHARGING) {
-			dstate->flags |= FLAG_ACTION_STEAL_A;
-			return;
-		}
-
-	// device steal logic twice per minute
+	// steal logic twice per minute
 	if (now->tm_sec == 15 || now->tm_sec == 45)
 		if (!GSTATE_PVFALL && !DSTATE_ALL_UP) {
-			dstate->flags |= FLAG_ACTION_STEAL_D;
+			dstate->flags |= FLAG_ACTION_STEAL;
 			return;
 		}
 
@@ -1212,10 +1162,7 @@ static void loop() {
 		if (DSTATE_ACTION_STANDBY)
 			standby();
 
-		if (DSTATE_ACTION_STEAL_A)
-			steal_akku();
-
-		if (DSTATE_ACTION_STEAL_D)
+		if (DSTATE_ACTION_STEAL)
 			steal_device();
 
 		// cron jobs

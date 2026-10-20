@@ -84,8 +84,7 @@
 
 // dstate action flags
 #define ACTION_FLAGS_MASK		0x00FF
-#define FLAG_ACTION_STEAL_A		(1 << 4)
-#define FLAG_ACTION_STEAL_D		(1 << 3)
+#define FLAG_ACTION_STEAL		(1 << 3)
 #define FLAG_ACTION_STANDBY		(1 << 2)
 #define FLAG_ACTION_RAMP		(1 << 1)
 #define FLAG_ACTION				(1 << 0)
@@ -93,8 +92,7 @@
 #define DSTATE_ACTION			(dstate->flags & FLAG_ACTION)
 #define DSTATE_ACTION_RAMP		(dstate->flags & FLAG_ACTION_RAMP)
 #define DSTATE_ACTION_STANDBY	(dstate->flags & FLAG_ACTION_STANDBY)
-#define DSTATE_ACTION_STEAL_A	(dstate->flags & FLAG_ACTION_STEAL_A)
-#define DSTATE_ACTION_STEAL_D	(dstate->flags & FLAG_ACTION_STEAL_D)
+#define DSTATE_ACTION_STEAL		(dstate->flags & FLAG_ACTION_STEAL)
 #define DSTATE_ALL_DOWN			(dstate->flags & FLAG_ALL_DOWN)
 #define DSTATE_ALL_STANDBY		(dstate->flags & FLAG_ALL_STANDBY)
 #define DSTATE_ALL_UP			(dstate->flags & FLAG_ALL_UP)

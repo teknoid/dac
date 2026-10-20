@@ -349,8 +349,9 @@ static void print_pstate() {
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (!GSTATE_OFFLINE) {
-		xlogl_int(line, "PV10", pstate->mppt1p + pstate->mppt2p);
-		xlogl_int(line, "PV7", pstate->mppt3p + pstate->mppt4p);
+		xlogl_int(line, "PV", pstate->pv);
+		xlogl_int(line, "AC1", pstate->ac1);
+		xlogl_int(line, "AC2", pstate->ac2);
 		xlogl_int(line, "Surp", pstate->surp);
 		xlogl_int(line, "RSL", pstate->rsl);
 		xlogl_int(line, "Target", pstate->target);
