@@ -146,8 +146,7 @@ static void update_inverter1(sunspec_t *ss) {
 		break;
 
 	case I_STATUS_STARTING:
-		// TODO prüfen ob Werte stimmen
-		// pstate->ac1 = pstate->dc1 = pstate->mppt1 = pstate->mppt2 = pstate->akku = 0;
+		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
 		break;
 
 	case I_STATUS_MPPT:
@@ -512,9 +511,7 @@ static int grid() {
 }
 
 // set charge(-) / discharge(+) limits or reset when 0
-static int battery(char *arg) {
-	// TODO MQTT
-
+static int storage_limit(char *arg) {
 	sunspec_t *ss = sunspec_init("fronius10", 1);
 	sunspec_read(ss);
 
@@ -676,7 +673,7 @@ int solar_main(int argc, char **argv) {
 			return latency();
 		case 'b':
 			// -X: limit charge, +X: limit discharge, 0: no limits
-			return battery(optarg);
+			return storage_limit(optarg);
 		case 'c':
 			// ./solar -c boiler1
 			return calibrate(optarg);

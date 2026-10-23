@@ -425,7 +425,7 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 
 void mosmix_marble(struct tm *now, const int baseload, const int heating, mosmix_marble_t *marbles) {
 	char line[LINEBUF * 2], value[48];
-	power_t power[48];
+	power_t power[48]; // 24 hours today and tomorrow
 
 	ZEROP(marbles);
 
