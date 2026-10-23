@@ -60,27 +60,27 @@ function getGradientColor(p) {
 	if (p <= 0)
 		color = "LightGray";
 	else if (p > 100) 
-		color = "MediumSpringGreen";
+		color = "SpringGreen";
 	else if (p > 90)
-		color = "LawnGreen";
+		color = "MediumSpringGreen";
 	else if (p > 80)
-		color = "GreenYellow";
+		color = "LawnGreen";
 	else if (p > 70)
-		color = "Gold";
+		color = "GreenYellow";
 	else if (p > 60)
-		color = "Orange";
+		color = "Khaki";
 	else if (p > 50)
-		color = "DarkOrange";
+		color = "Gold";
 	else if (p > 40)
-		color = "LightSalmon";
+		color = "Orange";
 	else if (p > 30)
-		color = "Coral";
+		color = "DarkOrange";
 	else if (p > 20)
-		color = "Tomato";
+		color = "Coral";
 	else if (p > 10)
+		color = "Tomato";
+	else
 		color = "OrangeRed";
-	else 
-		color = "Red";
 	
 	return color;
 }
