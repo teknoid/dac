@@ -118,6 +118,9 @@
 
 static struct tm now_tm, *now = &now_tm;
 
+// mosmix marbles
+static mosmix_marble_t mosmix_marbles, *marbles = &mosmix_marbles;
+
 // local params/counter/gstate/pstate/statistics memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
@@ -144,8 +147,6 @@ counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
-
-// TODO solar_t single BIN file
 
 //int offset = 0;
 
@@ -177,11 +178,9 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_FILE, pstates, sizeof(pstates));
 }
 
-// TODO alles in ein json file als separate pstate/gstate/avgss objekte
 static void create_json() {
 	store_array_json(pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
 	store_array_json(gstate, GSTATE_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_JSON);
-	store_array_json(avgss, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_AVG_JSON);
 
 // feed Fronius powerflow web application
 	FILE *fp = fopen(RUN SLASH POWERFLOW_JSON, "wt");
@@ -327,15 +326,6 @@ static void print_gstate() {
 	snprintf(value, 10, GSTATE_3M_STABLE ? " -" : GSTATE_3M_UNSTABLE ? " ~" : "  ");
 	strcat(line, value);
 	xlogl_end(line, strlen(line), 0);
-
-	// TODO debugging; remark: last LOAD5/PV5 points to LOAD1/PV1 avg-5 seconds!
-//#define GT " now=%3d min=%3d avg=%3d max=%3d spread=%3d last=%3d slope=%3d var=%3d deltac=%3d deltas=%3d"
-//	if (!GSTATE_OFFLINE) {
-//		xlog("GSTATE PV1" GT, pstate->pv, minm->pv, PSTATE_MIN_NOW->pv, maxm->pv, spreadm->pv, PSTATE_MIN_LAST1->pv, slom->pv, varm->pv, deltac->pv, deltas->pv);
-//		xlog("GSTATE PV5" GT, pstate->pv, minmm->pv, avgmm->pv, maxmm->pv, spreadmm->pv, PSTATE_MIN_LAST5->pv, slomm->pv, varmm->pv, deltac->pv, deltas->pv);
-//	}
-//	xlog("GSTATE LOAD1" GT, pstate->load, minm->load, PSTATE_MIN_NOW->load, maxm->load, spreadm->load, PSTATE_MIN_LAST1->load, slom->load, varm->load, deltac->load, deltas->load);
-//	xlog("GSTATE LOAD5" GT, pstate->load, minmm->load, avgmm->load, maxmm->load, spreadmm->load, PSTATE_MIN_LAST5->load, slomm->load, varmm->load, deltac->load, deltas->load);
 }
 
 static void print_pstate() {
@@ -614,22 +604,15 @@ static void calculate_gstate() {
 	gstate->ttl = al && gstate->soc > msoc ? gstate->available * 60 / al : 0; // in minutes, hi-cutted to 3 days
 	HICUT(gstate->ttl, 60 * 24 * 3)
 
-// TODO zusammenfassen und alles in mosmix.c berechnen
-
-	// collect mosmix forecasts
-	mosmix_collect(now, &gstate->tomorrow, &gstate->today, &gstate->sod, &gstate->eod);
+	// success factor
 	gstate->success = gstate->sod > params->minimum ? gstate->pv * 1000 / gstate->sod : 0;
 	HICUT(gstate->success, 2000)
 	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
-	// look ahead and calculate power to survive next night and heating over day
-	int day_mins, day, heat_mins, heat;
-	mosmix_marble(now, params->baseload, params->heating, &day_mins, &day, &gstate->minutes, &gstate->needed, &heat_mins, &heat);
-
 	// survival factor
 	int tocharge = gstate->needed - gstate->available;
 	LOCUT(tocharge, 0)
-	int available = pstate->pv ? gstate->eod - tocharge - day : 0;
+	int available = pstate->pv ? gstate->eod - tocharge - marbles->day : 0;
 	LOCUT(available, 0)
 	int survive = gstate->needed ? gstate->available * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last value if zero need
 	gstate->survive = survive;
@@ -637,7 +620,7 @@ static void calculate_gstate() {
 		gstate->survive = 1000; // set to 100% as long as enough pv available
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d akku=%d need=%d night=%d --> %.1f%% (%.1f%%)"
-	xlog(TEMPLATE_SURVIVE, gstate->eod, day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
+	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
 
 	// offline when average surplus goes below minimum
 	int offline = pstate->surp < params->minimum && avgmm->surp < params->minimum;
@@ -1037,6 +1020,15 @@ static void hourly() {
 }
 
 static void minly() {
+	// collect mosmix marbles
+	mosmix_marble(now, params->baseload, params->heating, marbles);
+	gstate->tomorrow = marbles->tomorrow;
+	gstate->today = marbles->today;
+	gstate->sod = marbles->sod;
+	gstate->eod = marbles->eod;
+	gstate->minutes = marbles->night_mins;
+	gstate->needed = marbles->night;
+
 	// calculate counter and global state
 	calculate_counter();
 	calculate_gstate();

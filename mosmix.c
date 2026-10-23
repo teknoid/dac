@@ -59,9 +59,6 @@ static mosmix_t today[24], tomorrow[24], history[HISTORY_SIZE];
 static factor_t factors[24];
 #define FACTORS(h)				(&factors[h])
 
-// calculate needed power
-static power_t power[48];
-
 // average akku and load over 24/7
 static int akku[24] = { 260, 279, 272, 218, 209, 221, 180, 209, 26, -220, -420, -306, -464, -504, -567, -310, -137, -117, 26, 183, 280, 317, 245, 270 };
 static int load[24] = { 229, 262, 262, 191, 180, 188, 149, 182, 299, 721, 889, 1305, 1013, 875, 588, 1183, 1249, 1494, 639, 252, 243, 280, 542, 246 };
@@ -426,24 +423,23 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 
-// collect total expected today, tomorrow and till end of day / start of day
-void mosmix_collect(struct tm *now, int *itomorrow, int *itoday, int *isod, int *ieod) {
+void mosmix_marble(struct tm *now, const int baseload, const int heating, mosmix_marble_t *marbles) {
+	char line[LINEBUF * 2], value[48];
+	power_t power[48];
+
+	ZEROP(marbles);
+
+	// collect total expected today, tomorrow and till end of day / start of day
 	mosmix_t mtoday, mtomorrow, msod, meod;
 	collect(now, &mtomorrow, &mtoday, &msod, &meod);
 
-	*itomorrow = round100(SUM_EXP(&mtomorrow));
-	*itoday = round100(SUM_EXP(&mtoday));
-	*isod = round100(SUM_EXP(&msod));
-	*ieod = round100(SUM_EXP(&meod));
-	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", *itomorrow, *itoday, *isod, *ieod);
-}
+	marbles->tomorrow = round100(SUM_EXP(&mtomorrow));
+	marbles->today = round100(SUM_EXP(&mtoday));
+	marbles->sod = round100(SUM_EXP(&msod));
+	marbles->eod = round100(SUM_EXP(&meod));
+	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", marbles->tomorrow, marbles->today, marbles->sod, marbles->eod);
 
-// look ahead and calculate power to survive next night and heating over day
-void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int *day, int *night_mins, int *night, int *heat_mins, int *heat) {
-	char line[LINEBUF * 2], value[48];
-	*day_mins = *day = *night_mins = *night = *heat_mins = *heat = 0;
-
-	int bday = baseload + baseload / 10 + 1; // +10 over day
+	// look ahead and calculate power to survive next night and heating over day
 	ZERO(power);
 
 	// fill hour, akku, load and expected for today and tomorrow
@@ -459,6 +455,7 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 	}
 
 	// calculate minutes and power for each hour
+	int bday = baseload + baseload / 10 + 1; // +10 over day
 	for (int i = 0; i < 48; i++) {
 		power_t *p = &power[i], *p1m = &power[i > 1 ? i - 1 : 0], *p1p = &power[i < 47 ? i + 1 : 47];
 
@@ -548,14 +545,14 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 
 		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
 		strcat(line, value);
-		*day_mins += mins;
-		*day += need;
+		marbles->day_mins += mins;
+		marbles->day += need;
 	}
 
-	*day = round10(*day);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *day_mins, FLOAT60(*day_mins), *day);
+	marbles->day = round10(marbles->day);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->day_mins, FLOAT60(marbles->day_mins), marbles->day);
 	strcat(line, value);
-	if (*day_mins)
+	if (marbles->day_mins)
 		xlog(line);
 
 	// collect base load night power starting at current hour
@@ -594,15 +591,15 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 
 		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
 		strcat(line, value);
-		*night_mins += mins;
-		*night += need;
+		marbles->night_mins += mins;
+		marbles->night += need;
 		dark++;
 	}
 
-	*night = round10(*night);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *night_mins, FLOAT60(*night_mins), *night);
+	marbles->night = round10(marbles->night);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->night_mins, FLOAT60(marbles->night_mins), marbles->night);
 	strcat(line, value);
-	if (*night_mins)
+	if (marbles->night_mins)
 		xlog(line);
 
 	// collect heating power for this day starting at current hour
@@ -621,14 +618,14 @@ void mosmix_marble(struct tm *now, int baseload, int heating, int *day_mins, int
 
 		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
 		strcat(line, value);
-		*heat_mins += mins;
-		*heat += need;
+		marbles->heat_mins += mins;
+		marbles->heat += need;
 	}
 
-	*heat = round10(*heat);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *heat_mins, FLOAT60(*heat_mins), *heat);
+	marbles->heat = round10(marbles->heat);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->heat_mins, FLOAT60(marbles->heat_mins), marbles->heat);
 	strcat(line, value);
-	if (*heat_mins)
+	if (marbles->heat_mins)
 		xlog(line);
 }
 
@@ -745,6 +742,8 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static int test() {
+	mosmix_marble_t mosmix_marbles, *marbles = &mosmix_marbles;
+
 	LOCALTIME
 
 	int x = 3333;
@@ -813,8 +812,7 @@ static int test() {
 
 //	mosmix_dump_history_hours(8);
 
-	int day_mins, day, night_mins, night, heat_mins, heat;
-	mosmix_marble(now, BASELOAD, 2000, &day_mins, &day, &night_mins, &night, &heat_mins, &heat);
+	mosmix_marble(now, BASELOAD, 2000, marbles);
 
 	return 0;
 }
