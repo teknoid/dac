@@ -118,9 +118,6 @@
 
 static struct tm now_tm, *now = &now_tm;
 
-// mosmix marbles
-static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
-
 // local params/counter/gstate/pstate/statistics memory
 static counter_t counter_hours[HISTORY_SIZE];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstate_current;
@@ -138,6 +135,9 @@ static pstate_t *slope = &pstates[21], *slopem = &pstates[22], *ahead = &pstates
 
 // local semaphores memory
 static sequential_t sequential;
+
+// local mosmix marbles
+static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
 // global semaphore pointer
 sequential_t *sq = &sequential;
@@ -985,10 +985,6 @@ static void daily() {
 
 	// recalculate average 24/7 values
 	collect_average_247();
-
-	// TODO
-	// den gesamten Tag (mit den letzten aktuellen mosmix daten von 16:00 Uhr!)
-	// nochmal in die history schreiben um die fehlerquote zu minimieren
 
 	// store state at least once per day
 	store_state();

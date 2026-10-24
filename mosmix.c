@@ -21,12 +21,14 @@
 
 // hexdump -v -e '19 "%6d ""\n"' /var/lib/mcp/solar-mosmix-history.bin
 #define MOSMIX_HISTORY			"solar-mosmix-history.bin"
+#define MOSMIX_TOMORROW			"solar-mosmix-tomorrow.bin"
+#define MOSMIX_TODAY			"solar-mosmix-today.bin"
 
 // csvfilter.sh /run/mcp/mosmix-history.csv 12
-#define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
 #define MOSMIX_FACTORS_CSV		"mosmix-factors.csv"
-#define MOSMIX_TODAY_CSV		"mosmix-today.csv"
+#define MOSMIX_HISTORY_CSV		"mosmix-history.csv"
 #define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
+#define MOSMIX_TODAY_CSV		"mosmix-today.csv"
 
 // temperature coefficient scaled as x100
 #define TCOP					-34
@@ -41,7 +43,6 @@
 
 #define NOISE					10
 #define BASELOAD				170
-#define MOSMIX_COLUMNS			6
 #define LINEBUF					256
 
 // all raw values from kml file
@@ -64,8 +65,8 @@ static power_t powers[48];
 #define POWER(h)				(&powers[h])
 
 // average akku and load over 24/7
-static int akku[24] = { 260, 279, 272, 218, 209, 221, 180, 209, 26, -220, -420, -306, -464, -504, -567, -310, -137, -117, 26, 183, 280, 317, 245, 270 };
-static int load[24] = { 229, 262, 262, 191, 180, 188, 149, 182, 299, 721, 889, 1305, 1013, 875, 588, 1183, 1249, 1494, 639, 252, 243, 280, 542, 246 };
+static int akku[24] = { 289, 249, 245, 248, 240, 244, 243, 245, 238, -35, -219, -499, -1125, -1098, -651, -644, -383, -95, 160, 301, 309, 322, 311, 302 };
+static int load[24] = { 260, 216, 220, 215, 210, 217, 211, 215, 228, 405, 621, 767, 1119, 1523, 1291, 1135, 949, 439, 266, 272, 293, 303, 301, 289 };
 
 static void sum(mosmix_t *to, mosmix_t *from) {
 	int *t = (int*) to;
@@ -406,14 +407,7 @@ static void calculate_power(int baseload, int heating) {
 			p->heat_mins = 60;
 			p->heat = heating;
 		}
-
-		// shape
-//		if (p->night < NOISE)
-//			p->night = p->night_mins = 0;
-//		if (p->day < NOISE)
-//			p->day = p->day_mins = 0;
 	}
-	// dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
 }
 
 // recalc expected and errors
@@ -487,15 +481,23 @@ static void update_today_tomorrow(struct tm *now) {
 		if (!m)
 			continue; // not today or tomorrow
 
+		// SunD1 without Rad1h is not possible
+		if (!mcsv->Rad1h)
+			mcsv->SunD1 = 0;
+
 		// update
-		m->Rad1h = mcsv->Rad1h;
-		m->SunD1 = mcsv->SunD1;
-		m->TTT = mcsv->TTT;
-		if (m->Rad1h)
-			xlog("MOSMIX updated %02d.%02d. hour %02d Rad1h=%d SunD1=%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, m->SunD1);
-		else
-			// SunD1 without Rad1h is not possible
-			m->SunD1 = 0;
+		if (m->Rad1h != mcsv->Rad1h) {
+			xlog("MOSMIX updating %02d.%02d. %02d:00 Rad1h %3d <-- %3d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, mcsv->Rad1h);
+			m->Rad1h = mcsv->Rad1h;
+		}
+		if (m->SunD1 != mcsv->SunD1) {
+			xlog("MOSMIX updating %02d.%02d. %02d:00 SunD1 %3d <-- %3d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->SunD1, mcsv->SunD1);
+			m->SunD1 = mcsv->SunD1;
+		}
+		if (m->TTT != (int) mcsv->TTT) {
+			xlog("MOSMIX updating %02d.%02d. %02d:00   TTT %3d <-- %3d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->TTT, (int) mcsv->TTT);
+			m->TTT = mcsv->TTT;
+		}
 	}
 }
 
@@ -642,7 +644,7 @@ void mosmix_marble(struct tm *now, const int baseload, const int heating, marble
 	marbles->eod = round100(SUM_EXP(&meod));
 	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", marbles->tomorrow, marbles->today, marbles->sod, marbles->eod);
 
-	// look ahead and calculate power to survive next night and heating over day
+	// look ahead and calculate minutes and power needed by day, to survive next night and to heat
 	calculate_power(baseload, heating);
 	collect_day(now, &marbles->day_mins, &marbles->day);
 	collect_night(now, &marbles->night_mins, &marbles->night);
@@ -682,51 +684,25 @@ void mosmix_dump_history_hours(int h) {
 
 void mosmix_load_state(struct tm *now) {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
-
-	// fix wrong values - copy from yesterday
-//	int wrong = 161, copy = wrong > 24 ? (wrong - 24) : (wrong + 24);
-//	history[wrong].mppt1 = history[copy].mppt1;
-//	history[wrong].mppt2 = history[copy].mppt2;
-//	history[wrong].mppt3 = history[copy].mppt3;
-//	history[wrong].mppt4 = history[copy].mppt4;
-
-	ZERO(today);
-	ZERO(tomorrow);
-
-	// initially fill today and tomorrow forecasts from history
-	for (int h = 0; h < 24; h++) {
-		mosmix_t *m1 = TOMORROW(h), *h1 = HISTORY(now->tm_wday < 6 ? now->tm_wday + 1 : 0, h);
-		m1->Rad1h = h1->Rad1h;
-		m1->SunD1 = h1->SunD1;
-		m1->TTT = h1->TTT;
-
-		mosmix_t *m0 = TODAY(h), *h0 = HISTORY(now->tm_wday, h);
-		m0->Rad1h = h0->Rad1h;
-		m0->SunD1 = h0->SunD1;
-		m0->TTT = h0->TTT;
-
-		// today elapsed hours: take over mpptX too
-		if (h <= now->tm_hour) {
-			m0->mppt1 = h0->mppt1;
-			m0->mppt2 = h0->mppt2;
-			m0->mppt3 = h0->mppt3;
-			m0->mppt4 = h0->mppt4;
-		}
-	}
+	load_blob(STATE SLASH MOSMIX_TOMORROW, tomorrow, sizeof(tomorrow));
+	load_blob(STATE SLASH MOSMIX_TODAY, today, sizeof(today));
 }
 
 void mosmix_store_state() {
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
+	store_blob(STATE SLASH MOSMIX_TOMORROW, tomorrow, sizeof(tomorrow));
+	store_blob(STATE SLASH MOSMIX_TODAY, today, sizeof(today));
 }
+
 void mosmix_store_csv() {
 	store_table_csv(factors, FACTOR_SIZE, 24, FACTOR_HEADER, RUN SLASH MOSMIX_FACTORS_CSV);
 	store_table_csv(history, MOSMIX_SIZE, HISTORY_SIZE, MOSMIX_HEADER, RUN SLASH MOSMIX_HISTORY_CSV);
-	store_table_csv(today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 	store_table_csv(tomorrow, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TOMORROW_CSV);
+	store_table_csv(today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 }
 
 int mosmix_load(struct tm *now, const char *filename, int clear) {
-	char *strings[MOSMIX_COLUMNS];
+	char *column[8];
 	char buf[LINEBUF];
 
 	ZERO(mosmix_csv);
@@ -741,27 +717,28 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 
 	int lines = 0;
 	while (fgets(buf, LINEBUF, fp) != NULL) {
-		int tokens = 0;
+		int i = 0;
 		char *p = strtok(buf, ",");
 		while (p != NULL) {
-			strings[tokens] = p;
+			column[i++] = p;
 			p = strtok(NULL, ",");
-			tokens++;
 		}
-		parse(strings, ARRAY_SIZE(strings));
+		parse(column, ARRAY_SIZE(column));
 		lines++;
 	}
 
 	fclose(fp);
-	xlog("MOSMIX loaded %s containing %d lines", filename, lines);
+	xlog("MOSMIX loaded %4d lines from %s", lines, filename);
 
 	if (clear) {
 		ZERO(today);
 		ZERO(tomorrow);
 	}
+
 	update_today_tomorrow(now);
 	calculate_factors();
 	recalc_expected();
+
 	return 0;
 }
 
@@ -791,7 +768,7 @@ static int test() {
 
 	// load state and update forecasts
 	mosmix_load_state(now);
-	mosmix_load(now, TMP SLASH MARIENBERG, 1);
+	mosmix_load(now, TMP SLASH MARIENBERG, 0);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
@@ -849,7 +826,7 @@ static int recalc() {
 	calculate_factors();
 	recalc_expected();
 	history_total();
-	mosmix_dump_history_hours(18);
+	mosmix_dump_history_hours(12);
 	mosmix_store_csv();
 	return 0;
 }
@@ -882,18 +859,12 @@ static int migrate() {
 static int fix() {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
-//	mosmix_t *m;
-//	m = &history[152];
-//	m->mppt3 = m->diff3 = 0;
-//	m->err3 = 100;
-//	m = &history[139];
-//	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
-//	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
-//	m->err1 = m->err2 = m->err3 = m->err4 = 100;
-//	m = &history[140];
-//	m->mppt1 = m->mppt2 = m->mppt3 = m->mppt4 = 0;
-//	m->diff1 = m->diff2 = m->diff3 = m->diff4 = 0;
-//	m->err1 = m->err2 = m->err3 = m->err4 = 100;
+	// fix wrong values in history - copy from yesterday
+	int wrong = 161, copy = wrong > 24 ? (wrong - 24) : (wrong + 24);
+	history[wrong].mppt1 = history[copy].mppt1;
+	history[wrong].mppt2 = history[copy].mppt2;
+	history[wrong].mppt3 = history[copy].mppt3;
+	history[wrong].mppt4 = history[copy].mppt4;
 
 	store_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 	return 0;

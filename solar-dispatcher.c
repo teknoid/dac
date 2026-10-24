@@ -922,7 +922,7 @@ static void calculate_dstate() {
 	// inverter status
 	dstate->inv = inv1->state * 10 + inv2->state;
 
-	// do single devices calculation only when online
+	// device loop (only when online)
 	if (GSTATE_ONLINE) {
 
 		dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
@@ -932,7 +932,7 @@ static void calculate_dstate() {
 			if (DD == AKKU)
 				continue;
 
-			// decrement response counter and check when reached 0
+			// decrement response counter and check when expired
 			if (DD->response)
 				if (--DD->response == 0)
 					response(DD);
@@ -1215,9 +1215,6 @@ static int init() {
 	// set interlock vice versa as both boilers hang on the same power line
 	b1.interlock = &b2;
 	b2.interlock = &b1;
-
-	// akku_standby(AKKU);
-	// akku_charge(AKKU);
 
 	return 0;
 }

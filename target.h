@@ -45,6 +45,7 @@
 #define TEMP_IN					sensors->bmp085_temp
 #define TEMP_OUT				sensors->bmp085_temp
 #define LUMI					sensors->bh1750_lux
+#define MQTT_HOST				"mqtt"
 #endif
 
 #ifdef PIWOLF

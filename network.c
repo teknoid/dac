@@ -481,6 +481,7 @@ void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 	char smac[16], cmd[128], line[1024];
 
 	ZERO(line);
+	// picam: snprintf(smac, 16, "%06llX", mac >> 24);
 	snprintf(smac, 16, "%06lX", mac >> 24);
 	snprintf(cmd, 128, "grep %s %s", smac, IEEE);
 	FILE *fd = popen(cmd, "r");
