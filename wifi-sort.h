@@ -117,8 +117,8 @@ static void reorganize_small(small_station_t *s) {
 	ZERO(copy);
 	int count = 0;
 	for (mac_t **mm = s->pmacs; *mm; mm++)
-		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
-	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS);
+		memcpy(&(copy.macs[count++]), MM, sizeof(mac_t));
+	memcpy(&s->macs, &copy.macs, sizeof(mac_t) * CLIENTS);
 
 	// update pointers to new order
 	pointers_small(s);
@@ -133,8 +133,8 @@ static void reorganize_big(big_station_t *s) {
 	ZERO(copy);
 	int count = 0;
 	for (mac_t **mm = s->pmacs; *mm; mm++)
-		memcpy(&(copy.macs[count++]), MM, MAC_SIZE);
-	memcpy(&s->macs, &copy.macs, MAC_SIZE * CLIENTS4);
+		memcpy(&(copy.macs[count++]), MM, sizeof(mac_t));
+	memcpy(&s->macs, &copy.macs, sizeof(mac_t) * CLIENTS4);
 
 	// update pointers to new order
 	pointers_big(s);

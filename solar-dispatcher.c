@@ -1029,7 +1029,6 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 
 	// mosquitto_pub -h mqtt -t "solar/params/climit" -m 2500
 	if (!strncmp("solar/params/climit", topic, tsize)) {
-		gstate->flags |= FLAG_CHARGE_AKKU;
 		params->akku_climit_override = params->akku_climit = atoin(message, msize);
 		akku_charge(AKKU); // update climit
 	}

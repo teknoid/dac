@@ -15,6 +15,18 @@
 #include "mqtt.h"
 #include "mcp.h"
 
+#define WIFI_REPORT				"wifi-report.txt"
+#define WIFI_COMPACT			"wifi-compact.txt"
+#define WIFI_FLAT				"wifi-flat.txt"
+#define WIFI_BIN				"wifi.bin"
+
+#define SSID_BEACON				"BEACON"
+#define SSID_ZOMBIE				"ZOMBIE"
+#define SSID_CACHE				"CACHE"
+#define SSID_BLACK				"BLACK"
+#define SSID_NAME				"NAME"
+#define SSID_HOME				"HOME"
+
 #define POPEN					"/usr/bin/tcpdump -nevi mon0"
 #define PORT					6666
 #define DIRTY					10
@@ -35,10 +47,6 @@
 #define SECONDS_3H 				(60 * 60 * 3)
 #define SECONDS_1H 				(60 * 60)
 #define SECONDS_5M				(60 * 5)
-
-#define WIFI_COMPACT			"wifi-compact.txt"
-#define WIFI_FLAT				"wifi-flat.txt"
-#define WIFI_BIN				"wifi.bin"
 
 #define CHANNEL(x)				(x ? 1 + (x - 2412) / 5 : 0)
 #define NAME(x)					(*x->name ? x->name : *x->ssid ? x->ssid : x->smac)
@@ -629,8 +637,14 @@ static int command(connection_t *conn) {
 	return 0;
 }
 
-static void evaluate() {
-	xlog("\n### find multiple BECONS at same device on similar mac addresses ###");
+static void report() {
+	FILE *fp = fopen(RUN SLASH WIFI_REPORT, "wt");
+	if (fp == NULL) {
+		xerr("WIFI Cannot open file %s for writing", RUN SLASH WIFI_REPORT);
+		return;
+	}
+
+	fprintf(fp, "### find multiple BECONS at same device on similar mac addresses ###");
 	for (mac_t **x = beacons->pmacs; *x; x++) {
 		uint64_t xmac = (*x)->mac & XFXMASK;
 		for (mac_t **y = beacons->pmacs; *y; y++) {
@@ -638,27 +652,30 @@ static void evaluate() {
 				continue; // self
 			uint64_t ymac = (*y)->mac & XFXMASK;
 			if (ymac == xmac)
-				xlog("%s => %s   %s => %s", (*y)->smac, (*x)->smac, NAME((*y)), NAME((*x)));
+				fprintf(fp, "%s => %s   %s => %s", (*y)->smac, (*x)->smac, NAME((*y)), NAME((*x)));
 		}
 	}
 
-	xlog("\n### find BEACON as exact client in another station ###");
+	fprintf(fp, "\n### find BEACON as exact client in another station ###");
 	for (mac_t **b = beacons->pmacs; *b; b++)
 		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			for (mac_t **mm = SS->pmacs; *mm; mm++)
 				if ((*b)->mac == MM->mac)
-					xlog("%s (%s) is exact client of station %s (%s)", (*b)->smac, NAME((*b)), SS->smac, NAME(SS));
+					fprintf(fp, "%s (%s) is exact client of station %s (%s)", (*b)->smac, NAME((*b)), SS->smac, NAME(SS));
 
-	xlog("\n### find station-station interconnection on similar mac addresses ###");
+	fprintf(fp, "\n### find station-station interconnection on similar mac addresses ###");
 	for (mac_t **b = beacons->pmacs; *b; b++) {
 		uint64_t bmac = (*b)->mac & XFXMASK;
 		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			for (mac_t **mm = SS->pmacs; *mm; mm++) {
 				uint64_t mmac = MM->mac & XFXMASK;
 				if (bmac == mmac)
-					xlog("%s (%s) is client %s (%s) of station %s (%s)", (*b)->smac, NAME((*b)), MM->smac, NAME(MM), SS->smac, NAME(SS));
+					fprintf(fp, "%s (%s) is client %s (%s) of station %s (%s)", (*b)->smac, NAME((*b)), MM->smac, NAME(MM), SS->smac, NAME(SS));
 			}
 	}
+
+	fflush(fp);
+	fclose(fp);
 }
 
 #define HFLAT "%-18s %-32s %-25s %s %-18s %-32s %-25s %4s %4s %6s %6s %10s %-40s\n"
@@ -922,7 +939,7 @@ static void home() {
 			if (!h)
 				continue;
 			if (MM->count > h->count) {
-				memcpy(h, MM, MAC_SIZE);
+				memcpy(h, MM, sizeof(mac_t));
 				strcpy(h->ssid, SS->ssid);
 				h->tag = 'h';
 			}
@@ -1107,10 +1124,10 @@ static void loop() {
 			home();
 
 		if (now_ts % SECONDS_1H == 0)
-			evaluate();
+			report();
 
 		if (now_ts % SECONDS_1D == 0)
-			store_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
+			store_blob(STATE SLASH WIFI_BIN, &wifi, sizeof(wifi_t));
 	}
 }
 
@@ -1120,7 +1137,7 @@ static int init() {
 
 	load_ieee();
 	load_ethers();
-	load_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
+	load_blob(STATE SLASH WIFI_BIN, &wifi, sizeof(wifi_t));
 	sort(); // initially update all pointers
 
 	strcpy(beacons->ssid, SSID_BEACON);
@@ -1154,7 +1171,7 @@ static int init() {
 }
 
 static void stop() {
-	store_blob(STATE SLASH WIFI_BIN, &wifi, WIFI_SIZE);
+	store_blob(STATE SLASH WIFI_BIN, &wifi, sizeof(wifi_t));
 
 	if (local.thread) {
 		pthread_cancel(local.thread);

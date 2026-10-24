@@ -1,4 +1,4 @@
-// gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c
+// gcc -Wall -DMOSMIX_MAIN -I ./include/ -o mosmix mosmix.c utils.c frozen.c
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,7 @@
 #include <time.h>
 
 #include "mosmix.h"
+#include "frozen.h"
 #include "utils.h"
 #include "mcp.h"
 
@@ -701,7 +702,7 @@ void mosmix_store_csv() {
 	store_table_csv(today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 }
 
-int mosmix_load(struct tm *now, const char *filename, int clear) {
+int mosmix_load_csv(struct tm *now, const char *filename, int clear) {
 	char *column[8];
 	char buf[LINEBUF];
 
@@ -742,6 +743,69 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 	return 0;
 }
 
+int mosmix_load_json(struct tm *now, const char *station, int clear) {
+	char filename[64];
+	struct json_token t;
+
+	ZERO(mosmix_csv);
+
+	// read time stamp file
+	snprintf(filename, 64, TMP SLASH "mosmix-timestamps.json");
+	char *timestamps = json_fread(filename);
+	if (timestamps == NULL)
+		return xerr("MOSMIX Cannot open file %s for reading", filename);
+
+	for (int i = 0; json_scanf_array_elem(timestamps, strlen(timestamps), "", i, &t) > 0; i++)
+		sscanf(t.ptr, "%ld", &mosmix_csv[i].ts);
+
+	free(timestamps);
+
+	// read forecast file
+	snprintf(filename, 64, TMP SLASH "mosmix-forecasts-%s.json", station);
+	char *forecasts = json_fread(filename);
+	if (forecasts == NULL)
+		return xerr("MOSMIX Cannot open file %s for reading", filename);
+
+	char *rad1h = strstr(forecasts, "\"Rad1h\":") + 9;
+	for (int i = 0; json_scanf_array_elem(rad1h, strlen(rad1h), "", i, &t) > 0; i++)
+		sscanf(t.ptr, "%d", &mosmix_csv[i].Rad1h);
+
+	char *sund1 = strstr(forecasts, "\"SunD1\":") + 9;
+	for (int i = 0; json_scanf_array_elem(sund1, strlen(sund1), "", i, &t) > 0; i++)
+		sscanf(t.ptr, "%d", &mosmix_csv[i].SunD1);
+
+	char *ttt = strstr(forecasts, "\"TTT\":") + 7;
+	for (int i = 0; json_scanf_array_elem(ttt, strlen(ttt), "", i, &t) > 0; i++)
+		sscanf(t.ptr, "%f", &mosmix_csv[i].TTT);
+
+	free(forecasts);
+
+	// post process data
+	int count = 0;
+	for (int i = 0; i < 256; i++) {
+		csv_t *csv = &mosmix_csv[i];
+
+		if (csv->ts)
+			count++;
+
+		csv->TTT -= 273.15; // convert to °C
+		csv->SunD1 = csv->SunD1 * 100 / 3600; // convert to 0..100 percent
+	}
+
+	xlog("MOSMIX loaded %4d entries for station %s", count, station);
+
+	if (clear) {
+		ZERO(today);
+		ZERO(tomorrow);
+	}
+
+	update_today_tomorrow(now);
+	calculate_factors();
+	recalc_expected();
+
+	return 0;
+}
+
 static int test() {
 	marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
@@ -768,7 +832,8 @@ static int test() {
 
 	// load state and update forecasts
 	mosmix_load_state(now);
-	mosmix_load(now, TMP SLASH MARIENBERG, 0);
+	// mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
+	mosmix_load_json(now, "MARIENBERG", 0);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
@@ -822,7 +887,7 @@ static int recalc() {
 	LOCALTIME
 
 	mosmix_load_state(now);
-	mosmix_load(now, TMP SLASH MARIENBERG, 0);
+	mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
 	calculate_factors();
 	recalc_expected();
 	history_total();
@@ -934,15 +999,15 @@ static int compare() {
 	localtime_r(&ts_yday, &tm_yday);
 
 	wget(yday, "10579");
-	mosmix_load(yday, TMP SLASH MARIENBERG, 1);
+	mosmix_load_csv(yday, TMP SLASH MARIENBERG, 1);
 	int dm = diffs(yday);
 
 	wget(yday, "10577");
-	mosmix_load(yday, TMP SLASH CHEMNITZ, 1);
+	mosmix_load_csv(yday, TMP SLASH CHEMNITZ, 1);
 	int dc = diffs(yday);
 
 	wget(yday, "N4464");
-	mosmix_load(yday, TMP SLASH BRAUNSDORF, 1);
+	mosmix_load_csv(yday, TMP SLASH BRAUNSDORF, 1);
 	int db = diffs(yday);
 
 	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dm, dc, db);

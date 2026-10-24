@@ -539,15 +539,17 @@ static void calculate_gstate_online() {
 	// akku charging
 	int acx1 = params->akku_capacity, acx2 = acx1 * 2, acx3 = acx1 * 3, acx4 = acx1 * 4;
 	int last = GSTATE_MIN_LAST1->flags & FLAG_CHARGE_AKKU; // keep charging if already indicated
+	int alrdy = pstate->akku < params->minimum; // keep charging if already charging
 	int criti = gstate->survive < SURVIVE90; // we will probably not survive
 	int tomor = gstate->soc < 777 && !SUMMER && gstate->today > acx2 && gstate->tomorrow < acx1; // charge today and heat tomorrow
 	int weekd = gstate->soc < 555 && !SUMMER && (now->tm_wday == 5 || now->tm_wday == 6); // Friday+Saturday: akku has to be at least 50%
 	int soc33 = gstate->soc < 333 && !SUMMER && now->tm_hour < 12; // autumn/spring when below 33%
 	int soc22 = gstate->soc < 222 && SUMMER && now->tm_hour < 12; // summer when below 22%
 	int empty = gstate->soc < 100; // akku below 10%
-	if (WINTER || last || criti || tomor || weekd || soc33 || soc22 || empty)
+	if (WINTER || last || alrdy || criti || tomor || weekd || soc33 || soc22 || empty)
 		gstate->flags |= FLAG_CHARGE_AKKU;
-	xlog("SOLAR charge akku winter=%d last=%d critical=%d tomorrow=%d weekend=%d soc33=%d soc22=%d empty=%d", WINTER, last, criti, tomor, weekd, soc33, soc22, empty);
+#define CHARGING_TEMPLATE "SOLAR charge akku winter=%d last=%d already=%d critical=%d tomorrow=%d weekend=%d soc33=%d soc22=%d empty=%d"
+	xlog(CHARGING_TEMPLATE, WINTER, last, alrdy, criti, tomor, weekd, soc33, soc22, empty);
 
 	// akku charge limit
 	params->akku_climit = 0;
@@ -860,25 +862,28 @@ static void calculate_pstate_online() {
 	// fast moving clouds - permanent pv up and down
 	int cloudy = deltacc->pv > DELTACC || deltass->pv > DELTASS;
 
-	// recalculate load target and akku steal once per minute
-	if (MINLY) {
+	// more safety if we don't have grid upload
+	int safety = GSTATE_GRID_ULOAD ? params->minimum / 2 : params->minimum;
+
+	// recalculate load target and akku steal once per minute - not when pv is falling
+	if (MINLY && !PSTATE_PVFALL) {
 		// load target: minimum surplus over 1 minute when stable or 10 minutes when cloudy
 		int target = cloudy ? minmm->surp : minm->surp;
-		pstate->target = round10(target - params->minimum);
+		pstate->target = round10(target - safety);
 
 		// akku steal: minimum charge over 1 minute when stable or 10 minutes when cloudy
 		int steal = cloudy ? maxmm->akku : maxm->akku;
-		pstate->steal = round10(steal + params->minimum);
+		pstate->steal = round10(steal + safety);
 	}
 
 	// push down load target if average or ahead surplus goes below
-	HICUT(pstate->target, avgss->surp - params->minimum)
-	HICUT(pstate->target, ahead->surp - params->minimum)
+	HICUT(pstate->target, avgss->surp - safety)
+	HICUT(pstate->target, ahead->surp - safety)
 	LOCUT(pstate->target, 0)
 
 	// push up akku steal if average or ahead charge goes above
-	LOCUT(pstate->steal, avgss->akku + params->minimum)
-	LOCUT(pstate->steal, ahead->akku + params->minimum)
+	LOCUT(pstate->steal, avgss->akku + safety)
+	LOCUT(pstate->steal, ahead->akku + safety)
 	HICUT(pstate->steal, 0)
 }
 
@@ -940,7 +945,11 @@ static void calculate_pstate() {
 //		l3 += PSTATE_SEC_LAST3->ac2;
 
 	// xlog("SOLAR L0=%d L1=%d L2=%d L3=%d", l0, l1, l2, l3);
-	pstate->load = l0 < l1 ? l0 : l1 < l2 ? l1 : l2;
+	// take largest on falling grid and smallest on rising grid
+	if (delta->grid < 0)
+		pstate->load = l0 > l1 ? l0 : l1 > l2 ? l1 : l2;
+	else
+		pstate->load = l0 < l1 ? l0 : l1 < l2 ? l1 : l2;
 
 	// shape - akku makes big noise when full
 	ZSHAPE(pstate->grid, NOISE5)
@@ -995,7 +1004,7 @@ static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
 
 	// update forecasts, clear at midnight, recalculate factors
-	mosmix_load(now, TMP SLASH MARIENBERG, DAILY);
+	mosmix_load_csv(now, TMP SLASH MARIENBERG, DAILY);
 
 	// update history
 #ifdef COUNTER_METER
@@ -1165,7 +1174,7 @@ static int init() {
 
 	load_state();
 	mosmix_load_state(now);
-	mosmix_load(now, TMP SLASH MARIENBERG, 0);
+	mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
 	collect_average_247();
 
 	sem_init(&sq->collector, 0, 0);

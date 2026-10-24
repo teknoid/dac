@@ -105,6 +105,9 @@
 #define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
 #define NOTIFY_SEND				"/usr/bin/notify-send -t 20000 -i /home/hje/Pictures/icons/mosquitto.png"
 
+// dynamic module chain
+static mcp_module_t *module = NULL;
+
 // local memory
 static mcp_state_t mcp_local;
 static mcp_config_t cfg_local;
@@ -112,9 +115,6 @@ static mcp_config_t cfg_local;
 // global pointer
 mcp_state_t *mcp = &mcp_local;
 mcp_config_t *cfg = &cfg_local;
-
-// dynamic module chain
-mcp_module_t *module = NULL;
 
 // initialize logging at the very first beginning
 static void __attribute__((constructor(101))) constructor() {

@@ -6,13 +6,6 @@
 #define DESCRIPTION				64
 #define DESCRIPTION2			(DESCRIPTION * 2)
 
-#define SSID_BEACON				"BEACON"
-#define SSID_ZOMBIE				"ZOMBIE"
-#define SSID_CACHE				"CACHE"
-#define SSID_BLACK				"BLACK"
-#define SSID_NAME				"NAME"
-#define SSID_HOME				"HOME"
-
 #define __MAC \
 	uint64_t mac; \
 	time_t ts_first; \
@@ -29,7 +22,6 @@
 typedef struct mac_t {
 	__MAC
 } mac_t;
-size_t MAC_SIZE = sizeof(mac_t);
 
 typedef struct small_station_t {
 	__MAC
@@ -38,7 +30,6 @@ typedef struct small_station_t {
 	mac_t macs[CLIENTS];
 	mac_t *pmacs[CLIENTS + 1];
 } small_station_t;
-size_t SMALL_STATION_SIZE = sizeof(small_station_t);
 
 typedef struct big_station_t {
 	__MAC
@@ -47,7 +38,6 @@ typedef struct big_station_t {
 	mac_t macs[CLIENTS4];
 	mac_t *pmacs[CLIENTS4 + 1];
 } big_station_t;
-size_t BIG_STATION_SIZE = sizeof(big_station_t);
 
 typedef struct wifi_t {
 	int station_count;
@@ -61,5 +51,3 @@ typedef struct wifi_t {
 	big_station_t home;
 	big_station_t *pmeta[7];
 } wifi_t;
-size_t WIFI_SIZE = sizeof(wifi_t);
-
