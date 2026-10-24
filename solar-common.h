@@ -37,10 +37,9 @@
 #define FLAG_BURNOUT			(1 << 3)
 #define FLAG_WINTER				(1 << 2)
 #define FLAG_SUMMER				(1 << 1)
-#define FLAG_OFFLINE			(1 << 0)
-// TODO FLAG_ONLINE -> alles invertieren
+#define FLAG_ONLINE				(1 << 0)
 
-#define GSTATE_OFFLINE			(gstate->flags & FLAG_OFFLINE)
+#define GSTATE_ONLINE			(gstate->flags & FLAG_ONLINE)
 #define GSTATE_BURNOUT			(gstate->flags & FLAG_BURNOUT)
 #define GSTATE_HEATING			(gstate->flags & FLAG_HEATING)
 #define GSTATE_WINTER			(gstate->flags & FLAG_WINTER)

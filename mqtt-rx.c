@@ -49,7 +49,6 @@ static void dump(const char *prefix, struct mqtt_response_publish *p) {
 //              ^^^^^^^^^^^^^^^^^
 static uint64_t get_mac(const char *topic, size_t size) {
 	int slash1 = 0, slash2 = 0;
-	unsigned int a, b;
 
 	for (int i = 0; i < size; i++)
 		if (topic[i] == '/') {
@@ -60,17 +59,8 @@ static uint64_t get_mac(const char *topic, size_t size) {
 		}
 
 	if (slash1 && slash2 && ((size - slash2) == 18)) {
-		// TODO use utils mac2uint64()
 		const char *c = topic + slash2 + 1;
-		uint64_t x = 0;
-		for (int i = 0; i < 6; i++) {
-			a = (*c <= '9') ? *c - '0' : (*c & 0x7) + 9;
-			c++; // 'f'
-			b = (*c <= '9') ? *c - '0' : (*c & 0x7) + 9;
-			c++; // 'c'
-			x = (x << 8) | (a << 4) | b;
-			c++; // ':'
-		}
+		uint64_t x = string2mac(c);
 		return x;
 	}
 

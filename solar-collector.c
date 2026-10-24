@@ -306,12 +306,7 @@ static void print_gstate() {
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "Ti", sensor->tin);
 	xlogl_float(line, "To", sensor->tout);
-	if (GSTATE_OFFLINE) {
-		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-		xlogl_int(line, "Avail", gstate->available);
-		xlogl_int(line, "Need", gstate->needed);
-		xlogl_percent10(line, "Surv", gstate->survive);
-	} else {
+	if (GSTATE_ONLINE) {
 		xlogl_int(line, "PV", PSTATE_MIN_NOW->pv);
 		xlogl_int(line, "PVMin", minmm->pv);
 		xlogl_int(line, "PVAvg", avgmm->pv);
@@ -322,6 +317,11 @@ static void print_gstate() {
 		xlogl_int(line, "SoD", gstate->sod);
 		xlogl_int(line, "EoD", gstate->eod);
 		xlogl_percent10(line, "Succ", gstate->success);
+	} else {
+		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
+		xlogl_int(line, "Avail", gstate->available);
+		xlogl_int(line, "Need", gstate->needed);
+		xlogl_percent10(line, "Surv", gstate->survive);
 	}
 	snprintf(value, 10, GSTATE_3M_STABLE ? " -" : GSTATE_3M_UNSTABLE ? " ~" : "  ");
 	strcat(line, value);
@@ -337,7 +337,7 @@ static void print_pstate() {
 	xlogl_int(line, "Load", pstate->load);
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
-	if (!GSTATE_OFFLINE) {
+	if (GSTATE_ONLINE) {
 		xlogl_int(line, "PV", pstate->pv);
 		xlogl_int(line, "AC1", pstate->ac1);
 		xlogl_int(line, "AC2", pstate->ac2);
@@ -433,16 +433,16 @@ static void calculate_counter() {
 }
 
 static void calculate_gstate_offline() {
-	// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
-	// TODO start stunde berechnen damit leer wenn pv startet
-	int burnout_recover = gstate->today > params->akku_capacity * 2;
-	int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
-	int burnout_temp = sensor->tin < 20.0;
-	int burnout_soc = gstate->soc > 150;
-	if (AKKU_BURNOUT && burnout_recover && burnout_time && burnout_temp && burnout_soc)
-		gstate->flags |= FLAG_BURNOUT;
-	else
-		gstate->flags |= FLAG_OFFLINE;
+//	// akku burn out between 6 and 9 o'clock if we can re-charge it completely by day
+//	// TODO start stunde berechnen damit leer wenn pv startet
+//	int burnout_recover = gstate->today > params->akku_capacity * 2;
+//	int burnout_time = now->tm_hour == 6 || now->tm_hour == 7 || now->tm_hour == 8;
+//	int burnout_temp = sensor->tin < 20.0;
+//	int burnout_soc = gstate->soc > 150;
+//	if (AKKU_BURNOUT && burnout_recover && burnout_time && burnout_temp && burnout_soc)
+//		gstate->flags |= FLAG_BURNOUT;
+//	else
+//		gstate->flags |= FLAG_OFFLINE;
 
 	// check if grid and load are stable
 	int gstable = deltac->grid < DCSTABLE || deltas->grid < DSSTABLE || spreadm->grid < GSTATE_SPREAD;
@@ -491,6 +491,8 @@ static void calculate_gstate_offline() {
 }
 
 static void calculate_gstate_online() {
+	gstate->flags |= FLAG_ONLINE;
+
 	// calculate delta and slope
 	idelta(deltam, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, DELTAM);
 	islope(slopem, PSTATE_MIN_NOW, PSTATE_MIN_LAST1, PSTATE_SIZE, 1);
@@ -564,6 +566,9 @@ static void calculate_gstate_online() {
 }
 
 static void calculate_gstate() {
+	// clear flags and values
+	gstate->flags = 0;
+
 	// day total: consumed / produced / pv
 #ifdef COUNTER_METER
 	gstate->consumed = CM_DAY->consumed;
@@ -575,9 +580,6 @@ static void calculate_gstate() {
 	gstate->pv = CS_DAY->mppt1 + CS_DAY->mppt2 + CS_DAY->mppt3 + CS_DAY->mppt4;
 #endif
 
-	// clear state flags
-	gstate->flags = 0;
-
 	// summer / winter mode
 	if (SUMMER)
 		gstate->flags |= FLAG_SUMMER;
@@ -585,8 +587,7 @@ static void calculate_gstate() {
 	if (WINTER)
 		gstate->flags |= FLAG_WINTER;
 
-	// akku discharge / grid download / grid upload - always check average against actual
-	// TODO werden im offline mode nie gesetzt weil pstate->flags leer sind
+	// akku discharge / grid download / grid upload
 	if (PSTATE_AKKU_DCHARGE)
 		if (PSTATE_MIN_NOW->akku > params->minimum || avgmm->akku > RAMP)
 			gstate->flags |= FLAG_AKKU_DCHARGE;
@@ -623,11 +624,8 @@ static void calculate_gstate() {
 	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
 
 	// offline when average surplus goes below minimum
-	int offline = pstate->surp < params->minimum && avgmm->surp < params->minimum;
-	if (offline)
-		calculate_gstate_offline();
-	else
-		calculate_gstate_online();
+	int online = pstate->pv > params->minimum || avgmm->pv > params->minimum;
+	online ? calculate_gstate_online() : calculate_gstate_offline();
 
 	// copy to history
 	memcpy(GSTATE_MIN_NOW, gstate, sizeof(gstate_t));
@@ -639,9 +637,6 @@ static void calculate_gstate() {
 
 static void calculate_pstate_ramp() {
 	char line[LINEBUF], value[32];
-
-	// reset
-	pstate->ramp = 0;
 
 	// always ramp down on akku discharge
 	if (PSTATE_AKKU_DCHARGE) {
@@ -740,13 +735,9 @@ static void calculate_pstate_ramp() {
 }
 
 static void calculate_pstate_online() {
-	// clear flags
-	pstate->flags = 0;
-
-	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
-	HICUT(pstate->rsl, 1000)
-	LOCUT(pstate->rsl, 0)
+	// calculate delta, update delta sum, delta count in one loop, shape in percent
+	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
+	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
 
 	// calculate ahead and slope
 	iahead(ahead, pstate, avgss, PSTATE_SIZE);
@@ -762,14 +753,6 @@ static void calculate_pstate_online() {
 //	append_line_csv(ahead, PSTATE_SIZE, offset, RUN SLASH AHEAD_CSV);
 //	append_line_csv(slope, PSTATE_SIZE, offset, RUN SLASH SLOPE_CSV);
 //	offset++;
-
-	// akku discharge / grid download / grid upload - always check average against actual
-	if (pstate->akku > params->minimum || (avgss->akku > RAMP * 2 && pstate->akku > 0))
-		pstate->flags |= FLAG_AKKU_DCHARGE;
-	if (pstate->grid > params->minimum || (avgss->grid > RAMP * 2 && pstate->grid > 0))
-		pstate->flags |= FLAG_GRID_DLOAD;
-	if (pstate->grid < params->minimum * -1 || (avgss->grid < RAMP * -2 && pstate->grid < 0))
-		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// meter latency / mppt tracking / too fast pv delta / grid spikes / whatever
 	int sum = pstate->pv + pstate->grid + pstate->akku + pstate->load * -1;
@@ -871,6 +854,11 @@ static void calculate_pstate_online() {
 			pstate->target -= RAMP;
 	}
 
+	// ratio surplus / load
+	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
+	HICUT(pstate->rsl, 1000)
+	LOCUT(pstate->rsl, 0)
+
 	// fast moving clouds - permanent pv up and down
 	int cloudy = deltacc->pv > DELTACC || deltass->pv > DELTASS;
 
@@ -897,6 +885,9 @@ static void calculate_pstate_online() {
 }
 
 static void calculate_pstate() {
+	// clear flags and values
+	pstate->flags = pstate->ramp = pstate->rsl = pstate->target = pstate->steal = 0;
+
 	// update self counter
 	if (pstate->grid > 0)
 		CS_NOW->consumed += pstate->grid;
@@ -958,17 +949,19 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->akku, NOISE20)
 	ZSHAPE(pstate->surp, NOISE20)
 
-	// calculate delta, update delta sum, delta count in one loop, shape in percent
-	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
-	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
+	// akku discharge / grid download / grid upload - calculate here as we use it in online & offline modes
+	if (pstate->akku > params->minimum || (avgss->akku > RAMP * 2 && pstate->akku > 0))
+		pstate->flags |= FLAG_AKKU_DCHARGE;
+	if (pstate->grid > params->minimum || (avgss->grid > RAMP * 2 && pstate->grid > 0))
+		pstate->flags |= FLAG_GRID_DLOAD;
+	if (pstate->grid < params->minimum * -1 || (avgss->grid < RAMP * -2 && pstate->grid < 0))
+		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// calculate online state and ramp power
-	if (!GSTATE_OFFLINE) {
+	if (GSTATE_ONLINE) {
 		calculate_pstate_online();
 		calculate_pstate_ramp();
-	} else
-		// clear online values
-		pstate->flags = pstate->rsl = pstate->ramp = pstate->target = pstate->steal = 0;
+	}
 
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
@@ -993,6 +986,10 @@ static void daily() {
 
 	// recalculate average 24/7 values
 	collect_average_247();
+
+	// TODO
+	// den gesamten Tag (mit den letzten aktuellen mosmix daten von 16:00 Uhr!)
+	// nochmal in die history schreiben um die fehlerquote zu minimieren
 
 	// store state at least once per day
 	store_state();

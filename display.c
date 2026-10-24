@@ -24,7 +24,7 @@
 #define DISPLAY			"/dev/tty"
 #endif
 
-static char fullscreen[4]; // xxx\0
+static char fullscreen[4];
 static int countdown_fullscreen;
 static int countdown_menu;
 static int scroller_artist = 0;

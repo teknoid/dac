@@ -105,7 +105,7 @@ static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h7, &h5, &b
 static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
 
 // devices for BURNOUT mode
-static device_t *DEVICES_BURNOUT[] = { &h2, &h3, 0 };
+// static device_t *DEVICES_BURNOUT[] = { &h2, &h3, 0 };
 
 // define POTDs
 static const potd_t INFRAR = { .name = "INFRAR", .devices = DEVICES_INFRAR };
@@ -322,10 +322,9 @@ static void ramp_akku(device_t *akku) {
 	// ramp up request
 	if (akku->ramp_in > 0) {
 
-		// set into standby when full
-		if (gstate->soc == 1000) {
-			if (!akku_standby(akku))
-				dstate->flags |= FLAG_ACTION;
+		// set to standby when full or charging not indicated
+		if (gstate->soc == 1000 || !GSTATE_CHARGE_AKKU) {
+			akku_standby(akku);
 			return;
 		}
 
@@ -348,12 +347,6 @@ static void ramp_akku(device_t *akku) {
 			// update charge limit
 			if (akku->climit)
 				akku_charge(akku);
-			return;
-		}
-
-		// set to standby if charging not indicated
-		if (!GSTATE_CHARGE_AKKU) {
-			akku_standby(akku);
 			return;
 		}
 
@@ -412,7 +405,7 @@ static void print_dstate() {
 	xlogl_start(line, "DSTATE ");
 	xlogl_bits16(line, NULL, dstate->flags);
 	xlogl_int(line, "DLimit", AKKU->dlimit);
-	if (!GSTATE_OFFLINE) {
+	if (GSTATE_ONLINE) {
 		xlogl_int(line, "CLimit", AKKU->climit);
 		xlogl_int(line, "CLoad", dstate->cload);
 		xlogl_int(line, "RLoad", dstate->rload);
@@ -519,31 +512,37 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
-static void burnout() {
-	xlog("SOLAR dispatcher burnout");
-
-	// enable discharge no limit
-	params->akku_dlimit = AKKU->dlimit = 0;
-	akku_discharge(AKKU);
-
-	// switch on devices
-	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
-		DD->ramp_in = DD->total;
-		ramp_device(DD);
-	}
-}
+//static void burnout() {
+//	xlog("SOLAR dispatcher burnout");
+//
+//	// enable discharge no limit
+//	params->akku_dlimit = AKKU->dlimit = 0;
+//	akku_discharge(AKKU);
+//
+//	// switch on devices
+//	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
+//		DD->ramp_in = DD->total;
+//		ramp_device(DD);
+//	}
+//}
 
 static void offline() {
 	xdebug("SOLAR dispatcher offline");
 
-	if (GSTATE_WINTER && gstate->soc < 70) {
-		// go not below 7% in winter to avoid forced charging from grid
+	// update discharge limit
+	if (AKKU->dlimit && AKKU_DISCHARGING)
+		akku_discharge(AKKU);
+
+	// enable discharge if we have grid download
+	if (gstate->soc > 100 && !AKKU_DISCHARGING && GSTATE_GRID_DLOAD)
+		akku_discharge(AKKU);
+
+	// go not below 7% in winter to avoid forced charging from grid
+	if (gstate->soc < 70 && GSTATE_WINTER) {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 			inverter_off();
-	} else if (AKKU->dlimit)
-		// update discharge limit
-		akku_discharge(AKKU);
+	}
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -564,6 +563,14 @@ static void offline() {
 
 static void online() {
 	xdebug("SOLAR dispatcher online");
+
+	// set to AUTO if charging without limit indicated
+	if (gstate->soc < 1000 && !AKKU_CHARGING && !AKKU->climit && GSTATE_CHARGE_AKKU)
+		akku_auto(AKKU);
+
+	// enable discharge if we have grid download
+	if (gstate->soc > 100 && !AKKU_DISCHARGING && GSTATE_GRID_DLOAD)
+		akku_discharge(AKKU);
 
 	// device loop
 	for (device_t **dd = DEVICES; *dd; dd++) {
@@ -866,7 +873,7 @@ static void calculate_actions() {
 		dstate->lock--;
 
 	// no action
-	if (dstate->lock || PSTATE_INVALID || PSTATE_BALANCE || PSTATE_EMERGENCY || GSTATE_OFFLINE || DSTATE_ALL_STANDBY)
+	if (dstate->lock || PSTATE_INVALID || PSTATE_BALANCE || PSTATE_EMERGENCY || !GSTATE_ONLINE || DSTATE_ALL_STANDBY)
 		return;
 
 	// ramp down
@@ -915,8 +922,8 @@ static void calculate_dstate() {
 	// inverter status
 	dstate->inv = inv1->state * 10 + inv2->state;
 
-	// skip single devices calculation when offline
-	if (!GSTATE_OFFLINE) {
+	// do single devices calculation only when online
+	if (GSTATE_ONLINE) {
 
 		dstate->flags |= FLAG_ALL_UP | FLAG_ALL_DOWN | FLAG_ALL_STANDBY;
 		for (device_t **dd = DEVICES; *dd; dd++) {
@@ -979,6 +986,7 @@ static void hourly() {
 		// set all devices back to automatic
 		if (DD->state == Manual || DD->state == Standby)
 			DD->state = Auto;
+
 		// clear flags
 		DD->flags = 0;
 	}
@@ -993,29 +1001,15 @@ static void minly() {
 	// update akku state
 	akku_state(AKKU);
 
+	// choose potd
+	choose_program();
+
 	// awake from manual sleep
 	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
 		inverter_on();
 
-	// choose potd
-	choose_program();
-
-	// enable discharge if we have grid download
-	// TODO (!) wird bei offline nicht gesetzt weil pstate->flags leer sind - problematisch?
-	if (GSTATE_GRID_DLOAD && !AKKU_DISCHARGING && gstate->soc > 100)
-		akku_discharge(AKKU);
-
-	// set to AUTO if charging without limit indicated
-	if (GSTATE_CHARGE_AKKU && !AKKU_CHARGING && !GSTATE_OFFLINE && !AKKU->climit && gstate->soc < 1000)
-		akku_auto(AKKU);
-
 	// operation mode
-	if (GSTATE_BURNOUT)
-		burnout();
-	else if (GSTATE_OFFLINE)
-		offline();
-	else
-		online();
+	GSTATE_ONLINE ? online() : offline();
 }
 
 // toggle device power

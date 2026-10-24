@@ -175,34 +175,34 @@ static void read_bmp085() {
 }
 
 static void publish_sensors_tasmotalike() {
-	char hostname[32], subtopic[64], value[BUFSIZE], v[64];
-	gethostname(hostname, 32);
+	char topic[64], message[BUFSIZE], value[64];
 
 	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
 	// TODO generate id from name or mac address
-	snprintf(subtopic, sizeof(subtopic), "tele/5213d6/SENSOR");
-	snprintf(value, 64, "{");
+	snprintf(topic, 64, "tele/5213d6/SENSOR");
 
-	snprintf(v, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d}" COMMA, sensor->bh1750_raw);
-	strncat(value, v, 64);
+	strcpy(message, "{");
 
-	snprintf(v, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensor->bmp085_temp, sensor->bmp085_baro);
-	strncat(value, v, 64);
+	snprintf(value, 64, JSON_KEY(BH1750) ":{\"Illuminance\":%d}" COMMA, sensor->bh1750_raw);
+	strncat(message, value, 64);
 
-	snprintf(v, 64, "}");
-	strncat(value, v, 64);
+	snprintf(value, 64, JSON_KEY(BMP085) ":{\"Temperature\":%.1f, \"Pressure\":%.1f}", sensor->bmp085_temp, sensor->bmp085_baro);
+	strncat(message, value, 64);
+
+	strcat(message, "}");
 
 #ifdef PICAM
-	publish(subtopic, value, 1);
+	publish(topic, message, 1);
 #endif
 }
 
-static void publish_sensor(const char *sensor, const char *name, const char *value) {
-	char hostname[32], subtopic[64];
-	gethostname(hostname, 32);
-	snprintf(subtopic, sizeof(subtopic), "%s/%s/%s", hostname, sensor, name);
+static void publish_sensor(const char *sensor, const char *name, const char *message) {
+	char topic[128];
+
+	snprintf(topic, 128, "%s/%s/%s", mcp->hostname, sensor, name);
+
 #ifdef PICAM
-	publish(subtopic, value, 0);
+	publish(topic, message, 0);
 #endif
 }
 
