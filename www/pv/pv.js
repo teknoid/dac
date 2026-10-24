@@ -60,9 +60,9 @@ function getGradientColor(p) {
 	if (p <= 0)
 		color = "LightGray";
 	else if (p > 100) 
-		color = "SpringGreen";
-	else if (p > 90)
 		color = "MediumSpringGreen";
+	else if (p > 90)
+		color = "SpringGreen";
 	else if (p > 80)
 		color = "LawnGreen";
 	else if (p > 70)

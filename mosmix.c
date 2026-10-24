@@ -293,6 +293,25 @@ static void update_today_tomorrow(struct tm *now) {
 	}
 }
 
+// update elapsed history for today
+static void update_today_history(struct tm *now) {
+	for (int h = 0; h < 24; h++) {
+		// only check elapsed hours
+		if (h == now->tm_hour)
+			return;
+
+		mosmix_t *mt = TODAY(h);
+		mosmix_t *mh = HISTORY(now->tm_wday, h);
+
+		if (mt->Rad1h != mh->Rad1h)
+			xlog("MOSMIX today/history difference detected Rad1h hour=%d today=%d history=%d", h, mt->Rad1h, mh->Rad1h);
+		if (mt->SunD1 != mh->SunD1)
+			xlog("MOSMIX today/history difference detected SunD1 hour=%d today=%d history=%d", h, mt->SunD1, mh->SunD1);
+		if (mt->TTT != mh->TTT)
+			xlog("MOSMIX today/history difference detected   TTT hour=%d today=%d history=%d", h, mt->TTT, mh->TTT);
+	}
+}
+
 // Rad1h factors determination by averaging mosmix history actual vs. expected per mppt
 static void calculate_factors() {
 	ZERO(factors);
@@ -736,6 +755,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 		ZERO(tomorrow);
 	}
 	update_today_tomorrow(now);
+	update_today_history(now);
 	calculate_factors();
 	recalc_expected();
 	return 0;

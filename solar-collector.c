@@ -886,7 +886,7 @@ static void calculate_pstate_online() {
 
 static void calculate_pstate() {
 	// clear flags and values
-	pstate->flags = pstate->ramp = pstate->rsl = pstate->target = pstate->steal = 0;
+	pstate->flags = pstate->ramp = pstate->rsl = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
@@ -961,7 +961,8 @@ static void calculate_pstate() {
 	if (GSTATE_ONLINE) {
 		calculate_pstate_online();
 		calculate_pstate_ramp();
-	}
+	} else
+		pstate->target = pstate->steal = 0; // clear online calculated values
 
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
