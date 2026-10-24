@@ -68,7 +68,7 @@ typedef struct mosmix_csv_t {
 	float TTT;
 	int Rad1h;
 	int SunD1;
-	int RSunD;
+	// int RSunD;
 } mosmix_csv_t;
 
 typedef struct mosmix_marble_t {

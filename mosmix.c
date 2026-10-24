@@ -109,7 +109,7 @@ static void parse(char **strings, size_t size) {
 	m->TTT = atof(strings[2]) - 273.15; // convert to °C
 	m->Rad1h = atoi(strings[3]);
 	m->SunD1 = atoi(strings[4]) * 100 / 3600; // convert to 0..100 percent
-	m->RSunD = atoi(strings[5]);
+	// m->RSunD = atoi(strings[5]);
 }
 
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
@@ -286,29 +286,10 @@ static void update_today_tomorrow(struct tm *now) {
 		m->SunD1 = mcsv->SunD1;
 		m->TTT = mcsv->TTT;
 		if (m->Rad1h)
-			xdebug("MOSMIX updated %02d.%02d. hour %02d Rad1h=%d SunD1=%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, m->SunD1);
+			xlog("MOSMIX updated %02d.%02d. hour %02d Rad1h=%d SunD1=%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, m->SunD1);
 		else
 			// SunD1 without Rad1h is not possible
 			m->SunD1 = 0;
-	}
-}
-
-// update elapsed history for today
-static void update_today_history(struct tm *now) {
-	for (int h = 0; h < 24; h++) {
-		// only check elapsed hours
-		if (h == now->tm_hour)
-			return;
-
-		mosmix_t *mt = TODAY(h);
-		mosmix_t *mh = HISTORY(now->tm_wday, h);
-
-		if (mt->Rad1h != mh->Rad1h)
-			xlog("MOSMIX today/history difference detected Rad1h hour=%d today=%d history=%d", h, mt->Rad1h, mh->Rad1h);
-		if (mt->SunD1 != mh->SunD1)
-			xlog("MOSMIX today/history difference detected SunD1 hour=%d today=%d history=%d", h, mt->SunD1, mh->SunD1);
-		if (mt->TTT != mh->TTT)
-			xlog("MOSMIX today/history difference detected   TTT hour=%d today=%d history=%d", h, mt->TTT, mh->TTT);
 	}
 }
 
@@ -755,7 +736,6 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 		ZERO(tomorrow);
 	}
 	update_today_tomorrow(now);
-	update_today_history(now);
 	calculate_factors();
 	recalc_expected();
 	return 0;

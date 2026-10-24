@@ -408,10 +408,8 @@ static void calculate_counter() {
 		// copy to history
 #ifdef COUNTER_METER
 		memcpy(COUNTER_HOUR_NOW, CM_NOW, sizeof(counter_t));
-		mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
 #else
 		memcpy(COUNTER_HOUR_NOW, CS_NOW, sizeof(counter_t));
-		mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
 #endif
 
 		// copy to LAST entry
@@ -1000,8 +998,11 @@ static void daily() {
 static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
 
-	// update forecasts and clear at midnight, recalculate factors
+	// update forecasts, clear at midnight, recalculate factors
 	mosmix_load(now, TMP SLASH MARIENBERG, DAILY);
+
+	// update history
+	mosmix_mppt(now, COUNTER_HOUR_NOW->mppt1, COUNTER_HOUR_NOW->mppt2, COUNTER_HOUR_NOW->mppt3, COUNTER_HOUR_NOW->mppt4);
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
