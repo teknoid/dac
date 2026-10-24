@@ -309,19 +309,19 @@ static void loop() {
 			switch (now->tm_hour) {
 			case 0:
 				memcpy(sensor0, sensor, sizeof(sensors_t));
-				xlog("sensor0  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
+				xdebug("SENSORS sensor0  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor0->tin, sensor0->tout, sensor0->humi, sensor0->lumi, sensor0->tvoc);
 				break;
 			case 6:
 				memcpy(sensor6, sensor, sizeof(sensors_t));
-				xlog("sensor6  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
+				xdebug("SENSORS sensor6  tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
 				break;
 			case 12:
 				memcpy(sensor12, sensor, sizeof(sensors_t));
-				xlog("sensor12 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
+				xdebug("SENSORS sensor12 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor12->tin, sensor12->tout, sensor12->humi, sensor12->lumi, sensor12->tvoc);
 				break;
 			case 18:
 				memcpy(sensor18, sensor, sizeof(sensors_t));
-				xlog("sensor18 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor6->tin, sensor6->tout, sensor6->humi, sensor6->lumi, sensor6->tvoc);
+				xdebug("SENSORS sensor18 tin=%.1f tout=%.1f  humi=%.1f lumi=%d tvoc=%d", sensor18->tin, sensor18->tout, sensor18->humi, sensor18->lumi, sensor18->tvoc);
 				break;
 			default:
 			}

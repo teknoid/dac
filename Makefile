@@ -20,7 +20,7 @@ COBJS-PIWOLF 	= mcp.o utils.o $(COD) dac-piwolf.o devinput-infrared.o gpio-bcm28
 COBJS-SABRE18 	= mcp.o utils.o $(COD) dac-es9018.o devinput-infrared.o gpio-sunxi.o
 COBJS-SABRE28 	= mcp.o utils.o $(COD) dac-es9028.o devinput-infrared.o gpio-sunxi.o devinput-rotary.o display.o display-menu.o i2c.o
 COBJS-TRON 		= mcp.o utils.o $(COD) $(COS) network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o button.o lcd.o dac-alsa.o wifi.o
-COBJS-ODROID 	= mcp.o utils.o $(COS)        network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o
+COBJS-ODROID 	= mcp.o utils.o $(COS)        network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o aqua.o ledstrip.o shutter.o frozen.o curl.o gpio-dummy.o wifi.o
 COBJS-PICAM		= mcp.o utils.o               network.o xmas.o mqtt-rx.o mqtt-tx.o tasmota.o sensors.o i2c.o flamingo.o webcam.o frozen.o gpio-bcm2835.o
 
 all: $(OBJS)

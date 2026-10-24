@@ -32,7 +32,7 @@ static void* popen_thread(void *arg) {
 	if (conn->stream == NULL)
 		return xerrv("NETWORK popen failed");
 
-	xlog("WIFI %d pipe opened to '%s'", server->description, server->command);
+	xlog("WIFI %s pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
 		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
 			(server->handler)(conn);

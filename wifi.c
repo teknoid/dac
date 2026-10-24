@@ -7,6 +7,12 @@
 // tcpdump -nevi mon0 | tee -a /ram/tcpdump.log | nc tron 6666
 // while true; do for c in `seq 1 13`; do iw dev mon0 set channel $c; sleep 1s; done; done
 
+// groupadd pcap
+// usermod -a -G pcap hje
+// chgrp pcap /usr/bin/tcpdump
+// chmod 750 /usr/bin/tcpdump
+// setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -1142,6 +1148,10 @@ static int init() {
 	wifi.pmeta[4] = names;
 	wifi.pmeta[5] = homes;
 	wifi.pmeta[6] = 0; // null terminate
+
+#ifdef ODROID
+	popen_x = 1;
+#endif
 
 	// start local tcpdump thread
 	if (popen_x)
