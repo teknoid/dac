@@ -2,6 +2,10 @@
 #define MARIENBERG				"MARIENBERG.csv"
 #define BRAUNSDORF				"BRAUNSDORF.csv"
 
+enum e_survive {
+	Undefined, Night, Dusk, Dawn, DayLow, Day
+};
+
 typedef struct _mosmix mosmix_t;
 #define MOSMIX_SIZE		(sizeof(mosmix_t) / sizeof(int))
 // CSV					1     2     3     4     5     6     7     8     9    10    11    12    13    14    15    16    17    18    19    20
@@ -61,17 +65,17 @@ typedef struct mosmix_old_t {
 	int err4;
 } mosmix_old_t;
 
-typedef struct mosmix_csv_t {
+typedef struct csv_t {
 	// from file
 	int idx;
 	time_t ts;
 	float TTT;
 	int Rad1h;
 	int SunD1;
-	// int RSunD;
-} mosmix_csv_t;
+// int RSunD;
+} csv_t;
 
-typedef struct mosmix_marble_t {
+typedef struct marble_t {
 	int tomorrow;
 	int today;
 	int sod;
@@ -82,7 +86,21 @@ typedef struct mosmix_marble_t {
 	int night;
 	int heat_mins;
 	int heat;
-} mosmix_marble_t;
+} marble_t;
+
+typedef struct power_t {
+	enum e_survive flag;
+	int hour;
+	int akku;
+	int load;
+	int expt;
+	int day_mins;
+	int day;
+	int night_mins;
+	int night;
+	int heat_mins;
+	int heat;
+} power_t;
 
 typedef struct _factor factor_t;
 #define FACTOR_SIZE		(sizeof(factor_t) / sizeof(int))
@@ -102,27 +120,6 @@ struct _factor {
 	int e4;
 };
 
-enum e_survive {
-	Undefined, Night, Dusk, Dawn, DayLow, Day
-};
-
-typedef struct _power power_t;
-#define POWER_SIZE	(sizeof(power_t) / sizeof(int))
-#define POWER_HEADER	"  flag  hour  akku  load  expt  daym   day nitem  nite heatm  heat"
-struct _power {
-	enum e_survive flag;
-	int hour;
-	int akku;
-	int load;
-	int expt;
-	int day_mins;
-	int day;
-	int night_mins;
-	int night;
-	int heat_mins;
-	int heat;
-};
-
 void mosmix_store_state();
 void mosmix_load_state(struct tm *now);
 void mosmix_factors();
@@ -133,6 +130,6 @@ void mosmix_dump_history_hours(int hour);
 void mosmix_store_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_scale(struct tm *now, int *succ1, int *succ2);
-void mosmix_marble(struct tm *now, const int baseload, const int heating, mosmix_marble_t *marble);
+void mosmix_marble(struct tm *now, const int baseload, const int heating, marble_t *marble);
 void mosmix_update_akku_load(int h, int a, int l);
 int mosmix_load(struct tm *now, const char *filename, int clear);

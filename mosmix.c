@@ -45,7 +45,7 @@
 #define LINEBUF					256
 
 // all raw values from kml file
-static mosmix_csv_t mosmix_csv[256];
+static csv_t mosmix_csv[256];
 
 // 24h slots over one week and access pointers
 // today and tommorow contains only forecast data
@@ -55,9 +55,13 @@ static mosmix_t today[24], tomorrow[24], history[HISTORY_SIZE];
 #define TOMORROW(h)				(&tomorrow[h])
 #define HISTORY(d, h)			(&history[24 * d + h])
 
-// rad1/sund1 factors per MPPT and hour and access pointer
+// Rad1h / SunD1 factors per MPPT and hour and access pointer
 static factor_t factors[24];
-#define FACTORS(h)				(&factors[h])
+#define FACTOR(h)				(&factors[h])
+
+// power over 24 hours today and tomorrow
+static power_t powers[48];
+#define POWER(h)				(&powers[h])
 
 // average akku and load over 24/7
 static int akku[24] = { 260, 279, 272, 218, 209, 221, 180, 209, 26, -220, -420, -306, -464, -504, -567, -310, -137, -117, 26, 183, 280, 317, 245, 270 };
@@ -102,7 +106,7 @@ static const char* get_flag(power_t *s) {
 
 static void parse(char **strings, size_t size) {
 	int idx = atoi(strings[0]);
-	mosmix_csv_t *m = &mosmix_csv[idx];
+	csv_t *m = &mosmix_csv[idx];
 
 	m->idx = idx;
 	m->ts = atoi(strings[1]);
@@ -210,10 +214,212 @@ static void collect(struct tm *now, mosmix_t *mtomorrow, mosmix_t *mtoday, mosmi
 	}
 }
 
+// collect base load day power starting at current hour
+static void collect_day(struct tm *now, int *minutes, int *power) {
+	char line[LINEBUF * 2], value[48];
+
+	strcpy(line, "MOSMIX   day h:m:p");
+	for (int i = now->tm_hour + 1; i < 24; i++) {
+		power_t *p = POWER(i);
+
+		if (!p->day)
+			continue;
+
+		// current hour -> partly, remaining hours -> full
+		int mins = p->hour == CH ? p->day_mins - now->tm_min : p->day_mins;
+		int need = p->hour == CH ? p->day * mins / p->day_mins : p->day;
+		if (mins < 0)
+			mins = need = 0;
+
+		// dawn - start day count down at end of hour
+		if (p->flag == Dawn && p->hour == CH) {
+			if (60 - now->tm_min > p->day_mins) {
+				mins = p->day_mins;
+				need = p->day;
+			} else {
+				mins = 60 - now->tm_min;
+				need = p->day * mins / p->day_mins;
+			}
+		}
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*minutes += mins;
+		*power += need;
+	}
+
+	*power = round10(*power);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *minutes, FLOAT60(*minutes), *power);
+	strcat(line, value);
+	if (*minutes)
+		xlog(line);
+}
+
+// collect base load night power starting at current hour
+static void collect_night(struct tm *now, int *minutes, int *power) {
+	char line[LINEBUF * 2], value[48];
+
+	strcpy(line, "MOSMIX night h:m:p");
+	int i = now->tm_hour + 1, dark = 0;
+	while (1) {
+
+		// reached high noon this day
+		if (i == 12 && dark)
+			break;
+
+		// reached high noon next day
+		if (i == 36)
+			break;
+
+		power_t *p = POWER(i++);
+		if (!p->night_mins || !p->night)
+			continue;
+
+		// current hour -> partly, remaining hours -> full
+		int mins = p->hour == CH ? p->night_mins - now->tm_min : p->night_mins;
+		int need = p->hour == CH ? p->night * mins / p->night_mins : p->night;
+		if (mins < 0)
+			mins = need = 0;
+
+		// dusk - start night count down at end of hour
+		if (p->flag == Dusk && p->hour == CH) {
+			if (60 - now->tm_min > p->night_mins) {
+				mins = p->night_mins;
+				need = p->night;
+			} else {
+				mins = 60 - now->tm_min;
+				need = p->night * mins / p->night_mins;
+			}
+		}
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*minutes += mins;
+		*power += need;
+		dark++;
+	}
+
+	*power = round10(*power);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *minutes, FLOAT60(*minutes), *power);
+	strcat(line, value);
+	if (*minutes)
+		xlog(line);
+}
+
+// collect heating power for this day starting at current hour
+static void collect_heating(struct tm *now, int *minutes, int *power) {
+	char line[LINEBUF * 2], value[48];
+
+	strcpy(line, "MOSMIX  heat h:m:p");
+	for (int i = now->tm_hour + 1; i < 24; i++) {
+		power_t *p = POWER(i);
+
+		if (!p->heat)
+			continue;
+
+		// current hour -> partly, remaining hours -> full
+		int mins = p->hour == CH ? p->heat_mins - now->tm_min : p->heat_mins;
+		int need = p->hour == CH ? p->heat * mins / p->heat_mins : p->heat;
+		if (mins < 0)
+			mins = need = 0;
+
+		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
+		strcat(line, value);
+		*minutes += mins;
+		*power += need;
+	}
+
+	*power = round10(*power);
+	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *minutes, FLOAT60(*minutes), *power);
+	strcat(line, value);
+	if (*minutes)
+		xlog(line);
+}
+
+// calculate minutes and power for each hour
+static void calculate_power(int baseload, int heating) {
+	ZERO(powers);
+
+	// fill hour, akku, load and expected for today and tomorrow
+	for (int i = 0; i < 48; i++) {
+		int h = i % 24;
+		mosmix_t *m = i < 24 ? TODAY(h) : TOMORROW(h);
+		power_t *p = POWER(i);
+
+		p->hour = h;
+		p->akku = akku[h];
+		p->load = load[h];
+		p->expt = SUM_EXP(m);
+	}
+
+	int bday = baseload + baseload / 10 + 1; // +10 over day
+	for (int i = 0; i < 48; i++) {
+		power_t *p = POWER(i), *p1m = POWER(i > 1 ? i - 1 : 0), *p1p = POWER(i < 47 ? i + 1 : 47);
+
+		// dusk (x -> zero)
+		if (p->expt && !p1p->expt) {
+			p->night_mins = bday * 60 / p->expt;
+			HICUT(p->night_mins, 60)
+			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
+			p->day_mins = p->expt * 60 / bday;
+			HICUT(p->day_mins, 60)
+			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
+			p->flag = Dusk;
+		}
+
+		// dawn (zero -> x)
+		if (!p1m->expt && p->expt) {
+			p->night_mins = bday * 60 / p->expt;
+			HICUT(p->night_mins, 60)
+			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
+			p->day_mins = p->expt * 60 / bday;
+			HICUT(p->day_mins, 60)
+			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
+			p->flag = Dawn;
+		}
+
+		// night (zero) - use akku or load to calculate needed power
+		if (!p->flag && !p->expt) {
+			p->night_mins = 60;
+			p->night = p->load > p->akku ? p->load : p->akku; // akku might be limited on discharge - use bigger one
+			p->flag = Night;
+		}
+
+		// day (x) but not enough - calculate needed power from baseload difference
+		if (!p->flag && p->expt < bday) {
+			p->night_mins = 60;
+			p->night = bday - p->expt;
+			p->day_mins = 60;
+			p->day = p->expt;
+			p->flag = DayLow;
+		}
+
+		// day
+		if (!p->flag && p->expt >= bday) {
+			p->day_mins = 60;
+			p->day = bday;
+			p->flag = Day;
+		}
+
+		// day and enough to heat
+		if (p->expt > heating) {
+			p->heat_mins = 60;
+			p->heat = heating;
+		}
+
+		// shape
+//		if (p->night < NOISE)
+//			p->night = p->night_mins = 0;
+//		if (p->day < NOISE)
+//			p->day = p->day_mins = 0;
+	}
+	// dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
+}
+
 // recalc expected and errors
 static void recalc_expected() {
 	for (int h = 0; h < 24; h++) {
-		factor_t *f = FACTORS(h);
+		factor_t *f = FACTOR(h);
 
 		// today
 		mosmix_t *m0 = TODAY(h);
@@ -263,7 +469,7 @@ static void update_today_tomorrow(struct tm *now) {
 
 	// loop over one week
 	for (int i = 0; i < HISTORY_SIZE; i++) {
-		mosmix_csv_t *mcsv = &mosmix_csv[i];
+		csv_t *mcsv = &mosmix_csv[i];
 
 //		struct tm utcTime, localTime;
 //		gmtime_r(&mcsv->ts, &utcTime);
@@ -308,7 +514,7 @@ static void calculate_factors() {
 		}
 
 		// calculate average factor
-		factor_t *f = FACTORS(h);
+		factor_t *f = FACTOR(h);
 		ZEROP(f);
 		for (int d = 0; d < 7; d++) {
 			f->r1 += fd[d].r1;
@@ -423,10 +629,7 @@ void mosmix_scale(struct tm *now, int *succ1, int *succ2) {
 	xlog("MOSMIX scaling   before: total=%d mppt=%d exp=%d succ=%.1f%%   after: total=%d mppt=%d exp=%d succ=%.1f%%", exp1, sodm1, sodx1, fs1, exp2, sodm2, sodx2, fs2);
 }
 
-void mosmix_marble(struct tm *now, const int baseload, const int heating, mosmix_marble_t *marbles) {
-	char line[LINEBUF * 2], value[48];
-	power_t power[48]; // 24 hours today and tomorrow
-
+void mosmix_marble(struct tm *now, const int baseload, const int heating, marble_t *marbles) {
 	ZEROP(marbles);
 
 	// collect total expected today, tomorrow and till end of day / start of day
@@ -440,193 +643,10 @@ void mosmix_marble(struct tm *now, const int baseload, const int heating, mosmix
 	xdebug("MOSMIX tomorrow=%d today=%d sod=%d eod=%d", marbles->tomorrow, marbles->today, marbles->sod, marbles->eod);
 
 	// look ahead and calculate power to survive next night and heating over day
-	ZERO(power);
-
-	// fill hour, akku, load and expected for today and tomorrow
-	for (int i = 0; i < 48; i++) {
-		int h = i % 24;
-		mosmix_t *m = i < 24 ? TODAY(h) : TOMORROW(h);
-		power_t *p = &power[i];
-
-		p->hour = h;
-		p->akku = akku[h];
-		p->load = load[h];
-		p->expt = SUM_EXP(m);
-	}
-
-	// calculate minutes and power for each hour
-	int bday = baseload + baseload / 10 + 1; // +10 over day
-	for (int i = 0; i < 48; i++) {
-		power_t *p = &power[i], *p1m = &power[i > 1 ? i - 1 : 0], *p1p = &power[i < 47 ? i + 1 : 47];
-
-		// dusk (x -> zero)
-		if (p->expt && !p1p->expt) {
-			p->night_mins = bday * 60 / p->expt;
-			HICUT(p->night_mins, 60)
-			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
-			p->day_mins = p->expt * 60 / bday;
-			HICUT(p->day_mins, 60)
-			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
-			p->flag = Dusk;
-		}
-
-		// dawn (zero -> x)
-		if (!p1m->expt && p->expt) {
-			p->night_mins = bday * 60 / p->expt;
-			HICUT(p->night_mins, 60)
-			p->night = p->night_mins < 60 ? (bday * p->night_mins / 120) : (bday - (p->expt / 2));
-			p->day_mins = p->expt * 60 / bday;
-			HICUT(p->day_mins, 60)
-			p->day = p->day_mins < 60 ? (p->expt * p->day_mins / 120) : bday;
-			p->flag = Dawn;
-		}
-
-		// night (zero) - use akku or load to calculate needed power
-		if (!p->flag && !p->expt) {
-			p->night_mins = 60;
-			p->night = p->load > p->akku ? p->load : p->akku; // akku might be limited on discharge - use bigger one
-			p->flag = Night;
-		}
-
-		// day (x) but not enough - calculate needed power from baseload difference
-		if (!p->flag && p->expt < bday) {
-			p->night_mins = 60;
-			p->night = bday - p->expt;
-			p->day_mins = 60;
-			p->day = p->expt;
-			p->flag = DayLow;
-		}
-
-		// day
-		if (!p->flag && p->expt >= bday) {
-			p->day_mins = 60;
-			p->day = bday;
-			p->flag = Day;
-		}
-
-		// day and enough to heat
-		if (p->expt > heating) {
-			p->heat_mins = 60;
-			p->heat = heating;
-		}
-
-		// shape
-//		if (p->night < NOISE)
-//			p->night = p->night_mins = 0;
-//		if (p->day < NOISE)
-//			p->day = p->day_mins = 0;
-	}
-	// dump_table(power, POWER_SIZE, 48, now->tm_hour + 1, "MOSMIX power", POWER_HEADER);
-
-	// collect base load day power starting at current hour
-	strcpy(line, "MOSMIX   day h:m:p");
-	for (int i = now->tm_hour + 1; i < 24; i++) {
-		power_t *p = &power[i];
-
-		if (!p->day)
-			continue;
-
-		// current hour -> partly, remaining hours -> full
-		int mins = p->hour == CH ? p->day_mins - now->tm_min : p->day_mins;
-		int need = p->hour == CH ? p->day * mins / p->day_mins : p->day;
-		if (mins < 0)
-			mins = need = 0;
-
-		// dawn - start day count down at end of hour
-		if (p->flag == Dawn && p->hour == CH) {
-			if (60 - now->tm_min > p->day_mins) {
-				mins = p->day_mins;
-				need = p->day;
-			} else {
-				mins = 60 - now->tm_min;
-				need = p->day * mins / p->day_mins;
-			}
-		}
-
-		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
-		strcat(line, value);
-		marbles->day_mins += mins;
-		marbles->day += need;
-	}
-
-	marbles->day = round10(marbles->day);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->day_mins, FLOAT60(marbles->day_mins), marbles->day);
-	strcat(line, value);
-	if (marbles->day_mins)
-		xlog(line);
-
-	// collect base load night power starting at current hour
-	strcpy(line, "MOSMIX night h:m:p");
-	int i = now->tm_hour + 1, dark = 0;
-	while (1) {
-
-		// reached high noon this day
-		if (i == 12 && dark)
-			break;
-
-		// reached high noon next day
-		if (i == 36)
-			break;
-
-		power_t *p = &power[i++];
-		if (!p->night_mins || !p->night)
-			continue;
-
-		// current hour -> partly, remaining hours -> full
-		int mins = p->hour == CH ? p->night_mins - now->tm_min : p->night_mins;
-		int need = p->hour == CH ? p->night * mins / p->night_mins : p->night;
-		if (mins < 0)
-			mins = need = 0;
-
-		// dusk - start night count down at end of hour
-		if (p->flag == Dusk && p->hour == CH) {
-			if (60 - now->tm_min > p->night_mins) {
-				mins = p->night_mins;
-				need = p->night;
-			} else {
-				mins = 60 - now->tm_min;
-				need = p->night * mins / p->night_mins;
-			}
-		}
-
-		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
-		strcat(line, value);
-		marbles->night_mins += mins;
-		marbles->night += need;
-		dark++;
-	}
-
-	marbles->night = round10(marbles->night);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->night_mins, FLOAT60(marbles->night_mins), marbles->night);
-	strcat(line, value);
-	if (marbles->night_mins)
-		xlog(line);
-
-	// collect heating power for this day starting at current hour
-	strcpy(line, "MOSMIX  heat h:m:p");
-	for (int i = now->tm_hour + 1; i < 24; i++) {
-		power_t *p = &power[i];
-
-		if (!p->heat)
-			continue;
-
-		// current hour -> partly, remaining hours -> full
-		int mins = p->hour == CH ? p->heat_mins - now->tm_min : p->heat_mins;
-		int need = p->hour == CH ? p->heat * mins / p->heat_mins : p->heat;
-		if (mins < 0)
-			mins = need = 0;
-
-		snprintf(value, 48, " %s%d:%d:%d", get_flag(p), p->hour, mins, need);
-		strcat(line, value);
-		marbles->heat_mins += mins;
-		marbles->heat += need;
-	}
-
-	marbles->heat = round10(marbles->heat);
-	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", marbles->heat_mins, FLOAT60(marbles->heat_mins), marbles->heat);
-	strcat(line, value);
-	if (marbles->heat_mins)
-		xlog(line);
+	calculate_power(baseload, heating);
+	collect_day(now, &marbles->day_mins, &marbles->day);
+	collect_night(now, &marbles->night_mins, &marbles->night);
+	collect_heating(now, &marbles->heat_mins, &marbles->heat);
 }
 
 void mosmix_update_akku_load(int h, int a, int l) {
@@ -663,8 +683,12 @@ void mosmix_dump_history_hours(int h) {
 void mosmix_load_state(struct tm *now) {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
-	// fix wrong values
-	// history[45].mppt1 = history[45].mppt2 = history[45].mppt3 = history[45].mppt4 = 0;
+	// fix wrong values - copy from yesterday
+//	int wrong = 161, copy = wrong > 24 ? (wrong - 24) : (wrong + 24);
+//	history[wrong].mppt1 = history[copy].mppt1;
+//	history[wrong].mppt2 = history[copy].mppt2;
+//	history[wrong].mppt3 = history[copy].mppt3;
+//	history[wrong].mppt4 = history[copy].mppt4;
 
 	ZERO(today);
 	ZERO(tomorrow);
@@ -742,7 +766,7 @@ int mosmix_load(struct tm *now, const char *filename, int clear) {
 }
 
 static int test() {
-	mosmix_marble_t mosmix_marbles, *marbles = &mosmix_marbles;
+	marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
 	LOCALTIME
 
@@ -770,6 +794,8 @@ static int test() {
 	mosmix_load(now, TMP SLASH MARIENBERG, 1);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
+
+	mosmix_marble(now, BASELOAD, 2000, marbles);
 
 //	int itoday, itomorrow, sod, eod, eodh, succ1, succ2;
 //
@@ -811,8 +837,6 @@ static int test() {
 //	now->tm_min = 40;
 
 //	mosmix_dump_history_hours(8);
-
-	mosmix_marble(now, BASELOAD, 2000, marbles);
 
 	return 0;
 }
@@ -917,7 +941,7 @@ static int diffs(struct tm *now) {
 	int diff_sum = 0;
 	for (int h = 0; h < 24; h++) {
 		mosmix_t *m = TODAY(h);
-		factor_t *f = FACTORS(h);
+		factor_t *f = FACTOR(h);
 		expect(m, f);
 		int mppt = SUM_MPPT(m);
 		int expt = SUM_EXP(m);

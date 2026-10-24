@@ -119,7 +119,7 @@
 static struct tm now_tm, *now = &now_tm;
 
 // mosmix marbles
-static mosmix_marble_t mosmix_marbles, *marbles = &mosmix_marbles;
+static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
 // local params/counter/gstate/pstate/statistics memory
 static counter_t counter_hours[HISTORY_SIZE];
