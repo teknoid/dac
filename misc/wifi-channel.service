@@ -1,0 +1,11 @@
+[Unit]
+Description=Cycle through wifi channels
+Wants=network-online.target
+After=network-online.target wifi-monitor.service 
+
+[Service]
+Type=simple
+ExecStart=/bin/sh -c 'while true; do for c in `seq 1 13`; do iw dev mon0 set channel $c; sleep 1s; done; done'
+
+[Install]
+WantedBy=multi-user.target

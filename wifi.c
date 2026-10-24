@@ -1,17 +1,6 @@
 // gcc -Wall -DWIFI_MAIN -DMQTT_HOST=\"mqtt\" -I./include -L./lib/x86_64 -o wifi wifi.c mcp.c utils.c network.c mqtt-tx.c -lmqttc
 
-// iw phy phy2 interface add mon0 type monitor
-// ifconfig mon0 up
-// tcpdump -nevi mon0 | nc tron 6666
-//
-// tcpdump -nevi mon0 | tee -a /ram/tcpdump.log | nc tron 6666
-// while true; do for c in `seq 1 13`; do iw dev mon0 set channel $c; sleep 1s; done; done
-
-// groupadd pcap
-// usermod -a -G pcap hje
-// chgrp pcap /usr/bin/tcpdump
-// chmod 750 /usr/bin/tcpdump
-// setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
+// setup remote tcpdump instance --> misc/wifi-*.service
 
 #include <stdio.h>
 #include <stdlib.h>

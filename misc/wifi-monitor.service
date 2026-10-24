@@ -1,0 +1,15 @@
+[Unit]
+Description=Setup monitoring device
+Requires=sys-subsystem-net-devices-wlx984827ec6e9f.device
+After=sys-subsystem-net-devices-wlx984827ec6e9f.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=iw phy phy2 interface add mon0 type monitor
+ExecStartPost=ip link set dev mon0 up
+ExecStop=ip link set dev mon0 down
+ExecStop=iw dev mon0 del
+
+[Install]
+WantedBy=sys-subsystem-net-devices-wlx984827ec6e9f.device
