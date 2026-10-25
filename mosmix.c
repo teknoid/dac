@@ -31,6 +31,9 @@
 #define MOSMIX_TOMORROW_CSV		"mosmix-tomorrow.csv"
 #define MOSMIX_TODAY_CSV		"mosmix-today.csv"
 
+#define JSON					".json"
+#define CSV						".csv"
+
 // temperature coefficient scaled as x100
 #define TCOP					-34
 
@@ -702,15 +705,17 @@ void mosmix_store_csv() {
 	store_table_csv(today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 }
 
-int mosmix_load_csv(struct tm *now, const char *filename, int clear) {
+int mosmix_load_csv(struct tm *now, const char *station, int clear) {
+	char filename[64];
 	char *column[8];
 	char buf[LINEBUF];
 
-	ZERO(mosmix_csv);
-
+	snprintf(filename, 64, TMP SLASH "%s" CSV, station);
 	FILE *fp = fopen(filename, "rt");
 	if (fp == NULL)
 		return xerr("MOSMIX Cannot open file %s for reading", filename);
+
+	ZERO(mosmix_csv);
 
 	// header
 	if (fgets(buf, LINEBUF, fp) == NULL)
@@ -832,8 +837,8 @@ static int test() {
 
 	// load state and update forecasts
 	mosmix_load_state(now);
-	// mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
-	mosmix_load_json(now, "MARIENBERG", 0);
+	// mosmix_load_csv(now, MARIENBERG, 0);
+	mosmix_load_json(now, MARIENBERG, 0);
 	mosmix_dump_today(now);
 	mosmix_dump_tomorrow(now);
 
@@ -887,7 +892,7 @@ static int recalc() {
 	LOCALTIME
 
 	mosmix_load_state(now);
-	mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
+	mosmix_load_csv(now, MARIENBERG, 0);
 	calculate_factors();
 	recalc_expected();
 	history_total();
@@ -999,15 +1004,15 @@ static int compare() {
 	localtime_r(&ts_yday, &tm_yday);
 
 	wget(yday, "10579");
-	mosmix_load_csv(yday, TMP SLASH MARIENBERG, 1);
+	mosmix_load_csv(yday, MARIENBERG, 1);
 	int dm = diffs(yday);
 
 	wget(yday, "10577");
-	mosmix_load_csv(yday, TMP SLASH CHEMNITZ, 1);
+	mosmix_load_csv(yday, CHEMNITZ, 1);
 	int dc = diffs(yday);
 
 	wget(yday, "N4464");
-	mosmix_load_csv(yday, TMP SLASH BRAUNSDORF, 1);
+	mosmix_load_csv(yday, BRAUNSDORF, 1);
 	int db = diffs(yday);
 
 	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dm, dc, db);

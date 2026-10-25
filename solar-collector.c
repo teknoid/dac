@@ -1004,7 +1004,7 @@ static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
 
 	// update forecasts, clear at midnight, recalculate factors
-	mosmix_load_csv(now, TMP SLASH MARIENBERG, DAILY);
+	mosmix_load_csv(now, MARIENBERG, DAILY);
 
 	// update history
 #ifdef COUNTER_METER
@@ -1174,7 +1174,7 @@ static int init() {
 
 	load_state();
 	mosmix_load_state(now);
-	mosmix_load_csv(now, TMP SLASH MARIENBERG, 0);
+	mosmix_load_csv(now, MARIENBERG, 0);
 	collect_average_247();
 
 	sem_init(&sq->collector, 0, 0);

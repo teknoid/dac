@@ -1,6 +1,6 @@
-#define CHEMNITZ				"CHEMNITZ.csv"
-#define MARIENBERG				"MARIENBERG.csv"
-#define BRAUNSDORF				"BRAUNSDORF.csv"
+#define CHEMNITZ				"CHEMNITZ"
+#define MARIENBERG				"MARIENBERG"
+#define BRAUNSDORF				"BRAUNSDORF"
 
 enum e_survive {
 	Undefined, Night, Dusk, Dawn, DayLow, Day
@@ -132,5 +132,5 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);
 void mosmix_scale(struct tm *now, int *succ1, int *succ2);
 void mosmix_marble(struct tm *now, const int baseload, const int heating, marble_t *marble);
 void mosmix_update_akku_load(int h, int a, int l);
-int mosmix_load_csv(struct tm *now, const char *filename, int clear);
+int mosmix_load_csv(struct tm *now, const char *station, int clear);
 int mosmix_load_json(struct tm *now, const char *station, int clear);
