@@ -644,7 +644,7 @@ static void report() {
 		return;
 	}
 
-	fprintf(fp, "### find multiple BECONS at same device on similar mac addresses ###");
+	fprintf(fp, "### find multiple BECONS at same device on similar mac addresses ###\n");
 	for (mac_t **x = beacons->pmacs; *x; x++) {
 		uint64_t xmac = (*x)->mac & XFXMASK;
 		for (mac_t **y = beacons->pmacs; *y; y++) {
@@ -652,25 +652,25 @@ static void report() {
 				continue; // self
 			uint64_t ymac = (*y)->mac & XFXMASK;
 			if (ymac == xmac)
-				fprintf(fp, "%s => %s   %s => %s", (*y)->smac, (*x)->smac, NAME((*y)), NAME((*x)));
+				fprintf(fp, "%s => %s   %s => %s\n", (*y)->smac, (*x)->smac, NAME((*y)), NAME((*x)));
 		}
 	}
 
-	fprintf(fp, "\n### find BEACON as exact client in another station ###");
+	fprintf(fp, "\n### find BEACON as exact client in another station ###\n");
 	for (mac_t **b = beacons->pmacs; *b; b++)
 		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			for (mac_t **mm = SS->pmacs; *mm; mm++)
 				if ((*b)->mac == MM->mac)
-					fprintf(fp, "%s (%s) is exact client of station %s (%s)", (*b)->smac, NAME((*b)), SS->smac, NAME(SS));
+					fprintf(fp, "%s (%s) is exact client of station %s (%s)\n", (*b)->smac, NAME((*b)), SS->smac, NAME(SS));
 
-	fprintf(fp, "\n### find station-station interconnection on similar mac addresses ###");
+	fprintf(fp, "\n### find station-station interconnection on similar mac addresses ###\n");
 	for (mac_t **b = beacons->pmacs; *b; b++) {
 		uint64_t bmac = (*b)->mac & XFXMASK;
 		for (small_station_t **ss = wifi.pstation; *ss; ss++)
 			for (mac_t **mm = SS->pmacs; *mm; mm++) {
 				uint64_t mmac = MM->mac & XFXMASK;
 				if (bmac == mmac)
-					fprintf(fp, "%s (%s) is client %s (%s) of station %s (%s)", (*b)->smac, NAME((*b)), MM->smac, NAME(MM), SS->smac, NAME(SS));
+					fprintf(fp, "%s (%s) is client %s (%s) of station %s (%s)\n", (*b)->smac, NAME((*b)), MM->smac, NAME(MM), SS->smac, NAME(SS));
 			}
 	}
 

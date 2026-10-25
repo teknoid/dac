@@ -119,6 +119,8 @@ static void parse(char **strings, size_t size) {
 	m->Rad1h = atoi(strings[3]);
 	m->SunD1 = atoi(strings[4]) * 100 / 3600; // convert to 0..100 percent
 	// m->RSunD = atoi(strings[5]);
+	if (!m->Rad1h)
+		m->SunD1 = 0; // SunD1 without Rad1h is not possible
 }
 
 // calculate expected pv as combination of raw mosmix values with mppt specific factor
@@ -485,10 +487,6 @@ static void update_today_tomorrow(struct tm *now) {
 		if (!m)
 			continue; // not today or tomorrow
 
-		// SunD1 without Rad1h is not possible
-		if (!mcsv->Rad1h)
-			mcsv->SunD1 = 0;
-
 		// update
 		if (m->Rad1h != mcsv->Rad1h) {
 			xlog("MOSMIX updating %02d.%02d. %02d:00 Rad1h %3d <-- %3d", tm.tm_mday, tm.tm_mon + 1, tm.tm_hour, m->Rad1h, mcsv->Rad1h);
@@ -771,17 +769,20 @@ int mosmix_load_json(struct tm *now, const char *station, int clear) {
 	if (forecasts == NULL)
 		return xerr("MOSMIX Cannot open file %s for reading", filename);
 
-	char *rad1h = strstr(forecasts, "\"Rad1h\":") + 9;
-	for (int i = 0; json_scanf_array_elem(rad1h, strlen(rad1h), "", i, &t) > 0; i++)
-		sscanf(t.ptr, "%d", &mosmix_csv[i].Rad1h);
+	char *rad1h = strstr(forecasts, "\"Rad1h\"") + 9;
+	if (rad1h != NULL)
+		for (int i = 0; json_scanf_array_elem(rad1h, strlen(rad1h), "", i, &t) > 0; i++)
+			sscanf(t.ptr, "%d", &mosmix_csv[i].Rad1h);
 
-	char *sund1 = strstr(forecasts, "\"SunD1\":") + 9;
-	for (int i = 0; json_scanf_array_elem(sund1, strlen(sund1), "", i, &t) > 0; i++)
-		sscanf(t.ptr, "%d", &mosmix_csv[i].SunD1);
+	char *sund1 = strstr(forecasts, "\"SunD1\"") + 9;
+	if (sund1 != NULL)
+		for (int i = 0; json_scanf_array_elem(sund1, strlen(sund1), "", i, &t) > 0; i++)
+			sscanf(t.ptr, "%d", &mosmix_csv[i].SunD1);
 
-	char *ttt = strstr(forecasts, "\"TTT\":") + 7;
-	for (int i = 0; json_scanf_array_elem(ttt, strlen(ttt), "", i, &t) > 0; i++)
-		sscanf(t.ptr, "%f", &mosmix_csv[i].TTT);
+	char *ttt = strstr(forecasts, "\"TTT\"") + 7;
+	if (ttt != NULL)
+		for (int i = 0; json_scanf_array_elem(ttt, strlen(ttt), "", i, &t) > 0; i++)
+			sscanf(t.ptr, "%f", &mosmix_csv[i].TTT);
 
 	free(forecasts);
 
@@ -790,11 +791,16 @@ int mosmix_load_json(struct tm *now, const char *station, int clear) {
 	for (int i = 0; i < 256; i++) {
 		csv_t *csv = &mosmix_csv[i];
 
-		if (csv->ts)
-			count++;
+		if (!csv->ts)
+			break;
 
 		csv->TTT -= 273.15; // convert to °C
 		csv->SunD1 = csv->SunD1 * 100 / 3600; // convert to 0..100 percent
+
+		if (!csv->Rad1h)
+			csv->SunD1 = 0; // SunD1 without Rad1h is not possible
+
+		count++;
 	}
 
 	xlog("MOSMIX loaded %4d entries for station %s", count, station);

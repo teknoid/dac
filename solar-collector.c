@@ -302,12 +302,10 @@ static void print_gstate() {
 	xlogl_bits16(line, NULL, gstate->flags);
 	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
-	xlogl_int(line, "Load", PSTATE_MIN_NOW->load);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "Ti", sensor->tin);
 	xlogl_float(line, "To", sensor->tout);
 	if (GSTATE_ONLINE) {
-		xlogl_int(line, "PV", PSTATE_MIN_NOW->pv);
 		xlogl_int(line, "PVMin", minmm->pv);
 		xlogl_int(line, "PVAvg", avgmm->pv);
 		xlogl_int(line, "PVMax", maxmm->pv);
@@ -316,7 +314,7 @@ static void print_gstate() {
 		xlogl_int(line, "Tomo", gstate->tomorrow);
 		xlogl_int(line, "SoD", gstate->sod);
 		xlogl_int(line, "EoD", gstate->eod);
-		xlogl_percent10(line, "Succ", gstate->success);
+		xlogl_percent10(line, "Foca", gstate->forecast);
 	} else {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
 		xlogl_int(line, "Avail", gstate->available);
@@ -334,7 +332,7 @@ static void print_pstate() {
 	xlogl_bits16(line, NULL, pstate->flags);
 	xlogl_int_noise(line, NOISE10, 1, "Grid", pstate->grid);
 	xlogl_int_noise(line, NOISE10, 1, "Akku", pstate->akku);
-	xlogl_int(line, "Load", pstate->load);
+	xlogl_int_b(line, "Load", pstate->load);
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (GSTATE_ONLINE) {
@@ -1174,7 +1172,7 @@ static int init() {
 
 	load_state();
 	mosmix_load_state(now);
-	mosmix_load_csv(now, MARIENBERG, 0);
+	mosmix_load_json(now, MARIENBERG, 0);
 	collect_average_247();
 
 	sem_init(&sq->collector, 0, 0);
