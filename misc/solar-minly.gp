@@ -2,10 +2,6 @@
 
 pstates="/run/mcp/pstate-seconds.csv"
 
-#pstat="/run/mcp/pstat.csv"
-#slope="/run/mcp/slope.csv"
-#ahead="/run/mcp/ahead.csv"
-
 set terminal svg size 1920,800
 set datafile separator whitespace
 set key autotitle columnhead
@@ -58,11 +54,15 @@ p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"dtl"     t "dtl"     w lines ls 7,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1
 
-#set output "/run/mcp/pstate-slopes-ahead.svg"
-#set y2range [-500:500]
-#set y2tics
-#p 0                     t "0"       w lines lt 0 axes x1y2,\
-#  slope   u 1:"pv"      t "slope"   w lines ls 3 axes x1y2,\
-#  ahead   u 1:"pv"      t "ahead"   w lines ls 2,\
-#  pstat   u 1:"pv"      t "pstat"   w lines ls 1
+set output "/run/mcp/pstate-extra.svg"
+set y2range [-500:500]
+set y2tics
+p 0                                t "0"       w lines lt 0 axes x1y2,\
+  "/tmp/pstat.csv"   u 1:"tgt"     t "target"  w lines ls 9,\
+  "/tmp/ahead.csv"   u 1:"pv"      t "ahead"   w lines ls 1,\
+  "/tmp/avgss.csv"   u 1:"pv"      t "avgss"   w lines ls 2,\
+  "/tmp/avgmm.csv"   u 1:"pv"      t "avgmm"   w lines ls 3,\
+  "/tmp/minmm.csv"   u 1:"pv"      t "minmm"   w lines ls 4,\
+  "/tmp/minm.csv"    u 1:"pv"      t "minm"    w lines ls 6,\
+  "/tmp/pstat.csv"   u 1:"pv"      t "pstat"   w lines ls 8
       

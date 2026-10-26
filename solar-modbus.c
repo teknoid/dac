@@ -291,7 +291,7 @@ static void update_meter(sunspec_t *ss) {
 	int gcalc = pstate->l1p + pstate->l2p + pstate->l3p;
 	int diff = gmeter - gcalc;
 	if (diff < -SUSPICIOUS_METER || diff > SUSPICIOUS_METER)
-		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d grid=%d gdiff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, pstate->grid, diff);
+		xlog("SOLAR suspicious meter values detected p1=%d p2=%d p3=%d sum=%d grid=%d diff=%d ", pstate->l1p, pstate->l2p, pstate->l3p, gcalc, gmeter, diff);
 
 	// don't use meter grid, use self calculated
 	pstate->grid = gcalc;

@@ -93,7 +93,7 @@ static device_t *DEVICES[] = { &a1, &b1, &b2, &b3, &h1, &h2, &h3, &h4, &h5, &h6,
 static device_t *DEVICES_INFRAR[] = { &h2, &h3, &h6, &h1, &b1, &b2, &b3, &a1, &h4, &h7, &h5, 0 };
 
 // heat up first boilers
-static device_t *DEVICES_BOILER[] = { &b1, &b2, &b3, &a1, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
+static device_t *DEVICES_BOILER[] = { &h1, &b1, &b2, &b3, &a1, &h2, &h3, &h6, &h4, &h7, &h5, 0 };
 
 // steal all akku charge power
 static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h7, &h5, &b1, &b2, &b3, &a1, 0 };
@@ -234,10 +234,6 @@ static void ramp_boiler(device_t *boiler) {
 	if (!step)
 		return;
 
-	// do single steps at warm up because of cold resistance
-//	if (boiler->power < 10 && 1 < step && step < 10)
-//		step = 1;
-
 	// -100..100
 	HICUT(step, 100)
 	LOCUT(step, -100)
@@ -289,9 +285,9 @@ static void ramp_boiler(device_t *boiler) {
 
 	// update power values
 	dstate->flags |= FLAG_ACTION;
-	dstate->lock = boiler->power == 0 && boiler->min ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
-	boiler->response = boiler->power == 0 ? WAIT_THERMOSTAT : WAIT_RESPONSE;
-	boiler->ramp_out = (power - boiler->power) * boiler->total / 100;
+	dstate->lock = boiler->power ? WAIT_RAMP : boiler->min ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
+	boiler->response = boiler->power ? WAIT_RESPONSE : WAIT_THERMOSTAT;
+	boiler->ramp_out = boiler->power ? (power - boiler->power) * boiler->total / 100 : boiler->ramp_in; //no forward ramp at starup
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
 	// xlog("BOILER %s ramp_in=%d ramp_out=%d", boiler->name, boiler->ramp_in, boiler->ramp_out);
@@ -488,25 +484,17 @@ static int choose_program() {
 	if (GSTATE_SUMMER || gstate->today > acx3 || gstate->eod > acx2)
 		return select_program(&PLENTY);
 
-	// we will NOT survive
-	if (GSTATE_CHARGE_AKKU && gstate->survive < SURVIVE90)
+	// charging akku has priority
+	if (GSTATE_PRIO_AKKU)
 		return select_program(&MODEST);
 
-	// two nights to survive - charging akku has prio
-	if (GSTATE_CHARGE_AKKU && gstate->eod < acx1 && gstate->tomorrow < acx1 && gstate->soc < 888)
-		return select_program(&MODEST);
-
-	// safety rule if mosmix forecast is wrong
-	if (GSTATE_CHARGE_AKKU && gstate->eod < acx1 && gstate->forecast < 500)
-		return select_program(&MODEST);
+	// PV less than akku capacity - heat with infrared panels before noon, heat boilers afternoon
+	if (gstate->today < acx1)
+		return now->tm_hour < 13 ? select_program(&INFRAR) : select_program(&BOILER);
 
 	// tomorrow more than today
 	if (gstate->tomorrow > gstate->today)
 		return select_program(&GREEDY);
-
-	// PV less than twice capacity - heat with infrared panels before noon, heat boilers afternoon
-	if (gstate->today < acx2)
-		return now->tm_hour < 13 ? select_program(&INFRAR) : select_program(&BOILER);
 
 	// enough PV available to survive + heating
 	return select_program(&PLENTY);
@@ -654,11 +642,11 @@ static void ramp() {
 	dstate->ramp = dstate->ramp_in;
 
 	// rampdown
-	if (dstate->ramp < 0 && !DSTATE_ALL_DOWN)
+	if (dstate->ramp < 0)
 		rampdown();
 
 	// allow rampup after rampdown if power was released, but not when PV is going down
-	if (dstate->ramp > 0 && !DSTATE_ALL_UP && !PSTATE_PVFALL)
+	if (dstate->ramp > 0 && !PSTATE_PVFALL)
 		rampup();
 
 	// take over ramp_out
@@ -739,15 +727,16 @@ static void steal() {
 	for (device_t **tt = potd->devices; *tt; tt++) {
 		device_t *t = *tt; // thief
 
-		// only thief in AUTO mode can steal
-		if (t->state != Auto)
+		// devices in AUTO or akku in CHARGE mode are allowed to steal
+		int allowed = t->state == Auto || t->state == Charge;
+		if (!allowed)
 			continue;
 
 		// thief already (full) on
-		if (t->power == (t->adj ? 100 : 1))
+		if (t->power == (t == AKKU ? 100 : t->adj ? 100 : 1))
 			continue;
 
-		// interlock device is powered up, thief cannot be ramped up
+		// interlock device is powered up, thief must not be ramped up
 		if (t->interlock && t->interlock->power)
 			continue;
 
@@ -788,7 +777,7 @@ static void steal() {
 		xlog("SOLAR %s   use ∑%4d <-- %4d ramp need=%d", t->name, loot, pstate->ramp, need);
 		while (--vv != tt && loot < need) {
 			device_t *v = *vv; // victim
-			v->ramp_in = v->steal * -1;
+			v->ramp_in = need > v->steal ? (v->steal * -1) : (need * -1);
 			ramp_device(v);
 			loot += v->ramp_out * -1;
 			xlog("SOLAR %s steal ∑%4d <-- %4d <-- %4d from %s need=%d", t->name, loot, v->ramp_out, v->ramp_in, v->name, need);
@@ -1029,13 +1018,13 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 
 	// mosquitto_pub -h mqtt -t "solar/params/climit" -m 2500
 	if (!strncmp("solar/params/climit", topic, tsize)) {
-		params->akku_climit_override = params->akku_climit = atoin(message, msize);
+		AKKU->climit = params->akku_climit_override = params->akku_climit = atoin(message, msize);
 		akku_charge(AKKU); // update climit
 	}
 
 	// mosquitto_pub -h mqtt -t "solar/params/dlimit" -m 500
 	if (!strncmp("solar/params/dlimit", topic, tsize)) {
-		params->akku_dlimit_override = params->akku_dlimit = atoin(message, msize);
+		AKKU->dlimit = params->akku_dlimit_override = params->akku_dlimit = atoin(message, msize);
 		akku_discharge(AKKU); // update dlimit
 	}
 

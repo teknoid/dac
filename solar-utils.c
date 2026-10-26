@@ -98,8 +98,15 @@ int akku_discharge(device_t *akku) {
 	return 0;
 }
 
-// fake state and counter records from actual values and copy to history records
-static int fake() {
+// fix wrong values in history - copy from yesterday
+static int fix() {
+	pstate_t pstate[HISTORY_SIZE];
+
+	load_blob(STATE SLASH PSTATE_H_FILE, pstate, sizeof(pstate));
+	int wrong = 41, copy = wrong > 24 ? (wrong - 24) : (wrong + 24);
+	memcpy(&pstate[wrong], &pstate[copy], sizeof(pstate_t));
+	store_blob(STATE SLASH PSTATE_H_FILE, pstate, sizeof(pstate));
+
 	return 0;
 }
 
@@ -153,7 +160,7 @@ static int migrate() {
 		n->ac1 = o->ac1;
 		n->ac2 = o->ac2;
 		n->dc1 = o->dc1;
-		n->dc2 = o->dc1;
+		n->dc2 = o->dc2;
 		n->mppt1p = o->mppt1p;
 		n->mppt2p = o->mppt2p;
 		n->mppt3p = o->mppt3p;
@@ -165,10 +172,13 @@ static int migrate() {
 		n->l2v = o->l2v;
 		n->l3v = o->l3v;
 		n->f = o->f;
-		n->surp = o->surp;
 		n->load = o->load; // needed for 24/7 !!!
+		n->surp = o->surp;
+		n->dsl = o->dsl;
+		n->target = o->target;
 		n->dtl = o->dtl;
 		n->ramp = o->ramp;
+		n->steal = o->steal;
 		n->flags = o->flags;
 	}
 	store_blob(TMP SLASH PSTATE_H_FILE, pnew, sizeof(pnew));
@@ -200,7 +210,7 @@ int main(int argc, char **argv) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'f':
-			return fake();
+			return fix();
 		case 'm':
 			return migrate();
 		case 't':

@@ -35,12 +35,16 @@
 #define CSV						".csv"
 
 // temperature coefficient scaled as x100
-#define TCOP					-34
+#define TCO						-34
+#define FTCO(m)					(1.0 + (float) (m->TTT - 25) * (float) TCO / 100 / 100)
+
+// see misc/moxmix-factors.txt
+#define RAD1H					20
+#define SUND1					100
+#define FX(m)					(m->Rad1h * m->Rad1h / 100 + m->Rad1h * RAD1H + m->SunD1 * SUND1)
 
 #define SUM_EXP(m)				((m)->exp1  + (m)->exp2  + (m)->exp3  + (m)->exp4)
 #define SUM_MPPT(m)				((m)->mppt1 + (m)->mppt2 + (m)->mppt3 + (m)->mppt4)
-#define FTCO(m)					(1.0 + (float) (m->TTT - 25) * (float) TCOP / 100 / 100)
-#define FX(m)					(m->Rad1h + m->Rad1h * m->Rad1h / 100 + m->SunD1 * 10)
 
 #define HISTORY_SIZE			(24 * 7)
 #define CH						(now->tm_hour < 23 ? now->tm_hour + 1 : 0)
@@ -340,7 +344,7 @@ static void collect_heating(struct tm *now, int *minutes, int *power) {
 	snprintf(value, 48, " --> minutes=%d hours=%.1f power=%d", *minutes, FLOAT60(*minutes), *power);
 	strcat(line, value);
 	if (*minutes)
-		xlog(line);
+		xdebug(line);
 }
 
 // calculate minutes and power for each hour
