@@ -82,7 +82,7 @@ static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,
 static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
 static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
 static device_t h4 = { .name = "bad1",    .id = BAD,       .r = 1, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Initial };
-static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Disabled };
+static device_t h5 = { .name = "bad2",    .id = BAD,       .r = 2, .total = 700,  .rf = &ramp_heater, .adj = 0, .min = 800,  .host = "bad", .state = Initial };
 static device_t h6 = { .name = "schlaf",  .id = PLUG6,     .r = 0, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "plug6" };
 static device_t h7 = { .name = "heizer",  .id = PLUG9,     .r = 0, .total = 1000, .rf = &ramp_heater, .adj = 0, .min = 1200, .host = "plug9", .state = Initial };
 
@@ -712,9 +712,9 @@ static void steal() {
 		if (DD == AKKU)
 			continue;
 
-		// only when in AUTO mode and RESPONSE flag set
+		// only when in AUTO mode and RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
 		DD->steal = 0;
-		if (DD->state == Auto && DEV_RESPONSE(DD)) {
+		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
 			if (DD->min) {
 				if (DD->min > DD->total)
 					DD->steal = DD->load; // dumb devices - all
@@ -898,9 +898,9 @@ static void calculate_actions() {
 		return;
 	}
 
-	// steal logic twice per minute (only if no OVERLOAD - we cannot be sure if the power is really consumed)
+	// steal logic twice per minute
 	if (now->tm_sec == 15 || now->tm_sec == 45)
-		if (!GSTATE_PVFALL && !DSTATE_ALL_UP && dstate->rload < OVERLOAD_STEAL) {
+		if (!GSTATE_PVFALL && !DSTATE_ALL_UP) {
 			dstate->flags |= FLAG_ACTION_STEAL;
 			return;
 		}

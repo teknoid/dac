@@ -790,7 +790,7 @@ int mosmix_load_json(struct tm *now, const char *station, int clear) {
 
 	free(forecasts);
 
-	// post process data
+	// adjust forecast data
 	int count = 0;
 	for (int i = 0; i < 256; i++) {
 		csv_t *csv = &mosmix_csv[i];

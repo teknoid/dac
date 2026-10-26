@@ -300,6 +300,7 @@ static void print_gstate() {
 	char line[LINEBUF * 2], value[10]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "GSTATE ");
 	xlogl_bits16(line, NULL, gstate->flags);
+	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
@@ -309,7 +310,6 @@ static void print_gstate() {
 		xlogl_int(line, "PVMin", minmm->pv);
 		xlogl_int(line, "PVAvg", avgmm->pv);
 		xlogl_int(line, "PVMax", maxmm->pv);
-		xlogl_int_b(line, "∑PV", gstate->pv);
 		xlogl_int(line, "Today", gstate->today);
 		xlogl_int(line, "Tomo", gstate->tomorrow);
 		xlogl_int(line, "SoD", gstate->sod);
@@ -330,9 +330,9 @@ static void print_pstate() {
 	char line[LINEBUF * 2], value[10]; // 256 is not enough due to color escape sequences!!!
 	xlogl_start(line, "PSTATE ");
 	xlogl_bits16(line, NULL, pstate->flags);
-	xlogl_int_noise(line, NOISE10, 1, "Grid", pstate->grid);
-	xlogl_int_noise(line, NOISE10, 1, "Akku", pstate->akku);
 	xlogl_int_b(line, "Load", pstate->load);
+	xlogl_int_noise(line, NOISE10, 1, "Akku", pstate->akku);
+	xlogl_int_noise(line, NOISE10, 1, "Grid", pstate->grid);
 	snprintf(value, 10, " I:%d:%d", inv1->state, inv2->state);
 	strcat(line, value);
 	if (GSTATE_ONLINE) {
@@ -854,7 +854,7 @@ static void calculate_pstate_online() {
 	// more safety if we don't have grid upload
 	int safety = GSTATE_GRID_ULOAD ? params->minimum / 2 : params->minimum;
 
-	// recalculate load target and akku steal once per minute - not when pv is falling
+	// recalculate load target and akku steal once per minute but not when pv is falling
 	if (MINLY && !PSTATE_PVFALL) {
 		// load target: minimum surplus over 1 minute when stable or 10 minutes when cloudy
 		int target = cloudy ? minmm->surp : minm->surp;

@@ -15,7 +15,7 @@ set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
 set style line 3 linecolor "orange-red" lw 1			# Grid
 set style line 4 linecolor "turquoise" lw 1				# Surplus
 set style line 5 linecolor "navy" lw 1					# Load
-set style line 6 linecolor "orchid" lw 1				# DTL
+set style line 6 linecolor "olive" lw 1					# DTL
 
 set style line 22 linecolor rgb "#93CF82" lw 1 dt 3		# Akku dashes
 set style line 25 linecolor "navy" lw 1 dt 3		    # Target dashes
@@ -33,8 +33,7 @@ set yrange [*:*]
 set xtics time 300 format "%tM"
 set xzeroaxis linetype 16 linewidth 0.5
 set output "/run/mcp/pstate-seconds.svg"
-p     100               t "100%"    w lines lt 0,\
-  pstates u 1:"pv"      t "pv"      w lines ls 1,\
+p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"steal"   t "steal"   w lines ls 22,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
@@ -46,8 +45,7 @@ p     100               t "100%"    w lines lt 0,\
 
 set terminal svg size 4320,1080
 set output "/run/mcp/pstate-seconds-wide.svg"
-p     100               t "100%"    w lines lt 0,\
-  pstates u 1:"pv"      t "pv"      w lines ls 1,\
+p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"steal"   t "steal"   w lines ls 22,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
