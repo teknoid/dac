@@ -758,8 +758,9 @@ int mosmix_load_json(struct tm *now, const char *station, int clear) {
 	if (timestamps == NULL)
 		return xerr("MOSMIX Cannot open file %s for reading", filename);
 
-	for (int i = 0; json_scanf_array_elem(timestamps, strlen(timestamps), "", i, &t) > 0; i++)
-		sscanf(t.ptr, "%ld", &mosmix_csv[i].ts);
+	for (int i = 0; i < 256; i++)
+		if (json_scanf_array_elem(timestamps, strlen(timestamps), "", i, &t) > 0)
+			sscanf(t.ptr, "%ld", &mosmix_csv[i].ts);
 
 	free(timestamps);
 
@@ -771,18 +772,21 @@ int mosmix_load_json(struct tm *now, const char *station, int clear) {
 
 	char *rad1h = strstr(forecasts, "\"Rad1h\"") + 9;
 	if (rad1h != NULL)
-		for (int i = 0; json_scanf_array_elem(rad1h, strlen(rad1h), "", i, &t) > 0; i++)
-			sscanf(t.ptr, "%d", &mosmix_csv[i].Rad1h);
+		for (int i = 0; i < 256; i++)
+			if (json_scanf_array_elem(rad1h, strlen(rad1h), "", i, &t) > 0)
+				sscanf(t.ptr, "%d", &mosmix_csv[i].Rad1h);
 
 	char *sund1 = strstr(forecasts, "\"SunD1\"") + 9;
 	if (sund1 != NULL)
-		for (int i = 0; json_scanf_array_elem(sund1, strlen(sund1), "", i, &t) > 0; i++)
-			sscanf(t.ptr, "%d", &mosmix_csv[i].SunD1);
+		for (int i = 0; i < 256; i++)
+			if (json_scanf_array_elem(sund1, strlen(sund1), "", i, &t) > 0)
+				sscanf(t.ptr, "%d", &mosmix_csv[i].SunD1);
 
 	char *ttt = strstr(forecasts, "\"TTT\"") + 7;
 	if (ttt != NULL)
-		for (int i = 0; json_scanf_array_elem(ttt, strlen(ttt), "", i, &t) > 0; i++)
-			sscanf(t.ptr, "%f", &mosmix_csv[i].TTT);
+		for (int i = 0; i < 256; i++)
+			if (json_scanf_array_elem(ttt, strlen(ttt), "", i, &t) > 0)
+				sscanf(t.ptr, "%f", &mosmix_csv[i].TTT);
 
 	free(forecasts);
 
