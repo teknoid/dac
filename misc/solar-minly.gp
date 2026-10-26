@@ -15,7 +15,7 @@ set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
 set style line 3 linecolor "orange-red" lw 1			# Grid
 set style line 4 linecolor "turquoise" lw 1				# Surplus
 set style line 5 linecolor "navy" lw 1					# Load
-set style line 6 linecolor "orchid" lw 1				# RSL
+set style line 6 linecolor "orchid" lw 1				# DTL
 
 set style line 22 linecolor rgb "#93CF82" lw 1 dt 3		# Akku dashes
 set style line 25 linecolor "navy" lw 1 dt 3		    # Target dashes
@@ -41,7 +41,7 @@ p     100               t "100%"    w lines lt 0,\
        '' u 1:"surp"    t "surp"    w lines ls 4,\
        '' u 1:"load"    t "load"    w lines ls 5,\
        '' u 1:"tgt"     t "target"  w lines ls 25,\
-       '' u 1:"rsl"     t "rsl"     w lines ls 6,\
+       '' u 1:"dtl"     t "dtl"     w lines ls 6,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1
 
 set terminal svg size 4320,1080
@@ -54,7 +54,7 @@ p     100               t "100%"    w lines lt 0,\
        '' u 1:"surp"    t "surp"    w lines ls 4,\
        '' u 1:"load"    t "load"    w lines ls 5,\
        '' u 1:"tgt"     t "target"  w lines ls 25,\
-       '' u 1:"rsl"     t "rsl"     w lines ls 6,\
+       '' u 1:"dtl"     t "dtl"     w lines ls 6,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1
 
 #set output "/run/mcp/pstate-slopes-ahead.svg"

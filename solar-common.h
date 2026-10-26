@@ -214,7 +214,7 @@ struct _gstate {
 // pstate history every second/minute/hour
 typedef struct _pstate pstate_t;
 #define PSTATE_SIZE		(sizeof(pstate_t) / sizeof(int))
-#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   m1p   m2p   m3p   m4p   m1v   m2v   m3v   m4v   l1p   l2p   l3p   l1v   l2v   l3v     f  surp  load   rsl   tgt steal  ramp flags"
+#define PSTATE_HEADER	"    pv  grid  akku   ac1   ac2   dc1   dc2   m1p   m2p   m3p   m4p   m1v   m2v   m3v   m4v   l1p   l2p   l3p   l1v   l2v   l3v     f  surp  load   dtl   tgt steal  ramp flags"
 struct _pstate {
 	int pv;
 	int grid;
@@ -240,7 +240,7 @@ struct _pstate {
 	int f;
 	int surp;
 	int load;
-	int rsl;
+	int dtl;
 	int target;
 	int steal;
 	int ramp;

@@ -57,7 +57,7 @@ typedef struct pstate_old_t {
 	int f;
 	int surp;
 	int load;
-	int rsl;
+	int dtl;
 	int target;
 	int steal;
 	int ramp;
@@ -166,7 +166,7 @@ static int migrate() {
 		n->f = o->f;
 		n->surp = o->surp;
 		n->load = o->load; // needed for 24/7 !!!
-		n->rsl = o->rsl;
+		n->dtl = o->dtl;
 		n->ramp = o->ramp;
 		n->flags = o->flags;
 	}

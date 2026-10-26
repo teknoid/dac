@@ -127,11 +127,11 @@ static stats_t stats_minutes[60];
 
 // local statistics memory, delta, slope and ahead pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
-static pstate_t *minm = &pstates[5], *maxm = &pstates[6], *spreadm = &pstates[7];
-static pstate_t *avgmm = &pstates[8], *minmm = &pstates[9], *maxmm = &pstates[10], *spreadmm = &pstates[11];
-static pstate_t *minh = &pstates[12], *maxh = &pstates[13], *spreadh = &pstates[14];
-static pstate_t *delta = &pstates[15], *deltam = &pstates[16], *deltac = &pstates[17], *deltacc = &pstates[18], *deltas = &pstates[19], *deltass = &pstates[20];
-static pstate_t *slope = &pstates[21], *slopem = &pstates[22], *ahead = &pstates[23];
+static pstate_t *avgmm = &pstates[5], *minmm = &pstates[6], *maxmm = &pstates[7], *spreadmm = &pstates[8];
+static pstate_t *minm = &pstates[10], *maxm = &pstates[11], *spreadm = &pstates[12];
+static pstate_t *minh = &pstates[13], *maxh = &pstates[14], *spreadh = &pstates[15];
+static pstate_t *ahead = &pstates[16], *slope = &pstates[17], *slopem = &pstates[18];
+static pstate_t *delta = &pstates[20], *deltam = &pstates[21], *deltac = &pstates[22], *deltacc = &pstates[23], *deltas = &pstates[24], *deltass = &pstates[25];
 
 // local semaphores memory
 static sequential_t sequential;
@@ -340,7 +340,7 @@ static void print_pstate() {
 		xlogl_int(line, "AC1", pstate->ac1);
 		xlogl_int(line, "AC2", pstate->ac2);
 		xlogl_int(line, "Surp", pstate->surp);
-		xlogl_int(line, "RSL", pstate->rsl);
+		xlogl_int(line, "DTL", pstate->dtl);
 		xlogl_int(line, "Target", pstate->target);
 		xlogl_int(line, "Steal", pstate->steal);
 		xlogl_int_noise(line, NOISE10, 0, "Ramp", pstate->ramp);
@@ -511,10 +511,10 @@ static void calculate_gstate_online() {
 		xdebug("SOLAR set gstate FLAG_STABLE");
 	}
 
-	// force off when average rsl goes below 95%
-	if (PSTATE_MIN_NOW->rsl < 95) {
+	// force off when average pv goes below baseload
+	if (avgmm->pv < params->baseload) {
 		gstate->flags |= FLAG_FORCE_OFF;
-		xlog("SOLAR set FLAG_FORCE_OFF rsl=%d", PSTATE_MIN_NOW->rsl);
+		xlog("SOLAR set FLAG_FORCE_OFF avgmm->pv=%d baseload=%d", avgmm->pv, params->baseload);
 	}
 
 	// heating
@@ -676,16 +676,12 @@ static void calculate_pstate_ramp() {
 	if (PSTATE_BALANCE)
 		return;
 
-	// ramp is load to target delta
-	pstate->ramp = pstate->target - pstate->load;
-	ZSHAPE(pstate->ramp, RAMP)
-
 	// stable
-	if (params->minimum / -2 < pstate->ramp && pstate->ramp < params->minimum / 2)
-		pstate->ramp = 0;
+	if (params->minimum / -2 < pstate->dtl && pstate->dtl < params->minimum / 2)
+		return;
 
-	// shape
-	ZSHAPE(pstate->ramp, RAMP)
+	// ramp is delta load to target
+	pstate->ramp = pstate->dtl;
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
@@ -727,9 +723,9 @@ static void calculate_pstate_ramp() {
 			pstate->ramp = 0;
 		}
 	}
-#define RAMP_TEMPLATE "SOLAR ramp load=%d target=%d delta=%d grid=%d akku=%d ramp=%d"
+
 	if (pstate->ramp)
-		xlog(RAMP_TEMPLATE, pstate->load, pstate->target, pstate->target - pstate->load, pstate->grid, pstate->akku, pstate->ramp);
+		xlog("SOLAR ramp load=%d target=%d dtl=%d grid=%d akku=%d ramp=%d", pstate->load, pstate->target, pstate->dtl, pstate->grid, pstate->akku, pstate->ramp);
 }
 
 static void calculate_pstate_online() {
@@ -852,11 +848,6 @@ static void calculate_pstate_online() {
 			pstate->target -= RAMP;
 	}
 
-	// ratio surplus / load
-	pstate->rsl = pstate->load ? pstate->surp * 100 / pstate->load : 0;
-	HICUT(pstate->rsl, 1000)
-	LOCUT(pstate->rsl, 0)
-
 	// fast moving clouds - permanent pv up and down
 	int cloudy = deltacc->pv > DELTACC || deltass->pv > DELTASS;
 
@@ -883,11 +874,15 @@ static void calculate_pstate_online() {
 	LOCUT(pstate->steal, avgss->akku + safety)
 	LOCUT(pstate->steal, ahead->akku + safety)
 	HICUT(pstate->steal, 0)
+
+	// delta load to target
+	pstate->dtl = pstate->target - pstate->load;
+	ZSHAPE(pstate->dtl, RAMP)
 }
 
 static void calculate_pstate() {
 	// clear flags and values
-	pstate->flags = pstate->ramp = pstate->rsl = 0;
+	pstate->flags = pstate->ramp = pstate->dtl = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
