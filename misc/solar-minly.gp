@@ -13,9 +13,10 @@ set key autotitle columnhead
 set style line 1 linecolor rgb "#FAD967" lw 1			# PV
 set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
 set style line 3 linecolor "orange-red" lw 1			# Grid
-set style line 4 linecolor "turquoise" lw 1				# Surplus
-set style line 5 linecolor "navy" lw 1					# Load
-set style line 6 linecolor "olive" lw 1					# DTL
+set style line 4 linecolor "navy" lw 1					# Load
+set style line 5 linecolor "turquoise" lw 1				# Surplus
+set style line 6 linecolor "olive" lw 1					# DSL
+set style line 7 linecolor "orchid" lw 1				# DTL
 
 set style line 22 linecolor rgb "#93CF82" lw 1 dt 3		# Akku dashes
 set style line 25 linecolor "navy" lw 1 dt 3		    # Target dashes
@@ -37,10 +38,11 @@ p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"steal"   t "steal"   w lines ls 22,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
-       '' u 1:"surp"    t "surp"    w lines ls 4,\
-       '' u 1:"load"    t "load"    w lines ls 5,\
+       '' u 1:"load"    t "load"    w lines ls 4,\
+       '' u 1:"surp"    t "surp"    w lines ls 5,\
        '' u 1:"tgt"     t "target"  w lines ls 25,\
-       '' u 1:"dtl"     t "dtl"     w lines ls 6,\
+       '' u 1:"dsl"     t "dsl"     w lines ls 6,\
+       '' u 1:"dtl"     t "dtl"     w lines ls 7,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1
 
 set terminal svg size 4320,1080
@@ -49,10 +51,11 @@ p pstates u 1:"pv"      t "pv"      w lines ls 1,\
        '' u 1:"akku"    t "akku"    w lines ls 2,\
        '' u 1:"steal"   t "steal"   w lines ls 22,\
        '' u 1:"grid"    t "grid"    w lines ls 3,\
-       '' u 1:"surp"    t "surp"    w lines ls 4,\
-       '' u 1:"load"    t "load"    w lines ls 5,\
+       '' u 1:"load"    t "load"    w lines ls 4,\
+       '' u 1:"surp"    t "surp"    w lines ls 5,\
        '' u 1:"tgt"     t "target"  w lines ls 25,\
-       '' u 1:"dtl"     t "dtl"     w lines ls 6,\
+       '' u 1:"dsl"     t "dsl"     w lines ls 6,\
+       '' u 1:"dtl"     t "dtl"     w lines ls 7,\
        '' u 1:"ramp"    t "ramp"    w lines lt 1
 
 #set output "/run/mcp/pstate-slopes-ahead.svg"

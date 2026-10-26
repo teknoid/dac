@@ -55,12 +55,13 @@ typedef struct pstate_old_t {
 	int l2v;
 	int l3v;
 	int f;
-	int surp;
 	int load;
-	int dtl;
+	int surp;
+	int dsl;
 	int target;
-	int steal;
+	int dtl;
 	int ramp;
+	int steal;
 	int flags;
 } pstate_old_t;
 

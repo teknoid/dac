@@ -339,10 +339,11 @@ static void print_pstate() {
 		xlogl_int(line, "PV", pstate->pv);
 		xlogl_int(line, "AC1", pstate->ac1);
 		xlogl_int(line, "AC2", pstate->ac2);
-		xlogl_int(line, "Surp", pstate->surp);
-		xlogl_int(line, "DTL", pstate->dtl);
-		xlogl_int(line, "Target", pstate->target);
 		xlogl_int(line, "Steal", pstate->steal);
+		xlogl_int(line, "Surp", pstate->surp);
+		xlogl_int(line, "ΔSL", pstate->dsl);
+		xlogl_int(line, "Target", pstate->target);
+		xlogl_int(line, "ΔTL", pstate->dtl);
 		xlogl_int_noise(line, NOISE10, 0, "Ramp", pstate->ramp);
 		snprintf(value, 10, PSTATE_3S_STABLE ? " -" : PSTATE_3S_UNSTABLE ? " ~" : "  ");
 		strcat(line, value);
@@ -652,32 +653,28 @@ static void calculate_pstate_ramp() {
 		return;
 	}
 
-	// look ahead down ramp if ahead surplus goes below target
-	int delta_surp = ahead->surp - pstate->target;
-	if (delta_surp < params->minimum * -1) {
-		pstate->flags &= ~FLAG_BALANCE; // clear balance flag to force ramp
-		pstate->flags &= ~FLAG_INVALID; // clear invalid flag to force ramp
-		pstate->ramp = delta_surp;
-		xlog("SOLAR look ahead pv down ramp target=%d surplus=%d ahead=%d grid=%d ramp=%d", pstate->target, ahead->surp, delta_surp, pstate->grid, pstate->ramp);
-		return;
-	}
+//	// look ahead surplus down ramp if ahead goes below target
+//	int delta_surp = ahead->surp - pstate->target;
+//	if (delta_surp < params->minimum * -1) {
+//		pstate->flags &= ~FLAG_BALANCE; // clear balance flag to force ramp
+//		pstate->flags &= ~FLAG_INVALID; // clear invalid flag to force ramp
+//		pstate->ramp = delta_surp;
+//		xlog("SOLAR look ahead surp down ramp target=%d surplus=%d ahead=%d grid=%d ramp=%d", pstate->target, ahead->surp, delta_surp, pstate->grid, pstate->ramp);
+//		return;
+//	}
 
-	// look ahead down ramp if ahead pv goes below target
+	// look ahead pv down ramp if ahead goes below target
 	int delta_pv = ahead->pv - pstate->target;
 	if (delta_pv < params->minimum * -1) {
 		pstate->flags &= ~FLAG_BALANCE; // clear balance flag to force ramp
 		pstate->flags &= ~FLAG_INVALID; // clear invalid flag to force ramp
 		pstate->ramp = delta_pv;
-		xlog("SOLAR look ahead surplus down ramp target=%d pv=%d ahead=%d grid=%d ramp=%d", pstate->target, ahead->pv, delta_pv, pstate->grid, pstate->ramp);
+		xlog("SOLAR look ahead pv down ramp target=%d pv=%d ahead=%d grid=%d ramp=%d", pstate->target, ahead->pv, delta_pv, pstate->grid, pstate->ramp);
 		return;
 	}
 
 	// no ramp while akku is balancing
 	if (PSTATE_BALANCE)
-		return;
-
-	// stable
-	if (params->minimum / -2 < pstate->dtl && pstate->dtl < params->minimum / 2)
 		return;
 
 	// ramp is delta load to target
@@ -723,9 +720,6 @@ static void calculate_pstate_ramp() {
 			pstate->ramp = 0;
 		}
 	}
-
-	if (pstate->ramp)
-		xlog("SOLAR ramp load=%d target=%d dtl=%d grid=%d akku=%d ramp=%d", pstate->load, pstate->target, pstate->dtl, pstate->grid, pstate->akku, pstate->ramp);
 }
 
 static void calculate_pstate_online() {
@@ -851,13 +845,14 @@ static void calculate_pstate_online() {
 	// fast moving clouds - permanent pv up and down
 	int cloudy = deltacc->pv > DELTACC || deltass->pv > DELTASS;
 
-	// more safety if we don't have grid upload
-	int safety = GSTATE_GRID_ULOAD ? params->minimum / 2 : params->minimum;
+	// safety distance
+	int safety = PSTATE_PVFALL ? params->minimum * 2 : GSTATE_GRID_ULOAD ? params->minimum / 2 : params->minimum;
 
-	// recalculate load target and akku steal once per minute but not when pv is falling
-	if (MINLY && !PSTATE_PVFALL) {
-		// load target: minimum surplus over 1 minute when stable or 10 minutes when cloudy
-		int target = cloudy ? minmm->surp : minm->surp;
+	// recalculate load target and akku steal once per minute
+	if (MINLY) {
+		// load target: minimum pv over 1 minute when stable or 10 minutes when cloudy
+		int target = cloudy ? minmm->pv : minm->pv;
+		// LOCUT(target, minmm->pv)
 		pstate->target = round10(target - safety);
 
 		// akku steal: minimum charge over 1 minute when stable or 10 minutes when cloudy
@@ -865,9 +860,9 @@ static void calculate_pstate_online() {
 		pstate->steal = round10(steal + safety);
 	}
 
-	// push down load target if average or ahead surplus goes below
-	HICUT(pstate->target, avgss->surp - safety)
-	HICUT(pstate->target, ahead->surp - safety)
+	// push down load target if average or ahead pv goes below
+	HICUT(pstate->target, avgss->pv - safety)
+	HICUT(pstate->target, ahead->pv - safety)
 	LOCUT(pstate->target, 0)
 
 	// push up akku steal if average or ahead charge goes above
@@ -875,14 +870,18 @@ static void calculate_pstate_online() {
 	LOCUT(pstate->steal, ahead->akku + safety)
 	HICUT(pstate->steal, 0)
 
-	// delta load to target
-	pstate->dtl = pstate->target - pstate->load;
-	ZSHAPE(pstate->dtl, RAMP)
+	// delta surplus to load
+	pstate->dsl = pstate->surp ? pstate->surp - pstate->load : 0;
+	ZSHAPE(pstate->dsl, NOISE20)
+
+	// delta target to load
+	pstate->dtl = pstate->target ? pstate->target - pstate->load : 0;
+	ZSHAPE(pstate->dtl, NOISE20)
 }
 
 static void calculate_pstate() {
 	// clear flags and values
-	pstate->flags = pstate->ramp = pstate->dtl = 0;
+	pstate->flags = pstate->ramp = pstate->dsl = pstate->dtl = 0;
 
 	// update self counter
 	if (pstate->grid > 0)
@@ -967,8 +966,8 @@ static void calculate_pstate() {
 	// copy to history
 	memcpy(PSTATE_SEC_NOW, pstate, sizeof(pstate_t));
 
-	// print pstate once per minute / when invalid / emergency / on grid load
-	if (MINLY || PSTATE_INVALID || PSTATE_EMERGENCY || PSTATE_GRID_DLOAD)
+	// print pstate once per minute / when invalid / emergency / on grid load / when ramping
+	if (MINLY || PSTATE_INVALID || PSTATE_EMERGENCY || PSTATE_GRID_DLOAD || pstate->ramp)
 		print_pstate();
 }
 
