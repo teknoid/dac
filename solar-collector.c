@@ -84,7 +84,6 @@
 #define GSTATE_MIN_LAST5		(&gstate_minutes[now->tm_min > 4 ? now->tm_min - 5 : (now->tm_min - 5 + 60)])
 #define GSTATE_HOUR_NOW			(&gstate_hours[24 * now->tm_wday + now->tm_hour])
 #define GSTATE_TODAY			(&gstate_hours[24 * now->tm_wday])
-#define GSTATE_YDAY				(&gstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
 #define GSTATE_HOUR(h)			(&gstate_hours[24 * now->tm_wday + (h)])
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * (d) + (h)])
 
@@ -101,7 +100,7 @@
 #define PSTATE_MIN_LAST5		(&pstate_minutes[now->tm_min > 4 ? now->tm_min - 5 : (now->tm_min - 5 + 60)])
 #define PSTATE_MIN(m)			(&pstate_minutes[m])
 #define PSTATE_HOUR_NOW			(&pstate_hours[24 * now->tm_wday + now->tm_hour])
-#define PSTATE_YDAY				(&pstate_hours[24 * (now->tm_wday > 0 ? now->tm_wday - 1 : 6)])
+#define PSTATE_TODAY			(&pstate_hours[24 * now->tm_wday])
 #define PSTATE_DAY_HOUR(d, h)	(&pstate_hours[24 * (d) + (h)])
 #define PSTATE_SEC(s)			(&pstate_seconds[s])
 #define PSTATE_AVG_247(h)		(&pstate_average_247[h])
@@ -194,6 +193,34 @@ static void create_json() {
 
 // create csv file for gnuplot
 static void create_gnuplot_csv() {
+#ifdef GNUPLOT_EXTRA
+	if (GSTATE_ONLINE) {
+		int offset = now_ts % 3600;
+
+		if (!offset || access(TMP SLASH "pstat.csv", F_OK)) {
+			store_csv_header(PSTATE_HEADER, TMP SLASH "pstat.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "ahead.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "slope.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "avgss.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "avgmm.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "minmm.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "maxmm.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "minm.csv");
+			store_csv_header(PSTATE_HEADER, TMP SLASH "maxm.csv");
+		}
+
+		append_line_csv(pstate, PSTATE_SIZE, offset, TMP SLASH "pstat.csv");
+		append_line_csv(ahead, PSTATE_SIZE, offset, TMP SLASH "ahead.csv");
+		append_line_csv(slope, PSTATE_SIZE, offset, TMP SLASH "slope.csv");
+		append_line_csv(avgss, PSTATE_SIZE, offset, TMP SLASH "avgss.csv");
+		append_line_csv(avgmm, PSTATE_SIZE, offset, TMP SLASH "avgmm.csv");
+		append_line_csv(minmm, PSTATE_SIZE, offset, TMP SLASH "minmm.csv");
+		append_line_csv(maxmm, PSTATE_SIZE, offset, TMP SLASH "maxmm.csv");
+		append_line_csv(minm, PSTATE_SIZE, offset, TMP SLASH "minm.csv");
+		append_line_csv(maxm, PSTATE_SIZE, offset, TMP SLASH "maxm.csv");
+	}
+#endif
+
 #ifdef GNUPLOT_MINLY
 	if (MINLY || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
 		// pstate seconds
@@ -201,8 +228,10 @@ static void create_gnuplot_csv() {
 		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
 			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
 		append_table_csv(pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
+		system(GNUPLOT_MINLY);
 	}
 #endif
+
 #ifdef GNUPLOT_HOURLY
 	if (HOURLY || access(RUN SLASH PSTATE_M_CSV, F_OK)) {
 		// gstate and pstate minutes
@@ -220,38 +249,12 @@ static void create_gnuplot_csv() {
 		store_table_csv(GSTATE_TODAY, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_T_CSV);
 		store_table_csv(gstate_hours, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_H_CSV);
 		store_table_csv(pstate_hours, PSTATE_SIZE, HISTORY_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_H_CSV);
+		system(GNUPLOT_HOURLY);
 	}
 #endif
 	// TODO sensors plot
+
 }
-
-#ifdef GNUPLOT_EXTRA
-static void create_gnuplot_extra_csv() {
-	int offset = now_ts % 3600;
-
-	if (!offset || access(TMP SLASH "pstat.csv", F_OK)) {
-		store_csv_header(PSTATE_HEADER, TMP SLASH "pstat.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "ahead.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "slope.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "avgss.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "avgmm.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "minmm.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "maxmm.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "minm.csv");
-		store_csv_header(PSTATE_HEADER, TMP SLASH "maxm.csv");
-	}
-
-	append_line_csv(pstate, PSTATE_SIZE, offset, TMP SLASH "pstat.csv");
-	append_line_csv(ahead, PSTATE_SIZE, offset, TMP SLASH "ahead.csv");
-	append_line_csv(slope, PSTATE_SIZE, offset, TMP SLASH "slope.csv");
-	append_line_csv(avgss, PSTATE_SIZE, offset, TMP SLASH "avgss.csv");
-	append_line_csv(avgmm, PSTATE_SIZE, offset, TMP SLASH "avgmm.csv");
-	append_line_csv(minmm, PSTATE_SIZE, offset, TMP SLASH "minmm.csv");
-	append_line_csv(maxmm, PSTATE_SIZE, offset, TMP SLASH "maxmm.csv");
-	append_line_csv(minm, PSTATE_SIZE, offset, TMP SLASH "minm.csv");
-	append_line_csv(maxm, PSTATE_SIZE, offset, TMP SLASH "maxm.csv");
-}
-#endif
 
 static void collect_average_247() {
 	char line[LINEBUF], value[10];
@@ -752,6 +755,16 @@ static void calculate_pstate_online() {
 	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
 	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
 
+	// copy & reset delta sum and delta count every 5 minutes
+	if (now->tm_min % 5 == 0) {
+		memcpy(deltacc, deltac, sizeof(pstate_t));
+		memcpy(deltass, deltas, sizeof(pstate_t));
+		ZEROP(deltac);
+		ZEROP(deltas);
+#define DELTAXX "SOLAR deltacc pv=%3d grid=%3d akku=%3d load=%3d   deltass pv=%4d grid=%4d akku=%4d load=%4d"
+		xlog(DELTAXX, deltacc->pv, deltacc->grid, deltacc->akku, deltacc->load, deltass->pv, deltass->grid, deltass->akku, deltass->load);
+	}
+
 	// calculate ahead and slope
 	iahead(ahead, pstate, avgss, PSTATE_SIZE);
 	islope(slope, pstate, PSTATE_SEC_LAST5, PSTATE_SIZE, 5);
@@ -903,6 +916,9 @@ static void calculate_pstate_online() {
 }
 
 static void calculate_pstate() {
+	// aggregate last 10 seconds
+	iaggregate_mams(avgss, pstate_seconds, minss, maxss, spreadss, PSTATE_SIZE, 60, now->tm_sec, 10);
+
 	// clear flags and values
 	pstate->flags = pstate->surp = pstate->ramp = pstate->dsl = pstate->dtl = 0;
 
@@ -985,6 +1001,21 @@ static void calculate_pstate() {
 static void daily() {
 	xdebug("SOLAR collector executing daily tasks...");
 
+	// aggregate 24 pstate hours into one day
+	pstate_t pda, pdc;
+	iaggregate(&pda, PSTATE_TODAY, PSTATE_SIZE, 24);
+	icumulate(&pdc, PSTATE_TODAY, PSTATE_SIZE, 24);
+	dump_table(PSTATE_TODAY, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
+	dump_array(&pda, PSTATE_SIZE, "[ØØ]", 0);
+	dump_array(&pdc, PSTATE_SIZE, "[++]", 0);
+	// aggregate 24 gstate hours into one day
+	gstate_t gda, gdc;
+	iaggregate(&gda, GSTATE_TODAY, GSTATE_SIZE, 24);
+	icumulate(&gdc, GSTATE_TODAY, GSTATE_SIZE, 24);
+	dump_table(GSTATE_TODAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
+	dump_array(&gda, GSTATE_SIZE, "[ØØ]", 0);
+	dump_array(&gdc, GSTATE_SIZE, "[++]", 0);
+
 	// calculate forecast errors - actual vs. expected
 	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
 	int fc2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
@@ -1001,10 +1032,21 @@ static void daily() {
 	// store state at least once per day
 	store_state();
 	mosmix_store_state();
+
+	// save pstate SVG over one week
+	char command[64], c = '0' + (now->tm_wday ? now->tm_wday - 1 : 6);
+	snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
+	system(command);
+	xdebug("SOLAR saved pstate SVG: %s", command);
 }
 
 static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
+
+	// aggregate 60 minutes into current hour
+	iaggregate_mams(PSTATE_HOUR_NOW, pstate_minutes, minh, maxh, spreadh, PSTATE_SIZE, 60, 0, 60);
+	// dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+	// dump_array(PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
 
 	// update forecasts, clear at midnight, recalculate factors
 	mosmix_load_csv(now, MARIENBERG, DAILY);
@@ -1031,6 +1073,14 @@ static void hourly() {
 }
 
 static void minly() {
+	// aggregate 60 seconds into current minute
+	iaggregate_mams(PSTATE_MIN_NOW, pstate_seconds, minm, maxm, spreadm, PSTATE_SIZE, 60, 0, 60);
+	// dump_table(pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
+	// dump_array(PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
+
+	// aggregate last 10 minutes
+	iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, now->tm_min, 10);
+
 	// collect mosmix marbles
 	mosmix_marble(now, params->baseload, params->heating, marbles);
 	gstate->tomorrow = marbles->tomorrow;
@@ -1040,63 +1090,10 @@ static void minly() {
 	gstate->minutes = marbles->night_mins;
 	gstate->needed = marbles->night;
 
-	// calculate counter and global state
+	// calculate counter, global state and statistics
 	calculate_counter();
 	calculate_gstate();
 	calculate_statistics();
-
-	// copy & reset delta sum and delta count every 5 minutes
-	if (now->tm_min % 5 == 0) {
-		memcpy(deltacc, deltac, sizeof(pstate_t));
-		memcpy(deltass, deltas, sizeof(pstate_t));
-		ZEROP(deltac);
-		ZEROP(deltas);
-#define DELTAXX "SOLAR deltacc pv=%3d grid=%3d akku=%3d load=%3d   deltass pv=%4d grid=%4d akku=%4d load=%4d"
-		xlog(DELTAXX, deltacc->pv, deltacc->grid, deltacc->akku, deltacc->load, deltass->pv, deltass->grid, deltass->akku, deltass->load);
-	}
-}
-
-static void aggregate_state() {
-	// reverse order: first aggregate hours, then minutes, then seconds
-
-	if (DAILY) {
-		// aggregate 24 pstate hours into one day
-		pstate_t pda, pdc;
-		iaggregate(&pda, PSTATE_YDAY, PSTATE_SIZE, 24);
-		icumulate(&pdc, PSTATE_YDAY, PSTATE_SIZE, 24);
-		dump_table(PSTATE_YDAY, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
-		dump_array(&pda, PSTATE_SIZE, "[ØØ]", 0);
-		dump_array(&pdc, PSTATE_SIZE, "[++]", 0);
-		// aggregate 24 gstate hours into one day
-		gstate_t gda, gdc;
-		iaggregate(&gda, GSTATE_YDAY, GSTATE_SIZE, 24);
-		icumulate(&gdc, GSTATE_YDAY, GSTATE_SIZE, 24);
-		dump_table(GSTATE_YDAY, GSTATE_SIZE, 24, -1, "SOLAR gstate_hours", GSTATE_HEADER);
-		dump_array(&gda, GSTATE_SIZE, "[ØØ]", 0);
-		dump_array(&gdc, GSTATE_SIZE, "[++]", 0);
-	}
-
-	if (HOURLY) {
-		// aggregate 60 minutes into one hour
-		iaggregate_mams(PSTATE_HOUR_NOW, pstate_minutes, minh, maxh, spreadh, PSTATE_SIZE, 60, 0, 60);
-		// dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
-		// dump_array(PSTATE_HOUR_NOW, PSTATE_SIZE, "[ØØ]", 0);
-	}
-
-	if (MINLY) {
-		// aggregate 60 seconds into one minute
-		iaggregate_mams(PSTATE_MIN_NOW, pstate_seconds, minm, maxm, spreadm, PSTATE_SIZE, 60, 0, 60);
-		// dump_table(pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
-		// dump_array(PSTATE_MIN_NOW, PSTATE_SIZE, "[ØØ]", 0);
-
-		// aggregate last 10 minutes
-		int minu = now->tm_min ? now->tm_min - 1 : 59; // current minute is not yet written
-		iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, minu, 10);
-	}
-
-	// aggregate last 10 seconds
-	int seco = now->tm_sec ? now->tm_sec - 1 : 59; // current second is not yet calculated
-	iaggregate_mams(avgss, pstate_seconds, minss, maxss, spreadss, PSTATE_SIZE, 60, seco, 10);
 }
 
 static void loop() {
@@ -1121,14 +1118,16 @@ static void loop() {
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
-		// create/append gnuplot csv files BEFORE(!) aggregation/calculation
-		create_gnuplot_csv();
-
-		// aggregate state values into day-hour-minute when 0-0-0
-		aggregate_state();
-
 		// calculate power state
 		calculate_pstate();
+
+		// MICROSECONDS(" collector")
+
+		// trigger dispatcher thread - calculation done, critical path continues there
+		sem_post(&sq->collector);
+
+		// create/append gnuplot csv before aggregation !!!
+		create_gnuplot_csv();
 
 		// cron jobs
 		if (MINLY)
@@ -1138,37 +1137,8 @@ static void loop() {
 		if (DAILY)
 			daily();
 
-		// MICROSECONDS(" collector")
-
-		// trigger dispatcher thread - calculation done, critical path continues there
-		sem_post(&sq->collector);
-
-		// web output - outside critical path
+		// web output
 		create_json();
-
-		// additional pstate plots
-#ifdef GNUPLOT_EXTRA
-		if (GSTATE_ONLINE)
-			create_gnuplot_extra_csv();
-#endif
-
-#ifdef GNUPLOT_MINLY
-		if (MINLY)
-			system(GNUPLOT_MINLY);
-#endif
-
-#ifdef GNUPLOT_HOURLY
-		if (HOURLY)
-			system(GNUPLOT_HOURLY);
-#endif
-
-		// save pstate SVG - outside critical path
-		if (DAILY) {
-			char command[64], c = '0' + (now->tm_wday ? now->tm_wday - 1 : 6);
-			snprintf(command, 64, "cp -f %s/pstate.svg %s/pstate-%c.svg", RUN, RUN, c);
-			system(command);
-			xdebug("SOLAR saved pstate SVG: %s", command);
-		}
 
 		// PROFILING_LOG(" collector main loop")
 	}
