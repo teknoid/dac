@@ -481,7 +481,7 @@ static int choose_program() {
 		return select_program(potd_manual);
 
 	// summer or enough pv
-	if (GSTATE_SUMMER || gstate->today > acx3 || gstate->eod > acx2)
+	if (SUMMER || gstate->today > acx3 || gstate->eod > acx2)
 		return select_program(&PLENTY);
 
 	// charging akku has priority
@@ -500,25 +500,11 @@ static int choose_program() {
 	return select_program(&PLENTY);
 }
 
-//static void burnout() {
-//	xlog("SOLAR dispatcher burnout");
-//
-//	// enable discharge no limit
-//	params->akku_dlimit = AKKU->dlimit = 0;
-//	akku_discharge(AKKU);
-//
-//	// switch on devices
-//	for (device_t **dd = DEVICES_BURNOUT; *dd; dd++) {
-//		DD->ramp_in = DD->total;
-//		ramp_device(DD);
-//	}
-//}
-
 static void offline() {
 	xdebug("SOLAR dispatcher offline");
 
 	// update discharge limit
-	if (AKKU->dlimit && AKKU_DISCHARGING)
+	if (AKKU_DISCHARGING)
 		akku_discharge(AKKU);
 
 	// enable discharge if we have grid download
@@ -526,7 +512,7 @@ static void offline() {
 		akku_discharge(AKKU);
 
 	// go not below 7% in winter to avoid forced charging from grid
-	if (gstate->soc < 70 && GSTATE_WINTER) {
+	if (gstate->soc < 70 && WINTER) {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 			inverter_off();
@@ -777,7 +763,7 @@ static void steal() {
 		xlog("SOLAR %s   use ∑%4d <-- %4d ramp need=%d", t->name, loot, pstate->ramp, need);
 		while (--vv != tt && loot < need) {
 			device_t *v = *vv; // victim
-			v->ramp_in = need > v->steal ? (v->steal * -1) : (need * -1);
+			v->ramp_in = need < v->steal ? (need * -1) : (v->steal * -1);
 			ramp_device(v);
 			loot += v->ramp_out * -1;
 			xlog("SOLAR %s steal ∑%4d <-- %4d <-- %4d from %s need=%d", t->name, loot, v->ramp_out, v->ramp_in, v->name, need);
@@ -787,8 +773,8 @@ static void steal() {
 		t->ramp_in = loot;
 		ramp_device(t);
 
-		// wait even if no response expected when transferring power from one to another device
-		dstate->lock = WAIT_RAMP;
+		// akku needs some time to reclaim power and to balance, avoid ramp up of freed energy
+		dstate->lock = t == AKKU ? WAIT_RAMP * 3 : WAIT_RAMP;
 		return;
 	}
 }
