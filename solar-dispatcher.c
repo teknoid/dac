@@ -10,6 +10,7 @@
 #include <sys/time.h>
 
 #include "solar-common.h"
+#include "sensors.h"
 #include "network.h"
 #include "sunspec.h"
 #include "frozen.h"
@@ -512,7 +513,6 @@ static void offline() {
 		akku_discharge(AKKU);
 
 	// go not below 7% in winter to avoid forced charging from grid
-	// TODO wakeup geht nicht -> test durch setzen auf 40 zB
 	if (gstate->soc < 70 && WINTER) {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
@@ -597,8 +597,8 @@ static void rampup() {
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
 		xdebug("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
-		if (DD->ramp_out)
-			msleep(111);
+//		if (DD->ramp_out)
+//			msleep(111);
 		dd++;
 	}
 }
@@ -616,8 +616,8 @@ static void rampdown() {
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
 		xdebug("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
-		if (DD->ramp_out)
-			msleep(111);
+//		if (DD->ramp_out)
+//			msleep(111);
 	}
 }
 
@@ -689,7 +689,8 @@ static void steal() {
 
 		// only when in AUTO mode and RESPONSE flag set and no OVERLOAD (we cannot be sure if the power is really consumed)
 		DD->steal = 0;
-		if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
+		// if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
+		if (DD->state == Auto && dstate->rload < OVERLOAD_STEAL) {
 			if (DD->min) {
 				if (DD->min > DD->total)
 					DD->steal = DD->load; // dumb devices - all
@@ -742,9 +743,10 @@ static void steal() {
 		// calculate needed power to ramp up thief
 		int need = 0;
 		if (t == AKKU) {
-			// akku can steal AC (positive output) of inverter 1 if not yet satisfied
+			// akku can maximal steal AC (positive output) of inverter 1 if not yet satisfied
 			need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
 			HICUT(need, pstate->ac1)
+			HICUT(need, loot)
 			LOCUT(need, 0)
 			xlog("SOLAR akku steal ac1=%d need=%d loot=%d", pstate->ac1, need, loot);
 		} else
@@ -982,7 +984,10 @@ static void minly() {
 	choose_program();
 
 	// awake from manual sleep
-	if (pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE)
+	int awake_lumi = sensor->lumi > 10;
+	int awake_inv1 = pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE;
+	int awake_inv2 = pstate->mppt3v > MPPT_VOLTAGE_AWAKE || pstate->mppt4v > MPPT_VOLTAGE_AWAKE;
+	if (awake_lumi || awake_inv1 || awake_inv2)
 		inverter_on();
 
 	// operation mode
@@ -1136,6 +1141,11 @@ static void loop() {
 		if (DSTATE_ACTION_STEAL)
 			steal();
 
+		// calculate device state
+		calculate_dstate();
+
+		// MICROSECONDS("dispatcher")
+
 		// cron jobs
 		if (MINLY)
 			minly();
@@ -1143,11 +1153,6 @@ static void loop() {
 			hourly();
 		if (DAILY)
 			daily();
-
-		// calculate device state
-		calculate_dstate();
-
-		// MICROSECONDS("dispatcher")
 
 		// web output
 		create_json();

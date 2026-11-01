@@ -133,7 +133,7 @@ static pstate_t *delta = &pstates[20], *deltam = &pstates[21], *deltac = &pstate
 // local mosmix marbles
 static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
-// global semaphore
+// loop synchronization between collector and dispatcher
 sem_t collector;
 
 // global counter/gstate/pstate/params
@@ -620,16 +620,11 @@ static void calculate_gstate() {
 			gstate->flags |= FLAG_GRID_ULOAD;
 
 	// akku usable energy and estimated time to live based on 10 min average load or akku discharge
-	gstate->available = round10(AKKU_AVAILABLE);
-	int msoc = akku_get_min_soc();
+	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
+	gstate->available = round10(gstate->soc > msoc ? params->akku_capacity * (gstate->soc - msoc) / 1000 : 0);
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;
 	gstate->ttl = al && gstate->soc > msoc ? gstate->available * 60 / al : 0; // in minutes, hi-cutted to 3 days
 	HICUT(gstate->ttl, 60 * 24 * 3)
-
-	// success factor
-	gstate->success = gstate->sod > params->minimum ? gstate->pv * 1000 / gstate->sod : 0;
-	HICUT(gstate->success, 2000)
-	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// survival factor
 	int tocharge = gstate->needed - gstate->available;
@@ -643,6 +638,11 @@ static void calculate_gstate() {
 	HICUT(gstate->survive, 2000)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d akku=%d need=%d night=%d --> %.1f%% (%.1f%%)"
 	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
+
+	// success factor
+	gstate->success = gstate->sod > params->minimum ? gstate->pv * 1000 / gstate->sod : 0;
+	HICUT(gstate->success, 2000)
+	xdebug("SOLAR pv=%d sod=%d eod=%d success=%.1f%%", gstate->pv, gstate->sod, gstate->eod, FLOAT10(gstate->success));
 
 	// offline when average surplus goes below minimum
 	int online = pstate->pv > params->minimum || avgmm->pv > params->minimum;
@@ -696,7 +696,7 @@ static void calculate_pstate_ramp() {
 
 	// suppress ramp up
 	if (pstate->ramp > 0) {
-		int less = avgss->grid > params->minimum / -2; // too less grid upload
+		int less = avgss->grid > (GSTATE_STABLE ? -RAMP : params->minimum * -1); // too less grid upload
 		int above = pstate->grid > avgss->grid; // actual grid above average
 		int gdload = pstate->grid > 0; // actual grid download
 		int gufall = pstate->grid < 0 && PSTATE_GRISE; // grid upload tendency falling
@@ -775,11 +775,11 @@ static void calculate_pstate_target_steal() {
 	HICUT(pstate->steal, 0)
 
 	// delta surplus to load
-	pstate->dsl = pstate->surp ? pstate->surp - pstate->load : 0;
+	pstate->dsl = avgss->surp ? avgss->surp - avgss->load : 0;
 	ZSHAPE(pstate->dsl, NOISE20)
 
 	// delta target to load
-	pstate->dtl = pstate->target ? pstate->target - pstate->load : 0;
+	pstate->dtl = pstate->target ? pstate->target - avgss->load : 0;
 	ZSHAPE(pstate->dtl, NOISE20)
 
 	// lo-cut akku steal so that load cannot go over target
@@ -1134,7 +1134,7 @@ static void loop() {
 
 		// MICROSECONDS("collector")
 
-		// trigger dispatcher thread - calculation done, critical path continues there
+		// trigger dispatcher loop
 		sem_post(&collector);
 
 		if (HOURLY)

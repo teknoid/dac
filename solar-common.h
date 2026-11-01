@@ -3,23 +3,22 @@
 #include "tasmota.h"
 #include "solar.h"
 
+#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
+#define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, December, January
+
 #define HISTORY_SIZE			(24 * 7)
+
+#define BASELOAD				(WINTER ? 300 : 200)
+
+#define SURVIVE110				1100
+#define SURVIVE100				1000
+#define SURVIVE90				900
 
 #define NOISE5					5
 #define NOISE10					10
 #define NOISE15					15
 #define NOISE20					20
 #define RAMP					25
-
-#define BASELOAD				(WINTER ? 300 : 200)
-
-#define SUMMER					(4 <= now->tm_mon && now->tm_mon <= 7) 									// May - August
-#define WINTER					(now->tm_mon == 10 || now->tm_mon == 11 || now->tm_mon == 0)			// November, Dezember, Januar
-
-#define AKKU_AVAILABLE			(gstate->soc > akku_get_min_soc() ? params->akku_capacity * (gstate->soc - akku_get_min_soc()) / 1000 : 0)
-#define SURVIVE110				1100
-#define SURVIVE100				1000
-#define SURVIVE90				900
 
 // common flags
 #define FLAG_STABLE				(1 << 15)
@@ -287,7 +286,7 @@ extern pstate_t *pstate;
 extern dstate_t *dstate;
 extern params_t *params;
 
-// global thread synchronization with semaphores
+// loop synchronization between collector and dispatcher
 extern sem_t collector;
 
 // implementations in solar-modbus.c / solar-api.c / solar-simulator.c
@@ -297,10 +296,10 @@ void inverter_on();
 void read_trigger();
 void read_wait();
 
-int akku_get_min_soc();
-void akku_set_min_soc(int min);
 void akku_state(device_t *akku);
+void akku_set_min_soc(int min);
+int akku_get_min_soc();
 int akku_charge(device_t *akku);
 int akku_discharge(device_t *akku);
-int akku_auto(device_t *akku);
 int akku_standby(device_t *akku);
+int akku_auto(device_t *akku);

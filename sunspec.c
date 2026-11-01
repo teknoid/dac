@@ -14,7 +14,7 @@
 #include "network.h"
 #include "utils.h"
 
-// gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c -lmodbus -lpthread -lm
+// gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c network.c -lmodbus -lpthread -lm
 
 // store fixed values and scaling factors internally
 static int wchamax, inoutwrte_sf, minrsvpct_sf;
@@ -435,7 +435,7 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 	ss->control = 1;
 	ss->sleep = 0;
 
-	ss->ip = resolve_ip(ss->name);
+	ss->ip = resolve_ip(ss->host);
 	if (!ss->ip)
 		return 0;
 

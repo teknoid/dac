@@ -10,9 +10,9 @@ set style line 1 linecolor rgb "#FAD967" lw 1			# PV
 set style line 2 linecolor rgb "#93CF82" lw 1			# Akku
 set style line 3 linecolor "orange-red" lw 1			# Grid
 set style line 4 linecolor "navy" lw 1					# Load
-set style line 5 linecolor "turquoise" lw 1				# Surplus
+set style line 5 linecolor "orchid" lw 1				# Surplus
 set style line 6 linecolor "olive" lw 1					# DSL
-set style line 7 linecolor "orchid" lw 1				# DTL
+set style line 7 linecolor "turquoise" lw 1				# DTL
 
 set style line 22 linecolor rgb "#93CF82" lw 1 dt 3		# Akku dashes
 set style line 25 linecolor "navy" lw 1 dt 3		    # Target dashes

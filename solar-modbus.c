@@ -9,7 +9,7 @@
 #include "network.h"
 #include "sunspec.h"
 #include "utils.h"
-#include "mqtt.h"
+#include "curl.h"
 #include "mcp.h"
 
 #define SUSPICIOUS_METER		50
@@ -24,11 +24,12 @@
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
 
 #define PX(x, y)				(x == 1 ? y.l1p : (x == 2 ? y.l2p : y.l3p))
-#define SAMPLE(x)				x.l1p  = SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p  = SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p  = SFI(ss->meter->WphC, ss->meter->W_SF);
-#define SAMPLE_ADD(x)			x.l1p += SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p += SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p += SFI(ss->meter->WphC, ss->meter->W_SF);
-#define SUBTRACT(x, y)			x.l1p -= y.l1p; x.l2p -= y.l2p; x.l3p -= y.l3p;
-#define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W\n", i, x.l1p, x.l2p, x.l3p);
-#define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W\n", s, x.l1p, x.l2p, x.l3p);
+#define SAMPLE(x)				x.l1p  = SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p  = SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p  = SFI(ss->meter->WphC, ss->meter->W_SF); x.grid  = SFI(ss->meter->W, ss->meter->W_SF);
+#define SAMPLE_ADD(x)			x.l1p += SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p += SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p += SFI(ss->meter->WphC, ss->meter->W_SF); x.grid += SFI(ss->meter->W, ss->meter->W_SF);
+#define SUBTRACT(x, y)			x.l1p -= y.l1p; x.l2p -= y.l2p; x.l3p -= y.l3p; x.grid -= y.grid;
+#define ROUND10(x)				x.l1p = round10(x.l1p); x.l2p = round10(x.l2p); x.l3p = round10(x.l3p); x.grid = round10(x.grid);
+#define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W | %4d W\n", i, x.l1p, x.l2p, x.l3p, x.grid);
+#define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W | %4d W\n", s, x.l1p, x.l2p, x.l3p, x.grid);
 
 // sunspec devices
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
@@ -193,14 +194,14 @@ static void update_inverter1(sunspec_t *ss) {
 	case I_STATUS_FAULT:
 		uint16_t active_state_code = 0;
 		sunspec_read_reg(ss, 214, &active_state_code);
-		xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
+		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt3p < NOISE10)
 			ss->sleep = SLEEP_TIME_SLEEPING;
 		break;
 
 	default:
-		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
+		xlog("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
 }
@@ -263,7 +264,7 @@ static void update_inverter2(sunspec_t *ss) {
 		break;
 
 	default:
-		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
+		xlog("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = pstate->mppt3v = pstate->mppt4v = 0;
 	}
 
@@ -304,86 +305,39 @@ static void update_meter(sunspec_t *ss) {
 	pstate->grid = gcalc;
 }
 
-static int evaluate(char *name) {
-	char filename[32];
-	int target;
-	pstate_t measure[1000];
-	int raster[101];
+static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t offset, int v, int i) {
+	char message[16];
 
-	// TODO cmdline parameter
-	int max_power = 2000;
-	int onepercent = max_power / 100;
-
-	// read
-	snprintf(filename, 32, "/tmp/%s.bin", name);
-	load_blob(filename, measure, sizeof(measure));
-
-	// find phase
-	pstate_t sum;
-	ZERO(sum);
-	for (int i = 1; i < 1000; i++)
-		iadd(&sum, &measure[i], PSTATE_SIZE);
-	int p = 0;
-	if (sum.l1p > sum.l2p && sum.l1p > sum.l3p)
-		p = 1;
-	if (sum.l2p > sum.l1p && sum.l1p > sum.l3p)
-		p = 2;
-	if (sum.l3p > sum.l1p && sum.l3p > sum.l2p)
-		p = 3;
-	if (!p)
-		printf("unable to detect phase\n");
-	else
-		printf("detected phase %d\n", p);
-
-	// round power values
-	for (int i = 1; i < 1000; i++) {
-		measure[i].l1p = round10(measure[i].l1p);
-		measure[i].l2p = round10(measure[i].l2p);
-		measure[i].l3p = round10(measure[i].l3p);
-	}
-
-	// build raster table
-	raster[0] = 0;
-	raster[100] = 10000;
-	for (int i = 1; i < 100; i++) {
-
-		// calculate next target power for table index (percent)
-		target = onepercent * i;
-
-		// find closest power to target power
-		for (int j = 0; j < 1000; j++)
-			if (measure[i].l1p == target)
-				printf("%d W match %d mV\n", target, j);
-
-		printf(" --> %dW %dmV\n", target, raster[i]);
-	}
-
-	// dump table
-	printf("phase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[0]);
-	for (int i = 1; i <= 100; i++) {
-		printf("%d, ", raster[i]);
-		if (i % 10 == 0)
-			printf("\\\n   ");
-	}
-
-	return 0;
+	snprintf(message, 16, "v:%d:%d", v, 0);
+//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	msleep(3000);
+	sunspec_read(ss);
+	SAMPLE(measure[i])
+	SUBTRACT(measure[i], offset)
+	PRINTI(v, measure[i])
 }
 
-static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t poffset, int voffset, int mod, int delay) {
-	char message[16];
+static void drive010mv(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t offset, int vstart) {
 	for (int i = 0; i < 100; i++) {
-		if (i % mod != 0)
-			continue;
-		int idx = voffset + i;
-		int voltage = idx * 10;
-		snprintf(message, 16, "v:%d:%d", voltage, 0);
-		// sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		msleep(delay);
-		sunspec_read(ss);
-		SAMPLE(measure[idx])
-		SUBTRACT(measure[idx], poffset)
-		PRINTI(voltage, measure[idx])
+		int voltage = vstart + i * 10;
+		int idx = vstart / 10 + i;
+		drive(sock, sa, ss, measure, offset, voltage, idx);
+	}
+}
+
+static void drive050mv(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t offset, int vstart) {
+	for (int i = 0; i < 20; i++) {
+		int voltage = vstart + i * 50;
+		int idx = vstart / 10 + i * 5;
+		drive(sock, sa, ss, measure, offset, voltage, idx);
+	}
+}
+
+static void drive100mv(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure[], pstate_t offset, int vstart) {
+	for (int i = 0; i < 10; i++) {
+		int voltage = vstart + i * 100;
+		int idx = vstart / 10 + i * 10;
+		drive(sock, sa, ss, measure, offset, voltage, idx);
 	}
 }
 
@@ -426,10 +380,6 @@ static int calibrate(char *name) {
 	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	sleep(5);
 
-	// TODO cmdline parameter
-	int max_power = 2000;
-	int onepercent = max_power / 100;
-
 	// average offset power at start
 	printf("calculating offset start\n");
 	ZERO(offset_start);
@@ -439,6 +389,7 @@ static int calibrate(char *name) {
 		PRINTI(i, offset_start)
 		sleep(1);
 	}
+	offset_start.grid = offset_start.grid / 10 + (offset_start.grid % 10 < 5 ? 0 : 1);
 	offset_start.l1p = offset_start.l1p / 10 + (offset_start.l1p % 10 < 5 ? 0 : 1);
 	offset_start.l2p = offset_start.l2p / 10 + (offset_start.l2p % 10 < 5 ? 0 : 1);
 	offset_start.l3p = offset_start.l3p / 10 + (offset_start.l3p % 10 < 5 ? 0 : 1);
@@ -446,14 +397,14 @@ static int calibrate(char *name) {
 	sleep(5);
 
 	// do a full drive over SSR characteristic load curve from cold to hot and capture power
-	printf("starting measurement with maximum power %d watt 1%%=%d watt\n", max_power, onepercent);
+	printf("starting measurement\n");
 	ZERO(measure);
-	drive(sock, sa, ss, measure, offset_start, 200, 1, 1000);
-	drive(sock, sa, ss, measure, offset_start, 300, 2, 1000);
-	drive(sock, sa, ss, measure, offset_start, 400, 3, 1000);
-	drive(sock, sa, ss, measure, offset_start, 500, 5, 1000);
-	drive(sock, sa, ss, measure, offset_start, 600, 7, 1000);
-	drive(sock, sa, ss, measure, offset_start, 700, 10, 1000);
+	drive010mv(sock, sa, ss, measure, offset_start, 2000);
+	drive050mv(sock, sa, ss, measure, offset_start, 3000);
+	drive050mv(sock, sa, ss, measure, offset_start, 4000);
+	drive100mv(sock, sa, ss, measure, offset_start, 5000);
+	drive100mv(sock, sa, ss, measure, offset_start, 6000);
+	drive100mv(sock, sa, ss, measure, offset_start, 7000);
 
 	// switch off
 	snprintf(message, 16, "v:0:0");
@@ -469,6 +420,7 @@ static int calibrate(char *name) {
 		PRINTI(i, offset_end)
 		sleep(1);
 	}
+	offset_end.grid = offset_end.grid / 10 + (offset_end.grid % 10 < 5 ? 0 : 1);
 	offset_end.l1p = offset_end.l1p / 10 + (offset_end.l1p % 10 < 5 ? 0 : 1);
 	offset_end.l2p = offset_end.l2p / 10 + (offset_end.l2p % 10 < 5 ? 0 : 1);
 	offset_end.l3p = offset_end.l3p / 10 + (offset_end.l3p % 10 < 5 ? 0 : 1);
@@ -484,6 +436,79 @@ static int calibrate(char *name) {
 	// cleanup
 	close(sock);
 	sunspec_stop(ss);
+	return 0;
+}
+
+static int evaluate(char *name) {
+	pstate_t measure[1000];
+	char filename[32];
+
+	// read
+	snprintf(filename, 32, "/tmp/%s.bin", name);
+	load_blob(filename, measure, sizeof(measure));
+
+	// find phase
+	pstate_t sum;
+	ZERO(sum);
+	for (int i = 1; i < 1000; i++)
+		iadd(&sum, &measure[i], PSTATE_SIZE);
+	int phase = 0;
+	if (sum.l1p > sum.l2p && sum.l1p > sum.l3p)
+		phase = 1;
+	if (sum.l2p > sum.l1p && sum.l2p > sum.l3p)
+		phase = 2;
+	if (sum.l3p > sum.l1p && sum.l3p > sum.l2p)
+		phase = 3;
+	if (!phase) {
+		printf("unable to detect phase\n");
+		return 0;
+	}
+
+	printf("detected phase %d\n", phase);
+
+	// TODO cmdline parameter
+	int max_power = 2000;
+	int onepercent = max_power / 100;
+
+	// build raster table
+	int raster[101];
+	ZERO(raster);
+	raster[0] = 0;
+	raster[100] = 10000;
+	for (int i = 1; i < 100; i++) {
+
+		// calculate next target power
+		int target = onepercent * i;
+
+		// find closest power to target power
+		int dmin = max_power;
+		for (int j = 0; j < 1000; j++) {
+			int p = phase == 1 ? measure[j].l1p : phase == 2 ? measure[j].l2p : measure[j].l3p;
+			int delta = target > p ? (target - p) : (p - target);
+			if (delta < dmin) {
+				dmin = delta;
+				raster[i] = j;
+			}
+		}
+
+		// index corresponds to mV giving desired power
+		int idx = raster[i];
+		int p = phase == 1 ? measure[idx].l1p : phase == 2 ? measure[idx].l2p : measure[idx].l3p;
+		printf("target=%4d --> %4dW %4dmV\n", target, p, idx);
+	}
+
+	// dump raster table
+	printf("\nphase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
+	printf("%d, ", raster[0]);
+	for (int i = 1; i <= 100; i++) {
+		printf("%d", raster[i]);
+		if (i != 100)
+			printf(", ");
+		if (i != 100 && i % 10 == 0)
+			printf("\\\n   ");
+	}
+	printf("\n\n");
+
 	return 0;
 }
 
@@ -545,61 +570,44 @@ static int inverter_on_off(char *arg) {
 
 static int latency() {
 	int count;
-	time_t ts;
 	pstate_t x, y;
-
-#define DEVICE	0x9D01FD
-#define RELAY	3
-
-	char topic[LINEBUF];
-	snprintf(topic, LINEBUF, "cmnd/%6X/POWER%d", DEVICE, RELAY);
 
 	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
-	sunspec_read(ss);
 	ss->common = 0;
 	ss->storage = 0;
 
-	// middle of second
-	ts = time(NULL);
-	while (ts == time(NULL))
-		msleep(111);
-	msleep(500);
+	// use curl instead of mqtt for switching on and off (no additional latency)
 
 	// switch on
 	count = 0;
+	sunspec_read(ss);
 	SAMPLE(x)
 	PRINTI(count, x)
-	publish(topic, "ON", 0);
+	curl_oneshot("http://infrared/cm?cmnd=Power3%20On");
 	while (1) {
-		msleep(100);
-		count++;
 		sunspec_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
 		int dl1p = abs(x.l1p - y.l1p);
 		int dl2p = abs(x.l2p - y.l2p);
 		int dl3p = abs(x.l3p - y.l3p);
-		if (dl1p > 100 || dl2p > 100 || dl3p > 100)
+		int dgrid = abs(x.grid - y.grid);
+		if (dl1p > 100 || dl2p > 100 || dl3p > 100 || dgrid > 50)
 			break;
+		count++;
+		msleep(200);
 	}
-	printf("detected ON meter response after %dms\n", count * 100);
-
-	// middle of second
-	sleep(5);
-	ts = time(NULL);
-	while (ts == time(NULL))
-		msleep(111);
-	msleep(500);
+	printf("detected ON meter response after %dms\n", count * 200);
 
 	// switch off
+	sleep(5);
 	count = 0;
+	sunspec_read(ss);
 	SAMPLE(x)
 	PRINTI(count, x)
-	publish(topic, "OFF", 0);
+	curl_oneshot("http://infrared/cm?cmnd=Power3%20Off");
 	while (1) {
-		msleep(100);
-		count++;
 		sunspec_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
@@ -608,15 +616,22 @@ static int latency() {
 		int dl3p = abs(x.l3p - y.l3p);
 		if (dl1p > 100 || dl2p > 100 || dl3p > 100)
 			break;
+		count++;
+		msleep(200);
 	}
-	printf("detected OFF meter response after %dms\n", count * 100);
+	printf("detected OFF meter response after %dms\n", count * 200);
 
 	return 0;
 }
+
 static int init() {
 	inverter1 = sunspec_init_poll("fronius10", "fronius10", 1, &update_inverter1);
 	inverter2 = sunspec_init_poll("fronius7", "fronius7", 2, &update_inverter2);
 	meter = sunspec_init_poll("meter", "fronius10", 200, &update_meter);
+
+	// stop if Fronius10 is not available
+	if (!inverter1)
+		return xerr("SOLAR modbus no connection to inverter1");
 
 	// use the same lock as both run against same IP address
 	// meter does not work on odroid then
@@ -624,10 +639,6 @@ static int init() {
 
 	// allow storage control
 	inverter1->control = control;
-
-	// stop if Fronius10 is not available
-	if (!inverter1)
-		return xerr("SOLAR modbus no connection to inverter1");
 
 	// do not continue before we have SoC value from Fronius10
 	int retry = 100;
