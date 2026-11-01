@@ -406,7 +406,7 @@ static int calibrate(char *name) {
 //	sleep(5);
 
 	// create a sunspec handle for meter and remove models not needed
-	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 	ss->storage = 0;
@@ -490,7 +490,7 @@ static int calibrate(char *name) {
 // sample grid values from meter
 static int grid() {
 	pstate_t pp, *p = &pp;
-	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 
@@ -514,7 +514,7 @@ static int grid() {
 
 // set charge(-) / discharge(+) limits or reset when 0
 static int storage_limit(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
 
 	int wh = atoi(arg);
@@ -527,7 +527,7 @@ static int storage_limit(char *arg) {
 
 // set minimum SoC
 static int storage_min(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
 
 	int min = atoi(arg);
@@ -536,7 +536,7 @@ static int storage_min(char *arg) {
 
 // set minimum SoC
 static int inverter_on_off(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
 
 	int on = atoi(arg);
@@ -555,7 +555,7 @@ static int latency() {
 	snprintf(topic, LINEBUF, "cmnd/%6X/POWER%d", DEVICE, RELAY);
 
 	// create a sunspec handle for meter and remove models not needed
-	sunspec_t *ss = sunspec_init("fronius10", 200);
+	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
 	sunspec_read(ss);
 	ss->common = 0;
 	ss->storage = 0;
@@ -614,9 +614,9 @@ static int latency() {
 	return 0;
 }
 static int init() {
-	inverter1 = sunspec_init_poll("fronius10", 1, &update_inverter1);
-	inverter2 = sunspec_init_poll("fronius7", 2, &update_inverter2);
-	meter = sunspec_init_poll("fronius10", 200, &update_meter);
+	inverter1 = sunspec_init_poll("fronius10", "fronius10", 1, &update_inverter1);
+	inverter2 = sunspec_init_poll("fronius7", "fronius7", 2, &update_inverter2);
+	meter = sunspec_init_poll("meter", "fronius10", 200, &update_meter);
 
 	// use the same lock as both run against same IP address
 	// meter does not work on odroid then

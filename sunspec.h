@@ -385,6 +385,7 @@ typedef struct _sunspec sunspec_t;
 typedef void (*sunspec_callback_t)(sunspec_t *ss);
 struct _sunspec {
 	const char *name;
+	const char *host;
 	const char *ip;
 	int slave;
 	int sleep;
@@ -443,8 +444,8 @@ struct _sunspec {
 	uint16_t meter_id;
 };
 
-sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback_t callback);
-sunspec_t* sunspec_init(const char *name, int slave);
+sunspec_t* sunspec_init_poll(const char *name, const char *host, int slave, const sunspec_callback_t callback);
+sunspec_t* sunspec_init(const char *name, const char *host, int slave);
 
 void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value);
 void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);

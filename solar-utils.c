@@ -65,39 +65,6 @@ typedef struct pstate_old_t {
 	int flags;
 } pstate_old_t;
 
-void inverter_disconnect() {
-}
-
-void inverter_connect() {
-}
-
-int akku_get_min_soc() {
-	return 0;
-}
-
-void akku_set_min_soc(int min) {
-}
-
-int akku_charge_max() {
-	return 0;
-}
-
-int akku_discharge_max() {
-	return 0;
-}
-
-int akku_standby(device_t *akku) {
-	return 0;
-}
-
-int akku_charge(device_t *akku) {
-	return 0;
-}
-
-int akku_discharge(device_t *akku) {
-	return 0;
-}
-
 // fix wrong values in history - copy from yesterday
 static int fix() {
 	pstate_t pstate[HISTORY_SIZE];

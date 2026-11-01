@@ -337,10 +337,15 @@ static void* poll(void *arg) {
 		errors_all += read_storage(ss);
 
 		while (errors_all > -10) {
-
 			sem_wait(&ss->start);
 
-//			PROFILING_START
+			// do nothing until sleep timer is expired
+			if (ss->sleep && time(NULL) < ss->ts + ss->sleep) {
+				sem_post(&ss->finish);
+				continue;
+			}
+
+			// PROFILING_START
 
 			// update time stamp
 			ss->ts = time(NULL);
@@ -362,17 +367,11 @@ static void* poll(void *arg) {
 			if (ss->callback && errors_now == 0)
 				(ss->callback)(ss);
 
-//			PROFILING_LOG(ss->name)
+			// PROFILING_LOG(ss->name)
 
 			// MICROSECONDS(ss->name)
 
 			sem_post(&ss->finish);
-
-			// pause when set
-			while (ss->sleep > 0) {
-				ss->sleep--;
-				sleep(1);
-			}
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
@@ -426,11 +425,12 @@ int sunspec_read(sunspec_t *ss) {
 	return errors;
 }
 
-sunspec_t* sunspec_init(const char *name, int slave) {
+sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
 	ss->name = name;
+	ss->host = host;
 	ss->slave = slave;
 	ss->control = 1;
 	ss->sleep = 0;
@@ -461,17 +461,18 @@ sunspec_t* sunspec_init(const char *name, int slave) {
 	return ss;
 }
 
-sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback_t callback) {
+sunspec_t* sunspec_init_poll(const char *name, const char *host, int slave, const sunspec_callback_t callback) {
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
 	ss->name = name;
+	ss->host = host;
 	ss->slave = slave;
 	ss->control = 1;
 	ss->sleep = 0;
 	ss->callback = callback;
 
-	ss->ip = resolve_ip(ss->name);
+	ss->ip = resolve_ip(ss->host);
 	if (!ss->ip)
 		return 0;
 
@@ -685,7 +686,7 @@ static int test1(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	sunspec_t *ss = sunspec_init("fronius10", 1);
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
 	sunspec_stop(ss);
 	return 0;

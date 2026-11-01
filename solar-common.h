@@ -31,17 +31,17 @@
 
 // gstate flags
 #define FLAG_STABLE_3M			(1 << 7)
-#define FLAG_CHARGE_AKKU		(1 << 4)
-#define FLAG_PRIO_AKKU			(1 << 3)
-#define FLAG_HEATING			(1 << 2)
+#define FLAG_HEATING			(1 << 4)
+#define FLAG_CHARGE_AKKU		(1 << 3)
+#define FLAG_PRIO_AKKU			(1 << 2)
 #define FLAG_FORCE_OFF			(1 << 1)
 #define FLAG_ONLINE				(1 << 0)
 
 #define GSTATE_ONLINE			(gstate->flags & FLAG_ONLINE)
 #define GSTATE_FORCE_OFF		(gstate->flags & FLAG_FORCE_OFF)
-#define GSTATE_HEATING			(gstate->flags & FLAG_HEATING)
 #define GSTATE_PRIO_AKKU		(gstate->flags & FLAG_PRIO_AKKU)
 #define GSTATE_CHARGE_AKKU		(gstate->flags & FLAG_CHARGE_AKKU)
+#define GSTATE_HEATING			(gstate->flags & FLAG_HEATING)
 #define GSTATE_STABLE_3M		(gstate->flags & FLAG_STABLE_3M)
 #define GSTATE_AKKU_DCHARGE		(gstate->flags & FLAG_AKKU_DCHARGE)
 #define GSTATE_GRID_DLOAD		(gstate->flags & FLAG_GRID_DLOAD)
@@ -290,7 +290,7 @@ extern params_t *params;
 // global thread synchronization with semaphores
 extern sem_t collector;
 
-// implementations in *modbus.c / *api.c / *simulator.c / *utils.c
+// implementations in solar-modbus.c / solar-api.c / solar-simulator.c
 void inverter_off();
 void inverter_on();
 

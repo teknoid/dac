@@ -512,6 +512,7 @@ static void offline() {
 		akku_discharge(AKKU);
 
 	// go not below 7% in winter to avoid forced charging from grid
+	// TODO wakeup geht nicht -> test durch setzen auf 40 zB
 	if (gstate->soc < 70 && WINTER) {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
@@ -745,6 +746,7 @@ static void steal() {
 			need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
 			HICUT(need, pstate->ac1)
 			LOCUT(need, 0)
+			xlog("SOLAR akku steal ac1=%d need=%d loot=%d", pstate->ac1, need, loot);
 		} else
 			// adjustable devices: all we can get up to total, dumb devices: total
 			need = t->adj && loot < t->total ? loot : t->min ? t->min : t->total;
