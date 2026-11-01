@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <semaphore.h>
 #include <math.h>
 
 #include "solar-common.h"
@@ -82,15 +83,26 @@ struct _raw {
 };
 static raw_t raw, *r = &raw;
 
+// thread synchronization
+static sem_t start, finish;
+
 // reading Inverter API: CURL handles, response memory, raw date, error counter
 static CURL *curl1, *curl2;
 static response_t memory = { 0 };
 
-void inverter_disconnect() {
+void read_trigger() {
+	sem_post(&start);
+}
+
+void read_wait() {
+	sem_wait(&finish);
+}
+
+void inverter_off() {
 	// unimplemented
 }
 
-void inverter_connect() {
+void inverter_on() {
 	// unimplemented
 }
 
@@ -128,6 +140,14 @@ int akku_charge(device_t *akku) {
 int akku_discharge(device_t *akku) {
 	// dummy implementation
 	akku->state = Discharge;
+	akku->power = 0;
+	akku->total = 0;
+	return 0;
+}
+
+int akku_auto(device_t *akku) {
+	// dummy implementation
+	akku->state = Auto;
 	akku->power = 0;
 	akku->total = 0;
 	return 0;
@@ -183,7 +203,7 @@ static void loop() {
 	}
 
 	while (1) {
-		WAIT_NEXT_SECOND
+		sem_wait(&start);
 
 		// skip wait to get fresh pstate data
 		if (pstate->grid > NOISE10)
@@ -256,6 +276,8 @@ static void loop() {
 
 		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
 		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", cm->mppt1, cm->mppt2, cm->mppt3, cm->mppt4, cm->consumed, cm->produced);
+
+		sem_post(&finish);
 
 		// offline / default
 		wait = offline ? 300 : 30;
@@ -464,12 +486,18 @@ static int init() {
 	params->akku_cmax = AKKU_CHARGE_MAX;
 	params->akku_dmax = AKKU_DISCHARGE_MAX;
 
+	sem_init(&start, 0, 0);
+	sem_init(&finish, 0, 0);
+
 	return 0;
 }
 
 static void stop() {
 	curl_easy_cleanup(curl1);
 	curl_easy_cleanup(curl2);
+
+	sem_close(&start);
+	sem_close(&finish);
 }
 
 static int test() {

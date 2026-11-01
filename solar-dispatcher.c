@@ -102,7 +102,7 @@ static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h7, &h5, &b1, &b
 static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h7, &h5, &b1, &b2, &b3, 0 };
 
 // prio on akku and boilers
-static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &h1, &b1, &b2, &b3, &h2, &h3, &h6, &h4, &h7, &h5, 0 };
 
 // devices for BURNOUT mode
 // static device_t *DEVICES_BURNOUT[] = { &h2, &h3, 0 };
@@ -223,16 +223,16 @@ static void ramp_boiler(device_t *boiler) {
 	if (boiler->power == 0 && boiler->state == Auto && boiler->ramp_in < boiler->min)
 		return;
 
-	// 2/3 when boiler switching on first time because of cold resistance
-	if (boiler->power == 0 && boiler->ramp_in > RAMP)
-		boiler->ramp_in = boiler->ramp_in * 2 / 3;
-
 	// power steps
 	int step = boiler->ramp_in * 100 / boiler->total;
 	if (boiler->ramp_in < 0 && (boiler->ramp_in < step * boiler->total / 100))
 		step -= 1; // one step more when not enough
 	if (!step)
 		return;
+
+	// 2/3 when boiler switching on first time because of cold resistance
+	if (boiler->power == 0 && step > 0)
+		step = step * 2 / 3;
 
 	// -100..100
 	HICUT(step, 100)
@@ -287,7 +287,7 @@ static void ramp_boiler(device_t *boiler) {
 	dstate->flags |= FLAG_ACTION;
 	dstate->lock = boiler->power ? WAIT_RAMP : boiler->min ? WAIT_THERMOSTAT : WAIT_RAMP; // electronic thermostat takes more time at startup
 	boiler->response = boiler->power ? WAIT_RESPONSE : WAIT_THERMOSTAT;
-	boiler->ramp_out = boiler->power ? (power - boiler->power) * boiler->total / 100 : boiler->ramp_in; //no forward ramp at starup
+	boiler->ramp_out = boiler->power ? (power - boiler->power) * boiler->total / 100 : boiler->ramp_in; // no forward ramp at startup
 	boiler->load = power * boiler->total / 100;
 	boiler->power = power;
 	// xlog("BOILER %s ramp_in=%d ramp_out=%d", boiler->name, boiler->ramp_in, boiler->ramp_out);
@@ -750,7 +750,7 @@ static void steal() {
 			need = t->adj && loot < t->total ? loot : t->min ? t->min : t->total;
 
 		// not enough to ramp up thief
-		if (need > loot)
+		if (!need || need > loot)
 			continue;
 
 		// jump to last entry
@@ -1111,7 +1111,7 @@ static void loop() {
 	while (1) {
 
 		// wait for collector
-		sem_wait(&sq->collector);
+		sem_wait(&collector);
 
 		// PROFILING_START
 

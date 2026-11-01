@@ -130,16 +130,13 @@ static pstate_t *minh = &pstates[13], *maxh = &pstates[14], *spreadh = &pstates[
 static pstate_t *ahead = &pstates[16], *slope = &pstates[17], *slopem = &pstates[18];
 static pstate_t *delta = &pstates[20], *deltam = &pstates[21], *deltac = &pstates[22], *deltacc = &pstates[23], *deltas = &pstates[24], *deltass = &pstates[25];
 
-// local semaphores memory
-static sequential_t sequential;
-
 // local mosmix marbles
 static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
-// global semaphore pointer
-sequential_t *sq = &sequential;
+// global semaphore
+sem_t collector;
 
-// global counter/gstate/pstate/params/semaphore pointer
+// global counter/gstate/pstate/params
 counter_t counter[10];
 gstate_t *gstate = &gstate_current;
 pstate_t *pstate = &pstates[0];
@@ -1111,15 +1108,12 @@ static void loop() {
 	// collector main loop
 	while (1) {
 
-		// wait for inverter and meter
-		sem_wait(&sq->inverter);
-		sem_wait(&sq->meter);
-
-		// PROFILING_START
-
 		// get actual time and store global
 		now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
+
+		// trigger inverter / meter read cycle
+		read_trigger();
 
 		// create/append gnuplot csv files BEFORE(!) aggregation/calculation
 		create_gnuplot_csv();
@@ -1127,16 +1121,21 @@ static void loop() {
 		// aggregate state values into day-hour-minute when 0-0-0
 		aggregate_state();
 
+		// wait for inverter / meter to finish read cycle
+		read_wait();
+
+		// PROFILING_START
+
 		// calculate power state
 		calculate_pstate();
 
 		if (MINLY)
 			minly();
 
-		// MICROSECONDS(" collector")
+		// MICROSECONDS("collector")
 
 		// trigger dispatcher thread - calculation done, critical path continues there
-		sem_post(&sq->collector);
+		sem_post(&collector);
 
 		if (HOURLY)
 			hourly();
@@ -1158,6 +1157,10 @@ static void loop() {
 #endif
 
 		// PROFILING_LOG(" collector main loop")
+
+		// wait for new second
+		while (now_ts == time(NULL))
+			msleep(33);
 	}
 }
 
@@ -1171,7 +1174,7 @@ static int init() {
 	mosmix_load_json(now, MARIENBERG, 0);
 	collect_average_247();
 
-	sem_init(&sq->collector, 0, 0);
+	sem_init(&collector, 0, 0);
 
 	return 0;
 }
@@ -1181,7 +1184,7 @@ static void stop() {
 	store_state();
 	mosmix_store_state();
 
-	sem_close(&sq->collector);
+	sem_close(&collector);
 }
 
 MCP_REGISTER(solar_collector, 11, &init, &stop, &loop);

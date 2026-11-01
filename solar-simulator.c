@@ -14,10 +14,21 @@
 #define TEMP_OUT				(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bmp085_temp : UINT16_MAX)
 #define LUMI					(tasmota_get_by_id(PICAM_SENSORS) ? tasmota_get_by_id(PICAM_SENSORS)->bh1750_lux : UINT16_MAX)
 
-void inverter_disconnect() {
+// thread synchronization
+static sem_t start, finish;
+
+void read_trigger() {
+	sem_post(&start);
 }
 
-void inverter_connect() {
+void read_wait() {
+	sem_wait(&finish);
+}
+
+void inverter_off() {
+}
+
+void inverter_on() {
 }
 
 int akku_get_min_soc() {
@@ -58,6 +69,14 @@ int akku_discharge(device_t *akku) {
 	return 0;
 }
 
+int akku_auto(device_t *akku) {
+	// dummy implementation
+	akku->state = Auto;
+	akku->power = 0;
+	akku->total = 0;
+	return 0;
+}
+
 static void loop() {
 	int load = 0, grid = 0;
 
@@ -67,7 +86,7 @@ static void loop() {
 	}
 
 	while (1) {
-		WAIT_NEXT_SECOND
+		sem_wait(&start);
 
 		int mppt = sensor->lumi / 10;
 		int mppt1 = mppt;
@@ -76,7 +95,7 @@ static void loop() {
 		int mppt4 = mppt / 2;
 
 		// simulate load change between 100 and 200 watts every 100 seconds
-		if (load == 0 || ts_now % 100 == 0)
+		if (load == 0 || time(NULL) % 100 == 0)
 			load = (100 + rand() % 100 + 1) * -1;
 		grid = (mppt1 + mppt2 + mppt3 + mppt4 + load) * -1;
 
@@ -101,16 +120,24 @@ static void loop() {
 		pstate->l2v = 0;
 		pstate->l3v = 0;
 		pstate->f = 0;
+
+		sem_post(&finish);
 	}
 }
 
 static int init() {
 	// initialize random number generator
 	srand(time(NULL));
+
+	sem_init(&start, 0, 0);
+	sem_init(&finish, 0, 0);
+
 	return 0;
 }
 
 static void stop() {
+	sem_close(&start);
+	sem_close(&finish);
 }
 
 MCP_REGISTER(solar_simulator, 10, &init, &stop, &loop);

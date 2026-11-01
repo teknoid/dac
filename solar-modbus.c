@@ -4,9 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
-#include <time.h>
-
-#include <sys/time.h>
 
 #include "solar-common.h"
 #include "network.h"
@@ -37,6 +34,18 @@
 static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 static int control = 1;
+
+void read_trigger() {
+	sem_post(&inverter1->start);
+	sem_post(&inverter2->start);
+	sem_post(&meter->start);
+}
+
+void read_wait() {
+	sem_wait(&inverter1->finish);
+	// sem_wait(&inverter2->finish);
+	sem_wait(&meter->finish);
+}
 
 void inverter_off() {
 	sunspec_controls_conn(inverter1, 0);
@@ -127,10 +136,13 @@ static void update_inverter1(sunspec_t *ss) {
 		return;
 	}
 
+	// xlog("SOLAR %s inverter St=%d m1_DCV=%d >m2_DCV=%d", ss->name, ss->inverter->St, ss->mppt->m1_DCV, ss->mppt->m2_DCV);
+
 	inv1->state = ss->inverter->St;
 	ss->sleep = 0;
 
 	// mppt voltage is always available
+	// TODO test ???
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
 	pstate->mppt2v = SFI(ss->mppt->m2_DCV, ss->mppt->DCV_SF);
 
@@ -191,11 +203,6 @@ static void update_inverter1(sunspec_t *ss) {
 		xdebug("SOLAR %s inverter St=%d W=%d DCW=%d ", ss->name, ss->inverter->St, ss->inverter->W, ss->inverter->DCW);
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->mppt1v = pstate->mppt2v = pstate->akku = 0;
 	}
-
-	// MICROSECONDS("  inverter")
-
-	// trigger collector thread
-	sem_post(&sq->inverter);
 }
 
 // inverter2 is Fronius Symo 7.0-3-M
@@ -295,11 +302,6 @@ static void update_meter(sunspec_t *ss) {
 
 	// don't use meter grid, use self calculated
 	pstate->grid = gcalc;
-
-	// MICROSECONDS("     meter")
-
-	// trigger collector thread
-	sem_post(&sq->meter);
 }
 
 static int evaluate(char *name) {
@@ -645,9 +647,6 @@ static int init() {
 	// minimum SoC: 5%
 	sunspec_storage_minimum_soc(inverter1, 5);
 
-	sem_init(&sq->inverter, 0, 0);
-	sem_init(&sq->meter, 0, 0);
-
 	return 0;
 }
 
@@ -655,9 +654,6 @@ static void stop() {
 	sunspec_stop(meter);
 	sunspec_stop(inverter2);
 	sunspec_stop(inverter1);
-
-	sem_close(&sq->inverter);
-	sem_close(&sq->meter);
 }
 
 static int test() {

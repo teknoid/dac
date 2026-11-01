@@ -276,13 +276,6 @@ struct _dstate {
 	int rload;
 };
 
-// semaphores
-typedef struct sequential_t {
-	sem_t inverter;
-	sem_t meter;
-	sem_t collector;
-} sequential_t;
-
 // global inverter pointers
 extern device_t *inv1;
 extern device_t *inv2;
@@ -295,11 +288,14 @@ extern dstate_t *dstate;
 extern params_t *params;
 
 // global thread synchronization with semaphores
-extern sequential_t *sq;
+extern sem_t collector;
 
 // implementations in *modbus.c / *api.c / *simulator.c / *utils.c
 void inverter_off();
 void inverter_on();
+
+void read_trigger();
+void read_wait();
 
 int akku_get_min_soc();
 void akku_set_min_soc(int min);

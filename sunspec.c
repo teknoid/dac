@@ -6,6 +6,9 @@
 #include <errno.h>
 #include <math.h>
 #include <pthread.h>
+#include <semaphore.h>
+
+#include <sys/time.h>
 
 #include "sunspec.h"
 #include "network.h"
@@ -335,7 +338,12 @@ static void* poll(void *arg) {
 
 		while (errors_all > -10) {
 
+			sem_wait(&ss->start);
+
 //			PROFILING_START
+
+			// update time stamp
+			ss->ts = time(NULL);
 
 			// read dynamic models in the loop
 			errors_now = 0;
@@ -350,24 +358,21 @@ static void* poll(void *arg) {
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 
-			// update time stamp
-			ss->ts = time(NULL);
-
 			// execute the callback function to process model data - only if error-free
 			if (ss->callback && errors_now == 0)
 				(ss->callback)(ss);
 
 //			PROFILING_LOG(ss->name)
 
+			// MICROSECONDS(ss->name)
+
+			sem_post(&ss->finish);
+
 			// pause when set
 			while (ss->sleep > 0) {
 				ss->sleep--;
 				sleep(1);
 			}
-
-			// wait for new second
-			while (ss->ts == time(NULL))
-				msleep(33);
 		}
 
 		xlog("SUNSPEC %s aborting poll after too many errors", ss->name);
@@ -435,6 +440,8 @@ sunspec_t* sunspec_init(const char *name, int slave) {
 		return 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
+	sem_init(&ss->start, 0, 0);
+	sem_init(&ss->finish, 0, 0);
 
 	ss->mb = modbus_new_tcp(ss->ip, 502);
 	modbus_set_response_timeout(ss->mb, 5, 0);
@@ -469,6 +476,8 @@ sunspec_t* sunspec_init_poll(const char *name, int slave, const sunspec_callback
 		return 0;
 
 	pthread_mutex_init(&ss->lock, NULL);
+	sem_init(&ss->start, 0, 0);
+	sem_init(&ss->finish, 0, 0);
 
 	if (pthread_create(&ss->thread, NULL, &poll, ss))
 		xerr("SUNSPEC Error creating %s poll thread", ss->name);
@@ -496,6 +505,8 @@ void sunspec_stop(sunspec_t *ss) {
 		modbus_free(ss->mb);
 
 	pthread_mutex_destroy(&ss->lock);
+	sem_close(&ss->start);
+	sem_close(&ss->finish);
 
 	xlog("SUNSPEC stopped %s", ss->name);
 	free(ss);

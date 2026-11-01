@@ -65,12 +65,12 @@ sabre28: clean $(COBJS-SABRE28)
 #
 
 solar: CFLAGS += -DSOLAR_MAIN -DMQTT_HOST=\"mqtt\" -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DWORK=\"/tmp\" -DSTDOUT -DDEBUG
-solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o frozen.o mqtt-tx.o network.c
-	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o frozen.o mqtt-tx.o network.c -lmodbus -lmqttc -lm
+solar: clean mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o frozen.o mqtt-tx.o network.o
+	$(CC) $(CFLAGS) -L$(LIB) -o solar mcp.o utils.o solar-modbus.o solar-collector.o solar-dispatcher.o mosmix.o sunspec.o sensors.o i2c.o frozen.o mqtt-tx.o network.o -lmodbus -lmqttc -lm
 
 simulator: CFLAGS += -DMCP -DSIMULATOR -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
-simulator: clean mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt-rx.o sensors.o i2c.o frozen.o
-	$(CC) $(CFLAGS) -L$(LIB) -o simulator mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt-rx.o sensors.o i2c.o frozen.o -lmqttc -lm
+simulator: clean mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt-rx.o mqtt-tx.o sensors.o i2c.o frozen.o network.o
+	$(CC) $(CFLAGS) -L$(LIB) -o simulator mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt-rx.o mqtt-tx.o sensors.o i2c.o frozen.o network.o -lmqttc -lm
 
 flamingo: CFLAGS += -DFLAMINGO_MAIN -DSTDOUT
 flamingo: clean mcp.o utils.o flamingo.o gpio-bcm2835.o

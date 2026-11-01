@@ -393,6 +393,8 @@ struct _sunspec {
 	sunspec_callback_t callback;
 	pthread_t thread;
 	pthread_mutex_t lock;
+	sem_t start;
+	sem_t finish;
 	modbus_t *mb;
 
 	sunspec_common_t *common;
