@@ -34,7 +34,7 @@
 #define JF10BAT					" BAT_POWERACTIVE_MEAN_F32:%f "
 
 // 16580608
-#define JBSOC					" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_U16:%f "
+#define JBSOC					" BAT_VALUE_STATE_OF_CHARGE_RELATIVE_F32:%f "
 
 // 16252928
 #define JMP						" SMARTMETER_POWERACTIVE_MEAN_SUM_F64:%f "
@@ -153,29 +153,29 @@ int akku_auto(device_t *akku) {
 	return 0;
 }
 
-// inverter1 is  Fronius Symo GEN24 10.0 with connected BYD Akku
+// inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku and Smart Meter TS 65A-3
 static int parse_inverter1(response_t *resp) {
 	int ret;
 	char *p;
 
-	// workaround for accessing inverter number as key: "0" : {
-	p = strstr(resp->buffer, "\"0\"") + 8 + 2;
+	// jump to inverter
+	p = strstr(resp->buffer, "\"Fronius_Inverter_784d151f6118\"") + 29 + 3;
 	ret = json_scanf(p, strlen(p), CHA JF10MPPT1 JF10MPPT2 JF10MPPT1SUM JF10MPPT2SUM JF10AC JF10F JF10BAT END, &r->mppt1, &r->mppt2, &r->mppt1_total, &r->mppt2_total, &r->ac1,
 			&r->f, &r->akku);
 	if (ret != 7)
-		return xerr("SOLAR parse_inverter1() warning! parsing 0: expected 7 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing Fronius_Inverter_784d151f6118: expected 7 values but got %d", ret);
 
-	// workaround for accessing akku number as key: "16580608" : {
-	p = strstr(resp->buffer, "\"16580608\"") + 10 + 2;
+	// jump to storage
+	p = strstr(resp->buffer, "\"BYD_Storage_db7e5783d2fc\"") + 24 + 3;
 	ret = json_scanf(p, strlen(p), CHA JBSOC END, &r->soc);
 	if (ret != 1)
-		return xerr("SOLAR parse_inverter1() warning! parsing 16580608: expected 1 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing BYD_Storage_db7e5783d2fc: expected 1 values but got %d", ret);
 
-	// workaround for accessing smartmeter number as key: "16252928" : {
-	p = strstr(resp->buffer, "\"16252928\"") + 10 + 2;
+	// jump to smartmeter
+	p = strstr(resp->buffer, "\"Fronius_SmartMeter_d7704aa868c9\"") + 31 + 3;
 	ret = json_scanf(p, strlen(p), CHA JMP JMEC JMEP JMP1 JMP2 JMP3 JMV1 JMV2 JMV3 END, &r->grid, &r->cons, &r->prod, &r->p1, &r->p2, &r->p3, &r->v1, &r->v2, &r->v3);
 	if (ret != 9)
-		return xerr("SOLAR parse_inverter1() warning! parsing 16252928: expected 9 values but got %d", ret);
+		return xerr("SOLAR parse_inverter1() warning! parsing Fronius_SmartMeter_d7704aa868c9: expected 9 values but got %d", ret);
 
 	return 0;
 }
@@ -185,7 +185,7 @@ static int parse_inverter2(response_t *resp) {
 	int ret;
 	char *p;
 
-	// workaround for accessing inverter number as key: "131170" : {
+	// jump to inverter
 	p = strstr(resp->buffer, "\"131170\"") + 8 + 2;
 	ret = json_scanf(p, strlen(p), CHA JF7MPPT1 JF7MPPT2 JF7MPPT1SUM JF7MPPT2SUM JF7AC END, &r->mppt3, &r->mppt4, &r->mppt3_total, &r->mppt4_total, &r->ac2);
 	if (ret != 5)
@@ -195,7 +195,7 @@ static int parse_inverter2(response_t *resp) {
 }
 
 static void loop() {
-	int wait = 0;
+	time_t ts_now = time(NULL), ts_next = ts_now;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -205,13 +205,14 @@ static void loop() {
 	while (1) {
 		sem_wait(&start);
 
-		// skip wait to get fresh pstate data
-		if (pstate->grid > NOISE10)
-			wait = 0;
+		// update time stamp
+		ts_now = time(NULL);
 
-		// wait
-		if (wait--)
+		// do nothing until next run
+		if (ts_next - ts_now > 0) {
+			sem_post(&finish);
 			continue;
+		}
 
 		PROFILING_START
 
@@ -279,10 +280,10 @@ static void loop() {
 
 		sem_post(&finish);
 
-		// offline / default
-		wait = offline ? 300 : 30;
+		// next run
+		ts_next = ts_now + (offline ? 300 : pstate->grid <= NOISE20 ? 30 : 0);
 
-		PROFILING_LOG("SOLAR update")
+		PROFILING_LOG("SOLAR api update")
 	}
 }
 
@@ -471,20 +472,12 @@ static int init() {
 	if (curl2 == NULL)
 		return xerr("Error initializing libcurl");
 
-	// do not continue before we have SoC value from Fronius10
-	int retry = 100;
-	while (--retry) {
-		msleep(100);
-		if (r->soc > 1.0)
-			break;
-	}
-	if (!retry)
-		return xerr("No SoC from Fronius10");
-	xdebug("SOLAR Fronius10 ready for main loop after retry=%d", retry);
-
 	params->akku_capacity = AKKU_CAPACITY;
 	params->akku_cmax = AKKU_CHARGE_MAX;
 	params->akku_dmax = AKKU_DISCHARGE_MAX;
+
+	// fake sunspec I_STATUS_MPPT
+	inv1->state = inv2->state = 4;
 
 	sem_init(&start, 0, 0);
 	sem_init(&finish, 0, 0);
