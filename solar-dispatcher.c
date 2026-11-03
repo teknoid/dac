@@ -540,7 +540,7 @@ static void online() {
 	xdebug("SOLAR dispatcher online");
 
 	// set to AUTO if charging without limit indicated
-	if (gstate->soc < 1000 && !AKKU_CHARGING && !AKKU->climit && GSTATE_CHARGE_AKKU)
+	if (70 < gstate->soc && gstate->soc < 1000 && !AKKU_CHARGING && !AKKU->climit && GSTATE_CHARGE_AKKU)
 		akku_auto(AKKU);
 
 	// enable discharge if we have grid download
