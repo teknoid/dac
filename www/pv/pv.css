@@ -34,10 +34,10 @@ dl dd.d						{ cursor:default }
 /* desktop */
 @media (max-width: 2000px) {
 	.page					{ display:flex; flex-direction:row-reverse; margin-right:10px }
-	.powerflow				{ width:480px; position:fixed; top:-10px }
-	iframe					{ width:100%; height:480px }
-	.mosmix					{ overflow:scroll; position:relative; left:-490px }
-	.svg					{ max-width:1420px }
+	.powerflow				{ width:440px; position:fixed; top:-10px }
+	iframe					{ width:100%; height:440px }
+	.mosmix					{ overflow:scroll; position:relative; left:-440px }
+	.svg					{ max-width:1460px }
 
 	.potd					{ margin-top:3px !important; align-items:flex-end }
 	.potd label				{ margin: 0 10px 0 0 }
@@ -52,8 +52,8 @@ dl dd.d						{ cursor:default }
 /* laptop */
 @media (max-width: 1400px) {
 	.page					{ display:flex; flex-direction:row-reverse; margin-right:10px }
-	.powerflow				{ width:480px; position:unset }
-	iframe					{ width:100%; height:480px }
+	.powerflow				{ width:440px; position:unset }
+	iframe					{ width:100%; height:440px }
 	.mosmix					{ overflow:scroll; position:relative; left:0 }
 	.svg					{ max-width:880px }
 
