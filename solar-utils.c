@@ -21,6 +21,7 @@ typedef struct gstate_old_t {
 	int tomorrow;
 	int sod;
 	int eod;
+	int sop;
 	int soc;
 	int ttl;
 	int success;

@@ -322,8 +322,8 @@ static void print_gstate() {
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
+	xlogl_int(line, "SoP", gstate->sop / 60);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
-	xlogl_int(line, "SoE", gstate->soe / 60);
 	xlogl_float(line, "Ti", sensor->tin);
 	xlogl_float(line, "To", sensor->tout);
 	if (GSTATE_ONLINE) {
@@ -538,13 +538,6 @@ static void calculate_gstate_online() {
 		xlog("SOLAR set FLAG_FORCE_OFF avgmm->pv=%d baseload=%d", avgmm->pv, params->baseload);
 	}
 
-	// update (self tracked) akku's State of Energy (soe) in Watt-minutes
-	gstate->soe -= PSTATE_MIN_NOW->akku;
-	if (gstate->soc == 1000)
-		gstate->soe = params->akku_capacity;
-	if (gstate->soc == 70)
-		gstate->soe = params->akku_capacity * 7 / 100;
-
 	// heating
 	if (SUMMER && sensor->tin < 18.0)
 		gstate->flags |= FLAG_HEATING;
@@ -626,6 +619,13 @@ static void calculate_gstate() {
 	if (PSTATE_GRID_ULOAD)
 		if (PSTATE_MIN_NOW->grid < params->minimum * -1 || avgmm->grid < RAMP * -2)
 			gstate->flags |= FLAG_GRID_ULOAD;
+
+	// akku State of Power (sop) in Watt-minutes (self tracked)
+	gstate->sop -= PSTATE_MIN_NOW->akku;
+	if (gstate->soc == 1000)
+		gstate->sop = params->akku_capacity;
+	if (gstate->soc == 70)
+		gstate->sop = params->akku_capacity * 7 / 100;
 
 	// akku usable energy and estimated time to live based on 10 min average load or akku discharge
 	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter

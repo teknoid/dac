@@ -92,6 +92,7 @@ dl dd.d						{ cursor:default }
 .l							{ display:inline-flex }
 .v							{ display:block; float:right }
 .u							{ display:block; float:right }
+.up							{ margin-right:2px }
 
 .pstate						{ width:33.3% }
 .gstate						{ width:33.3% }
@@ -107,17 +108,17 @@ dl dd.d						{ cursor:default }
 .m3p-p						{ background-color:#FAD967 }
 .m4p-p						{ background-color:#FAD967 }
 .steal-m					{ background-color:aquamarine }
-.surp-p 					{ background-color:lightblue }
-.load-p						{ background-color:skyblue }
-.tgt-p						{ background-color:turquoise }
-.ramp-p						{ background-color:powderblue }
+.tgt-p						{ background-color:powderblue }
+.surp-p 					{ background-color:skyblue }
+.load-p						{ background-color:lightskyblue }
+.ramp-p						{ background-color:lightblue }
 .ramp-m						{ background-color:lightsalmon }
 
-.rin-p, .rout-p				{ background-color:powderblue }
+.rin-p, .rout-p				{ background-color:lightblue }
 .rin-m, .rout-m				{ background-color:lightsalmon }
-.cload-p, .rload-p			{ background-color:skyblue }
-.cload-m, .rload-m			{ background-color:skyblue }
-.steal-p					{ background-color:cyan }
+.cload-p, .rload-p			{ background-color:powderblue }
+.cload-m, .rload-m			{ background-color:powderblue }
+.steal-p					{ background-color:aquamarine }
 
 .pv-p						{ background-color:#FAD967 }
 .dgrid-p					{ background-color:lightsalmon }
