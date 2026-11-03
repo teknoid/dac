@@ -64,17 +64,17 @@ p pstates u 1:"pv"      t "pv"      w lines ls 1,\
 #  "/tmp/avgmm.csv"   u 1:"pv"      t "avgmm"   w lines ls 3,\
 #  "/tmp/minmm.csv"   u 1:"pv"      t "minmm"   w lines ls 4,\
 #  "/tmp/minm.csv"    u 1:"pv"      t "minm"    w lines ls 6,\
-#  "/tmp/pstat.csv"   u 1:"pv"      t "pstat"   w lines ls 8
+#  "/tmp/pstat.csv"   u 1:"pv"      t "pv"      w lines ls 8
 
-set output "/run/mcp/pstate-extra.svg"
-set y2range [-500:500]
-set y2tics
-p 0                                t "0"       w lines lt 0 axes x1y2,\
-  "/tmp/pstat.csv"   u 1:"grid"    t "akku"    w lines ls 9,\
-  "/tmp/ahead.csv"   u 1:"grid"    t "ahead"   w lines ls 1,\
-  "/tmp/avgss.csv"   u 1:"grid"    t "avgss"   w lines ls 2,\
-  "/tmp/avgmm.csv"   u 1:"grid"    t "avgmm"   w lines ls 3,\
-  "/tmp/minmm.csv"   u 1:"grid"    t "minmm"   w lines ls 4,\
-  "/tmp/minm.csv"    u 1:"grid"    t "minm"    w lines ls 6,\
-  "/tmp/pstat.csv"   u 1:"grid"    t "grid"    w lines ls 8
+#set output "/run/mcp/pstate-extra.svg"
+#set y2range [-500:500]
+#set y2tics
+#p 0                                t "0"       w lines lt 0 axes x1y2,\
+#  "/tmp/pstat.csv"   u 1:"grid"    t "grid"    w lines ls 9,\
+#  "/tmp/ahead.csv"   u 1:"grid"    t "ahead"   w lines ls 1,\
+#  "/tmp/avgss.csv"   u 1:"grid"    t "avgss"   w lines ls 2,\
+#  "/tmp/avgmm.csv"   u 1:"grid"    t "avgmm"   w lines ls 3,\
+#  "/tmp/minmm.csv"   u 1:"grid"    t "minmm"   w lines ls 4,\
+#  "/tmp/minm.csv"    u 1:"grid"    t "minm"    w lines ls 6,\
+#  "/tmp/pstat.csv"   u 1:"akku"    t "akku"    w lines ls 8
       

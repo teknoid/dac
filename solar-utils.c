@@ -26,7 +26,7 @@ typedef struct gstate_old_t {
 	int ttl;
 	int success;
 	int forecast;
-	int available;
+	int stored;
 	int needed;
 	int minutes;
 	int survive;
@@ -105,7 +105,7 @@ static int migrate() {
 		n->ttl = o->ttl;
 		n->success = o->success;
 		n->forecast = o->forecast;
-		n->available = o->available;
+		n->stored = o->stored;
 		n->needed = o->needed;
 		n->minutes = o->minutes;
 		n->survive = o->survive;
@@ -133,6 +133,10 @@ static int migrate() {
 		n->mppt2p = o->mppt2p;
 		n->mppt3p = o->mppt3p;
 		n->mppt4p = o->mppt4p;
+		n->mppt1v = o->mppt1v;
+		n->mppt2v = o->mppt2v;
+		n->mppt3v = o->mppt3v;
+		n->mppt4v = o->mppt4v;
 		n->l1p = o->l1p;
 		n->l2p = o->l2p;
 		n->l3p = o->l3p;

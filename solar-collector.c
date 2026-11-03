@@ -43,7 +43,7 @@
 #define COUNTER_H_FILE			"solar-counter-hours.bin"
 #define COUNTER_FILE			"solar-counter.bin"
 
-// hexdump -v -e '16 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
+// hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
 #define GSTATE_H_FILE			"solar-gstate-hours.bin"
 #define GSTATE_M_FILE			"solar-gstate-minutes.bin"
 #define GSTATE_FILE				"solar-gstate.bin"
@@ -337,8 +337,8 @@ static void print_gstate() {
 		xlogl_percent10(line, "Foca", gstate->forecast);
 	} else {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-		xlogl_int(line, "Avail", gstate->available);
-		xlogl_int(line, "Need", gstate->needed);
+		xlogl_int(line, "Stored", gstate->stored);
+		xlogl_int(line, "Needed", gstate->needed);
 		xlogl_percent10(line, "Surv", gstate->survive);
 	}
 	snprintf(value, 10, GSTATE_3M_STABLE ? " -" : GSTATE_3M_UNSTABLE ? " ~" : "  ");
@@ -493,7 +493,7 @@ static void calculate_gstate_offline() {
 	} else if (gstate->survive < SURVIVE90) {
 
 		// not survive - stretch akku ttl to maximum
-		int dlimit = gstate->minutes ? gstate->available * 60 / gstate->minutes / 10 * 10 : 0;
+		int dlimit = gstate->minutes ? gstate->stored * 60 / gstate->minutes / 10 * 10 : 0;
 		LOCUT(dlimit, params->baseload)
 		// take over initial limit or when delta 20+
 		int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
@@ -620,32 +620,41 @@ static void calculate_gstate() {
 		if (PSTATE_MIN_NOW->grid < params->minimum * -1 || avgmm->grid < RAMP * -2)
 			gstate->flags |= FLAG_GRID_ULOAD;
 
-	// akku State of Power (sop) in Watt-minutes (self tracked)
+	// akku State of Power (SoP) in Watt-minutes (self tracked)
 	gstate->sop -= PSTATE_MIN_NOW->akku;
 	if (gstate->soc == 1000)
-		gstate->sop = params->akku_capacity;
+		gstate->sop = params->akku_capacity * 60;
 	if (gstate->soc == 70)
-		gstate->sop = params->akku_capacity * 7 / 100;
+		gstate->sop = params->akku_capacity * 60 * 7 / 100;
 
-	// akku usable energy and estimated time to live based on 10 min average load or akku discharge
+	// akku stored (and really usable) energy
+	int sopp = gstate->sop / 60; // Wmin to Wh self-tracked
+	int socp = params->akku_capacity * gstate->soc / 1000; // calculated from SoC
+	int xsop = socp ? sopp * 1000 / socp : 0;
 	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
-	gstate->available = round10(gstate->soc > msoc ? params->akku_capacity * (gstate->soc - msoc) / 1000 : 0);
+	int reserve = params->akku_capacity * msoc / 1000;
+	// gstate->stored = round10(sopp - reserve);
+	gstate->stored = round10(socp - reserve);
+	LOCUT(gstate->stored, 0)
+	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), reserve, gstate->stored);
+
+	// akku estimated time to live based on 10 min average load or discharge
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;
-	gstate->ttl = al && gstate->soc > msoc ? gstate->available * 60 / al : 0; // in minutes, hi-cutted to 3 days
+	gstate->ttl = al && gstate->soc > msoc ? gstate->stored * 60 / al : 0; // in minutes, hi-cutted to 3 days
 	HICUT(gstate->ttl, 60 * 24 * 3)
 
 	// survival factor
-	int tocharge = gstate->needed - gstate->available;
+	int tocharge = gstate->needed - gstate->stored;
 	LOCUT(tocharge, 0)
 	int available = pstate->pv ? gstate->eod - tocharge - marbles->day : 0;
 	LOCUT(available, 0)
-	int survive = gstate->needed ? gstate->available * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last value if zero need
+	int survive = gstate->needed ? gstate->stored * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last value if needed is zero
 	gstate->survive = survive;
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
 	HICUT(gstate->survive, 2000)
-#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d akku=%d need=%d night=%d --> %.1f%% (%.1f%%)"
-	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->available, gstate->needed, gstate->minutes, FLOAT10(survive), FLOAT10(gstate->survive));
+#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d stored=%d needed=%d night=%d --> %.1f%% (%.1f%%)"
+	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->stored, gstate->needed, gstate->minutes, FLOAT10(gstate->survive), FLOAT10(survive));
 
 	// success factor
 	gstate->success = gstate->sod > params->minimum ? gstate->pv * 1000 / gstate->sod : 0;
@@ -1174,7 +1183,7 @@ static void loop() {
 
 static int init() {
 	// initialize global time structure
-	time_t now_ts = time(NULL);
+	now_ts = time(NULL);
 	localtime_r(&now_ts, &now_tm);
 
 	load_state();
