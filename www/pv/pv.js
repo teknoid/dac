@@ -205,6 +205,8 @@ function update_state(file, selector) {
 						n = Number(v/10).toFixed(1);
 					if (k == 'ttl')
 						n = Number(v/60).toFixed(1);
+					if (k == 'soe')
+						n = Number(v/60).toFixed(0);
 					if (k == 'rsl') {
 						if (v == 0)
 							item.style.backgroundColor = "lightgrey";

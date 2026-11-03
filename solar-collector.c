@@ -323,6 +323,7 @@ static void print_gstate() {
 	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
+	xlogl_int(line, "SoE", gstate->soe / 60);
 	xlogl_float(line, "Ti", sensor->tin);
 	xlogl_float(line, "To", sensor->tout);
 	if (GSTATE_ONLINE) {
@@ -536,6 +537,13 @@ static void calculate_gstate_online() {
 		gstate->flags |= FLAG_FORCE_OFF;
 		xlog("SOLAR set FLAG_FORCE_OFF avgmm->pv=%d baseload=%d", avgmm->pv, params->baseload);
 	}
+
+	// update (self tracked) akku's State of Energy (soe) in Watt-minutes
+	gstate->soe -= PSTATE_MIN_NOW->akku;
+	if (gstate->soc == 1000)
+		gstate->soe = params->akku_capacity;
+	if (gstate->soc == 70)
+		gstate->soe = params->akku_capacity * 7 / 100;
 
 	// heating
 	if (SUMMER && sensor->tin < 18.0)

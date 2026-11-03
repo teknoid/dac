@@ -103,7 +103,7 @@ static device_t *DEVICES_GREEDY[] = { &h2, &h3, &h6, &h1, &h4, &h7, &h5, &b1, &b
 static device_t *DEVICES_PLENTY[] = { &h2, &h3, &h6, &h1, &h4, &a1, &h7, &h5, &b1, &b2, &b3, 0 };
 
 // prio on akku and boilers
-static device_t *DEVICES_MODEST[] = { &a1, &h1, &b1, &b2, &b3, &h2, &h3, &h6, &h4, &h7, &h5, 0 };
+static device_t *DEVICES_MODEST[] = { &a1, &b1, &b2, &b3, &h2, &h3, &h6, &h1, &h4, &h7, &h5, 0 };
 
 // devices for BURNOUT mode
 // static device_t *DEVICES_BURNOUT[] = { &h2, &h3, 0 };
@@ -596,7 +596,7 @@ static void rampup() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xdebug("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
+		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
 //		if (DD->ramp_out)
 //			msleep(111);
 		dd++;
@@ -615,7 +615,7 @@ static void rampdown() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xdebug("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
+		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
 //		if (DD->ramp_out)
 //			msleep(111);
 	}
