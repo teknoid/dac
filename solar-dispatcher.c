@@ -341,9 +341,8 @@ static void ramp_akku(device_t *akku) {
 			if (akku->load < params->minimum)
 				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
 			xdebug("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
-			// update charge limit
-			if (akku->climit)
-				akku_charge(akku);
+			// update charge limit or set to auto
+			akku->climit ? akku_charge(akku) : akku_auto(akku);
 			return;
 		}
 
@@ -375,7 +374,7 @@ static void toggle_device(device_t *d) {
 	(d->rf)(d);
 }
 
-static void create_json() {
+static void json() {
 	store_array_json(dstate, DSTATE_SIZE, DSTATE_HEADER, RUN SLASH DSTATE_JSON);
 
 	FILE *fp = fopen(RUN SLASH DEVICES_JSON, "wt");
@@ -661,17 +660,12 @@ static device_t* standby() {
 		if (DD->state == Auto && DD->power && DD->adj && !DEV_STANDBY_CHECKED(DD))
 			return standby_exec(DD);
 
-	// try first powered adjustable device without any restrictions
-	for (device_t **dd = DEVICES; *dd; dd++)
-		if (DD->state == Auto && DD->power && DD->adj)
-			return standby_exec(DD);
-
 	// try first powered device without RESPONSE flag
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD) && !DEV_RESPONSE(DD))
 			return standby_exec(DD);
 
-	// try first powered device device not yet checked
+	// try first powered device not yet checked
 	for (device_t **dd = DEVICES; *dd; dd++)
 		if (DD->state == Auto && DD->power && !DEV_STANDBY_CHECKED(DD))
 			return standby_exec(DD);
@@ -740,20 +734,22 @@ static void steal() {
 		// positive ramp power can additionally be used
 		loot += pstate->ramp > 0 ? pstate->ramp : 0;
 
-		// calculate needed power to ramp up thief
-		int need = 0;
-		if (t == AKKU) {
-			// akku can maximal steal AC (positive output) of inverter 1 if not yet satisfied
-			need = (params->akku_climit ? params->akku_climit : params->akku_cmax) - AKKU->load;
-			HICUT(need, pstate->ac1)
-			HICUT(need, loot)
-			LOCUT(need, 0)
-			xlog("SOLAR akku steal ac1=%d need=%d loot=%d", pstate->ac1, need, loot);
-		} else
-			// adjustable devices: all we can get up to total, dumb devices: total
-			need = t->adj && loot < t->total ? loot : t->min ? t->min : t->total;
+		// not enough to switch thief on
+		if (t->min && t->min < loot && !t->power)
+			continue;
 
-		// not enough to ramp up thief
+		// calculate needed power to ramp up thief
+		int need = t->total - t->load;
+		// adjustable devices: all we can get
+		if (t->adj)
+			HICUT(need, loot)
+		// akku: maximal AC output of inverter 1
+		if (t == AKKU)
+			HICUT(need, pstate->ac1)
+		LOCUT(need, 0)
+		xlog("SOLAR %s steal loot=%d need=%d min=%d ac1=%d", t->name, loot, need, t->min, pstate->ac1);
+
+		// no need or not enough to ramp up thief
 		if (!need || need > loot)
 			continue;
 
@@ -983,7 +979,7 @@ static void minly() {
 	// choose potd
 	choose_program();
 
-	// awake from manual sleep
+	// awake from standby or sleep
 	int awake_lumi = sensor->lumi > 10;
 	int awake_inv1 = pstate->mppt1v > MPPT_VOLTAGE_AWAKE || pstate->mppt2v > MPPT_VOLTAGE_AWAKE;
 	int awake_inv2 = pstate->mppt3v > MPPT_VOLTAGE_AWAKE || pstate->mppt4v > MPPT_VOLTAGE_AWAKE;
@@ -1056,7 +1052,7 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 	// TODO weitere kommandos z.B.
 	// "reset" --> alle devices zurück in AUTO mode setzen
 	// "force_standby"
-	// akku in standby setzen oder limit setzen
+	// akku in standby oder auto setzen
 }
 
 // update device status from tasmota mqtt response
@@ -1155,9 +1151,9 @@ static void loop() {
 			daily();
 
 		// web output
-		create_json();
+		json();
 
-		// PROFILING_LOG("dispatcher main loop")
+		// PROFILING_LOG("dispatcher")
 	}
 }
 

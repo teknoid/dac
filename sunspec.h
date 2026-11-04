@@ -1,13 +1,18 @@
 #include <modbus/modbus.h>
 
+#define SUNSPEC_BASE_ADDRESS	40000
+
+#define OFFSET(model, reg)		(((void*) &reg - (void*) model) / 2)
+
+#define CONNECT_RETRY_TIME		900 	// 15 min
+#define SLEEP_TIME_SLEEPING		900		// 15 min
+#define SLEEP_TIME_STARTING		30		// 30 sec
+#define SLEEP_TIME_FAULT		10		// 10 sec
+
 #define SFF(x, y)				(y == 0 ? x : (x) * pow(10, y))
 #define SFI(x, y)				(y == 0 ? x : (int)((x) * pow(10, y)))
 #define SFUI(x, y)				(y == 0 ? x : (unsigned int)((x) * pow(10, y)))
 #define SFOUT(x, y)				(y == 0 ? x : (x) / pow(10, y))
-
-#define SUNSPEC_BASE_ADDRESS	40000
-
-#define OFFSET(model, reg)		(((void*) &reg - (void*) model) / 2)
 
 // SunSpec Inverter States
 #define I_STATUS_OFF 			1		// Wechselrichter ist aus
@@ -23,10 +28,6 @@
 #define I_STATUS_SN_OVERCURRENT	11		// Überstrom an SolarNet Stecker erkannt
 #define I_STATUS_BOOTLOAD		12		// Wechselrichter wird gerade up-gedatet
 #define I_STATUS_AFCI			13		// AFCI Event (Arc-Erkennung)
-
-#define CONNECT_RETRY_TIME		900 	// seconds
-#define SLEEP_TIME_FAULT		10		// 10 sec
-#define SLEEP_TIME_SLEEPING		900		// 15 min
 
 #define FLAG_LIMIT_CHARGE		(1 << 0)
 #define FLAG_LIMIT_DISCHARGE	(1 << 1)
@@ -388,8 +389,8 @@ struct _sunspec {
 	const char *host;
 	const char *ip;
 	int slave;
-	int sleep;
 	int control;
+	time_t sleep;
 	time_t ts;
 	sunspec_callback_t callback;
 	pthread_t thread;

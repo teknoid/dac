@@ -64,9 +64,9 @@ sabre28: clean $(COBJS-SABRE28)
 # standalone modules
 #
 
-solar: CFLAGS += -DSOLAR_MAIN -DMQTT_HOST=\"mqtt\" -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DWORK=\"/tmp\" -DSTDOUT -DDEBUG
-solar: clean $(COS) mcp.o utils.o sensors.o i2c.o frozen.o mqtt-tx.o network.o curl.o
-	$(CC) $(CFLAGS) -L$(LIB) -o solar $(COS) mcp.o utils.o sensors.o i2c.o frozen.o mqtt-tx.o network.o curl.o -lmodbus -lmqttc -lm -lcurl
+solar: CFLAGS += -DSOLAR_MAIN -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DWORK=\"/tmp\" -DSTDOUT -DDEBUG
+solar: clean $(COS) mcp.o utils.o sensors.o i2c.o frozen.o network.o curl.o
+	$(CC) $(CFLAGS) -L$(LIB) -o solar $(COS) mcp.o utils.o sensors.o i2c.o frozen.o network.o curl.o -lmodbus -lm -lcurl
 
 simulator: CFLAGS += -DMCP -DSIMULATOR -DSTDOUT -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
 simulator: clean mcp.o utils.o solar-simulator.o solar-collector.o solar-dispatcher.o mosmix.o tasmota.o mqtt-rx.o mqtt-tx.o sensors.o i2c.o frozen.o network.o

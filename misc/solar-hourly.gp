@@ -80,7 +80,7 @@ p factors u 1:"r1"  t "r1" w lines ls 11,\
 # mosmix history week
 set ylabel "MPPTs"
 set xrange [0:168]
-set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
+set xtics ("Mon" 12, "Tue" 36, "Wed" 60, "Thu" 84, "Fri" 108, "Sat" 132, "Sun" 156) nomirror
 set output "/run/mcp/mosmix-mppt.svg" 
 p history u 1:"mppt1" t "mppt1" w lines ls 11,\
        '' u 1:"mppt2" t "mppt2" w lines ls 12,\
@@ -108,7 +108,7 @@ p history u 1:"err1"  t "err1"  w lines ls 11,\
 set ylabel "GState Week"
 set yrange [0:2050] 
 set xrange [0:168]
-set xtics ("Sun" 12, "Mon" 36, "Tue" 60, "Wed" 84, "Thu" 108, "Fri" 132, "Sat" 156) nomirror
+set xtics ("Mon" 12, "Tue" 36, "Wed" 60, "Thu" 84, "Fri" 108, "Sat" 132, "Sun" 156) nomirror
 set output "/run/mcp/gstate-week.svg"
 p 1000                  t "100%"   w lines lt 0,\
   gstateh u 1:"soc"     t "soc"    w lines ls 4,\

@@ -560,7 +560,8 @@ void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4) {
 	xdebug("MOSMIX forecast err  %%  %5.2f %5.2f %5.2f %5.2f", FLOAT100(m->err1), FLOAT100(m->err2), FLOAT100(m->err3), FLOAT100(m->err4));
 
 	// save to history
-	mosmix_t *mh = HISTORY(now->tm_wday, now->tm_hour);
+	int d = now->tm_wday ? now->tm_wday - 1 : 6;
+	mosmix_t *mh = HISTORY(d, now->tm_hour);
 	memcpy(mh, m, sizeof(mosmix_t));
 }
 
@@ -674,10 +675,6 @@ void mosmix_dump_tomorrow(struct tm *now) {
 	icumulate(&m, tomorrow, MOSMIX_SIZE, 24);
 	dump_table(tomorrow, MOSMIX_SIZE, 24, CH, "MOSMIX tomorrow", MOSMIX_HEADER);
 	dump_array(&m, MOSMIX_SIZE, "[++]", 0);
-}
-
-void mosmix_dump_history(struct tm *now) {
-	dump_table(history, MOSMIX_SIZE, HISTORY_SIZE, now->tm_wday * 24 + now->tm_hour, "MOSMIX history full", MOSMIX_HEADER);
 }
 
 void mosmix_dump_history_hours(int h) {
@@ -985,7 +982,8 @@ static void wget(struct tm *now, const char *id) {
 static int diffs(struct tm *now) {
 	// take over mppt's from history into today
 	for (int h = 0; h < 24; h++) {
-		mosmix_t *mh = HISTORY(now->tm_wday, h);
+		int d = now->tm_wday ? now->tm_wday - 1 : 6;
+		mosmix_t *mh = HISTORY(d, h);
 		mosmix_t *mt = TODAY(h);
 		mt->mppt1 = mh->mppt1;
 		mt->mppt2 = mh->mppt2;

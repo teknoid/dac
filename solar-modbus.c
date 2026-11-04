@@ -36,6 +36,16 @@ static sunspec_t *inverter1 = 0, *inverter2 = 0, *meter = 0;
 
 static int control = 1;
 
+//#ifdef SOLAR_MAIN
+//// provide global symbols for solar-common.h when not linked to collector / dispatcher
+//counter_t cc, *counter = &cc;
+//gstate_t gs, *gstate = &gs;
+//pstate_t ps, *pstate = &ps;
+//params_t pa, *params = &pa;
+//device_t i1 = { .name = "fronius10" }, *inv1 = &i1;
+//device_t i2 = { .name = "fronius7" }, *inv2 = &i2;
+//#endif
+
 void read_trigger() {
 	sem_post(&inverter1->start);
 	sem_post(&inverter2->start);
@@ -44,6 +54,7 @@ void read_trigger() {
 
 void read_wait() {
 	sem_wait(&inverter1->finish);
+	// do not wait for Fronius7 as he goes into sleep mode overnight
 	// sem_wait(&inverter2->finish);
 	sem_wait(&meter->finish);
 }
@@ -137,13 +148,10 @@ static void update_inverter1(sunspec_t *ss) {
 		return;
 	}
 
-	// xlog("SOLAR %s inverter St=%d m1_DCV=%d >m2_DCV=%d", ss->name, ss->inverter->St, ss->mppt->m1_DCV, ss->mppt->m2_DCV);
-
 	inv1->state = ss->inverter->St;
 	ss->sleep = 0;
 
 	// mppt voltage is always available
-	// TODO test ???
 	pstate->mppt1v = SFI(ss->mppt->m1_DCV, ss->mppt->DCV_SF);
 	pstate->mppt2v = SFI(ss->mppt->m2_DCV, ss->mppt->DCV_SF);
 
@@ -155,11 +163,12 @@ static void update_inverter1(sunspec_t *ss) {
 	case I_STATUS_STANDBY:
 	case I_STATUS_SLEEPING:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
+		ss->sleep = time(NULL) + SLEEP_TIME_SLEEPING; // let the inverter sleep
 		break;
 
 	case I_STATUS_STARTING:
 		pstate->ac1 = pstate->dc1 = pstate->mppt1p = pstate->mppt2p = pstate->akku = 0;
+		ss->sleep = time(NULL) + SLEEP_TIME_STARTING;
 		break;
 
 	case I_STATUS_MPPT:
@@ -172,17 +181,18 @@ static void update_inverter1(sunspec_t *ss) {
 		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
 		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
-		// pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
 		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
-		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d", ss->name, mppt3, mppt4);
-		pstate->akku = mppt3 > 0 ? mppt3 * -1 : mppt4;
+		int iakku = mppt3 > 0 ? mppt3 * -1 : mppt4;
+		int cakku = pstate->dc1 - pstate->mppt1p - pstate->mppt2p; // akku power self calculated: DC minus PV
+		pstate->akku = iakku;
 		gstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10; // store x10 scaled
+		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d iakku=%d cakku=%d", ss->name, mppt3, mppt4, iakku, cakku);
 
 		// pstate->f = ss->inverter->Hz - 5000; // store only the diff
-		// pstate->v1 = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
-		// pstate->v2 = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
-		// pstate->v3 = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
+		// pstate->l1v = SFI(ss->inverter->PhVphA, ss->inverter->V_SF);
+		// pstate->l2v = SFI(ss->inverter->PhVphB, ss->inverter->V_SF);
+		// pstate->l3v = SFI(ss->inverter->PhVphC, ss->inverter->V_SF);
 		break;
 
 	case I_STATUS_FAULT:
@@ -191,7 +201,7 @@ static void update_inverter1(sunspec_t *ss) {
 		xlog("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt3p < NOISE10)
-			ss->sleep = SLEEP_TIME_SLEEPING;
+			ss->sleep = time(NULL) + SLEEP_TIME_SLEEPING;
 		break;
 
 	default:
@@ -206,8 +216,6 @@ static void update_inverter2(sunspec_t *ss) {
 		inv2->state = pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
 		return;
 	}
-
-	// do not use any semaphore here as Fronius7 is going into sleep mode overnight
 
 	inv2->state = ss->inverter->St;
 	ss->sleep = 0;
@@ -224,11 +232,12 @@ static void update_inverter2(sunspec_t *ss) {
 	case I_STATUS_STANDBY:
 	case I_STATUS_SLEEPING:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
-		ss->sleep = SLEEP_TIME_SLEEPING; // let the inverter sleep
+		ss->sleep = time(NULL) + SLEEP_TIME_SLEEPING; // let the inverter sleep
 		break;
 
 	case I_STATUS_STARTING:
 		pstate->ac2 = pstate->dc2 = pstate->mppt3p = pstate->mppt4p = 0;
+		ss->sleep = time(NULL) + SLEEP_TIME_STARTING;
 		break;
 
 	case I_STATUS_MPPT:
@@ -249,7 +258,7 @@ static void update_inverter2(sunspec_t *ss) {
 		// xdebug("SOLAR %s inverter St=%d Evt1=%d Evt2=%d F_Active_State_Code=%d", ss->name, ss->inverter->St, ss->inverter->Evt1, ss->inverter->Evt2, active_state_code);
 		// cross check - this is normal when no pv is produced
 		if (pstate->mppt1p < NOISE10)
-			ss->sleep = SLEEP_TIME_SLEEPING;
+			ss->sleep = time(NULL) + SLEEP_TIME_SLEEPING;
 		break;
 
 	default:
@@ -277,7 +286,7 @@ static void update_meter(sunspec_t *ss) {
 	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
 	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 
-	// validate meter and self calculated
+	// validate grid meter and self calculated
 	int gmeter = SFI(ss->meter->W, ss->meter->W_SF);
 	int gcalc = pstate->l1p + pstate->l2p + pstate->l3p;
 	int diff = gmeter - gcalc;
@@ -520,7 +529,7 @@ static int grid() {
 	return 0;
 }
 
-// set charge(-) / discharge(+) limits or reset when 0
+// -X: limit charge, +X: limit discharge
 static int storage_limit(char *arg) {
 	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
@@ -530,7 +539,7 @@ static int storage_limit(char *arg) {
 		return sunspec_storage_discharge(ss, wh);
 	if (wh < 0)
 		return sunspec_storage_charge(ss, wh * -1);
-	return sunspec_storage_auto(ss);
+	return 0;
 }
 
 // set minimum SoC
@@ -542,7 +551,23 @@ static int storage_min(char *arg) {
 	return sunspec_storage_minimum_soc(ss, min);
 }
 
-// set minimum SoC
+// set storage into standby mode
+static int storage_auto(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	sunspec_read(ss);
+
+	return sunspec_storage_auto(ss);
+}
+
+// set storage into auto mode
+static int storage_standby(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	sunspec_read(ss);
+
+	return sunspec_storage_standby(ss);
+}
+
+// switch inverter on or off
 static int inverter_on_off(char *arg) {
 	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
 	sunspec_read(ss);
@@ -656,14 +681,11 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "ab:c:e:gi:ls:t")) != -1) {
+	while ((c = getopt(argc, argv, "ac:e:gi:lmo:s:ty")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'a':
-			return latency();
-		case 'b':
-			// -X: limit charge, +X: limit discharge, 0: no limits
-			return storage_limit(optarg);
+			return storage_auto(optarg);
 		case 'c':
 			// ./solar -c boiler1
 			return calibrate(optarg);
@@ -673,14 +695,20 @@ int solar_main(int argc, char **argv) {
 		case 'g':
 			return grid();
 		case 'i':
-			return inverter_on_off(optarg);
+			return storage_limit(optarg);
 		case 'l':
 			control = 0; // disable storage control in loop mode
 			return mcp_main(argc, argv);
-		case 's':
+		case 'm':
 			return storage_min(optarg);
+		case 'o':
+			return inverter_on_off(optarg);
+		case 's':
+			return storage_standby(optarg);
 		case 't':
 			return test();
+		case 'y':
+			return latency();
 		default:
 			xlog("unknown getopt %c", c);
 		}

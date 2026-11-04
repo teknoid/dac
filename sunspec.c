@@ -313,7 +313,7 @@ static void* poll(void *arg) {
 			xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
 
 		if (modbus_connect(ss->mb) == -1) {
-			xlog("SUNSPEC %s connection failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+			xlog("SUNSPEC %s error: %s, retry in %d seconds", ss->name, modbus_strerror(errno), CONNECT_RETRY_TIME);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
@@ -321,7 +321,7 @@ static void* poll(void *arg) {
 		}
 
 		if (collect_models(ss) == -1) {
-			xlog("SUNSPEC %s collect_models() error: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+			xlog("SUNSPEC %s collect_models() error: %s, retry in %d seconds", ss->name, modbus_strerror(errno), CONNECT_RETRY_TIME);
 			modbus_free(ss->mb);
 			ss->mb = 0;
 			sleep(CONNECT_RETRY_TIME);
@@ -339,16 +339,16 @@ static void* poll(void *arg) {
 		while (errors_all > -10) {
 			sem_wait(&ss->start);
 
-			// do nothing until sleep timer is expired
-			if (ss->sleep && time(NULL) < ss->ts + ss->sleep) {
+			// update time stamp
+			ss->ts = time(NULL);
+
+			// do nothing until sleep time is over
+			if (ss->sleep && ss->ts < ss->sleep) {
 				sem_post(&ss->finish);
 				continue;
 			}
 
 			// PROFILING_START
-
-			// update time stamp
-			ss->ts = time(NULL);
 
 			// read dynamic models in the loop
 			errors_now = 0;
@@ -363,13 +363,13 @@ static void* poll(void *arg) {
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
 
-			// execute the callback function to process model data - only if error-free
+			// execute the callback function to process model data - only when error-free
 			if (ss->callback && errors_now == 0)
 				(ss->callback)(ss);
 
-			// PROFILING_LOG(ss->name)
-
 			// MICROSECONDS(ss->name)
+
+			// PROFILING_LOG(ss->name)
 
 			sem_post(&ss->finish);
 		}
@@ -452,7 +452,7 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 		xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
 
 	if (modbus_connect(ss->mb) == -1) {
-		xlog("SUNSPEC connection to %s failed: %s, retry in %d seconds", ss->ip, modbus_strerror(errno), CONNECT_RETRY_TIME);
+		xlog("SUNSPEC %s error: %s", ss->name, modbus_strerror(errno));
 		modbus_free(ss->mb);
 		return 0;
 	}
@@ -534,7 +534,7 @@ int sunspec_storage_charge(sunspec_t *ss, int limit) {
 	if (ss->storage->StorCtl_Mod == mode && ss->storage->InWRte == inwrte && ss->storage->OutWRte == outwrte)
 		return EALREADY; // already set
 
-	xlog("SUNSPEC set storage to CHARGE inwrte=%d outwrte=%d mode=%d", inwrte, outwrte, mode);
+	xlog("SUNSPEC set storage to CHARGE limit=%d inwrte=%d outwrte=%d mode=%d", limit, inwrte, outwrte, mode);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), mode);
@@ -562,7 +562,7 @@ int sunspec_storage_discharge(sunspec_t *ss, int limit) {
 	if (ss->storage->StorCtl_Mod == mode && ss->storage->InWRte == inwrte && ss->storage->OutWRte == outwrte)
 		return EALREADY; // already set
 
-	xlog("SUNSPEC set storage to DISCHARGE outwrte=%d inwrte=%d mode=%d", outwrte, inwrte, mode);
+	xlog("SUNSPEC set storage to DISCHARGE limit=%d outwrte=%d inwrte=%d mode=%d", limit, outwrte, inwrte, mode);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->InWRte), inwrte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->OutWRte), outwrte);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->StorCtl_Mod), mode);
@@ -616,7 +616,7 @@ int sunspec_storage_minimum_soc(sunspec_t *ss, int soc) {
 	if (ss->storage->MinRsvPct == minrsvpct)
 		return EALREADY; // already set
 
-	xlog("SUNSPEC setting minimum SoC to %d%%", soc);
+	xlog("SUNSPEC set storage MinRsvPct to %d%%", soc);
 	sunspec_write_reg(ss, ss->storage_addr + OFFSET(ss->storage, ss->storage->MinRsvPct), minrsvpct);
 	return read_storage(ss);
 }
@@ -631,7 +631,7 @@ int sunspec_controls_conn(sunspec_t *ss, int conn) {
 	if (ss->controls->Conn == conn)
 		return EALREADY; // already set
 
-	xlog("SUNSPEC setting controls Conn %d", conn);
+	xlog("SUNSPEC set controls Conn %d", conn);
 	sunspec_write_reg(ss, ss->controls_addr + OFFSET(ss->controls, ss->controls->Conn), conn);
 	ss->sleep = 10; // shrink poll loop timer
 	return read_controls(ss);

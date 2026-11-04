@@ -2,6 +2,12 @@
 
 // setup remote tcpdump instance --> misc/wifi-*.service
 
+// TODO
+// counter über eine Woche lang aufzeichnen: für jede Minute einen counter -> 60 * 24 * 7 einträge
+// dort den timestamp speichern, damit heatmap erstellen (neuester zu ältester)
+// zumindest bei zombies und stations
+// 64 bit zerlegen in 8x8bit counter -> alle 7,5 minuten, dann nur 24 * 7
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>

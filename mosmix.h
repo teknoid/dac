@@ -125,7 +125,6 @@ void mosmix_load_state(struct tm *now);
 void mosmix_factors();
 void mosmix_dump_today(struct tm *now);
 void mosmix_dump_tomorrow(struct tm *now);
-void mosmix_dump_history(struct tm *now);
 void mosmix_dump_history_hours(int hour);
 void mosmix_store_csv();
 void mosmix_mppt(struct tm *now, int mppt1, int mppt2, int mppt3, int mppt4);

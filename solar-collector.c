@@ -84,42 +84,40 @@
 #define CM_HOUR					(&counters[8])
 #define CM_DAY					(&counters[9])
 
-// history access pointer
+// history pointer
 #define PSTATE_DAY_HOUR(d, h)	(&pstate_hours[24 * d + h])
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * d + h])
 
-// gstate access pointer
+// gstate history pointer
 #define GSTATE_MIN_LAST1		(&gstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define GSTATE_MIN_LAST2		(&gstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
 #define GSTATE_MIN_LAST3		(&gstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
-#define GSTATE_MIN_LAST5		(&gstate_minutes[now->tm_min > 4 ? now->tm_min - 5 : (now->tm_min - 5 + 60)])
 
-// pstate access pointer
+// pstate history pointer
 #define PSTATE_MIN_LAST1		(&pstate_minutes[now->tm_min > 0 ? now->tm_min - 1 : 59])
 #define PSTATE_MIN_LAST2		(&pstate_minutes[now->tm_min > 1 ? now->tm_min - 2 : (now->tm_min - 2 + 60)])
 #define PSTATE_MIN_LAST3		(&pstate_minutes[now->tm_min > 2 ? now->tm_min - 3 : (now->tm_min - 3 + 60)])
-#define PSTATE_MIN_LAST5		(&pstate_minutes[now->tm_min > 4 ? now->tm_min - 5 : (now->tm_min - 5 + 60)])
 
-// pstate access pointer
+// pstate history pointer
 #define PSTATE_SEC_LAST1		(&pstate_seconds[now->tm_sec > 0 ? now->tm_sec - 1 : 59])
 #define PSTATE_SEC_LAST2		(&pstate_seconds[now->tm_sec > 1 ? now->tm_sec - 2 : (now->tm_sec - 2 + 60)])
 #define PSTATE_SEC_LAST3		(&pstate_seconds[now->tm_sec > 2 ? now->tm_sec - 3 : (now->tm_sec - 3 + 60)])
 #define PSTATE_SEC_LAST5		(&pstate_seconds[now->tm_sec > 4 ? now->tm_sec - 5 : (now->tm_sec - 5 + 60)])
 
-// stable/unstable
+// stable / unstable
 #define PSTATE_3S_STABLE		( (PSTATE_SEC_LAST1->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST2->flags & FLAG_STABLE) &&  (PSTATE_SEC_LAST3->flags & FLAG_STABLE))
 #define PSTATE_3S_UNSTABLE		(!(PSTATE_SEC_LAST1->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST2->flags & FLAG_STABLE) && !(PSTATE_SEC_LAST3->flags & FLAG_STABLE))
 #define GSTATE_3M_STABLE		( (GSTATE_MIN_LAST1->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST2->flags & FLAG_STABLE) &&  (GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 #define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 
-// local counter/gstate/pstate/params/statistics memory
+// local counter / gstate / pstate / params / statistics memory
 static counter_t counters[10];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstates[3];
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
 static params_t params_current;
 static stats_t stats[60];
 
-// local pstate pointer
+// local pstate access pointer
 static pstate_t *avgss = &pstates[1], *minss = &pstates[2], *maxss = &pstates[3], *spreadss = &pstates[4];
 static pstate_t *avgmm = &pstates[5], *minmm = &pstates[6], *maxmm = &pstates[7], *spreadmm = &pstates[8];
 static pstate_t *minm = &pstates[10], *maxm = &pstates[11], *spreadm = &pstates[12];
@@ -135,21 +133,21 @@ static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 static time_t now_ts;
 static struct tm now_tm, *now = &now_tm;
 
-// loop synchronization between collector and dispatcher
-sem_t collector;
-
-// global counter/gstate/pstate/params pointer
-counter_t *counter = CS_NOW;
+// global counter / gstate / pstate / params pointer
+counter_t *counter = CM_NOW;
 gstate_t *gstate = &gstates[0];
 pstate_t *pstate = &pstates[0];
 params_t *params = &params_current;
 
+// loop synchronization between collector and dispatcher
+sem_t collector;
+
 static void load_state() {
-	load_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	load_blob(STATE SLASH COUNTER_FILE, counters, sizeof(counters));
 
 	load_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
 	load_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
-	load_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstates));
+	load_blob(STATE SLASH GSTATE_FILE, gstates, sizeof(gstates));
 
 	load_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	load_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
@@ -158,11 +156,11 @@ static void load_state() {
 }
 
 static void store_state() {
-	store_blob(STATE SLASH COUNTER_FILE, counter, sizeof(counter));
+	store_blob(STATE SLASH COUNTER_FILE, counters, sizeof(counters));
 
 	store_blob(STATE SLASH GSTATE_H_FILE, gstate_hours, sizeof(gstate_hours));
 	store_blob(STATE SLASH GSTATE_M_FILE, gstate_minutes, sizeof(gstate_minutes));
-	store_blob(STATE SLASH GSTATE_FILE, gstate, sizeof(gstates));
+	store_blob(STATE SLASH GSTATE_FILE, gstates, sizeof(gstates));
 
 	store_blob(STATE SLASH PSTATE_H_FILE, pstate_hours, sizeof(pstate_hours));
 	store_blob(STATE SLASH PSTATE_M_FILE, pstate_minutes, sizeof(pstate_minutes));
@@ -170,7 +168,7 @@ static void store_state() {
 	store_blob(STATE SLASH PSTATE_FILE, pstates, sizeof(pstates));
 }
 
-static void create_json() {
+static void json() {
 	store_array_json(pstate, PSTATE_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_JSON);
 	store_array_json(gstate, GSTATE_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_JSON);
 
@@ -307,6 +305,10 @@ static void print_pstate() {
 
 static void calculate_counter() {
 	// update NULL meter counter when empty
+	if (CM_NULL->consumed == 0)
+		CM_NULL->consumed = CM_NOW->consumed;
+	if (CM_NULL->produced == 0)
+		CM_NULL->produced = CM_NOW->produced;
 	if (CM_NULL->mppt1 == 0)
 		CM_NULL->mppt1 = CM_NOW->mppt1;
 	if (CM_NULL->mppt2 == 0)
@@ -315,18 +317,14 @@ static void calculate_counter() {
 		CM_NULL->mppt3 = CM_NOW->mppt3;
 	if (CM_NULL->mppt4 == 0)
 		CM_NULL->mppt4 = CM_NOW->mppt4;
-	if (CM_NULL->produced == 0)
-		CM_NULL->produced = CM_NOW->produced;
-	if (CM_NULL->consumed == 0)
-		CM_NULL->consumed = CM_NOW->consumed;
 
 	// meter counter daily - calculate delta to NULL entry
-	CM_DAY->consumed = CM_NOW->consumed && CM_NULL->consumed ? CM_NOW->consumed - CM_NULL->consumed : 0;
-	CM_DAY->produced = CM_NOW->produced && CM_NULL->produced ? CM_NOW->produced - CM_NULL->produced : 0;
-	CM_DAY->mppt1 = CM_NOW->mppt1 && CM_NULL->mppt1 ? CM_NOW->mppt1 - CM_NULL->mppt1 : 0;
-	CM_DAY->mppt2 = CM_NOW->mppt2 && CM_NULL->mppt2 ? CM_NOW->mppt2 - CM_NULL->mppt2 : 0;
-	CM_DAY->mppt3 = CM_NOW->mppt3 && CM_NULL->mppt3 ? CM_NOW->mppt3 - CM_NULL->mppt3 : 0;
-	CM_DAY->mppt4 = CM_NOW->mppt4 && CM_NULL->mppt4 ? CM_NOW->mppt4 - CM_NULL->mppt4 : 0;
+	CM_DAY->consumed = CM_NOW->consumed - CM_NULL->consumed;
+	CM_DAY->produced = CM_NOW->produced - CM_NULL->produced;
+	CM_DAY->mppt1 = CM_NOW->mppt1 - CM_NULL->mppt1;
+	CM_DAY->mppt2 = CM_NOW->mppt2 - CM_NULL->mppt2;
+	CM_DAY->mppt3 = CM_NOW->mppt3 - CM_NULL->mppt3;
+	CM_DAY->mppt4 = CM_NOW->mppt4 - CM_NULL->mppt4;
 
 	// self counter daily - convert Watt-secons to Watt-hours
 	CS_DAY->consumed = CS_NOW->consumed / 3600;
@@ -353,9 +351,14 @@ static void calculate_counter() {
 		CS_HOUR->mppt3 = (CS_NOW->mppt3 - CS_LAST->mppt3) / 3600;
 		CS_HOUR->mppt4 = (CS_NOW->mppt4 - CS_LAST->mppt4) / 3600;
 
-		// compare hourly self and meter counter
-		xlog("SOLAR counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-		xlog("SOLAR counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+		// compare counter self /meter / pstate
+		xlog("SOLAR counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_HOUR->consumed, CM_HOUR->produced, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+		xlog("SOLAR counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_HOUR->consumed, CS_HOUR->produced, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
+		// index for elapsed day / hour
+		int d = now->tm_wday ? now->tm_wday - 1 : 6;
+		int h = now->tm_hour ? now->tm_hour - 1 : 23;
+		pstate_t *ph = PSTATE_DAY_HOUR(d, h);
+		xlog("SOLAR counter pstate cons=X prod=X 1=%d 2=%d 3=%d 4=%d", ph->mppt1p, ph->mppt2p, ph->mppt3p, ph->mppt4p);
 
 		// copy to LAST entry
 		memcpy(CM_LAST, CM_NOW, sizeof(counter_t));
@@ -363,9 +366,10 @@ static void calculate_counter() {
 	}
 
 	if (DAILY) {
-		// compare daily self and meter counter
-		xlog("SOLAR counter meter cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
-		xlog("SOLAR counter self  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+		// compare counter self /meter / pstate
+		xlog("SOLAR counter meter  cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CM_DAY->consumed, CM_DAY->produced, CM_DAY->mppt1, CM_DAY->mppt2, CM_DAY->mppt3, CM_DAY->mppt4);
+		xlog("SOLAR counter self   cons=%d prod=%d 1=%d 2=%d 3=%d 4=%d", CS_DAY->consumed, CS_DAY->produced, CS_DAY->mppt1, CS_DAY->mppt2, CS_DAY->mppt3, CS_DAY->mppt4);
+		xlog("SOLAR counter pstate cons=X prod=X 1=%d 2=%d 3=%d 4=%d", yday1->mppt1p, yday1->mppt2p, yday1->mppt3p, yday1->mppt4p);
 
 		// reset self counter and copy self/meter counter to NULL entry
 		memcpy(CM_NULL, CM_NOW, sizeof(counter_t));
@@ -393,26 +397,20 @@ static void calculate_gstate_offline() {
 
 	} else if (gstate->survive > SURVIVE110 && GSTATE_3M_UNSTABLE) {
 
-//		old logic
-//		// survive but unstable over three minutes - suppressing single events e.g. refrigerator start
-//		int adjust = minm->grid - minm->grid / 10;
-//		ZSHAPE(adjust, NOISE20)
-//		// initially set limit to average load, then push grid uploads to grid downloads by lowering discharge rate
-//		int dlimit = round10(params->akku_dlimit ? params->akku_dlimit + adjust : PSTATE_MIN_NOW->load);
-//		LOCUT(dlimit, params->baseload)
-//		int delta = maxm->grid - minm->grid;
-//		xlog("SOLAR unstable GRID min=%d max=%d delta=%d DLIMIT now=%d adjust=%d new=%d", minm->grid, maxm->grid, delta, params->akku_dlimit, adjust, dlimit);
-//		params->akku_dlimit = dlimit;
-
-		int dlimit = PSTATE_SEC_LAST1->load;
-		// push grid uploads to grid downloads by lowering discharge limit
+		// initially set limit to average load
+		int dlimit = params->akku_dlimit ? params->akku_dlimit : PSTATE_MIN_LAST1->load;
+		// decrease limit if we have minimum grid upload (50%)
 		if (minm->grid < 0)
+			dlimit += minm->grid / 2;
+		// increase limit if we have minimum grid download (90%)
+		if (minm->grid > 0)
 			dlimit += minm->grid - minm->grid / 10;
-		LOCUT(dlimit, params->baseload)
 		dlimit = round10(dlimit);
+		LOCUT(dlimit, params->baseload)
 		int delta = params->akku_dlimit - dlimit;
-		if (delta < -NOISE20 || delta > NOISE20) {
-			xlog("SOLAR unstable GRID min=%d max=%d DLIMIT now=%d new=%d", minm->grid, maxm->grid, params->akku_dlimit, dlimit);
+		ZSHAPE(delta, params->minimum / 2)
+		if (delta) {
+			xlog("SOLAR unstable GRID min=%d DLIMIT now=%d new=%d", minm->grid, params->akku_dlimit, dlimit);
 			params->akku_dlimit = dlimit;
 		}
 
@@ -508,12 +506,14 @@ static void calculate_gstate_online() {
 
 	// akku charge limit
 	params->akku_climit = 0;
-	if (SUMMER || gstate->today > acx2)
+	if (gstate->today > acx2)
 		params->akku_climit = params->akku_cmax / 2;
-	if (SUMMER || gstate->today > acx3)
+	if (gstate->today > acx3)
 		params->akku_climit = params->akku_cmax / 3;
-	if (SUMMER || gstate->today > acx4)
+	if (gstate->today > acx4)
 		params->akku_climit = params->akku_cmax / 4;
+	if (WINTER)
+		params->akku_climit = 0;
 	if (800 < gstate->soc && gstate->soc < 999)
 		params->akku_climit = 666; // charging slow between 80% and 100%
 	if (params->akku_climit_override)
@@ -553,14 +553,14 @@ static void calculate_gstate() {
 	if (gstate->soc == 70)
 		gstate->sop = params->akku_capacity * 60 * 7 / 100;
 
-	// akku stored (and really usable) energy
+	// akku effective usable energy
 	int sopp = gstate->sop / 60; // Wmin to Wh self-tracked
 	int socp = params->akku_capacity * gstate->soc / 1000; // calculated from SoC
 	int xsop = socp ? sopp * 1000 / socp : 0;
 	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
 	int reserve = params->akku_capacity * msoc / 1000;
-	// gstate->stored = round10(sopp - reserve);
-	gstate->stored = round10(socp - reserve);
+	gstate->stored = round10(sopp - reserve); // self tracked
+	// gstate->stored = round10(socp - reserve); // from SoC
 	LOCUT(gstate->stored, 0)
 	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), reserve, gstate->stored);
 
@@ -574,7 +574,7 @@ static void calculate_gstate() {
 	LOCUT(tocharge, 0)
 	int available = pstate->pv ? gstate->eod - tocharge - marbles->day : 0;
 	LOCUT(available, 0)
-	int survive = gstate->needed ? gstate->stored * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last value if needed is zero
+	int survive = gstate->needed ? gstate->stored * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last one if zero
 	gstate->survive = survive;
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
@@ -909,25 +909,24 @@ static void calculate_pstate() {
 		print_pstate();
 }
 
-static void update_round_robin() {
-	// index for elapsed second / hour / minute / day
-	int d = (now->tm_wday ? now->tm_wday - 1 : 6);
+static void history() {
+	// index for elapsed day / hour / minute / second
+	int d = now->tm_wday ? now->tm_wday - 1 : 6;
 	int h = now->tm_hour ? now->tm_hour - 1 : 23;
 	int m = now->tm_min ? now->tm_min - 1 : 59;
 	int s = now->tm_sec ? now->tm_sec - 1 : 59;
 
-	// pstate access pointer
+	// pstate history pointer
 	pstate_t *pd = &pstate_hours[d];
 	pstate_t *ph = &pstate_hours[d * 24 + h];
 	pstate_t *pm = &pstate_minutes[m];
 	pstate_t *ps = &pstate_seconds[s];
 
-	// gstate access pointer
-	gstate_t *gd = &gstate_hours[d];
+	// gstate history pointer
 	gstate_t *gh = &gstate_hours[d * 24 + h];
 	gstate_t *gm = &gstate_minutes[m];
 
-	// stats access pointer
+	// stats history pointer
 	stats_t *sm = &stats[m];
 
 	// copy elapsed second to history
@@ -938,15 +937,13 @@ static void update_round_robin() {
 	// dump_array(avgss, PSTATE_SIZE, "[SS]", 0);
 
 	if (MINLY) {
-		xlog("SOLAR d=%d h=%02d m=%02d s=%02d", d, h, m, s);
-
 		// aggregate 60 seconds into elapsed minute
 		iaggregate_mams(pm, pstate_seconds, minm, maxm, spreadm, PSTATE_SIZE, 60, 0, 60);
 		// dump_table(pstate_seconds, PSTATE_SIZE, 60, -1, "SOLAR pstate_seconds", PSTATE_HEADER);
-		dump_array(pm, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_array(pm, PSTATE_SIZE, "[ØØ]", 0);
 		// aggregate last 10 minutes
 		iaggregate_mams(avgmm, pstate_minutes, minmm, maxmm, spreadmm, PSTATE_SIZE, 60, m, 10);
-		dump_array(avgmm, PSTATE_SIZE, "[MM]", 0);
+		// dump_array(avgmm, PSTATE_SIZE, "[MM]", 0);
 		// copy elapsed minute to history
 		memcpy(gm, gstate, sizeof(gstate_t));
 		// update statistics elapsed minute
@@ -964,8 +961,8 @@ static void update_round_robin() {
 	if (HOURLY) {
 		// aggregate 60 minutes into elapsed hour
 		iaggregate_mams(ph, pstate_minutes, minh, maxh, spreadh, PSTATE_SIZE, 60, 0, 60);
-		dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
-		dump_array(ph, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_table(pstate_minutes, PSTATE_SIZE, 60, -1, "SOLAR pstate_minutes", PSTATE_HEADER);
+		// dump_array(ph, PSTATE_SIZE, "[ØØ]", 0);
 		// copy elapsed hour to history
 		memcpy(gh, gstate, sizeof(gstate_t));
 	}
@@ -975,40 +972,18 @@ static void update_round_robin() {
 		memcpy(yday2, yday1, sizeof(pstate_t));
 		// aggregate 24 pstate hours into yesterday
 		iaggregate(yday1, pd, PSTATE_SIZE, 24);
-		dump_table(pd, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
-		dump_array(yday1, PSTATE_SIZE, "[ØØ]", 0);
+		// dump_table(pd, PSTATE_SIZE, 24, -1, "SOLAR pstate_hours", PSTATE_HEADER);
+		// dump_array(yday1, PSTATE_SIZE, "[ØØ]", 0);
 	}
 
-#ifdef GNUPLOT_MINLY
-	if (MINLY || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
-		// pstate seconds
-		int offset = m * 60;
-		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
-			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
-		append_table_csv(pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
-	}
-#endif
+	// MICROSECONDS("history")
+}
 
-#ifdef GNUPLOT_HOURLY
-	if (HOURLY || access(RUN SLASH PSTATE_M_CSV, F_OK)) {
-		// pstate minutes, gstate minutes, statistics minutes
-		int offset = h * 60;
-		if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
-			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
-		if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
-			store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
-		if (!offset || access(RUN SLASH STATS_CSV, F_OK))
-			store_csv_header(STATS_HEADER, RUN SLASH STATS_CSV);
-		append_table_csv(pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
-		append_table_csv(gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
-		append_table_csv(stats, STATS_SIZE, 60, offset, RUN SLASH STATS_CSV);
-		// pstate week, gstate week
-		store_table_csv(pstate_hours, PSTATE_SIZE, HISTORY_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_H_CSV);
-		store_table_csv(gstate_hours, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_H_CSV);
-		// gstate today
-		store_table_csv(gd, GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_T_CSV);
-	}
-#endif
+static void gnuplot() {
+	// index for elapsed day / hour / minute
+	int d = now->tm_wday ? now->tm_wday - 1 : 6;
+	int h = now->tm_hour ? now->tm_hour - 1 : 23;
+	int m = now->tm_min ? now->tm_min - 1 : 59;
 
 #ifdef GNUPLOT_EXTRA
 	int offset = now_ts % 3600;
@@ -1033,6 +1008,41 @@ static void update_round_robin() {
 	append_line_csv(minm, PSTATE_SIZE, offset, TMP SLASH "minm.csv");
 	append_line_csv(maxm, PSTATE_SIZE, offset, TMP SLASH "maxm.csv");
 #endif
+
+#ifdef GNUPLOT_MINLY
+	if (MINLY || access(RUN SLASH PSTATE_S_CSV, F_OK)) {
+		// pstate seconds
+		int offset = m * 60;
+		if (!offset || access(RUN SLASH PSTATE_S_CSV, F_OK))
+			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_S_CSV);
+		append_table_csv(pstate_seconds, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_S_CSV);
+		system(GNUPLOT_MINLY);
+	}
+#endif
+
+#ifdef GNUPLOT_HOURLY
+	if (HOURLY || access(RUN SLASH PSTATE_M_CSV, F_OK)) {
+		// pstate minutes, gstate minutes, statistics minutes
+		int offset = h * 60;
+		if (!offset || access(RUN SLASH PSTATE_M_CSV, F_OK))
+			store_csv_header(PSTATE_HEADER, RUN SLASH PSTATE_M_CSV);
+		if (!offset || access(RUN SLASH GSTATE_M_CSV, F_OK))
+			store_csv_header(GSTATE_HEADER, RUN SLASH GSTATE_M_CSV);
+		if (!offset || access(RUN SLASH STATS_CSV, F_OK))
+			store_csv_header(STATS_HEADER, RUN SLASH STATS_CSV);
+		append_table_csv(pstate_minutes, PSTATE_SIZE, 60, offset, RUN SLASH PSTATE_M_CSV);
+		append_table_csv(gstate_minutes, GSTATE_SIZE, 60, offset, RUN SLASH GSTATE_M_CSV);
+		append_table_csv(stats, STATS_SIZE, 60, offset, RUN SLASH STATS_CSV);
+		// pstate week, gstate week
+		store_table_csv(pstate_hours, PSTATE_SIZE, HISTORY_SIZE, PSTATE_HEADER, RUN SLASH PSTATE_H_CSV);
+		store_table_csv(gstate_hours, GSTATE_SIZE, HISTORY_SIZE, GSTATE_HEADER, RUN SLASH GSTATE_H_CSV);
+		// gstate today
+		store_table_csv(&gstate_hours[d], GSTATE_SIZE, 24, GSTATE_HEADER, RUN SLASH GSTATE_T_CSV);
+		system(GNUPLOT_HOURLY);
+	}
+#endif
+
+	// MICROSECONDS("gnuplot")
 }
 
 static void daily() {
@@ -1069,16 +1079,16 @@ static void hourly() {
 	mosmix_load_csv(now, MARIENBERG, DAILY);
 
 	// update history
-#ifdef COUNTER_METER
-	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
-#else
+//#ifdef COUNTER_METER
+//	mosmix_mppt(now, CM_HOUR->mppt1, CM_HOUR->mppt2, CM_HOUR->mppt3, CM_HOUR->mppt4);
+//#else
 	mosmix_mppt(now, CS_HOUR->mppt1, CS_HOUR->mppt2, CS_HOUR->mppt3, CS_HOUR->mppt4);
-#endif
+//#endif
 
 	// collect sod errors and scale all remaining eod values, success factor before and after scaling in succ1/succ2
 	int succ1, succ2;
 	mosmix_scale(now, &succ1, &succ2);
-	gstate->forecast = succ1 ? succ1 : GSTATE_MIN_LAST1->forecast;
+	gstate->forecast = succ1 ? succ1 : GSTATE_MIN_LAST1->forecast; // use last one if zero
 	HICUT(gstate->forecast, 2000)
 
 	// mosmix today and tomorrow
@@ -1090,6 +1100,8 @@ static void hourly() {
 }
 
 static void minly() {
+	xdebug("SOLAR collector executing minly tasks...");
+
 	// collect mosmix marbles
 	mosmix_marble(now, params->baseload, params->heating, marbles);
 	gstate->tomorrow = marbles->tomorrow;
@@ -1135,8 +1147,8 @@ static void loop() {
 		// trigger inverter + meter read cycle
 		read_trigger();
 
-		// aggregate state values into day-hour-minute when 0-0-0 and output to csv files for gnuplot
-		update_round_robin();
+		// aggregate state values into day-hour-minute when 0-0-0
+		history();
 
 		// wait for inverter + meter to finish read cycle
 		read_wait();
@@ -1159,19 +1171,12 @@ static void loop() {
 			daily();
 
 		// web output
-		create_json();
+		json();
 
-#ifdef GNUPLOT_MINLY
-		if (MINLY)
-			system(GNUPLOT_MINLY);
-#endif
+		// create csv files and paint gnuplot diagrams
+		gnuplot();
 
-#ifdef GNUPLOT_HOURLY
-		if (HOURLY)
-			system(GNUPLOT_HOURLY);
-#endif
-
-		// PROFILING_LOG(" collector main loop")
+		// PROFILING_LOG("collector")
 
 		// wait for new second
 		while (now_ts == time(NULL))

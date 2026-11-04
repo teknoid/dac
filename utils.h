@@ -73,31 +73,37 @@
 #define HOURLY					(now->tm_min  == 0 && now->tm_sec == 0)
 #define DAILY					(now->tm_hour == 0 && now->tm_min == 0 && now->tm_sec == 0)
 
+// loop control - store actual time
 #define LOCALTIME \
 		time_t ts_now = time(NULL); \
 		struct tm tm_now, *now = &tm_now; \
 		localtime_r(&ts_now, &tm_now);
 
-#define WAIT_NEXT_SECOND	\
+// loop control - wait for next second
+#define WAIT_NEXT_SECOND \
 		time_t ts_now = time(NULL); \
 		while (ts_now == time(NULL)) \
 			msleep(111);
 
+// print time stamp when called - used to check multi-threaded execution order
 #define MICROSECONDS(s) \
 		struct timeval tval; \
 		gettimeofday(&tval, NULL); \
-		xlog("%s micros %d", s, tval.tv_usec);
+		xlog("micros %-16s %6d", s, tval.tv_usec);
 
+// store time stamp
 #define PROFILING_START \
 		struct timespec ts_profiling; \
 		int64_t ts_profiling_start, ts_profiling_end, ts_profiling_ns, ts_profiling_us, ts_profiling_ms; \
 		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
 		ts_profiling_start = ts_profiling.tv_nsec;
 
+// store time stamp again
 #define PROFILING_RESTART \
 		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
 		ts_profiling_start = ts_profiling.tv_nsec;
 
+// print stored time stamp - used to calculate execution time
 #define PROFILING_LOG(s) \
 		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
 		ts_profiling_end = ts_profiling.tv_nsec; \
@@ -105,11 +111,11 @@
 		ts_profiling_us = ts_profiling_ns / 1000; \
 		ts_profiling_ms = ts_profiling_us / 1000; \
 		if (ts_profiling_ms) \
-			xlog("%s profiling in %dms", s, ts_profiling_ms); \
+			xlog("profiling %-16s in %3dms", s, ts_profiling_ms); \
 		else if (ts_profiling_us) \
-			xlog("%s profiling in %dus", s, ts_profiling_us); \
+			xlog("profiling %-16s in %3dus", s, ts_profiling_us); \
 		else \
-			xlog("%s profiling in %dns", s, ts_profiling_ns);
+			xlog("profiling %-16s in %3dns", s, ts_profiling_ns);
 
 int is_debug();
 void set_debug(int debug);

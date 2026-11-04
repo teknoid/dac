@@ -15,7 +15,7 @@ body, html {
 	color: #3b3b3d;
 }
 
-.flex-row	 				{ margin:0; padding:0; display:flex; flex-direction:row }
+.flex-row	 				{ margin:0; padding:0; display:flex; flex-direction:row; justify-content:center }
 .flex-column 				{ margin:0; padding:0; display:flex; flex-direction:column }
 
 .devices					{ margin-top:5px }
@@ -40,7 +40,7 @@ dl dd.d						{ cursor:default }
 	.svg					{ max-width:1460px }
 
 	.potd					{ margin-top:3px !important; align-items:flex-end }
-	.potd label				{ margin: 0 10px 0 0 }
+	.potd label				{ margin: 0 15px 0 0 }
 	
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:120px }
@@ -58,7 +58,7 @@ dl dd.d						{ cursor:default }
 	.svg					{ max-width:880px }
 
 	.potd					{ margin-top:3px !important; align-items:flex-end }
-	.potd label				{ margin: 0 10px 0 0 }
+	.potd label				{ margin: 0 15px 0 0 }
 
 	dl 						{ }
 	dl dd					{ position:relative; width:35px; height:100px }
