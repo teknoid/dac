@@ -169,14 +169,8 @@ static void update_inverter1(sunspec_t *ss) {
 		pstate->mppt1p = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt2p = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
-		CM_NOW->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		CM_NOW->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
-
-		// update NULL counter if empty
-		if (CM_NULL->mppt1 == 0)
-			CM_NULL->mppt1 = CM_NOW->mppt1;
-		if (CM_NULL->mppt2 == 0)
-			CM_NULL->mppt2 = CM_NOW->mppt2;
+		counter->mppt1 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt2 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
 		// pstate->akku = pstate->dc1 - (pstate->mppt1 + pstate->mppt2); // akku power is DC power minus PV
 		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
@@ -244,14 +238,9 @@ static void update_inverter2(sunspec_t *ss) {
 		pstate->mppt3p = SFI(ss->mppt->m1_DCW, ss->mppt->DCW_SF);
 		pstate->mppt4p = SFI(ss->mppt->m2_DCW, ss->mppt->DCW_SF);
 
-		CM_NOW->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
-		CM_NOW->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt3 = SFUI(ss->mppt->m1_DCWH, ss->mppt->DCWH_SF);
+		counter->mppt4 = SFUI(ss->mppt->m2_DCWH, ss->mppt->DCWH_SF);
 
-		// update NULL counter if empty
-		if (CM_NULL->mppt3 == 0)
-			CM_NULL->mppt3 = CM_NOW->mppt3;
-		if (CM_NULL->mppt4 == 0)
-			CM_NULL->mppt4 = CM_NOW->mppt4;
 		break;
 
 	case I_STATUS_FAULT:
@@ -285,14 +274,8 @@ static void update_meter(sunspec_t *ss) {
 	pstate->l3v = ss->meter->PhVphC; // keep decimals
 	pstate->f = ss->meter->Hz - 5000; // store difference
 
-	CM_NOW->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
-	CM_NOW->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
-
-	// update NULL counter if empty
-	if (CM_NULL->produced == 0)
-		CM_NULL->produced = CM_NOW->produced;
-	if (CM_NULL->consumed == 0)
-		CM_NULL->consumed = CM_NOW->consumed;
+	counter->consumed = SFUI(ss->meter->TotWhImp, ss->meter->TotWh_SF);
+	counter->produced = SFUI(ss->meter->TotWhExp, ss->meter->TotWh_SF);
 
 	// validate meter and self calculated
 	int gmeter = SFI(ss->meter->W, ss->meter->W_SF);

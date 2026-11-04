@@ -170,18 +170,6 @@ struct _counter {
 	unsigned int mppt3;
 	unsigned int mppt4;
 };
-// self counter 1-5
-#define CS_NOW					(&counter[0])
-#define CS_LAST					(&counter[1])
-#define CS_NULL					(&counter[2])
-#define CS_HOUR					(&counter[3])
-#define CS_DAY					(&counter[4])
-// meter counter 6-10
-#define CM_NOW					(&counter[5])
-#define CM_LAST					(&counter[6])
-#define CM_NULL					(&counter[7])
-#define CM_HOUR					(&counter[8])
-#define CM_DAY					(&counter[9])
 
 // 24/7 gstate history slots
 typedef struct _gstate gstate_t;
@@ -281,7 +269,7 @@ extern device_t *inv1;
 extern device_t *inv2;
 
 // global counter, state and parameter pointer
-extern counter_t counter[];
+extern counter_t *counter;
 extern gstate_t *gstate;
 extern pstate_t *pstate;
 extern dstate_t *dstate;

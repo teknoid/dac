@@ -254,26 +254,12 @@ static void loop() {
 		pstate->l3p = r->v3;
 		pstate->f = r->f * 100.0 - 5000; // store only the diff
 
-		CM_NOW->mppt1 = r->mppt1_total / 3600; // Watt-seconds
-		CM_NOW->mppt2 = r->mppt2_total / 3600; // Watt-seconds
-		CM_NOW->mppt3 = r->mppt3_total;
-		CM_NOW->mppt4 = r->mppt4_total;
-		CM_NOW->consumed = r->cons;
-		CM_NOW->produced = r->prod;
-
-		// update NULL counter if empty
-		if (CM_NULL->mppt1 == 0)
-			CM_NULL->mppt1 = CM_NOW->mppt1;
-		if (CM_NULL->mppt2 == 0)
-			CM_NULL->mppt2 = CM_NOW->mppt2;
-		if (CM_NULL->mppt3 == 0)
-			CM_NULL->mppt3 = CM_NOW->mppt3;
-		if (CM_NULL->mppt4 == 0)
-			CM_NULL->mppt4 = CM_NOW->mppt4;
-		if (CM_NULL->produced == 0)
-			CM_NULL->produced = CM_NOW->produced;
-		if (CM_NULL->consumed == 0)
-			CM_NULL->consumed = CM_NOW->consumed;
+		counter->mppt1 = r->mppt1_total / 3600; // Watt-seconds
+		counter->mppt2 = r->mppt2_total / 3600; // Watt-seconds
+		counter->mppt3 = r->mppt3_total;
+		counter->mppt4 = r->mppt4_total;
+		counter->consumed = r->cons;
+		counter->produced = r->prod;
 
 		// xdebug("SOLAR pstate update ac1=%d ac2=%d grid=%d akku=%d soc=%d dc1=%d wait=%d", pstate->ac1, pstate->ac2, pstate->grid, pstate->akku, pstate->soc, pstate->dc1, wait);
 		// xdebug("SOLAR counter update mppt1=%d mppt2=%d mppt3=%d mppt4=%d cons=%d prod=%d", cm->mppt1, cm->mppt2, cm->mppt3, cm->mppt4, cm->consumed, cm->produced);
