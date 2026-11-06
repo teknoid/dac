@@ -76,8 +76,6 @@ void akku_set_min_soc(int min) {
 }
 
 void akku_state(device_t *akku) {
-	xdebug("SOLAR akku storctl=%d inwrte=%d outwrte=%d", STORCTL, INWRTE, OUTWRTE);
-
 	switch (STORCTL) {
 	case (FLAG_LIMIT_CHARGE | FLAG_LIMIT_DISCHARGE):
 		if (INWRTE == 0 && OUTWRTE == 0) {
@@ -85,13 +83,13 @@ void akku_state(device_t *akku) {
 			akku->total = 0;
 		} else if (INWRTE == 0) {
 			akku->state = Discharge;
-			akku->total = OUTWRTE;
+			akku->total = sunspec_storage_get_olimit();
 		} else if (OUTWRTE == 0) {
 			akku->state = Charge;
-			akku->total = INWRTE;
+			akku->total = sunspec_storage_get_ilimit();
 		} else {
 			akku->state = Auto;
-			akku->total = INWRTE > OUTWRTE ? INWRTE : OUTWRTE;
+			akku->total = pstate->akku < 0 ? params->akku_dmax : params->akku_cmax; // TODO
 		}
 		break;
 
@@ -101,7 +99,7 @@ void akku_state(device_t *akku) {
 			akku->total = params->akku_dmax;
 		} else {
 			akku->state = Charge;
-			akku->total = INWRTE;
+			akku->total = sunspec_storage_get_ilimit();
 		}
 		break;
 
@@ -111,14 +109,16 @@ void akku_state(device_t *akku) {
 			akku->total = params->akku_cmax;
 		} else {
 			akku->state = Discharge;
-			akku->total = OUTWRTE;
+			akku->total = sunspec_storage_get_olimit();
 		}
 		break;
 
 	default:
 		akku->state = Auto;
-		akku->total = params->akku_cmax;
+		akku->total = pstate->akku < 0 ? params->akku_dmax : params->akku_cmax; // TODO
 	}
+
+	xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);
 }
 
 // delegate

@@ -503,9 +503,9 @@ static int choose_program() {
 static void offline() {
 	xdebug("SOLAR dispatcher offline");
 
-	// update discharge limit
+	// update discharge limit or set to AUTO
 	if (AKKU_DISCHARGING)
-		akku_discharge(AKKU);
+		AKKU->dlimit ? akku_discharge(AKKU) : akku_auto(AKKU);
 
 	// enable discharge if we have grid download
 	if (gstate->soc > 100 && !AKKU_DISCHARGING && GSTATE_GRID_DLOAD)
@@ -595,7 +595,7 @@ static void rampup() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xlog("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
+		xdebug("SOLAR ramp↑ %3d --> %3d --> %3d %s", DD->ramp_in, DD->ramp_out, dstate->ramp, DD->name);
 //		if (DD->ramp_out)
 //			msleep(111);
 		dd++;
@@ -614,7 +614,7 @@ static void rampdown() {
 		DD->ramp_in = dstate->ramp;
 		ramp_device(DD);
 		dstate->ramp -= DD->ramp_out;
-		xlog("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
+		xdebug("SOLAR ramp↓ %3d <-- %3d <-- %3d %s", dstate->ramp, DD->ramp_out, DD->ramp_in, DD->name);
 //		if (DD->ramp_out)
 //			msleep(111);
 	}
@@ -685,13 +685,12 @@ static void steal() {
 		DD->steal = 0;
 		// if (DD->state == Auto && DEV_RESPONSE(DD) && dstate->rload < OVERLOAD_STEAL) {
 		if (DD->state == Auto && dstate->rload < OVERLOAD_STEAL) {
-			if (DD->min) {
-				if (DD->min > DD->total)
-					DD->steal = DD->load; // dumb devices - all
-				else
-					DD->steal = DD->load > DD->min ? DD->load - DD->min : 0; // adjustable devices - all above minimum
-			} else
-				DD->steal = DD->load; // all
+			if (DD->adj && DD->min)
+				// adjustable devices with minimum - all above minimum
+				DD->steal = DD->load > DD->min ? DD->load - DD->min : 0;
+			else
+				// all
+				DD->steal = DD->load;
 			xdebug("SOLAR calculate steal %s=%d", DD->name, DD->steal);
 		}
 	}
@@ -734,12 +733,10 @@ static void steal() {
 		// positive ramp power can additionally be used
 		loot += pstate->ramp > 0 ? pstate->ramp : 0;
 
-		// not enough to switch thief on
-		if (t->min && t->min < loot && !t->power)
-			continue;
-
 		// calculate needed power to ramp up thief
 		int need = t->total - t->load;
+		if (!t->power)
+			LOCUT(need, t->min)
 		// adjustable devices: all we can get
 		if (t->adj)
 			HICUT(need, loot)
@@ -747,7 +744,7 @@ static void steal() {
 		if (t == AKKU)
 			HICUT(need, pstate->ac1)
 		LOCUT(need, 0)
-		xlog("SOLAR %s steal loot=%d need=%d min=%d ac1=%d", t->name, loot, need, t->min, pstate->ac1);
+		xlog("SOLAR steal %16s loot=%d need=%d min=%d ac1=%d", t->name, loot, need, t->min, pstate->ac1);
 
 		// no need or not enough to ramp up thief
 		if (!need || need > loot)

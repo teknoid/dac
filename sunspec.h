@@ -454,6 +454,8 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
 int sunspec_read(sunspec_t *ss);
 void sunspec_stop(sunspec_t *ss);
 
+int sunspec_storage_get_ilimit();
+int sunspec_storage_get_olimit();
 int sunspec_storage_charge(sunspec_t *ss, int limit);
 int sunspec_storage_discharge(sunspec_t *ss, int limit);
 int sunspec_storage_auto(sunspec_t *ss);

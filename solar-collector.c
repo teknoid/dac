@@ -332,14 +332,14 @@ static void calculate_counter() {
 	CM_DAY->mppt4 = CM_NOW->mppt4 - CM_NULL->mppt4;
 
 	// self counter daily - convert Watt-secons to Watt-hours
+	CS_DAY->discharged = CA_NOW->discharged / 3600;
+	CS_DAY->charged = CA_NOW->charged / 3600;
 	CS_DAY->consumed = CS_NOW->consumed / 3600;
 	CS_DAY->produced = CS_NOW->produced / 3600;
 	CS_DAY->mppt1 = CS_NOW->mppt1 / 3600;
 	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
 	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
 	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
-	CS_DAY->discharged = CA_NOW->discharged / 3600;
-	CS_DAY->charged = CA_NOW->charged / 3600;
 
 	if (HOURLY) {
 		// meter counter for last hour
@@ -398,6 +398,7 @@ static void calculate_gstate_offline() {
 		gstate->flags |= FLAG_STABLE_3M;
 
 	// akku discharge limit
+	// TODO if / else nochmal überdenken
 	if (gstate->survive > SURVIVE110 && GSTATE_3M_STABLE) {
 		// survive and stable over three minutes - no limit
 		params->akku_dlimit = 0;
@@ -426,10 +427,10 @@ static void calculate_gstate_offline() {
 		// not survive - stretch akku ttl to maximum
 		int dlimit = gstate->minutes ? gstate->stored * 60 / gstate->minutes / 10 * 10 : 0;
 		LOCUT(dlimit, params->baseload)
-		// take over initial limit or when delta 20+
-		int diff = dlimit > params->akku_dlimit ? (dlimit - params->akku_dlimit) : (params->akku_dlimit - dlimit);
-		if (!params->akku_dlimit || diff >= 20) {
-			xlog("SOLAR DLIMIT now=%d new=%d diff=%d", params->akku_dlimit, dlimit, diff);
+		int delta = params->akku_dlimit - dlimit;
+		ZSHAPE(delta, params->minimum / 2)
+		if (delta) {
+			xlog("SOLAR stretch DLIMIT now=%d new=%d", params->akku_dlimit, dlimit);
 			params->akku_dlimit = dlimit;
 		}
 	}
@@ -573,8 +574,9 @@ static void calculate_gstate() {
 	int socp = params->akku_capacity * gstate->soc / 1000; // calculated from SoC
 	int xsop = socp ? sopp * 1000 / socp : 0;
 	gstate->stored = round10(sopp - resv); // self tracked
-	// gstate->stored = round10(socp - resv); // from SoC
 	LOCUT(gstate->stored, 0)
+	if (!gstate->stored)
+		gstate->stored = round10(socp - resv); // from SoC
 	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), resv, gstate->stored);
 
 	// akku estimated time to live based on 10 min average load or discharge
@@ -851,21 +853,23 @@ static void calculate_pstate() {
 	// clear flags and values
 	pstate->flags = pstate->surp = pstate->ramp = pstate->dsl = pstate->dtl = 0;
 
-	// update self counter
-	if (pstate->grid > 0)
-		CS_NOW->consumed += pstate->grid;
-	if (pstate->grid < 0)
-		CS_NOW->produced += pstate->grid * -1;
-	CS_NOW->mppt1 += pstate->mppt1p;
-	CS_NOW->mppt2 += pstate->mppt2p;
-	CS_NOW->mppt3 += pstate->mppt3p;
-	CS_NOW->mppt4 += pstate->mppt4p;
-
 	// update akku counter
 	if (pstate->akku > 0)
 		CA_NOW->discharged += pstate->akku;
 	if (pstate->akku < 0)
 		CA_NOW->charged += pstate->akku * -1;
+
+	// update grid self counter
+	if (pstate->grid > 0)
+		CS_NOW->consumed += pstate->grid;
+	if (pstate->grid < 0)
+		CS_NOW->produced += pstate->grid * -1;
+
+	// update mppt self counter
+	CS_NOW->mppt1 += pstate->mppt1p;
+	CS_NOW->mppt2 += pstate->mppt2p;
+	CS_NOW->mppt3 += pstate->mppt3p;
+	CS_NOW->mppt4 += pstate->mppt4p;
 
 	// pv
 	ZSHAPE(pstate->mppt1p, NOISE5)

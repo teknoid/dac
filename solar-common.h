@@ -161,12 +161,12 @@ struct _device {
 // self and meter counter with access pointers
 typedef struct _counter counter_t;
 #define COUNTER_SIZE		(sizeof(counter_t) / sizeof(int))
-#define COUNTER_HEADER	" ↑grid ↓grid ↑akku ↓akku mppt1 mppt2 mppt3 mppt4"
+#define COUNTER_HEADER	" ↑akku ↓akku ↑grid ↓grid mppt1 mppt2 mppt3 mppt4"
 struct _counter {
-	unsigned int produced;
-	unsigned int consumed;
 	unsigned int discharged;
 	unsigned int charged;
+	unsigned int produced;
+	unsigned int consumed;
 	unsigned int mppt1;
 	unsigned int mppt2;
 	unsigned int mppt3;

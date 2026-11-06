@@ -17,7 +17,7 @@
 // gcc -DSUNSPEC_MAIN -I ./include/ -o sunspec sunspec.c utils.c network.c -lmodbus -lpthread -lm
 
 // store fixed values and scaling factors internally
-static int wchamax, inoutwrte_sf, minrsvpct_sf;
+static int wchamax, ilimit, olimit, inoutwrte_sf, minrsvpct_sf;
 
 static void swap_string(char *string, int size) {
 	uint16_t *x = (uint16_t*) string;
@@ -275,9 +275,14 @@ static int read_storage(sunspec_t *ss) {
 		return 0;
 
 	int rc = read_model(ss, ss->storage_id, ss->storage_addr, ss->storage_size, (uint16_t*) ss->storage);
-	wchamax = SFI(ss->storage->WChaMax, ss->storage->WChaMax_SF);
+	int storctl = ss->storage->StorCtl_Mod;
 	inoutwrte_sf = ss->storage->InOutWRte_SF;
 	minrsvpct_sf = ss->storage->MinRsvPct_SF;
+	wchamax = SFI(ss->storage->WChaMax, ss->storage->WChaMax_SF);
+	// TODO 1000000 ?
+	ilimit = round10(SFOUT(ss->storage->InWRte, ss->storage->InOutWRte_SF) * wchamax / 1000000);
+	olimit = round10(SFOUT(ss->storage->OutWRte, ss->storage->InOutWRte_SF) * wchamax / 1000000);
+	xdebug("SUNSPEC storage storctl=%d wchamax=%d ilimit=%d olimit=%d inwrte=%d outwrte=%d", storctl, wchamax, ilimit, olimit, ss->storage->InWRte, ss->storage->OutWRte);
 	return rc;
 }
 
@@ -511,6 +516,14 @@ void sunspec_stop(sunspec_t *ss) {
 
 	xlog("SUNSPEC stopped %s", ss->name);
 	free(ss);
+}
+
+int sunspec_storage_get_ilimit() {
+	return ilimit;
+}
+
+int sunspec_storage_get_olimit() {
+	return olimit;
 }
 
 int sunspec_storage_charge(sunspec_t *ss, int limit) {

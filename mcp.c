@@ -105,7 +105,7 @@
 #define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
 #define NOTIFY_SEND				"/usr/bin/notify-send -t 20000 -i /home/hje/Pictures/icons/mosquitto.png"
 
-// dynamic module chain
+// module chain
 static mcp_module_t *module = NULL;
 
 // local memory
