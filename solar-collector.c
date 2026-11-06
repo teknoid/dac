@@ -39,7 +39,7 @@
 #define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
 // #define GNUPLOT_EXTRA
 
-// hexdump -v -e '6 "%10d ""\n"' /var/lib/mcp/solar-counter*.bin
+// hexdump -v -e '8 "%10d ""\n"' /var/lib/mcp/solar-counter*.bin
 #define COUNTER_FILE			"solar-counter.bin"
 
 // hexdump -v -e '17 "%6d ""\n"' /var/lib/mcp/solar-gstate*.bin
@@ -84,6 +84,9 @@
 #define CM_HOUR					(&counters[8])
 #define CM_DAY					(&counters[9])
 
+// akku access pointer
+#define CA_NOW					(&counters[10])
+
 // history pointer
 #define PSTATE_DAY_HOUR(d, h)	(&pstate_hours[24 * d + h])
 #define GSTATE_DAY_HOUR(d, h)	(&gstate_hours[24 * d + h])
@@ -111,7 +114,7 @@
 #define GSTATE_3M_UNSTABLE		(!(GSTATE_MIN_LAST1->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST2->flags & FLAG_STABLE) && !(GSTATE_MIN_LAST3->flags & FLAG_STABLE))
 
 // local counter / gstate / pstate / params / statistics memory
-static counter_t counters[10];
+static counter_t counters[11];
 static gstate_t gstate_hours[HISTORY_SIZE], gstate_minutes[60], gstates[3];
 static pstate_t pstate_hours[HISTORY_SIZE], pstate_minutes[60], pstate_seconds[60], pstate_average_247[24], pstates[32];
 static params_t params_current;
@@ -254,7 +257,9 @@ static void print_gstate() {
 	xlogl_int_b(line, "∑PV", gstate->pv);
 	xlogl_int_noise(line, NOISE10, 1, "Grid↓", gstate->consumed);
 	xlogl_int_noise(line, NOISE10, 0, "Grid↑", gstate->produced);
-	xlogl_int(line, "SoP", gstate->sop / 60);
+	xlogl_int(line, "Akku↓", CS_DAY->charged);
+	xlogl_int(line, "Akku↑", CS_DAY->discharged);
+	xlogl_int(line, "SoP", gstate->sop);
 	xlogl_float(line, "SoC", FLOAT10(gstate->soc));
 	xlogl_float(line, "Ti", sensor->tin);
 	xlogl_float(line, "To", sensor->tout);
@@ -333,6 +338,8 @@ static void calculate_counter() {
 	CS_DAY->mppt2 = CS_NOW->mppt2 / 3600;
 	CS_DAY->mppt3 = CS_NOW->mppt3 / 3600;
 	CS_DAY->mppt4 = CS_NOW->mppt4 / 3600;
+	CS_DAY->discharged = CA_NOW->discharged / 3600;
+	CS_DAY->charged = CA_NOW->charged / 3600;
 
 	if (HOURLY) {
 		// meter counter for last hour
@@ -546,23 +553,29 @@ static void calculate_gstate() {
 		if (PSTATE_MIN_LAST1->grid < params->minimum * -1 || avgmm->grid < RAMP * -2)
 			gstate->flags |= FLAG_GRID_ULOAD;
 
-	// akku State of Power (SoP) in Watt-minutes (self tracked)
-	gstate->sop -= PSTATE_MIN_LAST1->akku;
-	if (gstate->soc == 1000)
-		gstate->sop = params->akku_capacity * 60;
-	if (gstate->soc == 70)
-		gstate->sop = params->akku_capacity * 60 * 7 / 100;
+	// akku State of Power (SoP) self tracked
+	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
+	int resv = params->akku_capacity * msoc / 1000; // reserve
+	gstate->sop = CS_DAY->charged - CS_DAY->discharged;
+	if (gstate->soc == 1000) {
+		// set charge counter to 'full' if SoC == 100% (Watt-seconds) and reset discharge counter
+		CA_NOW->charged = params->akku_capacity * 60 * 60;
+		CA_NOW->discharged = 0;
+	}
+	if (gstate->soc == msoc) {
+		// set charge counter to 'empty' if SoC == msoc (Watt-seconds) and reset discharge counter
+		CA_NOW->charged = params->akku_capacity * 60 * 60 * msoc / 1000;
+		CA_NOW->discharged = 0;
+	}
 
 	// akku effective usable energy
-	int sopp = gstate->sop / 60; // Wmin to Wh self-tracked
+	int sopp = gstate->sop; // self-tracked
 	int socp = params->akku_capacity * gstate->soc / 1000; // calculated from SoC
 	int xsop = socp ? sopp * 1000 / socp : 0;
-	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
-	int reserve = params->akku_capacity * msoc / 1000;
-	gstate->stored = round10(sopp - reserve); // self tracked
-	// gstate->stored = round10(socp - reserve); // from SoC
+	gstate->stored = round10(sopp - resv); // self tracked
+	// gstate->stored = round10(socp - resv); // from SoC
 	LOCUT(gstate->stored, 0)
-	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), reserve, gstate->stored);
+	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), resv, gstate->stored);
 
 	// akku estimated time to live based on 10 min average load or discharge
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;
@@ -847,6 +860,12 @@ static void calculate_pstate() {
 	CS_NOW->mppt2 += pstate->mppt2p;
 	CS_NOW->mppt3 += pstate->mppt3p;
 	CS_NOW->mppt4 += pstate->mppt4p;
+
+	// update akku counter
+	if (pstate->akku > 0)
+		CA_NOW->discharged += pstate->akku;
+	if (pstate->akku < 0)
+		CA_NOW->charged += pstate->akku * -1;
 
 	// pv
 	ZSHAPE(pstate->mppt1p, NOISE5)

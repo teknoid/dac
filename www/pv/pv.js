@@ -205,8 +205,6 @@ function update_state(file, selector) {
 						n = Number(v/10).toFixed(1);
 					if (k == 'ttl')
 						n = Number(v/60).toFixed(1);
-					if (k == 'sop')
-						n = Number(v/60).toFixed(0);
 
 					var value = item.querySelector('.v');
 					value.innerHTML = Number(n).toLocaleString('de-DE');
