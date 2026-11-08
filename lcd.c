@@ -260,9 +260,9 @@ static int init() {
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
 	msleep(5);					//-	Wait for more than 4.1ms
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	msleep(0.1);		        //-	Wait for more than 100us
+	msleep(1);					//-	Wait for more than 100us
 	lcd_write(CMD_D1 | CMD_D0);	//-	Set interface to 8-bit
-	lcd_write(CMD_D1);		    //-	Set interface to 4-bit
+	lcd_write(CMD_D1);			//-	Set interface to 4-bit
 
 	//- From now on in 4-bit-Mode
 	lcd_command(LCD_LINE_MODE | LCD_5X7);

@@ -79,12 +79,6 @@
 		struct tm tm_now, *now = &tm_now; \
 		localtime_r(&ts_now, &tm_now);
 
-// loop control - wait for next second
-#define WAIT_NEXT_SECOND \
-		time_t ts_now = time(NULL); \
-		while (ts_now == time(NULL)) \
-			msleep(111);
-
 // print time stamp when called - used to check multi-threaded execution order
 #define MICROSECONDS(s) \
 		struct timespec ts_micros; \
