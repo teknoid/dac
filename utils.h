@@ -95,17 +95,17 @@
 #define PROFILING_START \
 		struct timespec ts_profiling; \
 		int64_t ts_profiling_start, ts_profiling_end, ts_profiling_ns, ts_profiling_us, ts_profiling_ms; \
-		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		clock_gettime(CLOCK_MONOTONIC, &ts_profiling); \
 		ts_profiling_start = ts_profiling.tv_nsec;
 
 // store time stamp again
 #define PROFILING_RESTART \
-		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		clock_gettime(CLOCK_MONOTONIC, &ts_profiling); \
 		ts_profiling_start = ts_profiling.tv_nsec;
 
 // print stored time stamp - used to calculate execution time
 #define PROFILING_LOG(s) \
-		clock_gettime(CLOCK_REALTIME, &ts_profiling); \
+		clock_gettime(CLOCK_MONOTONIC, &ts_profiling); \
 		ts_profiling_end = ts_profiling.tv_nsec; \
 		ts_profiling_ns = ts_profiling_end - ts_profiling_start; \
 		ts_profiling_us = ts_profiling_ns / 1000; \

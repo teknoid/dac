@@ -1147,7 +1147,7 @@ static void minly() {
 }
 
 static void loop() {
-	static struct timespec tsnow, *ts = &tsnow;
+	struct timespec tspec, *t = &tspec;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
@@ -1157,14 +1157,17 @@ static void loop() {
 	// wait for tasmota discovery + sensor update
 	sleep(1);
 
+	// get time base
+	clock_gettime(CLOCK_MONOTONIC, t);
+
 	// collector main loop
 	while (1) {
 
 		// PROFILING_START
 
 		// get actual time and store global
-		clock_gettime(CLOCK_MONOTONIC, ts);
-		localtime_r(&ts->tv_sec, now);
+		time_t now_ts = time(NULL);
+		localtime_r(&now_ts, now);
 
 		// trigger inverter + meter read cycle
 		read_trigger();
@@ -1201,16 +1204,15 @@ static void loop() {
 		// PROFILING_LOG("collector")
 
 		// wait for next second
-		ts->tv_sec += 1;
-		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ts, NULL);
+		t->tv_sec += 1;
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, t, NULL);
 	}
 }
 
 static int init() {
 	// initialize global time structure
-	static struct timespec tsnow, *ts = &tsnow;
-	clock_gettime(CLOCK_MONOTONIC, ts);
-	localtime_r(&ts->tv_sec, now);
+	time_t now_ts = time(NULL);
+	localtime_r(&now_ts, now);
 
 	load_state();
 	mosmix_load_state(now);

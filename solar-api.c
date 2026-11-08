@@ -214,7 +214,7 @@ static void loop() {
 			continue;
 		}
 
-		PROFILING_START
+		// PROFILING_START
 
 		// read inverter1
 		curl_perform(curl1, &memory, &parse_inverter1);
@@ -269,7 +269,7 @@ static void loop() {
 		// next run
 		ts_next = ts_now + (offline ? 300 : pstate->grid <= NOISE20 ? 30 : 0);
 
-		PROFILING_LOG("SOLAR api update")
+		// PROFILING_LOG("solar-api")
 	}
 }
 
