@@ -8,8 +8,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include <sys/time.h>
-
 #include "sunspec.h"
 #include "network.h"
 #include "utils.h"

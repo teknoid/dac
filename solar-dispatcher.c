@@ -7,8 +7,6 @@
 #include <math.h>
 #include <time.h>
 
-#include <sys/time.h>
-
 #include "solar-common.h"
 #include "sensors.h"
 #include "network.h"
@@ -1075,8 +1073,6 @@ void solar_tasmota(tasmota_t *t) {
 }
 
 static void loop() {
-	time_t now_ts;
-
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return;
@@ -1116,7 +1112,7 @@ static void loop() {
 		// PROFILING_START
 
 		// get actual time and store global
-		now_ts = time(NULL);
+		time_t now_ts = time(NULL);
 		localtime_r(&now_ts, &now_tm);
 
 		// calculate actions

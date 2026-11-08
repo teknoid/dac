@@ -6,8 +6,6 @@
 #include <string.h>
 #include <time.h>
 
-#include <sys/time.h>
-
 #include "solar-common.h"
 #include "sensors.h"
 #include "sunspec.h"
@@ -133,8 +131,7 @@ static pstate_t *yday1 = &pstates[30], *yday2 = &pstates[31];
 static marble_t mosmix_marbles, *marbles = &mosmix_marbles;
 
 // current time
-static time_t now_ts;
-static struct tm now_tm, *now = &now_tm;
+static struct tm tmnow, *now = &tmnow;
 
 // global counter / gstate / pstate / params pointer
 counter_t *counter = CM_NOW;
@@ -1150,6 +1147,8 @@ static void minly() {
 }
 
 static void loop() {
+	static struct timespec tsnow, *ts = &tsnow;
+
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL)) {
 		xlog("Error setting pthread_setcancelstate");
 		return;
@@ -1164,8 +1163,8 @@ static void loop() {
 		// PROFILING_START
 
 		// get actual time and store global
-		now_ts = time(NULL);
-		localtime_r(&now_ts, &now_tm);
+		clock_gettime(CLOCK_MONOTONIC, ts);
+		localtime_r(&ts->tv_sec, now);
 
 		// trigger inverter + meter read cycle
 		read_trigger();
@@ -1201,16 +1200,17 @@ static void loop() {
 
 		// PROFILING_LOG("collector")
 
-		// wait for new second
-		while (now_ts == time(NULL))
-			msleep(33);
+		// wait for next second
+		ts->tv_sec += 1;
+		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ts, NULL);
 	}
 }
 
 static int init() {
 	// initialize global time structure
-	now_ts = time(NULL);
-	localtime_r(&now_ts, &now_tm);
+	static struct timespec tsnow, *ts = &tsnow;
+	clock_gettime(CLOCK_MONOTONIC, ts);
+	localtime_r(&ts->tv_sec, now);
 
 	load_state();
 	mosmix_load_state(now);

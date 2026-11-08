@@ -87,9 +87,9 @@
 
 // print time stamp when called - used to check multi-threaded execution order
 #define MICROSECONDS(s) \
-		struct timeval tval; \
-		gettimeofday(&tval, NULL); \
-		xlog("micros %-16s %6d", s, tval.tv_usec);
+		struct timespec ts_micros; \
+		clock_gettime(CLOCK_MONOTONIC, &ts_micros); \
+		xlog("micros %-16s    %6d", s, ts_micros.tv_nsec / 1000);
 
 // store time stamp
 #define PROFILING_START \
