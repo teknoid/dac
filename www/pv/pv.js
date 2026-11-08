@@ -56,32 +56,32 @@ function getPastelGradientColor(p) {
 
 function getGradientColor(p) {
 	var color = 0;
-	
+
 	if (p <= 0)
 		color = "LightGray";
-	else if (p > 100) 
-		color = "MediumSpringGreen";
-	else if (p > 90)
-		color = "SpringGreen";
-	else if (p > 80)
-		color = "LawnGreen";
-	else if (p > 70)
-		color = "GreenYellow";
-	else if (p > 60)
-		color = "Khaki";
-	else if (p > 50)
-		color = "Gold";
-	else if (p > 40)
-		color = "Orange";
-	else if (p > 30)
-		color = "DarkOrange";
-	else if (p > 20)
-		color = "Coral";
-	else if (p > 10)
-		color = "Tomato";
-	else
+	else if (p < 10)
 		color = "OrangeRed";
-	
+	else if (p < 20)
+		color = "Tomato";
+	else if (p < 30)
+		color = "Coral";
+	else if (p < 40)
+		color = "DarkOrange";
+	else if (p < 50)
+		color = "Orange";
+	else if (p < 60)
+		color = "Gold";
+	else if (p < 70)
+		color = "Khaki";
+	else if (p < 80)
+		color = "GreenYellow";
+	else if (p < 90)
+		color = "LawnGreen";
+	else if (p < 100)
+		color = "SpringGreen";
+	else
+		color = "MediumSpringGreen";
+
 	return color;
 }
 
@@ -155,7 +155,6 @@ function update_devices() {
 					clazz = 'z';
 				} else if (v.load < 0) {
 					clazz = 'm';
-					height *= -1;
 				} else {
 					clazz = 'p';
 				}

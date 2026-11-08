@@ -538,7 +538,7 @@ int sunspec_storage_charge(sunspec_t *ss, int limit) {
 	if (limit > wchamax)
 		limit = wchamax;
 
-	int inwrte = SFOUT(limit * 100 / wchamax, ss->storage->InOutWRte_SF);
+	int inwrte = SFOUT(limit, ss->storage->InOutWRte_SF) * 100 / wchamax;
 	int outwrte = 0; // limit discharge to 0
 	int mode = FLAG_LIMIT_DISCHARGE | (limit ? FLAG_LIMIT_CHARGE : 0);
 	if (ss->storage->StorCtl_Mod == mode && ss->storage->InWRte == inwrte && ss->storage->OutWRte == outwrte)
@@ -567,7 +567,7 @@ int sunspec_storage_discharge(sunspec_t *ss, int limit) {
 		limit = wchamax;
 
 	int inwrte = 0; // limit charge to 0
-	int outwrte = SFOUT(limit * 100 / wchamax, ss->storage->InOutWRte_SF);
+	int outwrte = SFOUT(limit, ss->storage->InOutWRte_SF) * 100 / wchamax;
 	int mode = FLAG_LIMIT_CHARGE | (limit ? FLAG_LIMIT_DISCHARGE : 0);
 	if (ss->storage->StorCtl_Mod == mode && ss->storage->InWRte == inwrte && ss->storage->OutWRte == outwrte)
 		return EALREADY; // already set
