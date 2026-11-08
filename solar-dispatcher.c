@@ -239,6 +239,8 @@ static void ramp_boiler(device_t *boiler) {
 
 	// transform power into 0..100%
 	int power = boiler->power + step;
+	if (boiler->power == -1)
+		power += 1; // force
 
 	// electronic thermostat - leave boiler alive when in AUTO mode
 	int min = boiler->min && boiler->state == Auto && !GSTATE_FORCE_OFF ? boiler->min * 100 / boiler->total : 0;
@@ -339,8 +341,6 @@ static void ramp_akku(device_t *akku) {
 			if (akku->load < params->minimum)
 				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
 			xdebug("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
-			// update charge limit or set to auto
-			akku->climit ? akku_charge(akku) : akku_auto(akku);
 			return;
 		}
 
@@ -536,9 +536,9 @@ static void offline() {
 static void online() {
 	xdebug("SOLAR dispatcher online");
 
-	// set to AUTO if charging without limit indicated
-	if (70 < gstate->soc && gstate->soc < 1000 && !AKKU_CHARGING && !AKKU->climit && GSTATE_CHARGE_AKKU)
-		akku_auto(AKKU);
+	// update charge limit or set to AUTO
+	if (AKKU_CHARGING && gstate->soc < 1000)
+		AKKU->climit ? akku_charge(AKKU) : akku_auto(AKKU);
 
 	// enable discharge if we have grid download
 	if (gstate->soc > 100 && !AKKU_DISCHARGING && GSTATE_GRID_DLOAD)
@@ -742,6 +742,7 @@ static void steal() {
 		if (t == AKKU)
 			HICUT(need, pstate->ac1)
 		LOCUT(need, 0)
+		ZSHAPE(need, RAMP)
 		xlog("SOLAR steal %16s loot=%d need=%d min=%d ac1=%d", t->name, loot, need, t->min, pstate->ac1);
 
 		// no need or not enough to ramp up thief

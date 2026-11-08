@@ -78,8 +78,14 @@ void akku_set_min_soc(int min) {
 void akku_state(device_t *akku) {
 	int ilimit = sunspec_storage_get_ilimit();
 	int olimit = sunspec_storage_get_olimit();
+
 	HICUT(ilimit, params->akku_cmax)
 	HICUT(olimit, params->akku_dmax)
+
+	if (!ilimit)
+		ilimit = params->akku_cmax;
+	if (!olimit)
+		olimit = params->akku_dmax;
 
 	switch (STORCTL) {
 	case (FLAG_LIMIT_CHARGE | FLAG_LIMIT_DISCHARGE):
@@ -123,7 +129,7 @@ void akku_state(device_t *akku) {
 		akku->total = pstate->akku > 0 ? olimit * -1 : ilimit;
 	}
 
-	xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);
+	// xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);
 }
 
 // delegate

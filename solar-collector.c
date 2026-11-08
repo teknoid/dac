@@ -33,8 +33,8 @@
 #define DCSTABLE				10
 #define DSSTABLE				500
 
-#define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp"
-#define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp"
+#define GNUPLOT_MINLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-minly.gp &"
+#define GNUPLOT_HOURLY			"/usr/bin/gnuplot -p /var/lib/mcp/solar-hourly.gp &"
 // #define GNUPLOT_EXTRA
 
 // hexdump -v -e '8 "%10d ""\n"' /var/lib/mcp/solar-counter*.bin
@@ -517,10 +517,10 @@ static void calculate_gstate_online() {
 		params->akku_climit = params->akku_cmax / 3;
 	if (gstate->today > acx4)
 		params->akku_climit = params->akku_cmax / 4;
-	if (WINTER)
-		params->akku_climit = 0;
 	if (800 < gstate->soc && gstate->soc < 999)
 		params->akku_climit = 666; // charging slow between 80% and 100%
+	if (WINTER)
+		params->akku_climit = 0; // all we can get without limits
 	if (params->akku_climit_override)
 		params->akku_climit = params->akku_climit_override;
 }
@@ -1005,6 +1005,8 @@ static void gnuplot() {
 	int h = now->tm_hour ? now->tm_hour - 1 : 23;
 	int m = now->tm_min ? now->tm_min - 1 : 59;
 
+	// PROFILING_START
+
 #ifdef GNUPLOT_EXTRA
 	int offset = now_ts % 3600;
 	if (!offset || access(TMP SLASH "pstat.csv", F_OK)) {
@@ -1062,7 +1064,7 @@ static void gnuplot() {
 	}
 #endif
 
-	// MICROSECONDS("gnuplot")
+	// PROFILING_LOG("gnuplot")
 }
 
 static void daily() {
@@ -1204,7 +1206,7 @@ static void loop() {
 
 		// PROFILING_LOG("collector")
 
-		// wait for next second
+		// wait till next second
 		t->tv_sec += 1;
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, t, NULL);
 	}
