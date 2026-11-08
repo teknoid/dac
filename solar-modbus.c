@@ -76,6 +76,11 @@ void akku_set_min_soc(int min) {
 }
 
 void akku_state(device_t *akku) {
+	int ilimit = sunspec_storage_get_ilimit();
+	int olimit = sunspec_storage_get_olimit();
+	HICUT(ilimit, params->akku_cmax)
+	HICUT(olimit, params->akku_dmax)
+
 	switch (STORCTL) {
 	case (FLAG_LIMIT_CHARGE | FLAG_LIMIT_DISCHARGE):
 		if (INWRTE == 0 && OUTWRTE == 0) {
@@ -83,39 +88,39 @@ void akku_state(device_t *akku) {
 			akku->total = 0;
 		} else if (INWRTE == 0) {
 			akku->state = Discharge;
-			akku->total = sunspec_storage_get_olimit();
+			akku->total = olimit;
 		} else if (OUTWRTE == 0) {
 			akku->state = Charge;
-			akku->total = sunspec_storage_get_ilimit();
+			akku->total = ilimit;
 		} else {
 			akku->state = Auto;
-			akku->total = pstate->akku < 0 ? params->akku_dmax : params->akku_cmax; // TODO
+			akku->total = pstate->akku > 0 ? olimit * -1 : ilimit;
 		}
 		break;
 
 	case FLAG_LIMIT_CHARGE:
 		if (INWRTE == 0) {
 			akku->state = Discharge;
-			akku->total = params->akku_dmax;
+			akku->total = olimit;
 		} else {
 			akku->state = Charge;
-			akku->total = sunspec_storage_get_ilimit();
+			akku->total = ilimit;
 		}
 		break;
 
 	case FLAG_LIMIT_DISCHARGE:
 		if (OUTWRTE == 0) {
 			akku->state = Charge;
-			akku->total = params->akku_cmax;
+			akku->total = ilimit;
 		} else {
 			akku->state = Discharge;
-			akku->total = sunspec_storage_get_olimit();
+			akku->total = olimit;
 		}
 		break;
 
 	default:
 		akku->state = Auto;
-		akku->total = pstate->akku < 0 ? params->akku_dmax : params->akku_cmax; // TODO
+		akku->total = pstate->akku > 0 ? olimit * -1 : ilimit;
 	}
 
 	xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);
@@ -184,7 +189,7 @@ static void update_inverter1(sunspec_t *ss) {
 		int mppt3 = SFI(ss->mppt->m3_DCW, ss->mppt->DCW_SF);
 		int mppt4 = SFI(ss->mppt->m4_DCW, ss->mppt->DCW_SF);
 		int iakku = mppt3 > 0 ? mppt3 * -1 : mppt4;
-		int cakku = pstate->dc1 - pstate->mppt1p - pstate->mppt2p; // akku power self calculated: DC minus PV
+		// int cakku = pstate->dc1 - pstate->mppt1p - pstate->mppt2p; // akku power self calculated: DC minus PV
 		pstate->akku = iakku;
 		gstate->soc = SFF(ss->storage->ChaState, ss->storage->ChaState_SF) * 10; // store x10 scaled
 		// xlog("SOLAR %s m3_DCW=%d m4_DCW=%d iakku=%d cakku=%d", ss->name, mppt3, mppt4, iakku, cakku);
