@@ -1159,6 +1159,7 @@ static void loop() {
 
 	// get time base
 	clock_gettime(CLOCK_MONOTONIC, t);
+	t->tv_nsec = 0;
 
 	// collector main loop
 	while (1) {
