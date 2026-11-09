@@ -1206,7 +1206,7 @@ static void loop() {
 
 		// PROFILING_LOG("collector")
 
-		// wait till next second
+		// sleep till next second
 		t->tv_sec += 1;
 		clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, t, NULL);
 	}
