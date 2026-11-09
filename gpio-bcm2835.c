@@ -446,6 +446,9 @@ static int init() {
 
 	// figure out the IO Base Address
 	FILE *f = fopen("/proc/cpuinfo", "r");
+	if (f == NULL)
+		return xerr("Cannot open file /proc/cpuinfo for reading");
+
 	char buf[1024];
 	fgets(buf, sizeof(buf), f); // skip first line
 	fgets(buf, sizeof(buf), f); // model name

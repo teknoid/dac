@@ -717,6 +717,7 @@ void decode_meta_utf8(char *string) {
 			string[i++] = copy[c++];
 	}
 	string[i++] = 0; // null terminate
+	free(copy);
 }
 
 void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...) {
@@ -767,13 +768,13 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 	// file
 	strcat(path, "/");
 	strcat(path, fname);
-	if ((fp = fopen(path, "w")) == NULL)
-		perror(strerror(errno));
-	while (*fvalue)
-		fputc(*fvalue++, fp);
-	fputc('\n', fp);
-	fflush(fp);
-	fclose(fp);
+	if ((fp = fopen(path, "w")) != NULL) {
+		while (*fvalue)
+			fputc(*fvalue++, fp);
+		fputc('\n', fp);
+		fflush(fp);
+		fclose(fp);
+	}
 }
 
 char* devinput_keyname(unsigned int key) {

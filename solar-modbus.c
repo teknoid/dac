@@ -370,6 +370,8 @@ static int calibrate(char *name) {
 
 	// create a socket
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sock < 0)
+		return xerr("SOLAR Error creating UDP socket");
 
 	// write IP and port into sockaddr structure
 	struct sockaddr_in sock_addr_in = { 0 };

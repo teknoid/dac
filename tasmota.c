@@ -43,6 +43,7 @@ static tasmota_t *tasmota = NULL;
 //        -------------------- prefix
 static void split(const char *topic, size_t size, unsigned int *id, char *prefix, char *suffix, unsigned int *idx) {
 	int slash1 = 0, slash2 = 0;
+	*id = *idx = 0;
 
 	// check size
 	if (size > (PREFIX_LEN + SUFFIX_LEN + 6 + 2)) {
@@ -80,13 +81,13 @@ static void split(const char *topic, size_t size, unsigned int *id, char *prefix
 		suffix[len] = '\0';
 
 		// index
-		*idx = 0;
-		if (suffix[len - 1] >= '0' && suffix[len - 1] <= '9') {
-			*idx = suffix[len - 1] - '0';
-			suffix[len - 1] = '\0';
+		len--;
+		while (len > 0 && suffix[len] >= '0' && suffix[len] <= '9') {
+			if (!*idx)
+				*idx = suffix[len] - '0';
+			suffix[len] = '\0';
+			len--;
 		}
-		if (suffix[len - 2] >= '0' && suffix[len - 2] <= '9')
-			suffix[len - 2] = '\0';
 	}
 }
 
@@ -329,7 +330,7 @@ static void scan_sensor(tasmota_t *t, const char *message, size_t msize) {
 
 	if (htu21 != NULL) {
 		json_scanf(htu21, strlen(htu21), "{Temperature:%f, Humidity:%f, DewPoint:%f}", &t->htu21_temp, &t->htu21_humi, &t->htu21_dew);
-		free(sht31);
+		free(htu21);
 		xdebug("TASMOTA sensor HTU21 %.1f °C, humidity %.1f %, dewpoint %.1f °C", t->htu21_temp, t->htu21_humi, t->htu21_dew);
 	}
 

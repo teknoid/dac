@@ -30,6 +30,8 @@ static int countdown_menu;
 static int scroller_artist = 0;
 static int scroller_title = 0;
 
+static FILE *i, *o;
+
 static void check_nightmode() {
 	if (dac->nightmode)
 		attroff(A_BOLD);
@@ -377,7 +379,6 @@ static void display() {
 }
 
 static int init() {
-	FILE *i, *o;
 	i = fopen(DISPLAY, "r");
 	o = fopen(DISPLAY, "w");
 
@@ -411,6 +412,8 @@ static int init() {
 
 static void stop() {
 	endwin();
+	fclose(i);
+	fclose(o);
 }
 
 int display_main(int argc, char **argv) {

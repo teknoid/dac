@@ -114,14 +114,14 @@ static const char* get_flag(power_t *s) {
 }
 
 static void parse(char **strings, size_t size) {
-	int idx = atoi(strings[0]);
+	int idx = strings[0] ? atoi(strings[0]) : 0;
 	csv_t *m = &mosmix_csv[idx];
 
 	m->idx = idx;
-	m->ts = atoi(strings[1]);
-	m->TTT = atof(strings[2]) - 273.15; // convert to °C
-	m->Rad1h = atoi(strings[3]);
-	m->SunD1 = atoi(strings[4]) * 100 / 3600; // convert to 0..100 percent
+	m->ts = strings[1] ? atoi(strings[1]) : 0;
+	m->TTT = strings[2] ? atof(strings[2]) - 273.15 : 0.0; // convert to °C
+	m->Rad1h = strings[3] ? atoi(strings[3]) : 0;
+	m->SunD1 = strings[4] ? atoi(strings[4]) * 100 / 3600 : 0; // convert to 0..100 percent
 	// m->RSunD = atoi(strings[5]);
 	if (!m->Rad1h)
 		m->SunD1 = 0; // SunD1 without Rad1h is not possible
@@ -704,6 +704,7 @@ void mosmix_store_csv() {
 	store_table_csv(today, MOSMIX_SIZE, 24, MOSMIX_HEADER, RUN SLASH MOSMIX_TODAY_CSV);
 }
 
+// @deprecated
 int mosmix_load_csv(struct tm *now, const char *station, int clear) {
 	char filename[64];
 	char *column[8];
@@ -717,11 +718,14 @@ int mosmix_load_csv(struct tm *now, const char *station, int clear) {
 	ZERO(mosmix_csv);
 
 	// header
-	if (fgets(buf, LINEBUF, fp) == NULL)
+	if (fgets(buf, LINEBUF, fp) == NULL) {
+		fclose(fp);
 		return xerr("MOSMIX no data available");
+	}
 
 	int lines = 0;
 	while (fgets(buf, LINEBUF, fp) != NULL) {
+		ZERO(column);
 		int i = 0;
 		char *p = strtok(buf, ",");
 		while (p != NULL) {

@@ -228,6 +228,8 @@ void gpio_print(const char *name) {
 		name++;
 
 	gpio_status_t pio;
+	ZERO(pio);
+
 	pio.port = *name++ - 'A';
 	pio.pin = atoi(name);
 	mem_read(&pio);

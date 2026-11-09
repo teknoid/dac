@@ -394,7 +394,7 @@ static int parse(connection_t *conn) {
 	ZERO(ssid);
 
 	// split line into tokens
-	char *t, *oldt, *rest = conn->line;
+	char *t = NULL, *oldt = NULL, *rest = conn->line;
 	while ((t = strtok_r(rest, " ", &rest))) {
 		if (!strncmp("BSSID:", t, 6))
 			bssid = string2mac(t + 6);
@@ -412,11 +412,11 @@ static int parse(connection_t *conn) {
 			ta = string2mac(t + 3);
 
 		if (!strcmp("signal", t))
-			if (!signal)
+			if (!signal && oldt != NULL)
 				sscanf(oldt, "%ddBm", &signal);
 
 		if (!strcmp("MHz", t))
-			if (!freq)
+			if (!freq && oldt != NULL)
 				freq = (int) strtol(oldt, NULL, 0);
 
 		if (!strcmp("Beacon", t) || !strcmp("Probe", t)) {

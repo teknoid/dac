@@ -1158,8 +1158,8 @@ static int init() {
 
 	// create a socket for sending UDP messages
 	sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock == 0)
-		return xerr("Error creating socket");
+	if (sock < 0)
+		return xerr("SOLAR Error creating UDP socket");
 
 	// initialize all devices with start values
 	params->heating = 0;

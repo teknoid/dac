@@ -27,10 +27,12 @@ static int ieee_index[0xff];
 static void* popen_thread(void *arg) {
 	server_t *server = (server_t*) arg;
 
-	connection_t *conn = calloc(1, sizeof(connection_t));
-	conn->stream = popen(server->command, "r");
-	if (conn->stream == NULL)
+	FILE *stream = popen(server->command, "r");
+	if (stream == NULL)
 		return xerrv("NETWORK popen failed");
+
+	connection_t *conn = calloc(1, sizeof(connection_t));
+	conn->stream = stream;
 
 	xlog("WIFI %s pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
@@ -356,10 +358,12 @@ int load_ethers() {
 			if (*(t + 2) != ':' && *(t + 5) != ':' && *(t + 8) != ':')
 				break; // not a mac
 		}
-		while (*(t + strlen(t) - 1) == '\n')
-			*(t + strlen(t) - 1) = 0; // trim
-		strncpy(name, t, NETWORK_DESCRIPTION);
-		// xdebug("line %s :: found name %s", line, name);
+		if (t != NULL) {
+			while (*(t + strlen(t) - 1) == '\n')
+				*(t + strlen(t) - 1) = 0; // trim
+			strncpy(name, t, NETWORK_DESCRIPTION);
+			// xdebug("line %s :: found name %s", line, name);
+		}
 
 		// now go again through line and extract macs
 		rest = v;
@@ -452,6 +456,9 @@ void mac2name_grep(char *buf, uint64_t mac, size_t size) {
 	mac2string(smac, mac);
 	snprintf(cmd, 128, "grep %s /server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers", smac);
 	FILE *fd = popen(cmd, "r");
+	if (fd == NULL)
+		return;
+
 	fgets(line, 1024, fd);
 	pclose(fd);
 
@@ -471,6 +478,9 @@ void mac2name_grep(char *buf, uint64_t mac, size_t size) {
 		t = strtok(NULL, ",");
 	}
 
+	if (t == NULL)
+		return;
+
 	while (*(t + strlen(t) - 1) == '\n')
 		*(t + strlen(t) - 1) = 0; // trim
 
@@ -485,6 +495,9 @@ void mac2ou_grep(char *ou, uint64_t mac, size_t size) {
 	snprintf(smac, 16, "%06lX", mac >> 24);
 	snprintf(cmd, 128, "grep %s %s", smac, IEEE);
 	FILE *fd = popen(cmd, "r");
+	if (fd == NULL)
+		return;
+
 	fgets(line, 1024, fd);
 	pclose(fd);
 

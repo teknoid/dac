@@ -426,6 +426,10 @@ int sunspec_meter_read(sunspec_t *ss) {
 }
 
 sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
+	const char *ip = resolve_ip(host);
+	if (ip == NULL)
+		return 0;
+
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
@@ -434,10 +438,7 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 	ss->slave = slave;
 	ss->control = 1;
 	ss->sleep = 0;
-
-	ss->ip = resolve_ip(ss->host);
-	if (!ss->ip)
-		return 0;
+	ss->ip = ip;
 
 	pthread_mutex_init(&ss->lock, NULL);
 	sem_init(&ss->start, 0, 0);
@@ -462,6 +463,10 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 }
 
 sunspec_t* sunspec_init_poll(const char *name, const char *host, int slave, const sunspec_callback_t callback) {
+	const char *ip = resolve_ip(host);
+	if (ip == NULL)
+		return 0;
+
 	sunspec_t *ss = malloc(sizeof(sunspec_t));
 	ZEROP(ss);
 
@@ -471,10 +476,7 @@ sunspec_t* sunspec_init_poll(const char *name, const char *host, int slave, cons
 	ss->control = 1;
 	ss->sleep = 0;
 	ss->callback = callback;
-
-	ss->ip = resolve_ip(ss->host);
-	if (!ss->ip)
-		return 0;
+	ss->ip = ip;
 
 	pthread_mutex_init(&ss->lock, NULL);
 	sem_init(&ss->start, 0, 0);
@@ -652,7 +654,7 @@ static int scan(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
-	char *host;
+	char *host = NULL;
 	int c, port = 502, addr = 0, slave = 1;
 	while ((c = getopt(argc, argv, "a:h:p:v:")) != -1) {
 		switch (c) {

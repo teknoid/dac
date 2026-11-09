@@ -290,7 +290,7 @@ static int init() {
 	// create a socket if not yet done
 	if (sock == 0)
 		sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (sock == 0)
+	if (sock < 0)
 		return xerr("LEDSTRIP Error creating UDP socket");
 
 	const char *addr = resolve_ip(LICHT_DECKE_HOST);
