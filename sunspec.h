@@ -448,11 +448,10 @@ struct _sunspec {
 sunspec_t* sunspec_init_poll(const char *name, const char *host, int slave, const sunspec_callback_t callback);
 sunspec_t* sunspec_init(const char *name, const char *host, int slave);
 
+void sunspec_stop(sunspec_t *ss);
+
 void sunspec_write_reg(sunspec_t *ss, int addr, const uint16_t value);
 void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value);
-
-int sunspec_read(sunspec_t *ss);
-void sunspec_stop(sunspec_t *ss);
 
 int sunspec_storage_get_ilimit();
 int sunspec_storage_get_olimit();
@@ -462,3 +461,4 @@ int sunspec_storage_auto(sunspec_t *ss);
 int sunspec_storage_standby(sunspec_t *ss);
 int sunspec_storage_minimum_soc(sunspec_t *ss, int soc);
 int sunspec_controls_conn(sunspec_t *ss, int conn);
+int sunspec_meter_read(sunspec_t *ss);

@@ -291,8 +291,21 @@ static int read_meter(sunspec_t *ss) {
 	return rc;
 }
 
+static int read_all(sunspec_t *ss) {
+	int errors = 0;
+	errors += read_common(ss);
+	errors += read_nameplate(ss);
+	errors += read_settings(ss);
+	errors += read_status(ss);
+	errors += read_controls(ss);
+	errors += read_inverter(ss);
+	errors += read_mppt(ss);
+	errors += read_storage(ss);
+	errors += read_meter(ss);
+	return errors;
+}
+
 static void* poll(void *arg) {
-	int rc, errors_all, errors_now;
 	sunspec_t *ss = (sunspec_t*) arg;
 
 	if (pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL))
@@ -302,14 +315,11 @@ static void* poll(void *arg) {
 		return (void*) 0;
 
 	while (1) {
-		errors_all = 0;
-
 		ss->mb = modbus_new_tcp(ss->ip, 502);
 		modbus_set_response_timeout(ss->mb, 5, 0);
 		modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-		rc = modbus_set_slave(ss->mb, ss->slave);
-		if (rc == -1)
+		if (modbus_set_slave(ss->mb, ss->slave) == -1)
 			xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
 
 		if (modbus_connect(ss->mb) == -1) {
@@ -328,13 +338,8 @@ static void* poll(void *arg) {
 			continue;
 		}
 
-		// read static models once
-		errors_all += read_common(ss);
-		errors_all += read_nameplate(ss);
-		errors_all += read_settings(ss);
-		errors_all += read_status(ss);
-		errors_all += read_controls(ss);
-		errors_all += read_storage(ss);
+		// read all models once at startup
+		int errors_all = read_all(ss);
 
 		while (errors_all > -10) {
 			sem_wait(&ss->start);
@@ -351,14 +356,13 @@ static void* poll(void *arg) {
 			// PROFILING_START
 
 			// read dynamic models in the loop
-			errors_now = 0;
+			int errors_now = 0;
 			errors_now += read_inverter(ss);
-			errors_now += read_mppt(ss);
 			errors_now += read_meter(ss);
+			errors_now += read_mppt(ss);
 			// storage once per minute
 			if (ss->ts % 60 == 0)
 				errors_now += read_storage(ss);
-			errors_all += errors_now;
 
 			// xdebug("SUNSPEC %s meter grid %d", ss->name, ss->meter->W);
 			// xdebug("SUNSPEC %s poll time %d", ss->name, ss->poll_time_ms);
@@ -366,6 +370,12 @@ static void* poll(void *arg) {
 			// execute the callback function to process model data - only when error-free
 			if (ss->callback && errors_now == 0)
 				(ss->callback)(ss);
+
+			// update global error counter or reset
+			if (errors_now)
+				errors_all += errors_now;
+			else
+				errors_all = 0;
 
 			// MICROSECONDS(ss->name)
 
@@ -411,18 +421,8 @@ void sunspec_read_reg(sunspec_t *ss, int addr, uint16_t *value) {
 		xerr("SUNSPEC %s modbus_read_registers %s", ss->name, modbus_strerror(errno));
 }
 
-int sunspec_read(sunspec_t *ss) {
-	int errors = 0;
-	errors += read_common(ss);
-	errors += read_nameplate(ss);
-	errors += read_settings(ss);
-	errors += read_status(ss);
-	errors += read_controls(ss);
-	errors += read_inverter(ss);
-	errors += read_mppt(ss);
-	errors += read_storage(ss);
-	errors += read_meter(ss);
-	return errors;
+int sunspec_meter_read(sunspec_t *ss) {
+	return read_meter(ss);
 }
 
 sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
@@ -447,8 +447,7 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 	modbus_set_response_timeout(ss->mb, 5, 0);
 	modbus_set_error_recovery(ss->mb, MODBUS_ERROR_RECOVERY_LINK | MODBUS_ERROR_RECOVERY_PROTOCOL);
 
-	int rc = modbus_set_slave(ss->mb, ss->slave);
-	if (rc == -1)
+	if (modbus_set_slave(ss->mb, ss->slave) == -1)
 		xlog("SUNSPEC %s invalid modbus slave id %d", ss->name, ss->slave);
 
 	if (modbus_connect(ss->mb) == -1) {
@@ -458,6 +457,7 @@ sunspec_t* sunspec_init(const char *name, const char *host, int slave) {
 	}
 
 	collect_models(ss);
+	read_all(ss);
 	return ss;
 }
 
@@ -636,6 +636,7 @@ int sunspec_controls_conn(sunspec_t *ss, int conn) {
 	if (!ss->controls)
 		return ENOENT;
 
+	read_controls(ss);
 	if (ss->controls->Conn == conn)
 		return EALREADY; // already set
 
@@ -690,17 +691,8 @@ static int scan(int argc, char **argv) {
 	modbus_free(mb);
 	return 0;
 }
-static int test1(int argc, char **argv) {
-	set_xlog(XLOG_STDOUT);
-	set_debug(1);
 
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-	sunspec_stop(ss);
-	return 0;
-}
-
-static int test2(int argc, char **argv) {
+static int test(int argc, char **argv) {
 	set_xlog(XLOG_STDOUT);
 	set_debug(1);
 
@@ -755,29 +747,26 @@ static int test2(int argc, char **argv) {
 	sunspec_meter_t meter;
 	sunspec_mppt_t mppt;
 
-	while (1) {
-		ZERO(inverter);
-		ZERO(mppt);
-		ZERO(meter);
+	ZERO(inverter);
+	ZERO(mppt);
+	ZERO(meter);
 
-		modbus_read_registers(mb, 40069, 50, (uint16_t*) &inverter);
-		modbus_read_registers(mb, 40253, 48, (uint16_t*) &mppt);
-		// modbus_set_slave(mb, 200);
-		// modbus_read_registers(mb, METER_OFFSET - 1, METER_SIZE, (uint16_t*) &meter);
+	modbus_read_registers(mb, 40069, 50, (uint16_t*) &inverter);
+	modbus_read_registers(mb, 40253, 48, (uint16_t*) &mppt);
+	// modbus_set_slave(mb, 200);
+	// modbus_read_registers(mb, METER_OFFSET - 1, METER_SIZE, (uint16_t*) &meter);
 
-		xlog("inverter model validation ID=%d L=%d", inverter.ID, inverter.L);
-		xlog("mppt     model validation ID=%d L=%d", mppt.ID, mppt.L);
+	xlog("inverter model validation ID=%d L=%d", inverter.ID, inverter.L);
+	xlog("mppt     model validation ID=%d L=%d", mppt.ID, mppt.L);
 
-		xlog("Status %d", inverter.St);
-		xlog("raw  mppt DCW1:%u DCW2:%u", mppt.m1_DCW, mppt.m2_DCW);
-		xlog("raw  mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", mppt.m1_Tms, mppt.m1_DCWH, mppt.m2_Tms, mppt.m2_DCWH);
-		xlog("SWAP mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", SWAP32(mppt.m1_Tms), SWAP32(mppt.m1_DCWH), SWAP32(mppt.m2_Tms), SWAP32(mppt.m2_DCWH));
-
-		sleep(3);
-	}
+	xlog("Status %d", inverter.St);
+	xlog("raw  mppt DCW1:%u DCW2:%u", mppt.m1_DCW, mppt.m2_DCW);
+	xlog("raw  mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", mppt.m1_Tms, mppt.m1_DCWH, mppt.m2_Tms, mppt.m2_DCWH);
+	xlog("SWAP mppt Tms1:%u DCWH1:%12u Tms2:%12u DCWH2:%12u", SWAP32(mppt.m1_Tms), SWAP32(mppt.m1_DCWH), SWAP32(mppt.m2_Tms), SWAP32(mppt.m2_DCWH));
 
 	modbus_close(mb);
 	modbus_free(mb);
+	return 0;
 }
 
 int sunspec_main(int argc, char **argv) {
@@ -786,12 +775,9 @@ int sunspec_main(int argc, char **argv) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 't':
-			test1(argc, argv);
-			test2(argc, argv);
-			return 0;
+			return test(argc, argv);
 		case 's':
-			scan(argc, argv);
-			return 0;
+			return scan(argc, argv);
 		default:
 			xlog("unknown getopt %c", c);
 		}

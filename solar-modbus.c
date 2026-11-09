@@ -314,7 +314,7 @@ static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure
 	snprintf(message, 16, "v:%d:%d", v, 0);
 //	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	msleep(3000);
-	sunspec_read(ss);
+	sunspec_meter_read(ss);
 	SAMPLE(measure[i])
 	SUBTRACT(measure[i], offset)
 	PRINTI(v, measure[i])
@@ -364,7 +364,7 @@ static int calibrate(char *name) {
 
 	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
-	sunspec_read(ss);
+	sunspec_meter_read(ss);
 	ss->common = 0;
 	ss->storage = 0;
 
@@ -387,7 +387,7 @@ static int calibrate(char *name) {
 	printf("calculating offset start\n");
 	ZERO(offset_start);
 	for (int i = 0; i < 10; i++) {
-		sunspec_read(ss);
+		sunspec_meter_read(ss);
 		SAMPLE_ADD(offset_start)
 		PRINTI(i, offset_start)
 		sleep(1);
@@ -418,7 +418,7 @@ static int calibrate(char *name) {
 	printf("calculating offset end\n");
 	ZERO(offset_end);
 	for (int i = 0; i < 10; i++) {
-		sunspec_read(ss);
+		sunspec_meter_read(ss);
 		SAMPLE_ADD(offset_end)
 		PRINTI(i, offset_end)
 		sleep(1);
@@ -515,16 +515,60 @@ static int evaluate(char *name) {
 	return 0;
 }
 
+// -X: limit charge, +X: limit discharge
+static int storage_limit(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+
+	int rc = 0;
+	int wh = atoi(arg);
+	if (wh > 0)
+		rc = sunspec_storage_discharge(ss, wh);
+	if (wh < 0)
+		rc = sunspec_storage_charge(ss, wh * -1);
+	sunspec_stop(ss);
+	return rc;
+}
+
+// set minimum SoC
+static int storage_min(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	int rc = sunspec_storage_minimum_soc(ss, atoi(arg));
+	sunspec_stop(ss);
+	return rc;
+}
+
+// set storage into standby mode
+static int storage_auto(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	int rc = sunspec_storage_auto(ss);
+	sunspec_stop(ss);
+	return rc;
+}
+
+// set storage into auto mode
+static int storage_standby(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	int rc = sunspec_storage_standby(ss);
+	sunspec_stop(ss);
+	return rc;
+}
+
+// switch inverter on or off
+static int inverter_on_off(char *arg) {
+	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
+	int rc = sunspec_controls_conn(inverter1, atoi(arg));
+	sunspec_stop(ss);
+	return rc;
+}
+
 // sample grid values from meter
 static int grid() {
 	pstate_t pp, *p = &pp;
 	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
-	sunspec_read(ss);
-	ss->common = 0;
 
 	while (1) {
 		msleep(666);
-		sunspec_read(ss);
+		sunspec_meter_read(ss);
 
 		p->grid = SFI(ss->meter->W, ss->meter->W_SF);
 		p->l1p = SFI(ss->meter->WphA, ss->meter->W_SF);
@@ -537,75 +581,26 @@ static int grid() {
 
 		printf("%5d W  |  %4d W  %4d W  %4d W  |  %d V  %d V  %d V  |  %5.2f Hz\n", p->grid, p->l1p, p->l2p, p->l3p, p->l1v, p->l2v, p->l3v, FLOAT100(p->f));
 	}
+
+	sunspec_stop(ss);
 	return 0;
 }
 
-// -X: limit charge, +X: limit discharge
-static int storage_limit(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-
-	int wh = atoi(arg);
-	if (wh > 0)
-		return sunspec_storage_discharge(ss, wh);
-	if (wh < 0)
-		return sunspec_storage_charge(ss, wh * -1);
-	return 0;
-}
-
-// set minimum SoC
-static int storage_min(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-
-	int min = atoi(arg);
-	return sunspec_storage_minimum_soc(ss, min);
-}
-
-// set storage into standby mode
-static int storage_auto(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-
-	return sunspec_storage_auto(ss);
-}
-
-// set storage into auto mode
-static int storage_standby(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-
-	return sunspec_storage_standby(ss);
-}
-
-// switch inverter on or off
-static int inverter_on_off(char *arg) {
-	sunspec_t *ss = sunspec_init("fronius10", "fronius10", 1);
-	sunspec_read(ss);
-
-	int on = atoi(arg);
-	return sunspec_controls_conn(inverter1, on);
-}
-
+// measure time between load change and meter response
 static int latency() {
-	int count;
 	pstate_t x, y;
-
-	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
-	ss->common = 0;
-	ss->storage = 0;
 
 	// use curl instead of mqtt for switching on and off (no additional latency)
 
 	// switch on
-	count = 0;
-	sunspec_read(ss);
+	int count = 0;
+	sunspec_meter_read(ss);
 	SAMPLE(x)
 	PRINTI(count, x)
 	curl_oneshot("http://infrared/cm?cmnd=Power3%20On");
 	while (1) {
-		sunspec_read(ss);
+		sunspec_meter_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
 		int dl1p = abs(x.l1p - y.l1p);
@@ -622,12 +617,12 @@ static int latency() {
 	// switch off
 	sleep(5);
 	count = 0;
-	sunspec_read(ss);
+	sunspec_meter_read(ss);
 	SAMPLE(x)
 	PRINTI(count, x)
 	curl_oneshot("http://infrared/cm?cmnd=Power3%20Off");
 	while (1) {
-		sunspec_read(ss);
+		sunspec_meter_read(ss);
 		SAMPLE(y)
 		PRINTI(count, y)
 		int dl1p = abs(x.l1p - y.l1p);
@@ -640,6 +635,7 @@ static int latency() {
 	}
 	printf("detected OFF meter response after %dms\n", count * 200);
 
+	sunspec_stop(ss);
 	return 0;
 }
 
