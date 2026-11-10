@@ -87,6 +87,8 @@ void akku_state(device_t *akku) {
 	if (!olimit)
 		olimit = params->akku_dmax;
 
+	olimit *= -1;
+
 	switch (STORCTL) {
 	case (FLAG_LIMIT_CHARGE | FLAG_LIMIT_DISCHARGE):
 		if (INWRTE == 0 && OUTWRTE == 0) {
@@ -100,7 +102,7 @@ void akku_state(device_t *akku) {
 			akku->total = ilimit;
 		} else {
 			akku->state = Auto;
-			akku->total = pstate->akku > 0 ? olimit * -1 : ilimit;
+			akku->total = pstate->akku > 0 ? olimit : ilimit;
 		}
 		break;
 
@@ -126,7 +128,7 @@ void akku_state(device_t *akku) {
 
 	default:
 		akku->state = Auto;
-		akku->total = pstate->akku > 0 ? olimit * -1 : ilimit;
+		akku->total = pstate->akku > 0 ? olimit : ilimit;
 	}
 
 	// xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);

@@ -75,15 +75,16 @@ static void read_bh1750() {
 
 	// powerup
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_POWERON);
+	msleep(222);
 
 	// continuous high mode (resolution 1lx)
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_CHM);
-	msleep(180);
+	msleep(222);
 	i2c_get_int(i2cfd, BH1750_ADDR, &sensor->bh1750_raw);
 
 	// continuous high mode 2 (resolution 0.5lx)
 	i2c_put(i2cfd, BH1750_ADDR, BH1750_CHM2);
-	msleep(180);
+	msleep(222);
 	i2c_get_int(i2cfd, BH1750_ADDR, &sensor->bh1750_raw2);
 
 	// sleep

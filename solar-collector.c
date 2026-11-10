@@ -925,7 +925,7 @@ static void calculate_pstate() {
 		pstate->target = pstate->steal = 0; // clear online calculated values
 
 	// print pstate once per minute / when invalid / emergency / on grid load / when ramping
-	if (MINLY || PSTATE_INVALID || PSTATE_EMERGENCY || PSTATE_GRID_DLOAD || pstate->ramp)
+	if (MINLY || PSTATE_INVALID || PSTATE_EMERGENCY || (GSTATE_ONLINE && PSTATE_GRID_DLOAD) || pstate->ramp)
 		print_pstate();
 }
 
