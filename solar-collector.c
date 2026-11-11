@@ -562,7 +562,8 @@ static void calculate_gstate() {
 	}
 	if (gstate->soc <= msoc) {
 		// set charge counter to 'empty' if SoC below msoc and reset discharge counter
-		CA_NOW->charged = params->akku_capacity * 60 * 60 * gstate->soc / 1000; // Watt-seconds
+		unsigned long ul = (unsigned long) params->akku_capacity * 60 * 60 * gstate->soc / 1000; // Watt-seconds
+		CA_NOW->charged = ul;
 		CA_NOW->discharged = 0;
 	}
 
