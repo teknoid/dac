@@ -1098,7 +1098,7 @@ static void hourly() {
 	xdebug("SOLAR collector executing hourly tasks...");
 
 	// update forecasts, clear at midnight, recalculate factors
-	mosmix_load_csv(now, MARIENBERG, DAILY);
+	mosmix_load_json(now, MARIENBERG, DAILY);
 
 	// update history
 //#ifdef COUNTER_METER

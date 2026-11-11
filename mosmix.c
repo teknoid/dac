@@ -907,7 +907,7 @@ static int recalc() {
 	LOCALTIME
 
 	mosmix_load_state(now);
-	mosmix_load_csv(now, MARIENBERG, 0);
+	mosmix_load_json(now, MARIENBERG, 0);
 	calculate_factors();
 	recalc_expected();
 	history_total();
@@ -955,15 +955,15 @@ static int fix() {
 	return 0;
 }
 
-static void wget(struct tm *now, const char *id) {
-	char ftstamp[32], fname[64], fforecasts[64], ftimestamps[64], furl[256], cmd[288];
+static void wget(struct tm *now) {
+	char ftstamp[32], fname[64], furl[256], cmd[288];
 	chdir(TMP);
 
 	snprintf(ftstamp, 32, "%4d%02d%02d%02d", now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, 3);
 	printf("File timestamp %s\n", ftstamp);
-	snprintf(fname, 64, "MOSMIX_L_%s_%s.kmz", ftstamp, id);
+	snprintf(fname, 64, "MOSMIX_S_%s_240.kmz", ftstamp);
 	printf("File name %s\n", fname);
-	snprintf(furl, 256, "http://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/%s/kml/%s", id, fname);
+	snprintf(furl, 256, "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_S/all_stations/kml/%s", fname);
 	printf("File path %s\n", furl);
 
 	snprintf(cmd, 288, "wget -q %s", furl);
@@ -971,15 +971,16 @@ static void wget(struct tm *now, const char *id) {
 	snprintf(cmd, 288, "unzip -q -o %s", fname);
 	system(cmd);
 
-	snprintf(ftimestamps, 64, "mosmix-timestamps-%s.json", id);
-	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file %s timestamps", fname, ftimestamps);
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file mosmix-timestamps.json timestamps", fname);
 	system(cmd);
 
-	snprintf(fforecasts, 64, "mosmix-forecasts-%s.json", id);
-	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file %s forecasts", fname, fforecasts);
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file mosmix-forecasts-CHEMNITZ.json forecasts --limit CHEMNITZ", fname);
 	system(cmd);
 
-	snprintf(cmd, 288, "/usr/local/bin/mosmix-json2csv.sh %s TTT Rad1h SunD1 RSunD", id);
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file mosmix-forecasts-MARIENBERG.json forecasts --limit MARIENBERG", fname);
+	system(cmd);
+
+	snprintf(cmd, 288, "/usr/local/bin/mosmix.py --in-file %s --out-file mosmix-forecasts-BRAUNSDORF.json forecasts --limit BRAUNSDORF", fname);
 	system(cmd);
 }
 
@@ -1017,21 +1018,20 @@ static int compare() {
 	time_t ts_yday = time(NULL);
 	ts_yday -= 60 * 60 * 24;
 	struct tm tm_yday, *yday = &tm_yday;
-	localtime_r(&ts_yday, &tm_yday);
+	localtime_r(&ts_yday, yday);
 
-	wget(yday, "10579");
-	mosmix_load_csv(yday, MARIENBERG, 1);
-	int dm = diffs(yday);
+	wget(yday);
 
-	wget(yday, "10577");
-	mosmix_load_csv(yday, CHEMNITZ, 1);
+	mosmix_load_json(yday, CHEMNITZ, 1);
 	int dc = diffs(yday);
 
-	wget(yday, "N4464");
-	mosmix_load_csv(yday, BRAUNSDORF, 1);
+	mosmix_load_json(yday, MARIENBERG, 1);
+	int dm = diffs(yday);
+
+	mosmix_load_json(yday, BRAUNSDORF, 1);
 	int db = diffs(yday);
 
-	printf("%4d-%02d-%02d Marienberg=%d Chemnitz=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dm, dc, db);
+	printf("%4d-%02d-%02d Chemnitz=%d Marienberg=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dc, dm, db);
 	return 0;
 }
 
