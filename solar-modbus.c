@@ -28,7 +28,6 @@
 #define SAMPLE(x)				x.l1p  = SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p  = SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p  = SFI(ss->meter->WphC, ss->meter->W_SF); x.grid  = SFI(ss->meter->W, ss->meter->W_SF);
 #define SAMPLE_ADD(x)			x.l1p += SFI(ss->meter->WphA, ss->meter->W_SF); x.l2p += SFI(ss->meter->WphB, ss->meter->W_SF); x.l3p += SFI(ss->meter->WphC, ss->meter->W_SF); x.grid += SFI(ss->meter->W, ss->meter->W_SF);
 #define SUBTRACT(x, y)			x.l1p -= y.l1p; x.l2p -= y.l2p; x.l3p -= y.l3p; x.grid -= y.grid;
-#define ROUND10(x)				x.l1p = round10(x.l1p); x.l2p = round10(x.l2p); x.l3p = round10(x.l3p); x.grid = round10(x.grid);
 #define PRINTI(i, x)			printf("%5d %4d W  %4d W  %4d W | %4d W\n", i, x.l1p, x.l2p, x.l3p, x.grid);
 #define PRINTS(s, x)			printf("%s %4d W  %4d W  %4d W | %4d W\n", s, x.l1p, x.l2p, x.l3p, x.grid);
 
@@ -303,7 +302,7 @@ static void drive(int sock, struct sockaddr *sa, sunspec_t *ss, pstate_t measure
 	char message[16];
 
 	snprintf(message, 16, "v:%d:%d", v, 0);
-//	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 	msleep(3000);
 	sunspec_meter_read(ss);
 	SAMPLE(measure[i])
@@ -345,19 +344,7 @@ static int calibrate(char *name) {
 	const char *addr = resolve_ip(name);
 	char message[16], filename[32];
 	pstate_t offset_start, offset_end, measure[1000];
-
-	// disable akku discharge
-//	printf("disable akku discharge\n");
-//	sunspec_t *ssbyd = sunspec_init("fronius10", 1);
-//	sunspec_read(ssbyd);
-//	sunspec_storage_limit_discharge(ssbyd, 0);
-//	sleep(5);
-
-	// create a sunspec handle for meter and remove models not needed
 	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
-	sunspec_meter_read(ss);
-	ss->common = 0;
-	ss->storage = 0;
 
 	// create a socket
 	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -435,9 +422,21 @@ static int calibrate(char *name) {
 	return 0;
 }
 
-static int evaluate(char *name) {
+static int evaluate(char *name, int argc, char **argv) {
 	pstate_t measure[1000];
 	char filename[32];
+
+	int c, pmax = 2000;
+	while ((c = getopt(argc, argv, "x:")) != -1) {
+		switch (c) {
+		case 'x':
+			pmax = atoi(optarg);
+			break;
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+	int onepercent = pmax / 100;
 
 	// read
 	snprintf(filename, 32, "/tmp/%s.bin", name);
@@ -462,10 +461,6 @@ static int evaluate(char *name) {
 
 	printf("detected phase %d\n", phase);
 
-	// TODO cmdline parameter
-	int max_power = 2000;
-	int onepercent = max_power / 100;
-
 	// build raster table
 	int raster[101];
 	ZERO(raster);
@@ -477,7 +472,7 @@ static int evaluate(char *name) {
 		int target = onepercent * i;
 
 		// find closest power to target power
-		int dmin = max_power;
+		int dmin = pmax;
 		for (int j = 0; j < 1000; j++) {
 			int p = phase == 1 ? measure[j].l1p : phase == 2 ? measure[j].l2p : measure[j].l3p;
 			int delta = target > p ? (target - p) : (p - target);
@@ -490,21 +485,30 @@ static int evaluate(char *name) {
 		// index corresponds to mV giving desired power
 		int idx = raster[i];
 		int p = phase == 1 ? measure[idx].l1p : phase == 2 ? measure[idx].l2p : measure[idx].l3p;
-		printf("target=%4d --> %4dW %4dmV\n", target, p, idx);
+		int delta = p - target;
+		int mv = idx * 10 - delta;
+		int mv5 = ROUND5(mv);
+		raster[i] = mv;
+		printf("target=%4d measure=%4dW delta=%3d --> %4dmV\n", target, p, delta, mv5);
 	}
 
 	// dump raster table
-	printf("\nphase angle voltage table 0..100%% in %d watt steps:\n\n", onepercent);
-	printf("%d, ", raster[0]);
+	printf("\nphase angle voltage table 0..100%% --> 0..%dW in %dW steps:\n\n", pmax, onepercent);
+	printf("    %d, ", raster[0]);
 	for (int i = 1; i <= 100; i++) {
 		printf("%d", raster[i]);
-		if (i != 100)
-			printf(", ");
 		if (i != 100 && i % 10 == 0)
-			printf("\\\n   ");
+			printf(",\n       ");
+		else if (i != 100)
+			printf(", ");
 	}
 	printf("\n\n");
 
+	return 0;
+}
+
+// TODO
+static int validate(char *name) {
 	return 0;
 }
 
@@ -683,7 +687,7 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "ac:e:gi:lmo:s:ty")) != -1) {
+	while ((c = getopt(argc, argv, "ac:e:gi:lmo:s:tv:y")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'a':
@@ -692,8 +696,8 @@ int solar_main(int argc, char **argv) {
 			// ./solar -c boiler1
 			return calibrate(optarg);
 		case 'e':
-			// ./solar -e boiler1
-			return evaluate(optarg);
+			// ./solar -e boiler1 -x 2000
+			return evaluate(optarg, argc, argv);
 		case 'g':
 			return grid();
 		case 'i':
@@ -709,6 +713,8 @@ int solar_main(int argc, char **argv) {
 			return storage_standby(optarg);
 		case 't':
 			return test();
+		case 'v':
+			return validate(optarg);
 		case 'y':
 			return latency();
 		default:

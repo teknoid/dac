@@ -33,6 +33,10 @@
 #define SHAPE(x, y)				if (-y < x && x < y) x = y;
 #define ZSHAPE(x, y)			if (-y < x && x < y) x = 0;
 
+#define ROUND5(x)				(-3  < ((x) % 5)   && ((x) % 5)   < 3)  ? ((x) / 5   * 5)   : ((x) / 5   * 5   + 5)
+#define ROUND10(x)				(-5  < ((x) % 10)  && ((x) % 10)  < 5)  ? ((x) / 10  * 10)  : ((x) / 10  * 10  + 10)
+#define ROUND100(x)				(-50 < ((x) % 100) && ((x) % 100) < 50) ? ((x) / 100 * 100) : ((x) / 100 * 100 + 100)
+
 #define CUT(x, y) \
 		if (x > 0 && x > y) \
 			x = y; \
@@ -159,8 +163,9 @@ void create_sysfslike(char *dir, char *fname, char *fvalue, const char *fmt, ...
 char* devinput_keyname(unsigned int key);
 int devinput_find_key(const char *name);
 
-int round10(int n);
-int round100(int n);
+int round5(int i);
+int round10(int i);
+int round100(int i);
 int atoin(const char *s, int n);
 
 int maximum(int, ...);

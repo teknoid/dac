@@ -797,24 +797,28 @@ int devinput_find_key(const char *name) {
 	return 0;
 }
 
-int round10(int n) {
-	int x = n / 10;
-	int y = n % 10;
-
-	if (-5 < y && y < 5)
-		return x * 10;
+int round5(int i) {
+	int m = i % 5;
+	if (-3 < m && m < 3)
+		return i / 5 * 5;
 	else
-		return (x + 1) * 10;
+		return i / 5 * 5 + 5;
 }
 
-int round100(int n) {
-	int x = n / 100;
-	int y = n % 100;
-
-	if (-50 < y && y < 50)
-		return x * 100;
+int round10(int i) {
+	int m = i % 10;
+	if (-5 < m && m < 5)
+		return i / 10 * 10;
 	else
-		return (x + 1) * 100;
+		return i / 10 * 10 + 10;
+}
+
+int round100(int i) {
+	int m = i % 100;
+	if (-50 < m && m < 50)
+		return i / 100 * 100;
+	else
+		return i / 100 * 100 + 100;
 }
 
 int atoin(const char *s, int n) {
