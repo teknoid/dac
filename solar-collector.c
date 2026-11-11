@@ -592,6 +592,7 @@ static void calculate_gstate() {
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
 	HICUT(gstate->survive, 2000)
+	LOCUT(gstate->survive, 0)
 #define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d stored=%d needed=%d night=%d --> %.1f%% (%.1f%%)"
 	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->stored, gstate->needed, gstate->minutes, FLOAT10(gstate->survive), FLOAT10(survive));
 
