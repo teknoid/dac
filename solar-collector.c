@@ -552,17 +552,17 @@ static void calculate_gstate() {
 			gstate->flags |= FLAG_GRID_ULOAD;
 
 	// akku State of Power (SoP) self tracked
-	int msoc = WINTER ? 70 : akku_get_min_soc(); // 7% in winter
+	int msoc = (WINTER ? 10 : params->akku_minsoc) * 10; // 10% in winter
 	int resv = params->akku_capacity * msoc / 1000; // reserve
 	gstate->sop = CS_DAY->charged - CS_DAY->discharged;
 	if (gstate->soc == 1000) {
-		// set charge counter to 'full' if SoC == 100% (Watt-seconds) and reset discharge counter
-		CA_NOW->charged = params->akku_capacity * 60 * 60;
+		// set charge counter to 'full' if SoC == 100% and reset discharge counter
+		CA_NOW->charged = params->akku_capacity * 60 * 60; // Watt-seconds
 		CA_NOW->discharged = 0;
 	}
-	if (gstate->soc == msoc) {
-		// set charge counter to 'empty' if SoC == msoc (Watt-seconds) and reset discharge counter
-		CA_NOW->charged = params->akku_capacity * 60 * 60 * msoc / 1000;
+	if (gstate->soc <= msoc) {
+		// set charge counter to 'empty' if SoC below msoc and reset discharge counter
+		CA_NOW->charged = params->akku_capacity * 60 * 60 * gstate->soc / 1000; // Watt-seconds
 		CA_NOW->discharged = 0;
 	}
 

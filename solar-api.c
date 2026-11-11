@@ -98,59 +98,53 @@ void read_wait() {
 	sem_wait(&finish);
 }
 
-void inverter_off() {
-	// unimplemented
+// unimplemented
+int inverter_on() {
+	return 0;
 }
 
-void inverter_on() {
-	// unimplemented
+// unimplemented
+int inverter_off() {
+	return 0;
 }
 
-int akku_get_min_soc() {
-	return MIN_SOC;
-}
-
-void akku_set_min_soc(int min) {
-	// unimplemented
-}
-
-void akku_state(device_t *akku) {
-	// dummy implementation
+// dummy implementation
+int akku_auto(device_t *akku) {
 	akku->state = Auto;
 	akku->power = 0;
 	akku->total = 0;
+	return 0;
 }
 
+// dummy implementation
 int akku_standby(device_t *akku) {
-	// dummy implementation
 	akku->state = Standby;
 	akku->power = 0;
 	akku->total = 0;
 	return 0;
 }
 
+// dummy implementation
 int akku_charge(device_t *akku) {
-	// dummy implementation
 	akku->state = Charge;
 	akku->power = 0;
 	akku->total = 0;
 	return 0;
 }
 
+// dummy implementation
 int akku_discharge(device_t *akku) {
-	// dummy implementation
 	akku->state = Discharge;
 	akku->power = 0;
 	akku->total = 0;
 	return 0;
 }
 
-int akku_auto(device_t *akku) {
-	// dummy implementation
+// dummy implementation
+void akku_state(device_t *akku) {
 	akku->state = Auto;
 	akku->power = 0;
 	akku->total = 0;
-	return 0;
 }
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku and Smart Meter TS 65A-3

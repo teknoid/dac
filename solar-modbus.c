@@ -13,12 +13,13 @@
 #include "mcp.h"
 
 #define SUSPICIOUS_METER		50
+#define MINIMUM_SOC				5
 
-#define AKKU_CHARGE_MAX			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
-#define AKKU_DISCHARGE_MAX		(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
-#define AKKU_CAPACITY			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
+#define MAXCHARTE				(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxChaRte, inverter1->nameplate->MaxChaRte_SF) / 2 : 0)
+#define MAXDISCHARTE			(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->MaxDisChaRte, inverter1->nameplate->MaxDisChaRte_SF) / 2 : 0)
+#define WHRTG					(inverter1 && inverter1->nameplate ? SFI(inverter1->nameplate->WHRtg, inverter1->nameplate->WHRtg_SF) : 0)
 
-#define MIN_SOC					(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) * 10 : 0)
+#define MINRSVPCT				(inverter1 && inverter1->storage ? SFI(inverter1->storage->MinRsvPct, inverter1->storage->MinRsvPct_SF) : 0)
 #define STORCTL					(inverter1 && inverter1->storage ? inverter1->storage->StorCtl_Mod : 0)
 #define INWRTE					(inverter1 && inverter1->storage ? inverter1->storage->InWRte : 0)
 #define OUTWRTE					(inverter1 && inverter1->storage ? inverter1->storage->OutWRte : 0)
@@ -59,20 +60,28 @@ void read_wait() {
 	sem_wait(&meter->finish);
 }
 
-void inverter_off() {
-	sunspec_controls_conn(inverter1, 0);
+int inverter_on() {
+	return sunspec_controls_conn(inverter1, 1);
 }
 
-void inverter_on() {
-	sunspec_controls_conn(inverter1, 1);
+int inverter_off() {
+	return sunspec_controls_conn(inverter1, 0);
 }
 
-int akku_get_min_soc() {
-	return MIN_SOC;
+int akku_auto(device_t *akku) {
+	return sunspec_storage_auto(inverter1);
 }
 
-void akku_set_min_soc(int min) {
-	sunspec_storage_minimum_soc(inverter1, min);
+int akku_standby(device_t *akku) {
+	return sunspec_storage_standby(inverter1);
+}
+
+int akku_charge(device_t *akku) {
+	return sunspec_storage_charge(inverter1, akku->climit);
+}
+
+int akku_discharge(device_t *akku) {
+	return sunspec_storage_discharge(inverter1, akku->dlimit);
 }
 
 void akku_state(device_t *akku) {
@@ -132,26 +141,6 @@ void akku_state(device_t *akku) {
 	}
 
 	// xlog("SOLAR akku storctl=%d inwrte=%d outwrte=%d state=%d total=%d", STORCTL, INWRTE, OUTWRTE, akku->state, akku->total);
-}
-
-// delegate
-int akku_charge(device_t *akku) {
-	return sunspec_storage_charge(inverter1, akku->climit);
-}
-
-// delegate
-int akku_discharge(device_t *akku) {
-	return sunspec_storage_discharge(inverter1, akku->dlimit);
-}
-
-// delegate
-int akku_auto(device_t *akku) {
-	return sunspec_storage_auto(inverter1);
-}
-
-// delegate
-int akku_standby(device_t *akku) {
-	return sunspec_storage_standby(inverter1);
 }
 
 // inverter1 is Fronius Symo GEN24 10.0 with connected BYD Akku
@@ -669,13 +658,15 @@ static int init() {
 	if (!retry)
 		return xerr("SOLAR modbus no SoC from %s", inverter1->name);
 
-	params->akku_capacity = AKKU_CAPACITY;
-	params->akku_cmax = AKKU_CHARGE_MAX;
-	params->akku_dmax = AKKU_DISCHARGE_MAX;
-	xlog("SOLAR modbus %s ready retry=%d Akku capacity=%d cmax=%d dmax=%d", inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax);
-
 	// minimum SoC: 5%
-	sunspec_storage_minimum_soc(inverter1, 5);
+	sunspec_storage_minimum_soc(inverter1, MINIMUM_SOC);
+
+	params->akku_capacity = WHRTG;
+	params->akku_minsoc = MINRSVPCT;
+	params->akku_cmax = MAXCHARTE;
+	params->akku_dmax = MAXDISCHARTE;
+#define MODBUS_TEMPLATE "SOLAR modbus %s ready retry=%d storage capacity=%d cmax=%d dmax=%d msoc=%d"
+	xlog(MODBUS_TEMPLATE, inverter1->name, retry, params->akku_capacity, params->akku_cmax, params->akku_dmax, params->akku_minsoc);
 
 	return 0;
 }

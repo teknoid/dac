@@ -118,7 +118,7 @@ struct _params {
 	int akku_dlimit;
 	int akku_climit_override;
 	int akku_dlimit_override;
-	int akku_minsoc; // TODO
+	int akku_minsoc;
 	int baseload;
 	int heating;
 	int minimum;
@@ -281,16 +281,15 @@ extern params_t *params;
 extern sem_t collector;
 
 // implementations in solar-modbus.c / solar-api.c / solar-simulator.c
-void inverter_off();
-void inverter_on();
-
 void read_trigger();
 void read_wait();
 
-void akku_state(device_t *akku);
-void akku_set_min_soc(int min);
-int akku_get_min_soc();
+int inverter_on();
+int inverter_off();
+
+int akku_auto(device_t *akku);
+int akku_standby(device_t *akku);
 int akku_charge(device_t *akku);
 int akku_discharge(device_t *akku);
-int akku_standby(device_t *akku);
-int akku_auto(device_t *akku);
+
+void akku_state(device_t *akku);

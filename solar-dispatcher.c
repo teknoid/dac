@@ -509,8 +509,8 @@ static void offline() {
 	if (gstate->soc > 100 && !AKKU_DISCHARGING && GSTATE_GRID_DLOAD)
 		akku_discharge(AKKU);
 
-	// go not below 7% in winter to avoid forced charging from grid
-	if (gstate->soc < 70 && WINTER) {
+	// go not below 10% in winter to avoid forced charging from grid
+	if (gstate->soc < 100 && WINTER) {
 		akku_standby(AKKU);
 		if (pstate->mppt1v < MPPT_VOLTAGE_STANDBY && pstate->mppt2v < MPPT_VOLTAGE_STANDBY)
 			inverter_off();
@@ -1012,10 +1012,6 @@ void solar_dispatch(const char *topic, uint16_t tsize, const char *message, size
 		AKKU->dlimit = params->akku_dlimit_override = params->akku_dlimit = atoin(message, msize);
 		akku_discharge(AKKU); // update dlimit
 	}
-
-	// mosquitto_pub -h mqtt -t "solar/params/minsoc" -m 5
-	if (!strncmp("solar/params/minsoc", topic, tsize))
-		params->akku_minsoc = atoin(message, msize);
 
 	// mosquitto_pub -h mqtt -t "solar/cmd/toggle" -m "{'id':'B51597', 'r':'1'}"
 	if (!strncmp("solar/cmd/toggle", topic, tsize)) {
