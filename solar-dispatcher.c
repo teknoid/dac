@@ -327,8 +327,11 @@ static void ramp_akku(device_t *akku) {
 
 		// akku is charging
 		if (AKKU_CHARGING) {
-			// akku already consumes all available pv
+			// akku already consumes all mppt1+mppt2 pv
 			if (pstate->ac1 <= 0)
+				return;
+			// TODO akku is saturated
+			if (pstate->akku < -4700)
 				return;
 			// all mppt1+mppt2 up to maximum
 			int max = pstate->mppt1p + pstate->mppt2p;
@@ -340,7 +343,7 @@ static void ramp_akku(device_t *akku) {
 			HICUT(akku->ramp_out, remain)
 			if (akku->load < params->minimum)
 				akku->ramp_out = params->minimum; // leave a little bit charging - consume more to stop ramp up request
-			xdebug("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
+			xlog("SOLAR akku ramp↑ power=%d load=%d max=%d remain=%d ramp=%d", akku->ramp_in, akku->load, max, remain, akku->ramp_out);
 			return;
 		}
 

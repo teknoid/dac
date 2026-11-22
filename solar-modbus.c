@@ -508,7 +508,75 @@ static int evaluate(char *name, int argc, char **argv) {
 }
 
 // TODO
-static int validate(char *name) {
+static int validate(char *name, int argc, char **argv) {
+	pstate_t measure[101];
+	char message[16];
+
+	int c, pmax = 2000;
+	while ((c = getopt(argc, argv, "x:")) != -1) {
+		switch (c) {
+		case 'x':
+			pmax = atoi(optarg);
+			break;
+		default:
+			xlog("unknown getopt %c", c);
+		}
+	}
+
+	const char *addr = resolve_ip(name);
+	sunspec_t *ss = sunspec_init("meter", "fronius10", 200);
+
+	// create a socket
+	int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sock < 0)
+		return xerr("SOLAR Error creating UDP socket");
+
+	// write IP and port into sockaddr structure
+	struct sockaddr_in sock_addr_in = { 0 };
+	sock_addr_in.sin_family = AF_INET;
+	sock_addr_in.sin_port = htons(1975);
+	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
+	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
+
+	for (int i = 0; i <= 100; i++) {
+		snprintf(message, 16, "p:%d:%d", i, 0);
+		// sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		msleep(3000);
+		sunspec_meter_read(ss);
+		SAMPLE(measure[i])
+		if (i > 0) {
+			SUBTRACT(measure[i], measure[0])
+		}
+		PRINTI(i, measure[i])
+	}
+
+	// find phase
+	pstate_t sum;
+	ZERO(sum);
+	for (int i = 0; i < 100; i++)
+		iadd(&sum, &measure[i], PSTATE_SIZE);
+	int phase = 0;
+	if (sum.l1p > sum.l2p && sum.l1p > sum.l3p)
+		phase = 1;
+	if (sum.l2p > sum.l1p && sum.l2p > sum.l3p)
+		phase = 2;
+	if (sum.l3p > sum.l1p && sum.l3p > sum.l2p)
+		phase = 3;
+	if (!phase) {
+		printf("unable to detect phase\n");
+		return 0;
+	}
+
+	printf("detected phase %d\n", phase);
+
+	for (int i = 1; i <= 100; i++) {
+		int px = i * pmax / 100;
+		int py = phase == 1 ? measure[i].l1p : phase == 2 ? measure[i].l2p : measure[i].l3p;
+		int pd = py - px;
+		int pe = py * 100 / px;
+		printf("i=%3d expected=%4d power=%4d diff=%2d error=%.2f\n", i, px, py, pd, FLOAT100(pe));
+	}
+
 	return 0;
 }
 
@@ -714,7 +782,8 @@ int solar_main(int argc, char **argv) {
 		case 't':
 			return test();
 		case 'v':
-			return validate(optarg);
+			// ./solar -v boiler1 -x 2000
+			return validate(optarg, argc, argv);
 		case 'y':
 			return latency();
 		default:

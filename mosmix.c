@@ -1014,24 +1014,24 @@ static int diffs(struct tm *now) {
 static int compare() {
 	load_blob(STATE SLASH MOSMIX_HISTORY, history, sizeof(history));
 
-	// yesterday
+	// compare runs after midnight --> load yesterday's mosmix
 	time_t ts_yday = time(NULL);
 	ts_yday -= 60 * 60 * 24;
-	struct tm tm_yday, *yday = &tm_yday;
-	localtime_r(&ts_yday, yday);
+	struct tm tm_yday, *tm = &tm_yday;
+	localtime_r(&ts_yday, tm);
 
-	wget(yday);
+	wget(tm);
 
-	mosmix_load_json(yday, CHEMNITZ, 1);
-	int dc = diffs(yday);
+	mosmix_load_json(tm, CHEMNITZ, 1);
+	int dc = diffs(tm);
 
-	mosmix_load_json(yday, MARIENBERG, 1);
-	int dm = diffs(yday);
+	mosmix_load_json(tm, MARIENBERG, 1);
+	int dm = diffs(tm);
 
-	mosmix_load_json(yday, BRAUNSDORF, 1);
-	int db = diffs(yday);
+	mosmix_load_json(tm, BRAUNSDORF, 1);
+	int db = diffs(tm);
 
-	printf("%4d-%02d-%02d Chemnitz=%d Marienberg=%d Braunsdorf=%d\n", yday->tm_year + 1900, yday->tm_mon + 1, yday->tm_mday, dc, dm, db);
+	printf("%4d-%02d-%02d Chemnitz=%d Marienberg=%d Braunsdorf=%d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, dc, dm, db);
 	return 0;
 }
 

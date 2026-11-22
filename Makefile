@@ -80,9 +80,9 @@ sensors: CFLAGS += -DSENSORS_MAIN -DSTDOUT
 sensors: clean mcp.o utils.o sensors.o i2c.o
 	$(CC) $(CFLAGS) -o sensors mcp.o utils.o sensors.o i2c.o
 
-wifi: CFLAGS += -DWIFI_MAIN -DSTDOUT -DDEBUG -DMQTT_HOST=\"mqtt\"
-wifi: clean wifi.o mcp.o utils.o network.o mqtt-tx.o
-	$(CC) $(CFLAGS) -L$(LIB) -o wifi wifi.o mcp.o utils.o network.o mqtt-tx.o -lmqttc
+wifi: CFLAGS += -DWIFI_MAIN -DSTDOUT -DDEBUG -DRUN=\"/tmp\" -DSTATE=\"/tmp\"
+wifi: clean wifi.o mcp.o utils.o network.o
+	$(CC) $(CFLAGS) -L$(LIB) -o wifi wifi.o mcp.o utils.o network.o
 
 tasmota: CFLAGS += -DMCP -DSTDOUT -DDEBUG
 tasmota: clean mcp.o utils.o tasmota.o mqtt-rx.o sensors.o i2c.o frozen.o

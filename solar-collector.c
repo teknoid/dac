@@ -938,6 +938,10 @@ static void history() {
 	int m = now->tm_min ? now->tm_min - 1 : 59;
 	int s = now->tm_sec ? now->tm_sec - 1 : 59;
 
+	// last hour of day goes into yesterday
+	if (h == 23)
+		d = d ? d - 1 : 6;
+
 	// pstate history pointer
 	pstate_t *pd = &pstate_hours[d];
 	pstate_t *ph = &pstate_hours[d * 24 + h];
@@ -1073,14 +1077,15 @@ static void daily() {
 	xdebug("SOLAR collector executing daily tasks...");
 
 	// calculate forecast errors - actual vs. expected
-	int yday2 = now->tm_wday > 1 ? now->tm_wday - 2 : (now->tm_wday - 2 + 7);
-	int fc2 = GSTATE_DAY_HOUR(yday2, 23)->tomorrow;
+	int d = now->tm_wday ? now->tm_wday - 1 : 6;
+	int yd1 = d ? d - 1 : 6;
+	int yd2 = yd1 ? yd1 - 1 : 6;
+	int fc2 = GSTATE_DAY_HOUR(yd2, 8)->tomorrow;
 	int e2 = fc2 ? gstate->pv * 100 / fc2 : 0;
-	xlog("SOLAR yesterdays 23:00 forecast for today %d, actual %d, strike %d%%", fc2, gstate->pv, e2);
-	int yday1 = now->tm_wday > 0 ? now->tm_wday - 1 : (now->tm_wday - 1 + 7);
-	int fc1 = GSTATE_DAY_HOUR(yday1, 7)->today;
+	xlog("SOLAR yesterdays 08:00 forecast for today %d, actual %d, strike %d%%", fc2, gstate->pv, e2);
+	int fc1 = GSTATE_DAY_HOUR(yd1, 8)->today;
 	int e1 = fc1 ? gstate->pv * 100 / fc1 : 0;
-	xlog("SOLAR     todays 07:00 forecast for today %d, actual %d, strike %d%%", fc1, gstate->pv, e1);
+	xlog("SOLAR     todays 08:00 forecast for today %d, actual %d, strike %d%%", fc1, gstate->pv, e1);
 
 	// recalculate average 24/7 values
 	collect_average_247();

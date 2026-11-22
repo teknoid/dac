@@ -33,6 +33,7 @@
 #define SSID_NAME				"NAME"
 #define SSID_HOME				"HOME"
 
+// TODO cmdline parameter
 #define POPEN					"/usr/bin/tcpdump -nevi mon0"
 #define PORT					6666
 #define DIRTY					10

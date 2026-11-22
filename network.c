@@ -36,8 +36,13 @@ static void* popen_thread(void *arg) {
 
 	xlog("WIFI %s pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
-		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL)
+		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL) {
+			conn->line_count++;
+
+			// make a copy for line dumping after strtok()
+			memcpy(conn->copy, conn->line, NETWORK_LINEBUF);
 			(server->handler)(conn);
+		}
 
 	fclose(conn->stream);
 	free(conn);
