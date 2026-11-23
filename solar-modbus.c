@@ -488,8 +488,9 @@ static int evaluate(char *name, int argc, char **argv) {
 		int delta = p - target;
 		int mv = idx * 10 - delta;
 		int mv5 = ROUND5(mv);
-		raster[i] = mv;
-		printf("target=%4d measure=%4dW delta=%3d --> %4dmV\n", target, p, delta, mv5);
+		raster[i] = mv5;
+		int dmv = raster[i] - raster[i - 1];
+		printf("target=%4d measure=%4dW delta=%3d --> idx=%3d %4dmV delta=%d\n", target, p, delta, idx, mv5, dmv);
 	}
 
 	// dump raster table
@@ -540,7 +541,7 @@ static int validate(char *name, int argc, char **argv) {
 
 	for (int i = 0; i <= 100; i++) {
 		snprintf(message, 16, "p:%d:%d", i, 0);
-		// sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 		msleep(3000);
 		sunspec_meter_read(ss);
 		SAMPLE(measure[i])

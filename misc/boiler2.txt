@@ -1,1256 +1,212 @@
-UTILS boiler1 IPv4 address: 192.168.25.232 (boiler1.jecons.net)
-UTILS boiler2 IPv4 address: 192.168.25.233 (boiler2.jecons.net)
-UTILS boiler3 IPv4 address: 192.168.25.234 (boiler3.jecons.net)
-UTILS Could not resolve inetAddr for küche
-UTILS Could not resolve inetAddr for wozi
-UTILS Could not resolve inetAddr for schlaf
-UTILS Could not resolve inetAddr for tisch
-getopt c
-UTILS boiler2 IPv4 address: 192.168.25.233 (boiler2.jecons.net)
-SUNSPEC Meter found model 203 size 105 at address 40069
-starting calibration on boiler2 (192.168.25.233)
-starting measurement with maximum power 2000 watt 1%=20 watt
-calculating offset start 65 66 66 65 65 65 65 65 65 65 --> average 65
-    0     0
-   10     0
-   20     0
-   30     0
-   40     0
-   50     0
-   60     0
-   70     0
-   80     0
-   90     0
-  100     0
-  110     0
-  120     0
-  130     0
-  140     0
-  150     0
-  160     0
-  170     0
-  180     0
-  190     0
-  200     0
-  210     0
-  220     0
-  230     0
-  240     0
-  250     0
-  260     0
-  270     0
-  280     0
-  290     0
-  300     0
-  310     0
-  320     0
-  330     0
-  340     0
-  350     0
-  360     0
-  370     0
-  380     0
-  390     0
-  400     0
-  410     0
-  420     0
-  430     0
-  440     0
-  450     0
-  460     0
-  470     0
-  480     0
-  490     0
-  500     0
-  510     0
-  520     0
-  530     0
-  540     0
-  550     0
-  560     0
-  570     0
-  580     0
-  590     0
-  600     0
-  610     0
-  620     0
-  630     0
-  640     0
-  650     0
-  660     0
-  670     0
-  680     0
-  690     0
-  700     0
-  710     0
-  720     0
-  730     0
-  740     0
-  750     0
-  760     0
-  770     0
-  780     0
-  790     0
-  800     1
-  810     1
-  820     1
-  830     1
-  840     1
-  850     1
-  860     1
-  870     1
-  880     0
-  890     0
-  900     0
-  910     0
-  920     0
-  930     0
-  940     0
-  950     0
-  960     1
-  970     1
-  980     1
-  990     1
- 1000     1
- 1010     1
- 1020     1
- 1030     1
- 1040     1
- 1050     1
- 1060     1
- 1070     1
- 1080     1
- 1090     1
- 1100     1
- 1110     1
- 1120     1
- 1130     1
- 1140     1
- 1150     1
- 1160     1
- 1170     1
- 1180     1
- 1190     1
- 1200     1
- 1210     1
- 1220     1
- 1230     1
- 1240     1
- 1250     1
- 1260     1
- 1270     1
- 1280     1
- 1290     1
- 1300     1
- 1310     1
- 1320     1
- 1330     1
- 1340     1
- 1350     1
- 1360     0
- 1370     0
- 1380     0
- 1390     0
- 1400     0
- 1410     0
- 1420     0
- 1430     0
- 1440     1
- 1450     1
- 1460     1
- 1470     1
- 1480     1
- 1490     1
- 1500     1
- 1510     1
- 1520     1
- 1530     1
- 1540     1
- 1550     1
- 1560     1
- 1570     1
- 1580     1
- 1590     1
- 1600     1
- 1610     1
- 1620     1
- 1630     1
- 1640     1
- 1650     1
- 1660     1
- 1670     1
- 1680     1
- 1690     1
- 1700     1
- 1710     1
- 1720     1
- 1730     1
- 1740     1
- 1750     1
- 1760     1
- 1770     1
- 1780     1
- 1790     1
- 1800     1
- 1810     1
- 1820     1
- 1830     1
- 1840     1
- 1850     1
- 1860     1
- 1870     1
- 1880     1
- 1890     1
- 1900     1
- 1910     1
- 1920     1
- 1930     1
- 1940     1
- 1950     1
- 1960     1
- 1970     1
- 1980     1
- 1990     1
- 2000     1
- 2010     0
- 2020     0
- 2030     0
- 2040     0
- 2050     0
- 2060     1
- 2070     0
- 2080     1
- 2090     1
- 2100     1
- 2110     1
- 2120     1
- 2130     1
- 2140     0
- 2150     1
- 2160     1
- 2170     0
- 2180     0
- 2190     0
- 2200     1
- 2210     1
- 2220     1
- 2230     0
- 2240     0
- 2250     0
- 2260     1
- 2270     1
- 2280     1
- 2290     0
- 2300     0
- 2310     1
- 2320     1
- 2330     0
- 2340     0
- 2350     0
- 2360     1
- 2370     1
- 2380     1
- 2390     2
- 2400     2
- 2410     2
- 2420     2
- 2430     3
- 2440     3
- 2450     3
- 2460     4
- 2470     4
- 2480     4
- 2490     5
- 2500     6
- 2510     5
- 2520     6
- 2530     6
- 2540     7
- 2550     8
- 2560     9
- 2570    10
- 2580    10
- 2590    10
- 2600    11
- 2610    12
- 2620    13
- 2630    14
- 2640    14
- 2650    15
- 2660    17
- 2670    18
- 2680    19
- 2690    20
- 2700    20
- 2710    21
- 2720    24
- 2730    25
- 2740    26
- 2750    26
- 2760    28
- 2770    31
- 2780    33
- 2790    35
- 2800    35
- 2810    37
- 2820    40
- 2830    42
- 2840    43
- 2850    43
- 2860    46
- 2870    49
- 2880    51
- 2890    54
- 2900    56
- 2910    56
- 2920    58
- 2930    63
- 2940    65
- 2950    68
- 2960    68
- 2970    70
- 2980    76
- 2990    79
- 3000    82
- 3010    84
- 3020    84
- 3030    87
- 3040    92
- 3050    96
- 3060    99
- 3070    99
- 3080   102
- 3090   110
- 3100   112
- 3110   116
- 3120   118
- 3130   118
- 3140   122
- 3150   129
- 3160   133
- 3170   136
- 3180   136
- 3190   148
- 3200   152
- 3210   155
- 3220   160
- 3230   160
- 3240   163
- 3250   172
- 3260   176
- 3270   180
- 3280   180
- 3290   184
- 3300   192
- 3310   198
- 3320   202
- 3330   206
- 3340   206
- 3350   214
- 3360   219
- 3370   223
- 3380   228
- 3390   228
- 3400   234
- 3410   242
- 3420   246
- 3430   251
- 3440   256
- 3450   256
- 3460   265
- 3470   267
- 3480   274
- 3490   279
- 3500   279
- 3510   284
- 3520   295
- 3530   299
- 3540   305
- 3550   309
- 3560   319
- 3570   325
- 3580   330
- 3590   336
- 3600   336
- 3610   342
- 3620   353
- 3630   359
- 3640   363
- 3650   369
- 3660   369
- 3670   379
- 3680   383
- 3690   390
- 3700   397
- 3710   397
- 3720   404
- 3730   412
- 3740   418
- 3750   423
- 3760   428
- 3770   428
- 3780   436
- 3790   441
- 3800   445
- 3810   452
- 3820   452
- 3830   457
- 3840   468
- 3850   475
- 3860   480
- 3870   485
- 3880   485
- 3890   496
- 3900   501
- 3910   507
- 3920   513
- 3930   513
- 3940   519
- 3950   531
- 3960   542
- 3970   548
- 3980   548
- 3990   559
- 4000   564
- 4010   570
- 4020   577
- 4030   577
- 4040   581
- 4050   592
- 4060   598
- 4070   603
- 4080   608
- 4090   608
- 4100   620
- 4110   625
- 4120   632
- 4130   637
- 4140   637
- 4150   643
- 4160   654
- 4170   659
- 4180   665
- 4190   670
- 4200   670
- 4210   680
- 4220   685
- 4230   690
- 4240   697
- 4250   697
- 4260   701
- 4270   712
- 4280   718
- 4290   723
- 4300   730
- 4310   730
- 4320   741
- 4330   747
- 4340   753
- 4350   759
- 4360   763
- 4370   773
- 4380   779
- 4390   784
- 4400   784
- 4410   790
- 4420   798
- 4430   803
- 4440   808
- 4450   813
- 4460   813
- 4470   819
- 4480   830
- 4490   833
- 4500   838
- 4510   838
- 4520   842
- 4530   851
- 4540   856
- 4550   863
- 4560   868
- 4570   868
- 4580   872
- 4590   881
- 4600   887
- 4610   890
- 4620   890
- 4630   897
- 4640   906
- 4650   913
- 4660   917
- 4670   923
- 4680   923
- 4690   927
- 4700   937
- 4710   942
- 4720   945
- 4730   950
- 4740   960
- 4750   966
- 4760   971
- 4770   976
- 4780   976
- 4790   981
- 4800   992
- 4810   998
- 4820  1003
- 4830  1003
- 4840  1009
- 4850  1018
- 4860  1023
- 4870  1027
- 4880  1030
- 4890  1030
- 4900  1036
- 4910  1045
- 4920  1050
- 4930  1054
- 4940  1054
- 4950  1057
- 4960  1067
- 4970  1070
- 4980  1076
- 4990  1081
- 5000  1081
- 5010  1085
- 5020  1093
- 5030  1095
- 5040  1096
- 5050  1096
- 5060  1101
- 5070  1109
- 5080  1112
- 5090  1116
- 5100  1123
- 5110  1123
- 5120  1132
- 5130  1136
- 5140  1141
- 5150  1141
- 5160  1146
- 5170  1156
- 5180  1163
- 5190  1167
- 5200  1170
- 5210  1170
- 5220  1179
- 5230  1183
- 5240  1188
- 5250  1195
- 5260  1195
- 5270  1199
- 5280  1207
- 5290  1213
- 5300  1218
- 5310  1223
- 5320  1223
- 5330  1229
- 5340  1228
- 5350  1228
- 5360  1228
- 5370  1228
- 5380  1242
- 5390  1251
- 5400  1253
- 5410  1258
- 5420  1262
- 5430  1262
- 5440  1269
- 5450  1274
- 5460  1276
- 5470  1280
- 5480  1280
- 5490  1283
- 5500  1291
- 5510  1299
- 5520  1302
- 5530  1302
- 5540  1306
- 5550  1310
- 5560  1314
- 5570  1317
- 5580  1317
- 5590  1322
- 5600  1328
- 5610  1334
- 5620  1335
- 5630  1339
- 5640  1339
- 5650  1345
- 5660  1351
- 5670  1353
- 5680  1357
- 5690  1357
- 5700  1361
- 5710  1364
- 5720  1372
- 5730  1375
- 5740  1377
- 5750  1377
- 5760  1385
- 5770  1389
- 5780  1392
- 5790  1393
- 5800  1393
- 5810  1397
- 5820  1407
- 5830  1412
- 5840  1414
- 5850  1418
- 5860  1418
- 5870  1426
- 5880  1432
- 5890  1434
- 5900  1434
- 5910  1438
- 5920  1433
- 5930  1444
- 5940  1449
- 5950  1449
- 5960  1449
- 5970  1456
- 5980  1457
- 5990  1458
- 6000  1460
- 6010  1460
- 6020  1464
- 6030  1468
- 6040  1471
- 6050  1472
- 6060  1476
- 6070  1476
- 6080  1483
- 6090  1485
- 6100  1488
- 6110  1492
- 6120  1492
- 6130  1495
- 6140  1504
- 6150  1504
- 6160  1508
- 6170  1513
- 6180  1513
- 6190  1522
- 6200  1527
- 6210  1530
- 6220  1532
- 6230  1532
- 6240  1537
- 6250  1545
- 6260  1548
- 6270  1553
- 6280  1556
- 6290  1560
- 6300  1563
- 6310  1569
- 6320  1572
- 6330  1572
- 6340  1573
- 6350  1583
- 6360  1584
- 6370  1583
- 6380  1584
- 6390  1584
- 6400  1591
- 6410  1594
- 6420  1596
- 6430  1601
- 6440  1601
- 6450  1604
- 6460  1608
- 6470  1610
- 6480  1616
- 6490  1621
- 6500  1621
- 6510  1628
- 6520  1631
- 6530  1634
- 6540  1633
- 6550  1633
- 6560  1640
- 6570  1644
- 6580  1647
- 6590  1649
- 6600  1653
- 6610  1653
- 6620  1657
- 6630  1659
- 6640  1665
- 6650  1669
- 6660  1669
- 6670  1671
- 6680  1678
- 6690  1684
- 6700  1675
- 6710  1675
- 6720  1687
- 6730  1690
- 6740  1695
- 6750  1698
- 6760  1698
- 6770  1698
- 6780  1701
- 6790  1704
- 6800  1705
- 6810  1705
- 6820  1705
- 6830  1711
- 6840  1712
- 6850  1710
- 6860  1716
- 6870  1716
- 6880  1717
- 6890  1720
- 6900  1723
- 6910  1723
- 6920  1721
- 6930  1721
- 6940  1723
- 6950  1724
- 6960  1726
- 6970  1726
- 6980  1726
- 6990  1712
- 7000  1707
- 7010  1706
- 7020  1711
- 7030  1712
- 7040  1712
- 7050  1720
- 7060  1723
- 7070  1724
- 7080  1724
- 7090  1729
- 7100  1731
- 7110  1732
- 7120  1735
- 7130  1735
- 7140  1735
- 7150  1738
- 7160  1736
- 7170  1741
- 7180  1742
- 7190  1742
- 7200  1745
- 7210  1746
- 7220  1747
- 7230  1750
- 7240  1752
- 7250  1752
- 7260  1755
- 7270  1757
- 7280  1757
- 7290  1758
- 7300  1758
- 7310  1760
- 7320  1763
- 7330  1766
- 7340  1768
- 7350  1768
- 7360  1768
- 7370  1771
- 7380  1771
- 7390  1773
- 7400  1776
- 7410  1776
- 7420  1775
- 7430  1774
- 7440  1774
- 7450  1777
- 7460  1777
- 7470  1784
- 7480  1785
- 7490  1786
- 7500  1787
- 7510  1787
- 7520  1788
- 7530  1791
- 7540  1794
- 7550  1788
- 7560  1788
- 7570  1793
- 7580  1800
- 7590  1802
- 7600  1803
- 7610  1804
- 7620  1804
- 7630  1810
- 7640  1813
- 7650  1814
- 7660  1816
- 7670  1816
- 7680  1815
- 7690  1820
- 7700  1823
- 7710  1815
- 7720  1827
- 7730  1827
- 7740  1829
- 7750  1831
- 7760  1835
- 7770  1833
- 7780  1833
- 7790  1836
- 7800  1835
- 7810  1837
- 7820  1837
- 7830  1837
- 7840  1840
- 7850  1840
- 7860  1840
- 7870  1841
- 7880  1841
- 7890  1841
- 7900  1844
- 7910  1846
- 7920  1849
- 7930  1849
- 7940  1849
- 7950  1850
- 7960  1852
- 7970  1853
- 7980  1856
- 7990  1856
- 8000  1856
- 8010  1856
- 8020  1856
- 8030  1858
- 8040  1858
- 8050  1858
- 8060  1858
- 8070  1858
- 8080  1858
- 8090  1858
- 8100  1858
- 8110  1858
- 8120  1862
- 8130  1862
- 8140  1862
- 8150  1862
- 8160  1862
- 8170  1862
- 8180  1862
- 8190  1862
- 8200  1867
- 8210  1867
- 8220  1867
- 8230  1867
- 8240  1867
- 8250  1867
- 8260  1867
- 8270  1867
- 8280  1867
- 8290  1877
- 8300  1877
- 8310  1877
- 8320  1877
- 8330  1877
- 8340  1877
- 8350  1877
- 8360  1877
- 8370  1887
- 8380  1887
- 8390  1887
- 8400  1887
- 8410  1887
- 8420  1887
- 8430  1887
- 8440  1887
- 8450  1887
- 8460  1887
- 8470  1887
- 8480  1887
- 8490  1887
- 8500  1887
- 8510  1900
- 8520  1900
- 8530  1900
- 8540  1900
- 8550  1900
- 8560  1900
- 8570  1900
- 8580  1900
- 8590  1900
- 8600  1903
- 8610  1903
- 8620  1903
- 8630  1903
- 8640  1903
- 8650  1903
- 8660  1903
- 8670  1903
- 8680  1906
- 8690  1906
- 8700  1906
- 8710  1906
- 8720  1906
- 8730  1906
- 8740  1906
- 8750  1906
- 8760  1915
- 8770  1915
- 8780  1915
- 8790  1915
- 8800  1915
- 8810  1915
- 8820  1915
- 8830  1915
- 8840  1915
- 8850  1915
- 8860  1915
- 8870  1915
- 8880  1915
- 8890  1915
- 8900  1915
- 8910  1915
- 8920  1918
- 8930  1918
- 8940  1918
- 8950  1918
- 8960  1918
- 8970  1918
- 8980  1918
- 8990  1918
- 9000  1944
- 9010  1944
- 9020  1944
- 9030  1944
- 9040  1944
- 9050  1944
- 9060  1944
- 9070  1944
- 9080  1946
- 9090  1946
- 9100  1946
- 9110  1946
- 9120  1946
- 9130  1946
- 9140  1946
- 9150  1946
- 9160  1947
- 9170  1947
- 9180  1947
- 9190  1947
- 9200  1947
- 9210  1947
- 9220  1947
- 9230  1947
- 9240  1951
- 9250  1951
- 9260  1951
- 9270  1951
- 9280  1951
- 9290  1951
- 9300  1951
- 9310  1951
- 9320  1951
- 9330  1951
- 9340  1951
- 9350  1951
- 9360  1951
- 9370  1951
- 9380  1951
- 9390  1951
- 9400  1959
- 9410  1959
- 9420  1959
- 9430  1959
- 9440  1959
- 9450  1959
- 9460  1959
- 9470  1959
- 9480  1964
- 9490  1964
- 9500  1964
- 9510  1964
- 9520  1964
- 9530  1964
- 9540  1964
- 9550  1964
- 9560  1964
- 9570  1964
- 9580  1964
- 9590  1964
- 9600  1964
- 9610  1964
- 9620  1964
- 9630  1964
- 9640  1965
- 9650  1965
- 9660  1965
- 9670  1965
- 9680  1965
- 9690  1965
- 9700  1965
- 9710  1965
- 9720  1965
- 9730  1965
- 9740  1965
- 9750  1965
- 9760  1965
- 9770  1965
- 9780  1965
- 9790  1965
- 9800  1969
- 9810  1969
- 9820  1969
- 9830  1969
- 9840  1969
- 9850  1969
- 9860  1969
- 9870  1969
- 9880  1975
- 9890  1975
- 9900  1975
- 9910  1975
- 9920  1975
- 9930  1975
- 9940  1975
- 9950  1975
- 9960  1977
- 9970  1977
- 9980  1977
- 9990  1977
-calculating offset end 65 66 65 65 65 65 65 66 65 65 --> average 65
-closest voltages to target power    20 matching    20 within +/-5 watt:  17:2660 18:2670 19:2680 20:2690 20:2700 21:2710 24:2720 --> 20W 2690mV
-closest voltages to target power    40 matching    40 within +/-5 watt:  37:2810 40:2820 42:2830 43:2840 43:2850 --> 40W 2830mV
-closest voltages to target power    60 matching    58 within +/-5 watt:  54:2890 56:2900 56:2910 58:2920 --> 60W 2905mV
-closest voltages to target power    80 matching    79 within +/-5 watt:  76:2980 79:2990 82:3000 --> 80W 2990mV
-closest voltages to target power   100 matching    99 within +/-5 watt:  96:3050 99:3060 99:3070 102:3080 --> 100W 3065mV
-closest voltages to target power   120 matching   118 within +/-5 watt:  116:3110 118:3120 118:3130 122:3140 --> 120W 3125mV
-closest voltages to target power   140 matching   136 within +/-5 watt:  133:3160 136:3170 136:3180 --> 140W 3170mV
-closest voltages to target power   160 matching   160 within +/-5 watt:  160:3220 160:3230 163:3240 --> 160W 3230mV
-closest voltages to target power   180 matching   180 within +/-5 watt:  176:3260 180:3270 180:3280 184:3290 --> 180W 3275mV
-closest voltages to target power   200 matching   198 within +/-5 watt:  198:3310 202:3320 --> 200W 3315mV
-closest voltages to target power   220 matching   219 within +/-5 watt:  219:3360 223:3370 --> 220W 3365mV
-closest voltages to target power   240 matching   242 within +/-5 watt:  242:3410 246:3420 --> 240W 3415mV
-closest voltages to target power   260 matching   256 within +/-5 watt:  256:3440 256:3450 --> 260W 3445mV
-closest voltages to target power   280 matching   279 within +/-5 watt:  279:3490 279:3500 --> 280W 3495mV
-closest voltages to target power   300 matching   299 within +/-5 watt:  295:3520 299:3530 --> 300W 3525mV
-closest voltages to target power   320 matching   319 within +/-5 watt:  319:3560 --> 320W 3560mV
-closest voltages to target power   340 matching   342 within +/-5 watt:  342:3610 --> 340W 3610mV
-closest voltages to target power   360 matching   359 within +/-5 watt:  359:3630 363:3640 --> 360W 3635mV
-closest voltages to target power   380 matching   379 within +/-5 watt:  379:3670 383:3680 --> 380W 3675mV
-closest voltages to target power   400 matching   397 within +/-5 watt:  397:3700 397:3710 --> 400W 3705mV
-closest voltages to target power   420 matching   418 within +/-5 watt:  418:3740 --> 420W 3740mV
-closest voltages to target power   440 matching   441 within +/-5 watt:  441:3790 445:3800 --> 440W 3795mV
-closest voltages to target power   460 matching   457 within +/-5 watt:  457:3830 --> 460W 3830mV
-closest voltages to target power   480 matching   480 within +/-5 watt:  480:3860 --> 480W 3860mV
-closest voltages to target power   500 matching   501 within +/-5 watt:  501:3900 --> 500W 3900mV
-closest voltages to target power   520 matching   519 within +/-5 watt:  519:3940 --> 520W 3940mV
-closest voltages to target power   540 matching   542 within +/-5 watt:  542:3960 --> 540W 3960mV
-closest voltages to target power   560 matching   559 within +/-5 watt:  559:3990 --> 560W 3990mV
-closest voltages to target power   580 matching   581 within +/-5 watt:  577:4020 577:4030 581:4040 --> 580W 4030mV
-closest voltages to target power   600 matching   598 within +/-5 watt:  598:4060 --> 600W 4060mV
-closest voltages to target power   620 matching   620 within +/-5 watt:  620:4100 --> 620W 4100mV
-closest voltages to target power   640 matching   637 within +/-5 watt:  637:4130 637:4140 --> 640W 4135mV
-closest voltages to target power   660 matching   659 within +/-5 watt:  659:4170 --> 660W 4170mV
-closest voltages to target power   680 matching   680 within +/-5 watt:  680:4210 --> 680W 4210mV
-closest voltages to target power   700 matching   701 within +/-5 watt:  697:4240 697:4250 701:4260 --> 700W 4250mV
-closest voltages to target power   720 matching   718 within +/-5 watt:  718:4280 --> 720W 4280mV
-closest voltages to target power   740 matching   741 within +/-5 watt:  741:4320 --> 740W 4320mV
-closest voltages to target power   760 matching   759 within +/-5 watt:  759:4350 763:4360 --> 760W 4355mV
-closest voltages to target power   780 matching   779 within +/-5 watt:  779:4380 --> 780W 4380mV
-closest voltages to target power   800 matching   798 within +/-5 watt:  798:4420 --> 800W 4420mV
-closest voltages to target power   820 matching   819 within +/-5 watt:  819:4470 --> 820W 4470mV
-closest voltages to target power   840 matching   838 within +/-5 watt:  838:4500 838:4510 842:4520 --> 840W 4510mV
-closest voltages to target power   860 matching   863 within +/-5 watt:  863:4550 --> 860W 4550mV
-closest voltages to target power   880 matching   881 within +/-5 watt:  881:4590 --> 880W 4590mV
-closest voltages to target power   900 matching   897 within +/-5 watt:  897:4630 --> 900W 4630mV
-closest voltages to target power   920 matching   917 within +/-5 watt:  913:4650 917:4660 --> 920W 4655mV
-closest voltages to target power   940 matching   942 within +/-5 watt:  942:4710 945:4720 --> 940W 4715mV
-closest voltages to target power   960 matching   960 within +/-5 watt:  960:4740 --> 960W 4740mV
-closest voltages to target power   980 matching   981 within +/-5 watt:  981:4790 --> 980W 4790mV
-closest voltages to target power  1000 matching   998 within +/-5 watt:  998:4810 --> 1000W 4810mV
-closest voltages to target power  1020 matching  1018 within +/-5 watt:  1018:4850 --> 1020W 4850mV
-closest voltages to target power  1040 matching  1036 within +/-5 watt:  1036:4900 --> 1040W 4900mV
-closest voltages to target power  1060 matching  1057 within +/-5 watt:  1054:4930 1054:4940 1057:4950 --> 1060W 4940mV
-closest voltages to target power  1080 matching  1081 within +/-5 watt:  1081:4990 1081:5000 1085:5010 --> 1080W 5000mV
-closest voltages to target power  1100 matching  1101 within +/-5 watt:  1101:5060 --> 1100W 5060mV
-closest voltages to target power  1120 matching  1123 within +/-5 watt:  1123:5100 1123:5110 --> 1120W 5105mV
-closest voltages to target power  1140 matching  1141 within +/-5 watt:  1141:5140 1141:5150 --> 1140W 5145mV
-closest voltages to target power  1160 matching  1163 within +/-5 watt:  1163:5180 1167:5190 --> 1160W 5185mV
-closest voltages to target power  1180 matching  1179 within +/-5 watt:  1179:5220 1183:5230 --> 1180W 5225mV
-closest voltages to target power  1200 matching  1199 within +/-5 watt:  1195:5250 1195:5260 1199:5270 --> 1200W 5260mV
-closest voltages to target power  1220 matching  1218 within +/-5 watt:  1218:5300 --> 1220W 5300mV
-closest voltages to target power  1240 matching  1242 within +/-5 watt:  1242:5380 --> 1240W 5380mV
-closest voltages to target power  1260 matching  1258 within +/-5 watt:  1258:5410 1262:5420 1262:5430 --> 1260W 5420mV
-closest voltages to target power  1280 matching  1280 within +/-5 watt:  1276:5460 1280:5470 1280:5480 1283:5490 --> 1280W 5475mV
-closest voltages to target power  1300 matching  1299 within +/-5 watt:  1299:5510 1302:5520 1302:5530 --> 1300W 5520mV
-closest voltages to target power  1320 matching  1322 within +/-5 watt:  1322:5590 --> 1320W 5590mV
-closest voltages to target power  1340 matching  1339 within +/-5 watt:  1335:5620 1339:5630 1339:5640 --> 1340W 5630mV
-closest voltages to target power  1360 matching  1361 within +/-5 watt:  1357:5680 1357:5690 1361:5700 1364:5710 --> 1360W 5695mV
-closest voltages to target power  1380 matching  1377 within +/-5 watt:  1375:5730 1377:5740 1377:5750 --> 1380W 5740mV
-closest voltages to target power  1400 matching  1397 within +/-5 watt:  1393:5790 1393:5800 1397:5810 --> 1400W 5800mV
-closest voltages to target power  1420 matching  1418 within +/-5 watt:  1414:5840 1418:5850 1418:5860 --> 1420W 5850mV
-closest voltages to target power  1440 matching  1438 within +/-5 watt:  1434:5890 1434:5900 1438:5910 --> 1440W 5900mV
-closest voltages to target power  1460 matching  1460 within +/-5 watt:  1456:5970 1457:5980 1458:5990 1460:6000 1460:6010 1464:6020 --> 1460W 5995mV
-closest voltages to target power  1480 matching  1483 within +/-5 watt:  1483:6080 1485:6090 --> 1480W 6085mV
-closest voltages to target power  1500 matching  1504 within +/-5 watt:  1504:6140 1504:6150 1508:6160 --> 1500W 6150mV
-closest voltages to target power  1520 matching  1522 within +/-5 watt:  1522:6190 --> 1520W 6190mV
-closest voltages to target power  1540 matching  1537 within +/-5 watt:  1537:6240 --> 1540W 6240mV
-closest voltages to target power  1560 matching  1560 within +/-5 watt:  1556:6280 1560:6290 1563:6300 --> 1560W 6290mV
-closest voltages to target power  1580 matching  1583 within +/-5 watt:  1583:6350 1584:6360 1583:6370 1584:6380 1584:6390 --> 1580W 6370mV
-closest voltages to target power  1600 matching  1601 within +/-5 watt:  1601:6430 1601:6440 1604:6450 --> 1600W 6440mV
-closest voltages to target power  1620 matching  1621 within +/-5 watt:  1621:6490 1621:6500 --> 1620W 6495mV
-closest voltages to target power  1640 matching  1640 within +/-5 watt:  1640:6560 1644:6570 --> 1640W 6565mV
-closest voltages to target power  1660 matching  1659 within +/-5 watt:  1657:6620 1659:6630 --> 1660W 6625mV
-closest voltages to target power  1680 matching  1678 within +/-5 watt:  1678:6680 1675:6700 1675:6710 --> 1680W 6697mV
-closest voltages to target power  1700 matching  1701 within +/-5 watt:  1698:6750 1698:6760 1698:6770 1701:6780 1704:6790 1705:6800 1705:6810 1705:6820 --> 1700W 6785mV
-closest voltages to target power  1720 matching  1720 within +/-5 watt:  1716:6860 1716:6870 1717:6880 1720:6890 1723:6900 1723:6910 1721:6920 1721:6930 1723:6940 1724:6950 1720:7050 1723:7060 1724:7070 1724:7080 --> 1720W 6951mV
-closest voltages to target power  1740 matching  1741 within +/-5 watt:  1738:7150 1741:7170 1742:7180 1742:7190 1745:7200 --> 1740W 7178mV
-closest voltages to target power  1760 matching  1760 within +/-5 watt:  1757:7270 1757:7280 1758:7290 1758:7300 1760:7310 1763:7320 --> 1760W 7295mV
-closest voltages to target power  1780 matching  1777 within +/-5 watt:  1773:7390 1776:7400 1776:7410 1775:7420 1774:7430 1774:7440 1777:7450 1777:7460 --> 1780W 7425mV
-closest voltages to target power  1800 matching  1800 within +/-5 watt:  1800:7580 1802:7590 1803:7600 1804:7610 1804:7620 --> 1800W 7600mV
-closest voltages to target power  1820 matching  1820 within +/-5 watt:  1816:7660 1816:7670 1820:7690 1823:7700 --> 1820W 7680mV
-closest voltages to target power  1840 matching  1840 within +/-5 watt:  1836:7790 1837:7810 1837:7820 1837:7830 1840:7840 1840:7850 1840:7860 1841:7870 1841:7880 1841:7890 1844:7900 --> 1840W 7849mV
-closest voltages to target power  1860 matching  1858 within +/-5 watt:  1856:7980 1856:7990 1856:8000 1856:8010 1856:8020 1858:8030 1858:8040 1858:8050 1858:8060 1858:8070 1858:8080 1858:8090 1858:8100 1858:8110 1862:8120 1862:8130 1862:8140 1862:8150 1862:8160 1862:8170 1862:8180 1862:8190 --> 1860W 8085mV
-closest voltages to target power  1880 matching  1877 within +/-5 watt:  1877:8290 1877:8300 1877:8310 1877:8320 1877:8330 1877:8340 1877:8350 1877:8360 --> 1880W 8325mV
-closest voltages to target power  1900 matching  1900 within +/-5 watt:  1900:8510 1900:8520 1900:8530 1900:8540 1900:8550 1900:8560 1900:8570 1900:8580 1900:8590 1903:8600 1903:8610 1903:8620 1903:8630 1903:8640 1903:8650 1903:8660 1903:8670 --> 1900W 8590mV
-closest voltages to target power  1920 matching  1918 within +/-5 watt:  1915:8760 1915:8770 1915:8780 1915:8790 1915:8800 1915:8810 1915:8820 1915:8830 1915:8840 1915:8850 1915:8860 1915:8870 1915:8880 1915:8890 1915:8900 1915:8910 1918:8920 1918:8930 1918:8940 1918:8950 1918:8960 1918:8970 1918:8980 1918:8990 --> 1920W 8875mV
-closest voltages to target power  1940 matching  1944 within +/-5 watt:  1944:9000 1944:9010 1944:9020 1944:9030 1944:9040 1944:9050 1944:9060 1944:9070 1946:9080 1946:9090 1946:9100 1946:9110 1946:9120 1946:9130 1946:9140 1946:9150 1947:9160 1947:9170 1947:9180 1947:9190 1947:9200 1947:9210 1947:9220 1947:9230 --> 1940W 9115mV
-closest voltages to target power  1960 matching  1959 within +/-5 watt:  1959:9400 1959:9410 1959:9420 1959:9430 1959:9440 1959:9450 1959:9460 1959:9470 --> 1960W 9435mV
-closest voltages to target power  1980 matching  1977 within +/-5 watt:  1975:9880 1975:9890 1975:9900 1975:9910 1975:9920 1975:9930 1975:9940 1975:9950 1977:9960 1977:9970 1977:9980 1977:9990 --> 1980W 9935mV
-!!! WARNING !!! measuring tainted with parasitic power at voltage 880:1 > 870:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 1360:1 > 1350:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2010:1 > 2000:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2070:1 > 2060:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2140:1 > 2130:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2170:1 > 2160:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2230:1 > 2220:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2290:1 > 2280:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2330:1 > 2320:0
-!!! WARNING !!! measuring tainted with parasitic power at voltage 2510:6 > 2500:5
-!!! WARNING !!! measuring tainted with parasitic power at voltage 5340:1229 > 5330:1228
-!!! WARNING !!! measuring tainted with parasitic power at voltage 5920:1438 > 5910:1433
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6370:1584 > 6360:1583
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6540:1634 > 6530:1633
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6700:1684 > 6690:1675
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6850:1712 > 6840:1710
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6920:1723 > 6910:1721
-!!! WARNING !!! measuring tainted with parasitic power at voltage 6990:1726 > 6980:1712
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7000:1712 > 6990:1707
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7010:1707 > 7000:1706
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7160:1738 > 7150:1736
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7420:1776 > 7410:1775
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7430:1775 > 7420:1774
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7550:1794 > 7540:1788
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7680:1816 > 7670:1815
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7710:1823 > 7700:1815
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7770:1835 > 7760:1833
-!!! WARNING !!! measuring tainted with parasitic power at voltage 7800:1836 > 7790:1835
-phase angle voltage table 0..100% in 20 watt steps:
-
-0, 2690, 2830, 2905, 2990, 3065, 3125, 3170, 3230, 3275, 3315, \
-   3365, 3415, 3445, 3495, 3525, 3560, 3610, 3635, 3675, 3705, \
-   3740, 3795, 3830, 3860, 3900, 3940, 3960, 3990, 4030, 4060, \
-   4100, 4135, 4170, 4210, 4250, 4280, 4320, 4355, 4380, 4420, \
-   4470, 4510, 4550, 4590, 4630, 4655, 4715, 4740, 4790, 4810, \
-   4850, 4900, 4940, 5000, 5060, 5105, 5145, 5185, 5225, 5260, \
-   5300, 5380, 5420, 5475, 5520, 5590, 5630, 5695, 5740, 5800, \
-   5850, 5900, 5995, 6085, 6150, 6190, 6240, 6290, 6370, 6440, \
-   6495, 6565, 6625, 6697, 6785, 6951, 7178, 7295, 7425, 7600, \
-   7680, 7849, 8085, 8325, 8590, 8875, 9115, 9435, 9935, 10000, \
-   waiting 60s for cool down
-  0%     0mV expected    0W actual    0W error 0.00
-  1%  2690mV expected   20W actual    0W error 0.00
-  2%  2830mV expected   40W actual    1W error -3900.00
-  3%  2905mV expected   60W actual    1W error -5900.00
-  4%  2990mV expected   80W actual   28W error -185.71
-  5%  3065mV expected  100W actual   44W error -127.27
-  6%  3125mV expected  120W actual   62W error -93.55
-  7%  3170mV expected  140W actual   80W error -75.00
-  8%  3230mV expected  160W actual   80W error -100.00
-  9%  3275mV expected  180W actual  117W error -53.85
- 10%  3315mV expected  200W actual  138W error -44.93
- 11%  3365mV expected  220W actual  156W error -41.03
- 12%  3415mV expected  240W actual  196W error -22.45
- 13%  3445mV expected  260W actual  196W error -32.65
- 14%  3495mV expected  280W actual  235W error -19.15
- 15%  3525mV expected  300W actual  253W error -18.58
- 16%  3560mV expected  320W actual  276W error -15.94
- 17%  3610mV expected  340W actual  291W error -16.84
- 18%  3635mV expected  360W actual  291W error -23.71
- 19%  3675mV expected  380W actual  333W error -14.11
- 20%  3705mV expected  400W actual  349W error -14.61
- 21%  3740mV expected  420W actual  369W error -13.82
- 22%  3795mV expected  440W actual  384W error -14.58
- 23%  3830mV expected  460W actual  405W error -13.58
- 24%  3860mV expected  480W actual  405W error -18.52
- 25%  3900mV expected  500W actual  453W error -10.38
- 26%  3940mV expected  520W actual  471W error -10.40
- 27%  3960mV expected  540W actual  493W error -9.53
- 28%  3990mV expected  560W actual  515W error -8.74
- 29%  4030mV expected  580W actual  515W error -12.62
- 30%  4060mV expected  600W actual  541W error -10.91
- 31%  4100mV expected  620W actual  567W error -9.35
- 32%  4135mV expected  640W actual  583W error -9.78
- 33%  4170mV expected  660W actual  607W error -8.73
- 34%  4210mV expected  680W actual  628W error -8.28
- 35%  4250mV expected  700W actual  628W error -11.46
- 36%  4280mV expected  720W actual  670W error -7.46
- 37%  4320mV expected  740W actual  692W error -6.94
- 38%  4355mV expected  760W actual  710W error -7.04
- 39%  4380mV expected  780W actual  733W error -6.41
- 40%  4420mV expected  800W actual  733W error -9.14
- 41%  4470mV expected  820W actual  767W error -6.91
- 42%  4510mV expected  840W actual  785W error -7.01
- 43%  4550mV expected  860W actual  811W error -6.04
- 44%  4590mV expected  880W actual  832W error -5.77
- 45%  4630mV expected  900W actual  855W error -5.26
- 46%  4655mV expected  920W actual  855W error -7.60
- 47%  4715mV expected  940W actual  896W error -4.91
- 48%  4740mV expected  960W actual  911W error -5.38
- 49%  4790mV expected  980W actual  933W error -5.04
- 50%  4810mV expected 1000W actual  955W error -4.71
- 51%  4850mV expected 1020W actual  988W error -3.24
- 52%  4900mV expected 1040W actual 1000W error -4.00
- 53%  4940mV expected 1060W actual 1022W error -3.72
- 54%  5000mV expected 1080W actual 1044W error -3.45
- 55%  5060mV expected 1100W actual 1067W error -3.09
- 56%  5105mV expected 1120W actual 1067W error -4.97
- 57%  5145mV expected 1140W actual 1112W error -2.52
- 58%  5185mV expected 1160W actual 1131W error -2.56
- 59%  5225mV expected 1180W actual 1149W error -2.70
- 60%  5260mV expected 1200W actual 1165W error -3.00
- 61%  5300mV expected 1220W actual 1165W error -4.72
- 62%  5380mV expected 1240W actual 1194W error -3.85
- 63%  5420mV expected 1260W actual 1217W error -3.53
- 64%  5475mV expected 1280W actual 1245W error -2.81
- 65%  5520mV expected 1300W actual 1263W error -2.93
- 66%  5590mV expected 1320W actual 1285W error -2.72
- 67%  5630mV expected 1340W actual 1285W error -4.28
- 68%  5695mV expected 1360W actual 1328W error -2.41
- 69%  5740mV expected 1380W actual 1344W error -2.68
- 70%  5800mV expected 1400W actual 1368W error -2.34
- 71%  5850mV expected 1420W actual 1386W error -2.45
- 72%  5900mV expected 1440W actual 1386W error -3.90
- 73%  5995mV expected 1460W actual 1423W error -2.60
- 74%  6085mV expected 1480W actual 1440W error -2.78
- 75%  6150mV expected 1500W actual 1468W error -2.18
- 76%  6190mV expected 1520W actual 1495W error -1.67
- 77%  6240mV expected 1540W actual 1517W error -1.52
- 78%  6290mV expected 1560W actual 1517W error -2.83
- 79%  6370mV expected 1580W actual 1544W error -2.33
- 80%  6440mV expected 1600W actual 1557W error -2.76
- 81%  6495mV expected 1620W actual 1578W error -2.66
- 82%  6565mV expected 1640W actual 1597W error -2.69
- 83%  6625mV expected 1660W actual 1597W error -3.94
- 84%  6697mV expected 1680W actual 1631W error -3.00
- 85%  6785mV expected 1700W actual 1645W error -3.34
- 86%  6951mV expected 1720W actual 1660W error -3.61
- 87%  7178mV expected 1740W actual 1680W error -3.57
- 88%  7295mV expected 1760W actual 1708W error -3.04
- 89%  7425mV expected 1780W actual 1775W error -0.28
- 90%  7600mV expected 1800W actual 1794W error -0.33
- 91%  7680mV expected 1820W actual 1817W error -0.17
- 92%  7849mV expected 1840W actual 1834W error -0.33
- 93%  8085mV expected 1860W actual 1834W error -1.42
- 94%  8325mV expected 1880W actual 1868W error -0.64
- 95%  8590mV expected 1900W actual 1894W error -0.32
- 96%  8875mV expected 1920W actual 1916W error -0.21
- 97%  9115mV expected 1940W actual 1933W error -0.36
- 98%  9435mV expected 1960W actual 1941W error -0.98
- 99%  9935mV expected 1980W actual 1941W error -2.01
-100% 10000mV expected 2000W actual 1960W error -2.04
-SUNSPEC stopped Meter
+hje@tron25:~/workspace-cpp/dac$ ./solar -c boiler2
+MCP registered module {5} "sensors"
+MCP registered module {10} "solar_modbus"
+MCP registered module {11} "solar_collector"
+MCP registered module {12} "solar_dispatcher"
+NETWORK boiler2 IPv4 address: 192.168.25.222 (boiler2.jecons.net)
+NETWORK fronius10 IPv4 address: 192.168.25.240 (fronius10.jecons.net)
+SUNSPEC meter found 'SunS' at address 40000
+SUNSPEC meter found Common(001) model size 65 at address 40002
+SUNSPEC meter found Meter(203) model size 105 at address 40069
+SUNSPEC meter WARNING! Meter(203) size mismatch detected: model size 105 storage size 220
+SUNSPEC meter device is Fronius Smart Meter TS 65A-3 (<primary>) version 1.4 serial 1788609964
+starting calibration on boiler2 (192.168.25.222)
+calculating offset start
+    0  138 W    20 W    36 W |  195 W
+    1  276 W    40 W    72 W |  390 W
+    2  414 W    60 W   108 W |  586 W
+    3  552 W    80 W   144 W |  782 W
+    4  690 W   100 W   180 W |  978 W
+    5  829 W   120 W   216 W | 1174 W
+    6  968 W   141 W   252 W | 1370 W
+    7 1107 W   162 W   288 W | 1567 W
+    8 1245 W   183 W   324 W | 1763 W
+    9 1383 W   204 W   360 W | 1959 W
+average offset_start -->   138 W    20 W    36 W |  196 W
+starting measurement
+ 2000    0 W     0 W     0 W |    0 W
+ 2010    0 W     0 W     0 W |    0 W
+ 2020    0 W     1 W     0 W |    0 W
+ 2030    0 W     0 W     0 W |   -1 W
+ 2040    1 W     1 W     0 W |    0 W
+ 2050    0 W     1 W     0 W |   -1 W
+ 2060    0 W     1 W     0 W |    0 W
+ 2070    0 W     1 W     0 W |    0 W
+ 2080    0 W     0 W     0 W |   -1 W
+ 2090    1 W     1 W     0 W |    0 W
+ 2100    5 W     1 W     0 W |    4 W
+ 2110    0 W     1 W     0 W |    0 W
+ 2120   -1 W     0 W     0 W |   -2 W
+ 2130    0 W     0 W     0 W |   -1 W
+ 2140    0 W     0 W     0 W |   -1 W
+ 2150    1 W     0 W     0 W |    0 W
+ 2160    1 W     0 W     0 W |    0 W
+ 2170    0 W     0 W     0 W |   -1 W
+ 2180    0 W     0 W     0 W |    0 W
+ 2190    0 W     0 W     0 W |    0 W
+ 2200    1 W     0 W     0 W |    0 W
+ 2210    0 W     1 W     0 W |    0 W
+ 2220    1 W     1 W     0 W |    0 W
+ 2230    0 W     0 W     0 W |   -1 W
+ 2240    0 W     1 W     0 W |    0 W
+ 2250    0 W     1 W     0 W |    0 W
+ 2260    0 W     1 W     0 W |    0 W
+ 2270    0 W     0 W     0 W |   -1 W
+ 2280    1 W     1 W     0 W |    0 W
+ 2290   -1 W     0 W     0 W |   -2 W
+ 2300    2 W     1 W     0 W |    2 W
+ 2310    0 W     0 W     0 W |    2 W
+ 2320    0 W     0 W     0 W |   -1 W
+ 2330    0 W     0 W     0 W |    0 W
+ 2340    0 W     0 W     0 W |   -1 W
+ 2350    1 W     0 W     0 W |    0 W
+ 2360    0 W     1 W     0 W |   -1 W
+ 2370    0 W     0 W     0 W |    0 W
+ 2380    1 W     1 W     0 W |    1 W
+ 2390    1 W     0 W     0 W |    0 W
+ 2400    1 W     1 W     0 W |    0 W
+ 2410    1 W     1 W     0 W |    1 W
+ 2420    1 W     1 W     0 W |    1 W
+ 2430    2 W     1 W     0 W |    2 W
+ 2440    2 W     0 W     0 W |    1 W
+ 2450    1 W     1 W     0 W |    0 W
+ 2460    2 W     1 W     0 W |    2 W
+ 2470    2 W     1 W    -1 W |    1 W
+ 2480    3 W     1 W     0 W |    2 W
+ 2490    3 W     1 W     0 W |    2 W
+ 2500    6 W     0 W     0 W |    5 W
+ 2510    5 W     1 W     0 W |    4 W
+ 2520    4 W     1 W     0 W |    3 W
+ 2530    5 W     0 W     0 W |    4 W
+ 2540    6 W     0 W     0 W |    5 W
+ 2550    6 W     1 W     0 W |    5 W
+ 2560    7 W     0 W    -1 W |    6 W
+ 2570    7 W     0 W     0 W |    6 W
+ 2580    8 W     0 W     0 W |    7 W
+ 2590    9 W     0 W    -1 W |    7 W
+ 2600    9 W     0 W     0 W |    8 W
+ 2610    9 W     0 W     0 W |    8 W
+ 2620   11 W     1 W     0 W |   10 W
+ 2630   12 W     1 W     0 W |   11 W
+ 2640   13 W     1 W     0 W |   12 W
+ 2650   14 W     0 W     0 W |   13 W
+ 2660   14 W     1 W     0 W |   13 W
+ 2670   16 W     1 W     0 W |   15 W
+ 2680   17 W     1 W     0 W |   16 W
+ 2690   18 W     0 W     0 W |   17 W
+ 2700   24 W     1 W     0 W |   23 W
+ 2710   20 W     0 W     0 W |   19 W
+ 2720   22 W     1 W     0 W |   21 W
+ 2730   23 W     1 W     0 W |   22 W
+ 2740   25 W     0 W     0 W |   24 W
+ 2750   27 W     1 W     0 W |   26 W
+ 2760   27 W     1 W     0 W |   27 W
+ 2770   29 W     1 W    -1 W |   28 W
+ 2780   30 W     0 W     0 W |   29 W
+ 2790   31 W     0 W     0 W |   31 W
+ 2800   34 W     0 W     0 W |   33 W
+ 2810   35 W     0 W     0 W |   34 W
+ 2820   36 W     0 W    -1 W |   34 W
+ 2830   37 W     0 W     0 W |   37 W
+ 2840   38 W     0 W     0 W |   37 W
+ 2850   42 W     0 W    -1 W |   41 W
+ 2860   43 W     0 W    -1 W |   42 W
+ 2870   47 W     1 W     0 W |   46 W
+ 2880   48 W     1 W     0 W |   48 W
+ 2890   51 W     0 W     0 W |   49 W
+ 2900   56 W     0 W     0 W |   55 W
+ 2910   54 W     0 W     0 W |   53 W
+ 2920   58 W     0 W     0 W |   57 W
+ 2930   59 W     0 W     0 W |   58 W
+ 2940   62 W     0 W     0 W |   61 W
+ 2950   63 W     0 W     0 W |   62 W
+ 2960   67 W     0 W    -1 W |   66 W
+ 2970   68 W     0 W     0 W |   67 W
+ 2980   73 W     0 W     0 W |   72 W
+ 2990   74 W     0 W     0 W |   73 W
+ 3000   79 W     0 W     0 W |   75 W
+ 3050   91 W     0 W    -1 W |   90 W
+ 3100   94 W     0 W    -1 W |   93 W
+ 3150  125 W     0 W     0 W |  124 W
+ 3200  125 W     0 W     0 W |  124 W
+ 3250  161 W     0 W     0 W |  160 W
+ 3300  163 W     0 W     0 W |  162 W
+ 3350  203 W     0 W     0 W |  202 W
+ 3400  206 W     0 W     0 W |  205 W
+ 3450  252 W     0 W     0 W |  251 W
+ 3500  277 W     0 W     0 W |  276 W
+ 3550  298 W     0 W     0 W |  296 W
+ 3600  328 W     0 W     0 W |  327 W
+ 3650  352 W     0 W     0 W |  351 W
+ 3700  383 W     0 W     0 W |  382 W
+ 3750  403 W     0 W     0 W |  402 W
+ 3800  439 W     0 W     0 W |  437 W
+ 3850  462 W     0 W     0 W |  461 W
+ 3900  497 W     0 W    -1 W |  487 W
+ 3950  525 W     0 W     0 W |  524 W
+ 4000  552 W     0 W     0 W |  551 W
+ 4050  586 W     0 W     0 W |  585 W
+ 4100  608 W     0 W     0 W |  606 W
+ 4150  647 W     0 W     0 W |  645 W
+ 4200  661 W     0 W     0 W |  660 W
+ 4250  704 W     0 W     0 W |  702 W
+ 4300  722 W     0 W     0 W |  720 W
+ 4350  761 W     0 W     0 W |  746 W
+ 4400  777 W     0 W     0 W |  776 W
+ 4450  816 W     0 W     0 W |  798 W
+ 4500  843 W     0 W     0 W |  842 W
+ 4550  869 W     0 W     0 W |  851 W
+ 4600  895 W     0 W     0 W |  893 W
+ 4650  901 W     0 W     0 W |  899 W
+ 4700  945 W     0 W     0 W |  944 W
+ 4750  952 W     0 W     0 W |  951 W
+ 4800  995 W     0 W     0 W |  994 W
+ 4850 1004 W     0 W     0 W | 1003 W
+ 4900 1041 W     0 W     0 W | 1019 W
+ 4950 1048 W     0 W     0 W | 1046 W
+ 5000 1087 W     0 W     0 W | 1068 W
+ 5100 1128 W     0 W     0 W | 1127 W
+ 5200 1141 W     0 W     0 W | 1139 W
+ 5300 1215 W     0 W     0 W | 1214 W
+ 5400 1216 W     0 W     0 W | 1214 W
+ 5500 1295 W     0 W     0 W | 1294 W
+ 5600 1301 W     0 W     0 W | 1300 W
+ 5700 1369 W     0 W     0 W | 1368 W
+ 5800 1369 W     0 W     0 W | 1367 W
+ 5900 1442 W     0 W     0 W | 1410 W
+ 6000 1445 W     0 W     0 W | 1444 W
+ 6100 1503 W     0 W     0 W | 1471 W
+ 6200 1536 W    -1 W     0 W | 1534 W
+ 6300 1539 W     0 W     0 W | 1538 W
+ 6400 1590 W     0 W     0 W | 1589 W
+ 6500 1594 W     0 W     0 W | 1593 W
+ 6600 1646 W    -1 W     0 W | 1644 W
+ 6700 1646 W     0 W     0 W | 1645 W
+ 6800 1696 W    -1 W     0 W | 1695 W
+ 6900 1701 W    -1 W     0 W | 1700 W
+ 7000 1745 W     0 W     0 W | 1723 W
+ 7100 1748 W    -1 W     0 W | 1746 W
+ 7200 1766 W    -1 W     0 W | 1765 W
+ 7300 1795 W     0 W     0 W | 1794 W
+ 7400 1798 W     0 W     0 W | 1796 W
+ 7500 1829 W    -1 W     0 W | 1827 W
+ 7600 1827 W    -1 W     0 W | 1825 W
+ 7700 1854 W     0 W     0 W | 1852 W
+ 7800 1855 W    -1 W     0 W | 1853 W
+ 7900 1878 W     0 W     0 W | 1876 W
+calculating offset end
+    0  138 W    21 W    35 W |  195 W
+    1  276 W    42 W    70 W |  390 W
+    2  415 W    62 W   105 W |  585 W
+    3  553 W    83 W   141 W |  780 W
+    4  691 W   104 W   177 W |  975 W
+    5  829 W   125 W   213 W | 1170 W
+    6  967 W   146 W   249 W | 1365 W
+    7 1105 W   166 W   285 W | 1560 W
+    8 1243 W   187 W   321 W | 1756 W
+    9 1381 W   207 W   357 W | 1952 W
+average offset_start -->   138 W    20 W    36 W |  196 W
+average offset_end   -->   138 W    21 W    36 W |  195 W
+UTILS stored /tmp/boiler2.csv
+UTILS stored 120000 bytes to /tmp/boiler2.bin
+SUNSPEC stopped meter
