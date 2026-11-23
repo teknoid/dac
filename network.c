@@ -25,23 +25,24 @@ static description_t ieee[0xffff];
 static int ieee_index[0xff];
 
 static void* popen_thread(void *arg) {
-	server_t *server = (server_t*) arg;
+	server_t *local = (server_t*) arg;
 
-	FILE *stream = popen(server->command, "r");
+	xlog("NETWORK %s opening pipe to '%s'", local->description, local->command);
+
+	FILE *stream = popen(local->command, "r");
 	if (stream == NULL)
 		return xerrv("NETWORK popen failed");
 
 	connection_t *conn = calloc(1, sizeof(connection_t));
 	conn->stream = stream;
 
-	xlog("WIFI %s pipe opened to '%s'", server->description, server->command);
 	while (!feof(conn->stream))
 		if (fgets(conn->line, NETWORK_LINEBUF, conn->stream) != NULL) {
 			conn->line_count++;
 
 			// make a copy for line dumping after strtok()
 			memcpy(conn->copy, conn->line, NETWORK_LINEBUF);
-			(server->handler)(conn);
+			(local->handler)(conn);
 		}
 
 	fclose(conn->stream);

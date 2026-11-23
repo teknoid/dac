@@ -52,6 +52,5 @@
 #define LICHT_TISCH			0x4263E59C
 #define LICHT_TISCH_HOST	"licht-tisch"
 
-
 // PICAM sensors tasmota emulation
-#define PICAM_SENSORS	0x5213D6
+#define PICAM_SENSORS		0x5213D6

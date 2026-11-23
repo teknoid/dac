@@ -34,7 +34,6 @@
 #define SSID_HOME				"HOME"
 
 // TODO cmdline parameter
-#define POPEN					"/usr/bin/tcpdump -nevi mon0"
 #define PORT					6666
 #define DIRTY					10
 #define PPH_MIN					10
@@ -89,6 +88,7 @@ static time_t now_ts;
 
 static unsigned long line_count = 0, old_line_count = 0;
 static int line_dump = 0, popen_x = 0;
+static char popen_device[32];
 
 static char* mac2xname(char *name, uint64_t mac, size_t size) {
 	for (int i = 0; i < CLIENTS4; i++)
@@ -1012,8 +1012,9 @@ static void sort() {
 //	PROFILING_LOG("sort")
 }
 
-int main_popen(int argc, char **argv) {
+int main_popen(char *device, int argc, char **argv) {
 	popen_x = 1;
+	strcpy(popen_device, device);
 	return mcp_main(argc, argv);
 }
 
@@ -1033,49 +1034,49 @@ static int main_test() {
 	xlog("decoded string %s", str1);
 	string_isvalid(str1);
 	xlog("isvalid string %s", str1);
-	mqtt_notify("Test", str1, NULL);
+	NOTIFY("Test", str1, NULL);
 
 	xlog("encoded string %s", str2);
 	decode_meta_utf8(str2);
 	xlog("decoded string %s", str2);
 	string_isvalid(str2);
 	xlog("isvalid string %s", str2);
-	mqtt_notify("Test", str2, NULL);
+	NOTIFY("Test", str2, NULL);
 
 	xlog("encoded string %s", str3);
 	decode_meta_utf8(str3);
 	xlog("decoded string %s", str3);
 	string_isvalid(str3);
 	xlog("isvalid string %s", str3);
-	mqtt_notify("Test", str3, NULL);
+	NOTIFY("Test", str3, NULL);
 
 	xlog("encoded string %s", str4);
 	decode_meta_utf8(str4);
 	xlog("decoded string %s", str4);
 	string_isvalid(str4);
 	xlog("isvalid string %s", str4);
-	mqtt_notify("Test", str4, NULL);
+	NOTIFY("Test", str4, NULL);
 
 	xlog("encoded string %s", str5);
 	decode_meta_utf8(str5);
 	xlog("decoded string %s", str5);
 	string_isvalid(str5);
 	xlog("isvalid string %s", str5);
-	mqtt_notify("Test", str5, NULL);
+	NOTIFY("Test", str5, NULL);
 
 	xlog("encoded string %s", str6);
 	decode_meta_utf8(str6);
 	xlog("decoded string %s", str6);
 	string_isvalid(str6);
 	xlog("isvalid string %s", str6);
-	mqtt_notify("Test", str6, NULL);
+	NOTIFY("Test", str6, NULL);
 
 	xlog("encoded string %s", str7);
 	decode_meta_utf8(str7);
 	xlog("decoded string %s", str7);
 	string_isvalid(str7);
 	xlog("isvalid string %s", str7);
-	mqtt_notify("Test", str7, NULL);
+	NOTIFY("Test", str7, NULL);
 
 	uint64_t mac;
 	mac = string2mac("d4:ca:6e:43:a0:25");
@@ -1164,11 +1165,16 @@ static int init() {
 
 #ifdef ODROID
 	popen_x = 1;
+	strcpy(popen_device, "wlx984827ec6e9f");
 #endif
 
+
 	// start local tcpdump thread
-	if (popen_x)
-		init_popen(&local, "tcpdump", POPEN, &parse);
+	if (popen_x) {
+		char command[64];
+		snprintf(command, 64, "/usr/bin/tcpdump -nevi %s", popen_device);
+		init_popen(&local, "tcpdump", command, &parse);
+	}
 
 	// start data and command servers
 	init_server(&data, "tcpdump", PORT, &parse);
@@ -1213,12 +1219,12 @@ int wifi_main(int argc, char **argv) {
 		return main_test();
 
 	int c;
-	while ((c = getopt(argc, argv, "lpt")) != -1) {
+	while ((c = getopt(argc, argv, "lp:t")) != -1) {
 		switch (c) {
 		case 'l':
 			return mcp_main(argc, argv);
 		case 'p':
-			return main_popen(argc, argv);
+			return main_popen(optarg, argc, argv);
 		case 't':
 			return main_test();
 		default:

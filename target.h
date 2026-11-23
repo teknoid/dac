@@ -42,10 +42,12 @@
 #ifdef PICAM
 // /boot/firmware/config.txt: dtparam=i2c_vc=on
 #define I2C						"/dev/i2c-0"
+#define MQTT_HOST				"mqtt"
 #define TEMP_IN					sensors->bmp085_temp
 #define TEMP_OUT				sensors->bmp085_temp
 #define LUMI					sensors->bh1750_lux
-#define MQTT_HOST				"mqtt"
+#define SUNDOWN					25
+#define SUNRISE					50
 #endif
 
 #ifdef PIWOLF

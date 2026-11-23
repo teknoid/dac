@@ -508,7 +508,6 @@ static int evaluate(char *name, int argc, char **argv) {
 	return 0;
 }
 
-// TODO
 static int validate(char *name, int argc, char **argv) {
 	pstate_t measure[101];
 	char message[16];
@@ -539,10 +538,24 @@ static int validate(char *name, int argc, char **argv) {
 	sock_addr_in.sin_addr.s_addr = inet_addr(addr);
 	struct sockaddr *sa = (struct sockaddr*) &sock_addr_in;
 
+	snprintf(message, 16, "p:%d:%d", 0, 0);
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
+	sleep(5);
+	printf("starting validation on %s (%s)\n", name, addr);
+
 	for (int i = 0; i <= 100; i++) {
 		snprintf(message, 16, "p:%d:%d", i, 0);
 		sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
-		msleep(3000);
+		if (i < 10)
+			msleep(5000);
+		else if (i < 20)
+			msleep(4000);
+		else if (i < 30)
+			msleep(3000);
+		else if (i < 40)
+			msleep(2000);
+		else
+			msleep(1000);
 		sunspec_meter_read(ss);
 		SAMPLE(measure[i])
 		if (i > 0) {
@@ -575,8 +588,11 @@ static int validate(char *name, int argc, char **argv) {
 		int py = phase == 1 ? measure[i].l1p : phase == 2 ? measure[i].l2p : measure[i].l3p;
 		int pd = py - px;
 		int pe = py * 100 / px;
-		printf("i=%3d expected=%4d power=%4d diff=%2d error=%.2f\n", i, px, py, pd, FLOAT100(pe));
+		printf("i=%3d expected=%4d power=%4d diff=%3d error=%.2f\n", i, px, py, pd, FLOAT100(pe));
 	}
+
+	snprintf(message, 16, "p:%d:%d", 0, 0);
+	sendto(sock, message, strlen(message), 0, sa, sizeof(*sa));
 
 	return 0;
 }
@@ -756,7 +772,7 @@ static int test() {
 
 int solar_main(int argc, char **argv) {
 	int c;
-	while ((c = getopt(argc, argv, "ac:e:gi:lmo:s:tv:y")) != -1) {
+	while ((c = getopt(argc, argv, "ac:e:gi:lmo:stv:y")) != -1) {
 		// printf("getopt %c\n", c);
 		switch (c) {
 		case 'a':

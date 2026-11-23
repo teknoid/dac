@@ -766,14 +766,14 @@ static void calculate_pstate_online() {
 	if (delta->l1p < -SPIKE || delta->l1p > SPIKE || delta->l2p < -SPIKE || delta->l2p > SPIKE || delta->l3p < -SPIKE || delta->l3p > SPIKE) {
 		xlog("SOLAR grid spike detected dgrid=%d dp1=%d dp2=%d dp3=%d", delta->grid, delta->l1p, delta->l2p, delta->l3p);
 		pstate->flags |= FLAG_INVALID;
-		pstate->grid = (pstate->grid + PSTATE_SEC_LAST1->grid) / 2; // damping to not distort average
+		// pstate->grid = (pstate->grid + PSTATE_SEC_LAST1->grid) / 2; // damping to not distort average
 	}
 
 	// suppress pv spikes when mppt tracker is active
 	if (delta->mppt1p < -SPIKE || delta->mppt1p > SPIKE || delta->mppt2p < -SPIKE || delta->mppt2p > SPIKE || delta->mppt3p < -SPIKE || delta->mppt3p > SPIKE) {
 		xlog("SOLAR pv spike detected dpv=%d dmppt1=%d dmppt2=%d dmppt3=%d", delta->pv, delta->mppt1p, delta->mppt2p, delta->mppt3p);
 		pstate->flags |= FLAG_INVALID;
-		pstate->pv = (pstate->pv + PSTATE_SEC_LAST1->pv) / 2; // damping to not distort average
+		// pstate->pv = (pstate->pv + PSTATE_SEC_LAST1->pv) / 2; // damping to not distort average
 	}
 
 	// inductive loads might be negative
@@ -877,30 +877,12 @@ static void calculate_pstate() {
 	ZSHAPE(pstate->mppt4p, NOISE5)
 	pstate->pv = pstate->mppt1p + pstate->mppt2p + pstate->mppt3p + pstate->mppt4p;
 
-	// load is grid plus pure inverters positive ac output - use smallest ac values 1/2/3 seconds ago due to meter latency
-	int l0 = pstate->grid;
+	// load is grid plus pure inverters positive ac output
+	pstate->load = pstate->grid;
 	if (pstate->ac1 > 0)
-		l0 += pstate->ac1;
+		pstate->load += pstate->ac1;
 	if (pstate->ac2 > 0)
-		l0 += pstate->ac2;
-
-	int l1 = pstate->grid;
-	if (PSTATE_SEC_LAST1->ac1 > 0)
-		l1 += PSTATE_SEC_LAST1->ac1;
-	if (PSTATE_SEC_LAST1->ac2 > 0)
-		l1 += PSTATE_SEC_LAST1->ac2;
-
-	int l2 = pstate->grid;
-	if (PSTATE_SEC_LAST2->ac1 > 0)
-		l2 += PSTATE_SEC_LAST2->ac1;
-	if (PSTATE_SEC_LAST2->ac2 > 0)
-		l2 += PSTATE_SEC_LAST2->ac2;
-
-	// take largest on falling grid and smallest on rising grid
-	if (delta->grid < 0)
-		pstate->load = l0 > l1 ? l0 : l1 > l2 ? l1 : l2;
-	else
-		pstate->load = l0 < l1 ? l0 : l1 < l2 ? l1 : l2;
+		pstate->load += pstate->ac2;
 
 	// shape - akku makes big noise when full
 	ZSHAPE(pstate->grid, NOISE5)
@@ -915,7 +897,7 @@ static void calculate_pstate() {
 		pstate->flags |= FLAG_GRID_ULOAD;
 
 	// calculate delta, update delta sum, delta count in one loop, shape in percent
-	idelta_x(delta, PSTATE_SEC_LAST1, PSTATE_SEC_LAST2, deltac, deltas, PSTATE_SIZE, DELTAS);
+	idelta_x(delta, pstate, PSTATE_SEC_LAST1, deltac, deltas, PSTATE_SIZE, DELTAS);
 	// dump_array(delta, PSTATE_SIZE, "[DD]", 0);
 
 	// calculate online state and ramp power

@@ -180,7 +180,7 @@ static void publish_sensors_tasmotalike() {
 
 	// snprintf(subtopic, sizeof(subtopic), "tele/%s/SENSOR", hostname);
 	// TODO generate id from name or mac address
-	snprintf(topic, 64, "tele/5213d6/SENSOR");
+	snprintf(topic, 64, "tele/%06x/SENSOR", PICAM_SENSORS);
 
 	strcpy(message, "{");
 
