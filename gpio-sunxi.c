@@ -249,6 +249,7 @@ int gpio_configure(const char *name, int function, int trigger, int initial) {
 	pio.port = *name++ - 'A';
 	pio.pin = atoi(name);
 	pio.func = function;
+	pio.pull = 0; // TODO
 	pio.trig = trigger;
 	pio.data = initial;
 	mem_write(&pio);

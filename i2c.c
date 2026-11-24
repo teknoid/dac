@@ -243,7 +243,7 @@ int i2c_read_bits(int fd, uint8_t addr, uint8_t reg, uint8_t *val, uint8_t mask)
 
 int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, uint8_t value, uint8_t mask) {
 	// read current
-	uint8_t current;
+	uint8_t current = 0;
 	if (i2c_read(fd, addr, reg, &current) < 0)
 		return -1;
 
@@ -257,7 +257,7 @@ int i2c_write_bits(int fd, uint8_t addr, uint8_t reg, uint8_t value, uint8_t mas
 }
 
 int i2c_set_bit(int fd, uint8_t addr, uint8_t reg, int n) {
-	uint8_t value;
+	uint8_t value = 0;
 	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
 
@@ -267,7 +267,7 @@ int i2c_set_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 }
 
 int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
-	uint8_t value;
+	uint8_t value = 0;
 	if (i2c_read(fd, addr, reg, &value) < 0)
 		return -1;
 
@@ -277,7 +277,8 @@ int i2c_clear_bit(int fd, uint8_t addr, uint8_t reg, int n) {
 }
 
 void i2c_dump_reg(int fd, uint8_t addr, uint8_t reg) {
-	uint8_t value;
-	i2c_read(fd, addr, reg, &value);
+	uint8_t value = 0;
+	if (i2c_read(fd, addr, reg, &value) < 0)
+		return;
 	xlog("I2C 0x%02x == 0x%02x 0b%s", reg, value, printbits(value));
 }

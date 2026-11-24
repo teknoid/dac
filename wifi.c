@@ -947,7 +947,8 @@ static void home() {
 				continue;
 			if (MM->count > h->count) {
 				memcpy(h, MM, sizeof(mac_t));
-				strcpy(h->ssid, SS->ssid);
+				if (!EMPTY(SS->ssid))
+					strcpy(h->ssid, SS->ssid);
 				h->tag = 'h';
 			}
 
@@ -1167,7 +1168,6 @@ static int init() {
 	popen_x = 1;
 	strcpy(popen_device, "wlx984827ec6e9f");
 #endif
-
 
 	// start local tcpdump thread
 	if (popen_x) {

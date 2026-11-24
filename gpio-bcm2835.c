@@ -439,7 +439,8 @@ uint32_t gpio_micros_since(uint32_t *when) {
 }
 
 static int init() {
-	int pagesize = sysconf(_SC_PAGESIZE);
+	char buf[1024];
+	uint32_t base = 0;
 
 	if (timer != 0 && gpio != 0)
 		return 0; // already initalized
@@ -449,18 +450,20 @@ static int init() {
 	if (f == NULL)
 		return xerr("Cannot open file /proc/cpuinfo for reading");
 
-	char buf[1024];
-	fgets(buf, sizeof(buf), f); // skip first line
-	fgets(buf, sizeof(buf), f); // model name
-	uint32_t base = 0;
-	if (strstr(buf, "ARMv6"))
-		base = 0x20000000;
-	else if (strstr(buf, "ARMv7"))
-		base = 0x3f000000;
-	else if (strstr(buf, "ARMv8"))
-		base = 0x3f000000;
-	else
-		return xerr("Unknown CPU type");
+	if (fgets(buf, sizeof(buf), f) != NULL)
+		// skip first line
+		if (fgets(buf, sizeof(buf), f) != NULL) {
+			// model name
+			if (strstr(buf, "ARMv6"))
+				base = 0x20000000;
+			else if (strstr(buf, "ARMv7"))
+				base = 0x3f000000;
+			else if (strstr(buf, "ARMv8"))
+				base = 0x3f000000;
+			else
+				return xerr("Unknown CPU type");
+		}
+
 	fclose(f);
 
 	// access memory
@@ -469,6 +472,7 @@ static int init() {
 		return xerr("/dev/mem failed: %s", strerror(errno));
 
 	// mmap timer
+	int pagesize = sysconf(_SC_PAGESIZE);
 	timer = (uint32_t*) mmap(NULL, pagesize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, fd, base + 0x3000);
 	if (timer == MAP_FAILED)
 		return xerr("mmap timer failed: %s", strerror(errno));
