@@ -74,9 +74,9 @@ static device_t i2 = { .name = "fronius7" };
 
 // devices - consumer
 static device_t a1 = { .name = "akku", .total = 0, .rf = &ramp_akku, .adj = 0, .min = 100 }, *AKKU = &a1;
-static device_t b1 = { .name = "boiler1", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b2 = { .name = "boiler2", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
-static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
+static device_t b1 = { .name = "boiler1", .id = BOILER1,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b2 = { .name = "boiler2", .id = BOILER2,   .r = 0, .total = 2000, .rf = &ramp_boiler, .adj = 1 };
+static device_t b3 = { .name = "boiler3", .id = BOILER3,   .r = 0, .total = 1800, .rf = &ramp_boiler, .adj = 1, .min = 100,  .from = 10, .to = 15 };
 static device_t h1 = { .name = "tisch",   .id = INFRARED,  .r = 3, .total = 150,  .rf = &ramp_heater, .adj = 0, .min = 200,  .host = "infrared" };
 static device_t h2 = { .name = "küche",   .id = INFRARED,  .r = 2, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
 static device_t h3 = { .name = "wozi",    .id = INFRARED,  .r = 1, .total = 450,  .rf = &ramp_heater, .adj = 0, .min = 500,  .host = "infrared" };
@@ -874,7 +874,7 @@ static void calculate_actions() {
 
 	// steal logic twice per minute
 	if (now->tm_sec == 15 || now->tm_sec == 45)
-		if (!GSTATE_PVFALL && !DSTATE_ALL_UP) {
+		if (!PSTATE_PVFALL && !GSTATE_PVFALL && !DSTATE_ALL_UP) {
 			dstate->flags |= FLAG_ACTION_STEAL;
 			return;
 		}

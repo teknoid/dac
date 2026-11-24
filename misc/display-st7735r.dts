@@ -18,7 +18,7 @@
 		__overlay__ {
 			status = "okay";
 
-			spidev@0{
+			spidev {
 				status = "disabled";
 			};
 
@@ -50,9 +50,10 @@
 
 				spi-max-frequency = <16000000>;
 				rotation = <270>;
-				bgr = <0>;
+				bgr;
 				bpp = <1>;
 				fps = <25>;
+				buswidth = <8>;
 				reset-gpios = <&pio 6 7 0>;
 				dc-gpios = <&pio 6 6 0>;
 			};

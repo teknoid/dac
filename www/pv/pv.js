@@ -146,6 +146,8 @@ function update_devices() {
 				dd.classList.add(v.name);
 
 				var height = v.load * 100 / v.total;
+				if (height < 0)
+					height *= -1;
 				var clazz;
 				if (v.state == 0 || v.state == 1) {
 					dd.classList.add('d');

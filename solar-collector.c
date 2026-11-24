@@ -271,7 +271,7 @@ static void print_gstate() {
 		xlogl_percent10(line, "Foca", gstate->forecast);
 	} else {
 		xlogl_float(line, "TTL", FLOAT60(gstate->ttl));
-		xlogl_int(line, "Stored", gstate->stored);
+		xlogl_int(line, "Usable", gstate->usable);
 		xlogl_int(line, "Needed", gstate->needed);
 		xlogl_percent10(line, "Surv", gstate->survive);
 	}
@@ -422,7 +422,7 @@ static void calculate_gstate_offline() {
 	} else if (gstate->survive < SURVIVE90) {
 
 		// not survive - stretch akku ttl to maximum
-		int dlimit = gstate->minutes ? gstate->stored * 60 / gstate->minutes / 10 * 10 : 0;
+		int dlimit = gstate->minutes ? gstate->usable * 60 / gstate->minutes / 10 * 10 : 0;
 		LOCUT(dlimit, params->baseload)
 		int delta = params->akku_dlimit - dlimit;
 		ZSHAPE(delta, params->minimum / 2)
@@ -551,50 +551,32 @@ static void calculate_gstate() {
 		if (PSTATE_MIN_LAST1->grid < params->minimum * -1 || avgmm->grid < RAMP * -2)
 			gstate->flags |= FLAG_GRID_ULOAD;
 
-	// akku State of Power (SoP) self tracked
+	// State of Power (SoP) self tracked
+	gstate->sop = CS_DAY->charged - CS_DAY->discharged;
+
+	// effective usable energy
 	int msoc = (WINTER ? 10 : params->akku_minsoc) * 10; // 10% in winter
 	int resv = params->akku_capacity * msoc / 1000; // reserve
-	gstate->sop = CS_DAY->charged - CS_DAY->discharged;
-	if (gstate->soc == 1000) {
-		// set charge counter to 'full' if SoC == 100% and reset discharge counter
-		CA_NOW->charged = params->akku_capacity * 60 * 60; // Watt-seconds
-		CA_NOW->discharged = 0;
-	}
-	if (gstate->soc <= msoc) {
-		// set charge counter to 'empty' if SoC below msoc and reset discharge counter
-		unsigned long ul = (unsigned long) params->akku_capacity * 60 * 60 * gstate->soc / 1000; // Watt-seconds
-		CA_NOW->charged = ul;
-		CA_NOW->discharged = 0;
-	}
+	gstate->usable = params->akku_capacity * gstate->soc / 1000 - resv;
 
-	// akku effective usable energy
-	int sopp = gstate->sop; // self-tracked
-	int socp = params->akku_capacity * gstate->soc / 1000; // calculated from SoC
-	int xsop = socp ? sopp * 1000 / socp : 0;
-	gstate->stored = round10(sopp - resv); // self tracked
-	LOCUT(gstate->stored, 0)
-	if (!gstate->stored)
-		gstate->stored = round10(socp - resv); // from SoC
-	xlog("SOLAR stored sopp=%d socp=%d xsop=%.1f%% reserve=%d --> %d Wh", sopp, socp, FLOAT10(xsop), resv, gstate->stored);
-
-	// akku estimated time to live based on 10 min average load or discharge
+	// estimated time to live based on 10 min average load or discharge
 	int al = avgmm->akku > avgmm->load ? avgmm->akku : avgmm->load;
-	gstate->ttl = al && gstate->soc > msoc ? gstate->stored * 60 / al : 0; // in minutes, hi-cutted to 3 days
+	gstate->ttl = al && gstate->soc > msoc ? gstate->usable * 60 / al : 0; // in minutes, hi-cutted to 3 days
 	HICUT(gstate->ttl, 60 * 24 * 3)
 
 	// survival factor
-	int tocharge = gstate->needed - gstate->stored;
+	int tocharge = gstate->needed - gstate->usable;
 	LOCUT(tocharge, 0)
 	int available = pstate->pv ? gstate->eod - tocharge - marbles->day : 0;
 	LOCUT(available, 0)
-	int survive = gstate->needed ? gstate->stored * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last one if zero
+	int survive = gstate->needed ? gstate->usable * 1000 / gstate->needed : GSTATE_MIN_LAST1->survive; // use last one if zero
 	gstate->survive = survive;
 	if (gstate->survive < 1000 && available > params->akku_capacity)
 		gstate->survive = 1000; // set to 100% as long as enough pv available
 	HICUT(gstate->survive, 2000)
 	LOCUT(gstate->survive, 0)
-#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d stored=%d needed=%d night=%d --> %.1f%% (%.1f%%)"
-	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->stored, gstate->needed, gstate->minutes, FLOAT10(gstate->survive), FLOAT10(survive));
+#define TEMPLATE_SURVIVE "SOLAR survive eod=%d day=%d tocharge=%d available=%d usable=%d needed=%d night=%d --> %.1f%% (%.1f%%)"
+	xlog(TEMPLATE_SURVIVE, gstate->eod, marbles->day, tocharge, available, gstate->usable, gstate->needed, gstate->minutes, FLOAT10(gstate->survive), FLOAT10(survive));
 
 	// success factor
 	gstate->success = gstate->sod > params->minimum ? gstate->pv * 1000 / gstate->sod : 0;
@@ -852,7 +834,7 @@ static void calculate_pstate() {
 	// clear flags and values
 	pstate->flags = pstate->surp = pstate->ramp = pstate->dsl = pstate->dtl = 0;
 
-	// update akku counter
+	// update akku self counter
 	if (pstate->akku > 0)
 		CA_NOW->discharged += pstate->akku;
 	if (pstate->akku < 0)
@@ -1104,6 +1086,12 @@ static void hourly() {
 
 	// mosmix today and tomorrow
 	mosmix_store_csv();
+
+	// reset akku discharged counter at high noon, charged counter at midnight
+	if (now->tm_hour == 12)
+		CA_NOW->discharged = 0;
+	if (now->tm_hour == 0)
+		CA_NOW->charged = 0;
 
 	// reset override limits
 	if (now->tm_hour == 6)

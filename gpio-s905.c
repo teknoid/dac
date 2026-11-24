@@ -55,7 +55,7 @@ static void test_lirc() {
 
 	gpio_configure(pio, 1, 0, 1);
 	gpio_print(pio);
-	xlog("3x lirc VOLUP/VOLDOWN\n");
+	xlog("3x lirc VOLUP/VOLDOWN");
 	gpio_lirc(pio, 0x00FD20DF);
 	gpio_lirc(pio, 0x00FD20DF);
 	gpio_lirc(pio, 0x00FD20DF);
@@ -70,29 +70,29 @@ static void test_flamingo() {
 	const char *pio = "GPIO17";
 
 	gpio_configure(pio, 1, 0, 0);
-	xlog("flamingo v1 ON\n");
+	xlog("flamingo v1 ON");
 	gpio_flamingo_v1(pio, 0x02796056, 28, 4, 330);
 	sleep(1);
-	xlog("flamingo v2 OFF\n");
+	xlog("flamingo v2 OFF");
 	gpio_flamingo_v1(pio, 0x0253174e, 28, 4, 330);
 }
 
 static void test_blink() {
 	const char *pio = "GPIO17";
 
-	xlog("configure with initial 0\n");
+	xlog("configure with initial 0");
 	gpio_configure(pio, 1, 0, 0);
 	sleep(1);
 
-	xlog("configure with initial 1\n");
+	xlog("configure with initial 1");
 	gpio_configure(pio, 1, 0, 1);
 	sleep(1);
 
-	xlog("configure with initial not set\n");
+	xlog("configure with initial not set");
 	gpio_configure(pio, 1, 0, -1);
 	sleep(1);
 
-	xlog("blink test\n");
+	xlog("blink test");
 	for (int i = 0; i < 3; i++) {
 		gpio_set(pio, 1);
 		gpio_print(pio);
@@ -103,7 +103,7 @@ static void test_blink() {
 	}
 	sleep(1);
 
-	xlog("toggle test\n");
+	xlog("toggle test");
 	gpio_toggle(pio);
 	gpio_print(pio);
 	sleep(1);
@@ -114,30 +114,30 @@ static void test_blink() {
 static void test_timers() {
 	uint32_t t;
 
-	xlog("T0 %08u T1 %08u\n", timer[0], timer[1]);
+	xlog("T0 %08u T1 %08u", timer[0], timer[1]);
 	usleep(1000);
-	xlog("T0 %08u T1 %08u\n", timer[0], timer[1]);
+	xlog("T0 %08u T1 %08u", timer[0], timer[1]);
 	usleep(1000);
-	xlog("T0 %08u T1 %08u\n", timer[0], timer[1]);
+	xlog("T0 %08u T1 %08u", timer[0], timer[1]);
 
 	t = timer[1];
 	gpio_delay_micros(330);
-	xlog("T1 330 %08u\n", timer[1] - t);
+	xlog("T1 330 %08u", timer[1] - t);
 	t = timer[1];
 	gpio_delay_micros(188);
-	xlog("T1 188 %08u\n", timer[1] - t);
+	xlog("T1 188 %08u", timer[1] - t);
 	t = timer[1];
 	gpio_delay_micros(88);
-	xlog("T1 088 %08u\n", timer[1] - t);
+	xlog("T1 088 %08u", timer[1] - t);
 	t = timer[1];
 	gpio_delay_micros(22);
-	xlog("T1 022 %08u\n", timer[1] - t);
+	xlog("T1 022 %08u", timer[1] - t);
 
 	uint32_t delay = 1813594;
 	uint32_t begin = gpio_micros();
 	usleep(delay);
 	uint32_t elapsed = gpio_micros_since(&begin);
-	xlog("usleep %u T1 elapsed = %u\n", delay, elapsed);
+	xlog("usleep %u T1 elapsed = %u", delay, elapsed);
 }
 
 static void mem_read(gpio_status_t *pio) {
@@ -193,7 +193,7 @@ void gpio_print(const char *name) {
 	xlog("GPIO%d", pio.pin);
 	xlog("<%x>", pio.func);
 	xlog("<%x>", pio.data);
-	xlog("\n");
+	xlog("");
 }
 
 int gpio_configure(const char *name, int function, int trigger, int initial) {
@@ -462,7 +462,7 @@ int gpio_main(int argc, char **argv) {
 	set_debug(1);
 
 	init();
-	xlog("mmap OK\n");
+	xlog("mmap OK");
 
 	test_timers();
 	test_lirc();
