@@ -105,9 +105,6 @@
 #define APLAY_OPTIONS			"-q -D hw:CARD=Device"
 #define APLAY_DIRECTORY 		"/home/hje/sounds/16"
 
-#define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
-#define NOTIFY_SEND				"/usr/bin/notify-send -t 20000 -i /home/hje/Pictures/icons/mosquitto.png"
-
 // module chain
 static mcp_module_t *module = NULL;
 
@@ -213,13 +210,15 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 
 	xlog("MCP notify %s / %s / %s / %c last_notify=%d", title, text, sound, color ? color : '0', last);
 
+	// TODO color
+
+#ifdef DBUS
 	// desktop notifications via DBUS
 	if (mcp->notify_desktop) {
 		snprintf(command, 1023, "%s %s \"%s\" \"%s\"", DBUS, NOTIFY_SEND, title, text);
 		system(command);
 	}
-
-	// TODO color
+#endif
 
 #ifdef LCD
 	// show on LCD display line 1 and 2

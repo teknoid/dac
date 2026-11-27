@@ -16,6 +16,8 @@
 #define TASMOTA
 #define LCD
 #define LEDSTRIP
+#define DBUS					"DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+#define NOTIFY_SEND				"/usr/bin/notify-send -t 20000 -i /home/hje/Pictures/icons/mosquitto.png"
 #define NOTIFY(ti, tx, c, s)	mcp_notify(ti, tx, c, s)
 #define TVOC					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->sgp41_tvoc : UINT16_MAX)
 #define TEMP_IN					(tasmota_get_by_id(DEVKIT1) ? tasmota_get_by_id(DEVKIT1)->htu21_temp : UINT16_MAX)
