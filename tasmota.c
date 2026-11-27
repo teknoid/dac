@@ -453,7 +453,7 @@ static int dispatch_result(tasmota_t *t, const char *message, size_t msize) {
 		}
 
 		if (data == DOORBELL) {
-			mcp_notify("Ding", "Dong", "ding-dong.wav", 'r');
+			NOTIFY("Ding", "Dong", "ding-dong.wav", 'r');
 			return 0;
 		}
 
@@ -520,7 +520,7 @@ static int dispatch_stat(tasmota_t *t, const char *suffix, int idx, const char *
 		if (skip1 || skip2 || skip3)
 			xdebug("TASMOTA suppress carport motion notify lumi=%d hour=%d", sensor->lumi, now->tm_hour);
 		else
-			mcp_notify("motion", "carport", "au.wav", 0);
+			NOTIFY("motion", "carport", "au.wav", 0);
 		return 0;
 	}
 
@@ -823,11 +823,11 @@ static void loop() {
 			if (t->sgp41_tvoc > 300) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
-				mcp_notify(line1, line2, "rüüüülps.wav", 0);
+				NOTIFY(line1, line2, "rüüüülps.wav", 0);
 			} else if (t->sgp41_tvoc > 200) {
 				snprintf(line1, 16, "SGP41 NOx %d", t->sgp41_nox);
 				snprintf(line2, 16, "SGP41 TVOC %d", t->sgp41_tvoc);
-				mcp_notify(line1, line2, "furz hihihi.wav", 0);
+				NOTIFY(line1, line2, "furz hihihi.wav", 0);
 			}
 		}
 	}

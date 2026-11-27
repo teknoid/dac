@@ -67,9 +67,6 @@
 #define NAMES(x)				find(names, x->mac)
 #define HOMES(x)				find(homes, x->mac)
 
-// #define NOTIFY(x, y, z)			mqtt_notify(x, y, z)
-#define NOTIFY(x, y, z)			mcp_notify(x, y, z, 0)
-
 #define SS						(*ss)
 #define MM						(*mm)
 #define ZZ						(*zz)
@@ -120,14 +117,14 @@ static void notify_new(mac_t *s, mac_t *m) {
 
 	// ZOMBIE always
 	if (s == (mac_t*) zombies) {
-		NOTIFY("New Zombie", NAME(m), "au.wav");
+		NOTIFY("New Zombie", NAME(m), "au.wav", 0);
 		return;
 	}
 
 	// BEACON if ssid is present
 	if (s == (mac_t*) beacons) {
 		if (!EMPTY(m->ssid))
-			NOTIFY("New Station", NAME(m), "au.wav");
+			NOTIFY("New Station", NAME(m), "au.wav", 0);
 		return;
 	}
 
@@ -147,7 +144,7 @@ static void notify_new(mac_t *s, mac_t *m) {
 	if (EMPTY(m->name))
 		return;
 
-	NOTIFY(NAME(s), NAME(m), "au.wav");
+	NOTIFY(NAME(s), NAME(m), "au.wav", 0);
 }
 
 static void notify_back(mac_t *s, mac_t *m) {
@@ -162,14 +159,14 @@ static void notify_back(mac_t *s, mac_t *m) {
 
 	// ZOMBIE always
 	if (s == (mac_t*) zombies) {
-		NOTIFY("Zombie is back", NAME(m), "mau2.wav");
+		NOTIFY("Zombie is back", NAME(m), "mau2.wav", 0);
 		return;
 	}
 
 	// BEACON if ssid is present
 	if (s == (mac_t*) beacons) {
 		if (!EMPTY(m->ssid))
-			NOTIFY("Station is back", NAME(m), "mau2.wav");
+			NOTIFY("Station is back", NAME(m), "mau2.wav", 0);
 		return;
 	}
 
@@ -189,7 +186,7 @@ static void notify_back(mac_t *s, mac_t *m) {
 	if (EMPTY(m->name) || pph < PPH_MIN)
 		return;
 
-	NOTIFY(NAME(s), NAME(m), "mau2.wav");
+	NOTIFY(NAME(s), NAME(m), "mau2.wav", 0);
 }
 
 void notify_assigned(small_station_t *s, mac_t *z) {
@@ -202,7 +199,7 @@ void notify_assigned(small_station_t *s, mac_t *z) {
 	char title[DESCRIPTION2], text[DESCRIPTION2];
 	snprintf(title, DESCRIPTION, "Zombie %s", NAME(z));
 	snprintf(text, DESCRIPTION, "assigned to %s", NAME(s));
-	NOTIFY(title, text, NULL);
+	NOTIFY(title, text, NULL, 0);
 }
 
 void notify_hotspot(small_station_t *s, mac_t *z) {
@@ -215,7 +212,7 @@ void notify_hotspot(small_station_t *s, mac_t *z) {
 	char title[DESCRIPTION2], text[DESCRIPTION2];
 	snprintf(title, DESCRIPTION, "Zombie %s", NAME(z));
 	snprintf(text, DESCRIPTION, "is hotspot %s", NAME(s));
-	NOTIFY(title, text, NULL);
+	NOTIFY(title, text, NULL, 0);
 }
 
 static small_station_t* station(uint64_t mac, int channel, int signal, char *ssid, int create) {
@@ -764,7 +761,7 @@ static void dump() {
 
 	//check if input stopped
 	if (old_line_count == line_count)
-		NOTIFY("tcpdump", "stall", NULL);
+		NOTIFY("tcpdump", "stall", NULL, 0);
 	old_line_count = line_count;
 
 //	PROFILING_LOG("dump")
@@ -1035,49 +1032,49 @@ static int main_test() {
 	xlog("decoded string %s", str1);
 	string_isvalid(str1);
 	xlog("isvalid string %s", str1);
-	NOTIFY("Test", str1, NULL);
+	NOTIFY("Test", str1, NULL, 0);
 
 	xlog("encoded string %s", str2);
 	decode_meta_utf8(str2);
 	xlog("decoded string %s", str2);
 	string_isvalid(str2);
 	xlog("isvalid string %s", str2);
-	NOTIFY("Test", str2, NULL);
+	NOTIFY("Test", str2, NULL, 0);
 
 	xlog("encoded string %s", str3);
 	decode_meta_utf8(str3);
 	xlog("decoded string %s", str3);
 	string_isvalid(str3);
 	xlog("isvalid string %s", str3);
-	NOTIFY("Test", str3, NULL);
+	NOTIFY("Test", str3, NULL, 0);
 
 	xlog("encoded string %s", str4);
 	decode_meta_utf8(str4);
 	xlog("decoded string %s", str4);
 	string_isvalid(str4);
 	xlog("isvalid string %s", str4);
-	NOTIFY("Test", str4, NULL);
+	NOTIFY("Test", str4, NULL, 0);
 
 	xlog("encoded string %s", str5);
 	decode_meta_utf8(str5);
 	xlog("decoded string %s", str5);
 	string_isvalid(str5);
 	xlog("isvalid string %s", str5);
-	NOTIFY("Test", str5, NULL);
+	NOTIFY("Test", str5, NULL, 0);
 
 	xlog("encoded string %s", str6);
 	decode_meta_utf8(str6);
 	xlog("decoded string %s", str6);
 	string_isvalid(str6);
 	xlog("isvalid string %s", str6);
-	NOTIFY("Test", str6, NULL);
+	NOTIFY("Test", str6, NULL, 0);
 
 	xlog("encoded string %s", str7);
 	decode_meta_utf8(str7);
 	xlog("decoded string %s", str7);
 	string_isvalid(str7);
 	xlog("isvalid string %s", str7);
-	NOTIFY("Test", str7, NULL);
+	NOTIFY("Test", str7, NULL, 0);
 
 	uint64_t mac;
 	mac = string2mac("d4:ca:6e:43:a0:25");

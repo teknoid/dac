@@ -93,15 +93,19 @@ static int dispatch_network(struct mqtt_response_publish *p) {
 	free(message);
 
 	// switch HOFLICHT on if darkness and handy logs into wlan
+#ifdef TASMOTA
 	if (mac == MAC_HANDY)
 		if (sensor->lumi < DARKNESS)
 			tasmota_power(HOFLICHT, 0, 1);
+#endif
 
 	return 0;
 }
 
 static int dispatch_tasmota(struct mqtt_response_publish *p) {
+#ifdef TASMOTA
 	tasmota_dispatch(p->topic_name, p->topic_name_size, p->application_message, p->application_message_size);
+#endif
 	return 0;
 }
 

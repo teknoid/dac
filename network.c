@@ -10,13 +10,13 @@
 #include "network.h"
 #include "utils.h"
 
-// cat /usr/share/ieee-data/oui.csv |sort >/usr/share/ieee-data/oui_sorted.csv
+// cat /usr/share/ieee-data/oui.csv |sort >/var/lib/mcp/oui_sorted.csv
 // and then manually remove last line (headline)
 #define IEEE					"/usr/share/ieee-data/oui.csv"
-#define IEEE_SORTED				"/usr/share/ieee-data/oui_sorted.csv"
+#define IEEE_SORTED				"/var/lib/mcp/oui_sorted.csv"
 #define IEEE_MASK				0xffffff000000
 
-#define ETHERS					"/server/mikrotik/INSTALL/mnt/sda1/etc/dnsmasq.d/ethers"
+#define ETHERS					"/var/lib/mcp/ethers"
 
 // #define TRACE_FILE
 

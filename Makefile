@@ -64,6 +64,10 @@ sabre28: clean $(COBJS-SABRE28)
 # standalone modules
 #
 
+lcd: CFLAGS += -DMCP -DLCD
+lcd: clean mcp.o utils.o network.o frozen.o mqtt-rx.o lcd.o i2c.o
+	$(CC) $(CFLAGS) -o lcd mcp.o utils.o network.o frozen.o mqtt-rx.o lcd.o i2c.o $(LIBS) -lmqttc
+
 solar: CFLAGS += -DSOLAR_MAIN -DRUN=\"/tmp\" -DSTATE=\"/tmp\" -DWORK=\"/tmp\" -DSTDOUT -DDEBUG
 solar: clean $(COS) mcp.o utils.o sensors.o i2c.o frozen.o network.o curl.o
 	$(CC) $(CFLAGS) -L$(LIB) -o solar $(COS) mcp.o utils.o sensors.o i2c.o frozen.o network.o curl.o -lmodbus -lm -lcurl
@@ -110,7 +114,7 @@ valgrind:
 
 clean:
 	find . -type f -name '*.o' -delete
-	rm -f mcp display switch sensors flamingo gpio-sunxi gpio-bcm2835 solar simulator sunspec mosmix template aqua ledstrip tasmota wifi
+	rm -f mcp display switch sensors flamingo gpio-sunxi gpio-bcm2835 solar simulator sunspec mosmix template aqua ledstrip tasmota wifi lcd
 
 install:
 	@echo "[Installing and starting mcp]"

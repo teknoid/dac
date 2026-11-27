@@ -13,3 +13,6 @@ ExecStart=/usr/local/bin/mcp
 
 [Install]
 WantedBy=multi-user.target
+
+# create logfile at statup
+# echo "f /var/log/mcp.log 0755 hje hje" >/etc/tmpfiles.d/mcp.conf

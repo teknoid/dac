@@ -96,6 +96,9 @@
 
 #ifdef LCD
 #include "lcd.h"
+#endif
+
+#ifdef LEDSTRIP
 #include "ledstrip.h"
 #endif
 
@@ -222,7 +225,9 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 	// show on LCD display line 1 and 2
 	if (mcp->notify_lcd)
 		lcd_print(title, text);
+#endif
 
+#ifdef LEDSTRIP
 	// ledstrip blink
 	if (mcp->notify_led && color && last > 10)
 		ledstrip_blink_red();
@@ -230,7 +235,7 @@ void mcp_notify(const char *title, const char *text, const char *sound, const ch
 
 #ifdef MIXER
 	// play sound
-	if (mcp->notify_sound && sound && last > 10) {
+	if (mcp->notify_sound && sound != NULL && last > 10) {
 		snprintf(command, 1023, "/usr/bin/aplay %s \"%s/%s\"", APLAY_OPTIONS, APLAY_DIRECTORY, sound);
 		system(command);
 	}
