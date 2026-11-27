@@ -43,19 +43,19 @@
 			#size-cells = <0>;
 
 			display@0{
-				compatible = "jianda,jd-t18003-t01", "sitronix,st7735r";
+				compatible = "sitronix,st7735r";
 				reg = <0>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&st7735r_pins>;
 
 				spi-max-frequency = <16000000>;
-				rotation = <270>;
+				rotate = <270>;
 				bgr;
 				bpp = <1>;
 				fps = <25>;
 				buswidth = <8>;
-				reset-gpios = <&pio 6 7 0>;
 				dc-gpios = <&pio 6 6 0>;
+				reset-gpios = <&pio 6 7 1>;
 			};
 		};
 	};
