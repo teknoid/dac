@@ -4,12 +4,11 @@ Requires=sys-subsystem-net-devices-wlx984827ec6e9f.device
 After=sys-subsystem-net-devices-wlx984827ec6e9f.device
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=iw phy phy2 interface add mon0 type monitor
-ExecStartPost=ip link set dev mon0 up
-ExecStop=ip link set dev mon0 down
-ExecStop=iw dev mon0 del
+Type=simple
+ExecStartPre=ip link set wlx984827ec6e9f down
+ExecStartPre=iw wlx984827ec6e9f set type monitor
+ExecStartPre=ip link set wlx984827ec6e9f up
+ExecStart=/bin/sh -c 'while true; do for c in `seq 1 13`; do iw dev wlx984827ec6e9f set channel $c; sleep 1s; done; done'
 
 [Install]
 WantedBy=sys-subsystem-net-devices-wlx984827ec6e9f.device

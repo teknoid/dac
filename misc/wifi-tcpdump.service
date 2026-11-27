@@ -5,7 +5,7 @@ After=network-online.target wifi-monitor.service
 
 [Service]
 Type=simple
-ExecStart=/bin/sh -c 'tcpdump -nevi mon0 | nc tron 6666'
+ExecStart=/bin/sh -c 'tcpdump -nevi wlx984827ec6e9f | nc tron 6666'
 ExecStop=killall tcpdump
 Restart=always
 RestartSec=30
